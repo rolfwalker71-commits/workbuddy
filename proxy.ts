@@ -42,7 +42,12 @@ function isAlwaysAllowedForLimitedUser(pathname: string): boolean {
     return true;
   }
   if (pathname.startsWith("/api/push/")) return true;
-  if (pathname === "/api/me/notification-prefs") return true;
+  if (
+    pathname === "/api/me/notification-prefs" ||
+    pathname === "/api/me/weather"
+  ) {
+    return true;
+  }
   if (pathname === "/account" || pathname.startsWith("/account/")) return true;
   if (pathname.startsWith("/api/users/media/avatar/")) return true;
   if (pathname === "/api/account" || pathname.startsWith("/api/account/")) {

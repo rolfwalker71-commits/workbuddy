@@ -16,6 +16,7 @@ import { zurichYmd } from "@/lib/microsoft/time";
 import { getMariTicketsWatchState } from "@/lib/mari/sync-tickets-if-due";
 import type { MariTicketsWatchState } from "@/lib/mari/sync-tickets-if-due";
 import { loadHomeTasksBundle, type HomeTasksBundle } from "./home-tasks";
+import { fetchHomeWeatherCard, type HomeWeatherCard } from "@/lib/weather/fetch";
 
 export type HomeMailSample = {
   id: string;
@@ -48,6 +49,7 @@ export type HomeOverviewPayload = {
     enabled: boolean;
     tickets: MariTicketsWatchState;
   } | null;
+  weather: HomeWeatherCard | null;
 };
 
 function mailSample(item: MsMailItem): HomeMailSample {
@@ -111,11 +113,14 @@ export async function getHomeOverview(
     };
   }
 
+  const weather = await fetchHomeWeatherCard(userId);
+
   return {
     greetingName: auth.username,
     today,
     modules,
     microsoft,
     maringo,
+    weather,
   };
 }

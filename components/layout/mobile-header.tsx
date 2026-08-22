@@ -36,7 +36,7 @@ export function MobileHeader() {
         </SheetContent>
       </Sheet>
       <BuddyLogo size={32} className="size-8" />
-      <WorkBuddyWordmark size="sm" className="font-semibold" />
+      <WorkBuddyWordmark size="sm" />
     </header>
   );
 }

@@ -20,6 +20,7 @@ import { weekdayLabel } from "@/lib/utils/weekday";
 import { cn } from "@/lib/utils";
 import type { HomeOverviewPayload } from "@/lib/dashboard/home-overview";
 import type { HomeTaskItem } from "@/lib/dashboard/home-tasks";
+import { HomeWeatherWidget } from "./home-weather-widget";
 
 const ASIDE_WIDGET_CLASS =
   "rounded-2xl border border-border/70 bg-card shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_3px_10px_rgba(15,23,42,0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_4px_14px_rgba(0,0,0,0.28)]";
@@ -223,18 +224,27 @@ export function HomeOverview() {
   return (
     <div className="space-y-6 pb-10">
       <header className="rounded-2xl bg-card p-5 shadow-sm ring-1 ring-foreground/10 sm:p-6">
-        <h1 className="text-[1.75rem] font-extrabold tracking-tight leading-snug">
-          {greetingWord()}
-          {data?.greetingName ? `, ${data.greetingName}` : ""}
-        </h1>
-        <p className="mt-1 text-sm capitalize text-muted-foreground">
-          {formatLongDeDate()}
-        </p>
-        {data && data.modules.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">
-            Dir sind noch keine Module zugewiesen. Bitte den Admin unter Einstellungen.
-          </p>
-        ) : null}
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)] lg:items-center lg:gap-6">
+          <div className="min-w-0">
+            <h1 className="text-[1.75rem] font-extrabold leading-snug tracking-tight">
+              {greetingWord()}
+              {data?.greetingName ? `, ${data.greetingName}` : ""}
+            </h1>
+            <p className="mt-1 text-sm capitalize text-muted-foreground">
+              {formatLongDeDate()}
+            </p>
+            {data && data.modules.length === 0 ? (
+              <p className="mt-3 text-sm text-muted-foreground">
+                Dir sind noch keine Module zugewiesen. Bitte den Admin unter Einstellungen.
+              </p>
+            ) : null}
+          </div>
+          {loading && !data ? null : (
+            <div className="min-w-0 lg:justify-self-end">
+              <HomeWeatherWidget weather={data?.weather ?? null} />
+            </div>
+          )}
+        </div>
       </header>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}

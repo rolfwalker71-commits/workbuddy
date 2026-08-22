@@ -1,3 +1,14 @@
+export function weekdayShortDe(iso: string): string {
+  try {
+    return new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString("de-CH", {
+      weekday: "short",
+      timeZone: "Europe/Zurich",
+    });
+  } catch {
+    return iso;
+  }
+}
+
 export function weekdayLabel(iso: string): string {
   try {
     const d = new Date(`${iso}T12:00:00`);
