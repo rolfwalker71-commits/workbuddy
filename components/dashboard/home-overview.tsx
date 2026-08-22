@@ -15,6 +15,7 @@ import {
   MaringoLogo,
   MicrosoftLogo,
   MicrosoftPlannerLogo,
+  MicrosoftToDoLogo,
 } from "@/components/branding/provider-logos";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { weekdayLabel } from "@/lib/utils/weekday";
@@ -146,57 +147,81 @@ function MariStatusDonut({
   );
 }
 
+function TaskGroupList({ items }: { items: HomeTaskItem[] }) {
+  if (items.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">Keine offenen Aufgaben in den nächsten Tagen.</p>
+    );
+  }
+  return (
+    <ul className="space-y-2">
+      {items.map((task) => (
+        <li key={task.key}>
+          <Link
+            href={task.href || "/microsoft?tab=planner"}
+            className="flex items-start justify-between gap-2 rounded-xl bg-muted/40 px-3 py-2 hover:bg-muted"
+          >
+            <span className="min-w-0">
+              <span className="block break-words text-sm font-medium leading-snug">
+                {task.title}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {task.accountLabel}
+                {task.bucketLabel ? ` · ${task.bucketLabel}` : ""}
+              </span>
+            </span>
+            <span className="shrink-0 text-xs text-muted-foreground">
+              {task.overdue
+                ? "Überfällig"
+                : task.dueDate
+                  ? weekdayLabel(task.dueDate)
+                  : ""}
+            </span>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function TasksCard({ items }: { items: HomeTaskItem[] }) {
-  const focus = items.slice(0, 6);
+  const planner = items.filter((t) => t.source === "planner").slice(0, 5);
+  const todo = items.filter((t) => t.source === "todo").slice(0, 5);
   return (
     <Card className={ASIDE_WIDGET_CLASS}>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle className="flex items-center gap-2 text-base font-bold">
-            <MicrosoftPlannerLogo className="size-4" />
-            Planner &amp; To Do
-          </CardTitle>
-          <Link
-            href="/microsoft?tab=planner"
-            className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
-          >
-            Öffnen
-            <ChevronRight className="size-3.5" />
-          </Link>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {focus.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Keine offenen Aufgaben in den nächsten Tagen.</p>
-        ) : (
-          <ul className="space-y-2">
-            {focus.map((task) => (
-              <li key={task.key}>
-                <Link
-                  href={task.href || "/microsoft?tab=planner"}
-                  className="flex items-start justify-between gap-2 rounded-xl bg-muted/40 px-3 py-2 hover:bg-muted"
-                >
-                  <span className="min-w-0">
-                    <span className="block break-words text-sm font-medium leading-snug">
-                      {task.title}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {task.accountLabel}
-                      {task.bucketLabel ? ` · ${task.bucketLabel}` : ""}
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {task.overdue
-                      ? "Überfällig"
-                      : task.dueDate
-                        ? weekdayLabel(task.dueDate)
-                        : ""}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
+      <CardContent className="space-y-4 p-4 sm:p-5">
+        <section className="space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="flex items-center gap-2 text-base font-bold">
+              <MicrosoftPlannerLogo className="size-4" />
+              Planner
+            </h3>
+            <Link
+              href="/microsoft?tab=planner"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+            >
+              Öffnen
+              <ChevronRight className="size-3.5" />
+            </Link>
+          </div>
+          <TaskGroupList items={planner} />
+        </section>
+        <section className="space-y-2.5 border-t border-border/60 pt-4">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="flex items-center gap-2 text-base font-bold">
+              <MicrosoftToDoLogo className="size-4" />
+              To Do
+            </h3>
+            <Link
+              href="/microsoft?tab=planner"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+            >
+              Öffnen
+              <ChevronRight className="size-3.5" />
+            </Link>
+          </div>
+          <TaskGroupList items={todo} />
+        </section>
       </CardContent>
     </Card>
   );
@@ -271,14 +296,7 @@ export function HomeOverview() {
             )}
           </div>
           {data && (data.microsoft || data.maringo) ? (
-            <div
-              className={cn(
-                "grid gap-2",
-                data.microsoft && data.maringo
-                  ? "min-[22rem]:grid-cols-2 @[48rem]:grid-cols-3"
-                  : "min-[22rem]:grid-cols-2"
-              )}
-            >
+            <div className="grid gap-2 min-[22rem]:grid-cols-2">
               {data.microsoft ? (
                 <Link href="/microsoft?tab=mail" className={HERO_KPI_CLASS}>
                   <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-800 dark:bg-sky-500/15 dark:text-sky-100">
@@ -323,29 +341,6 @@ export function HomeOverview() {
                             : tickets.lastPollAt
                               ? "Keine offenen Tickets"
                               : "Noch kein Poll"}
-                    </span>
-                  </span>
-                </Link>
-              ) : null}
-              {data.microsoft ? (
-                <Link href="/microsoft?tab=calendar" className={HERO_KPI_CLASS}>
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-800 dark:bg-violet-500/15 dark:text-violet-100">
-                    <CalendarDays className="size-4" strokeWidth={APP_ICON_STROKE} />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-sm font-semibold leading-snug">
-                      {nextEvent
-                        ? nextEvent.isAllDay
-                          ? "Ganztägig"
-                          : nextEvent.startHm || "Heute"
-                        : "Kein Termin"}
-                    </span>
-                    <span className="mt-0.5 block break-words text-xs leading-snug text-muted-foreground">
-                      {nextEvent
-                        ? nextEvent.subject
-                        : data.microsoft.connected
-                          ? "Heute frei"
-                          : "Microsoft verbinden"}
                     </span>
                   </span>
                 </Link>
