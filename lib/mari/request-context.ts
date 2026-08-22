@@ -7,6 +7,11 @@ type MariRequestStore = {
 
 const mariRequestAls = new AsyncLocalStorage<MariRequestStore>();
 
+/**
+ * Best-effort bind for the current async resource only.
+ * After `await` in a caller (Next.js route), this store is lost — use
+ * `runWithMariUser` / `runWithRequestSecrets` for the rest of the handler.
+ */
 export function enterMariRequestUser(userId: number | null): void {
   mariRequestAls.enterWith({ userId });
 }

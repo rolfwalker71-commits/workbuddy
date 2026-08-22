@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { ensureInitialized } from "@/lib/db/migrations";
-import { isAuthError, requireModule } from "@/lib/auth/current-user";
+import { withMariModule } from "@/lib/mari/with-module";
 import {
   listPendingMariCalendarStamps,
   updateMariCalendarStampStatus,
@@ -20,9 +19,7 @@ const PatchSchema = z.object({
 
 /** Pending Maringo→calendar stamps for evening time-booking review. */
 export async function GET(request: Request) {
-  ensureInitialized();
-  const auth = await requireModule("maringo");
-  if (isAuthError(auth)) return auth;
+  return withMariModule(async (auth) => {
 
   const url = new URL(request.url);
   const date = url.searchParams.get("date")?.trim() || null;
@@ -58,12 +55,11 @@ export async function GET(request: Request) {
       href: `/maringo?open=${s.issueId}`,
     })),
   });
+  });
 }
 
 export async function PATCH(request: Request) {
-  ensureInitialized();
-  const auth = await requireModule("maringo");
-  if (isAuthError(auth)) return auth;
+  return withMariModule(async (auth) => {
 
   let body: z.infer<typeof PatchSchema>;
   try {
@@ -95,4 +91,5 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Vorschlag nicht gefunden." }, { status: 404 });
   }
   return NextResponse.json({ ok: true, stamp: updated });
+  });
 }

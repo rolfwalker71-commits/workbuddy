@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAuthContext } from "@/lib/auth/current-user";
 import { ALL_APP_MODULES } from "@/lib/users/modules";
 import { userAvatarPublicUrl } from "@/lib/users/avatar";
+import { ensureMicrosoftAvatar } from "@/lib/microsoft/photo";
 import {
   effectiveUserModules,
   getAppUserById,
@@ -21,13 +22,15 @@ export async function GET() {
   }
   if (ctx.kind === "admin") {
     const linked = getAppUserByUsername(ctx.username);
+    if (linked) await ensureMicrosoftAvatar(linked.id);
+    const fresh = linked ? getAppUserByUsername(ctx.username) : null;
     return NextResponse.json({
       kind: "admin",
       username: ctx.username,
-      displayName: linked?.display_name || ctx.username,
+      displayName: fresh?.display_name || ctx.username,
       isAdmin: true,
-      avatarUrl: linked ? userAvatarPublicUrl(linked.avatar_path) : null,
-      userId: linked?.id ?? ctx.userId,
+      avatarUrl: fresh ? userAvatarPublicUrl(fresh.avatar_path) : null,
+      userId: fresh?.id ?? ctx.userId,
       modules: [...ALL_APP_MODULES],
     });
   }
@@ -38,19 +41,21 @@ export async function GET() {
       { status: 401 }
     );
   }
-  const isAdmin = Boolean(user.is_admin);
+  await ensureMicrosoftAvatar(user.id);
+  const fresh = getAppUserById(user.id) ?? user;
+  const isAdmin = Boolean(fresh.is_admin);
   return NextResponse.json({
     kind: "user",
-    username: user.username,
-    displayName: user.display_name,
-    email: user.email,
-    userId: user.id,
-    gender: user.gender,
-    avatarUrl: userAvatarPublicUrl(user.avatar_path),
+    username: fresh.username,
+    displayName: fresh.display_name,
+    email: fresh.email,
+    userId: fresh.id,
+    gender: fresh.gender,
+    avatarUrl: userAvatarPublicUrl(fresh.avatar_path),
     isAdmin,
-    modules: effectiveUserModules(user.id, isAdmin),
-    mariEmployeeNumber: user.mari_employee_number,
-    hasOpenaiKey: Boolean(user.openai_api_key_enc),
-    hasMariPassword: Boolean(user.mari_rest_password_enc),
+    modules: effectiveUserModules(fresh.id, isAdmin),
+    mariEmployeeNumber: fresh.mari_employee_number,
+    hasOpenaiKey: Boolean(fresh.openai_api_key_enc),
+    hasMariPassword: Boolean(fresh.mari_rest_password_enc),
   });
 }

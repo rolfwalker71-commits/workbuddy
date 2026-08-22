@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { ensureInitialized } from "@/lib/db/migrations";
-import { isAuthError, requireModule } from "@/lib/auth/current-user";
+import { withMariModule } from "@/lib/mari/with-module";
 import { ownerKeyFromAuth } from "@/lib/auth/owner-key";
 import { hasChatKey, hasOpenAIKey } from "@/lib/ai/client";
 import { MariApiError } from "@/lib/mari/client";
@@ -27,9 +26,7 @@ function parseIssueId(raw: string): number | null {
 }
 
 export async function GET(_request: Request, context: Ctx) {
-  ensureInitialized();
-  const auth = await requireModule("maringo");
-  if (isAuthError(auth)) return auth;
+  return withMariModule(async (auth) => {
 
   const { id: raw } = await context.params;
   const id = parseIssueId(raw);
@@ -53,12 +50,11 @@ export async function GET(_request: Request, context: Ctx) {
     model: stored.model,
     internalNotePostedAt: stored.internalNotePostedAt,
   });
+  });
 }
 
 export async function POST(_request: Request, context: Ctx) {
-  ensureInitialized();
-  const auth = await requireModule("maringo");
-  if (isAuthError(auth)) return auth;
+  return withMariModule(async (auth) => {
   if (!hasMariConfig()) {
     return NextResponse.json(
       { error: "MARI nicht konfiguriert." },
@@ -148,4 +144,5 @@ export async function POST(_request: Request, context: Ctx) {
     const status = err instanceof MariApiError ? err.status || 502 : 502;
     return NextResponse.json({ error: message }, { status });
   }
+  });
 }

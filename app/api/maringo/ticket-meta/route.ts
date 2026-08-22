@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { ensureInitialized } from "@/lib/db/migrations";
-import { isAuthError, requireModule } from "@/lib/auth/current-user";
+import { withMariModule } from "@/lib/mari/with-module";
 import { MariApiError } from "@/lib/mari/client";
 import { hasMariConfig } from "@/lib/mari/config";
 import { listMariMedia, listMariPriorities } from "@/lib/mari/ticket-meta";
@@ -10,9 +9,7 @@ export const dynamic = "force-dynamic";
 
 /** Ticketkopf-Lookups: Prioritäten + Kommunikationskanäle (Medium). */
 export async function GET() {
-  ensureInitialized();
-  const auth = await requireModule("maringo");
-  if (isAuthError(auth)) return auth;
+  return withMariModule(async () => {
 
   if (!hasMariConfig()) {
     return NextResponse.json(
@@ -45,4 +42,5 @@ export async function GET() {
       { status }
     );
   }
+  });
 }

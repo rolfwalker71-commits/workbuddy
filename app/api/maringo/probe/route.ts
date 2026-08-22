@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { ensureInitialized } from "@/lib/db/migrations";
-import { isAuthError, requireModule } from "@/lib/auth/current-user";
+import { withMariModule } from "@/lib/mari/with-module";
 import { MariApiError, mariSql, requireMariConfig } from "@/lib/mari/client";
 import { hasMariConfig } from "@/lib/mari/config";
 
@@ -8,15 +7,13 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST() {
-  ensureInitialized();
-  const auth = await requireModule("maringo");
-  if (isAuthError(auth)) return auth;
+  return withMariModule(async () => {
 
   if (!hasMariConfig()) {
     return NextResponse.json(
       {
         error:
-          "MARI nicht konfiguriert. Bitte Benutzer, Passwort und Personalnummer speichern.",
+          "MARI nicht konfiguriert. Hinterlege dein Maringo-Login unter Konto.",
       },
       { status: 400 }
     );
@@ -44,4 +41,5 @@ export async function POST() {
     const status = err instanceof MariApiError ? err.status || 502 : 502;
     return NextResponse.json({ error: message }, { status });
   }
+  });
 }

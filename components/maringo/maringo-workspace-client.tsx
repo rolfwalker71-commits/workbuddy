@@ -690,6 +690,7 @@ export function MaringoWorkspaceClient() {
   const [patching, setPatching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [configured, setConfigured] = useState(true);
+  const [passwordUnreadable, setPasswordUnreadable] = useState(false);
   const [dueDraft, setDueDraft] = useState("");
   const [employees, setEmployees] = useState<MariEmployeeOption[]>([]);
   const [defaultHandledBy, setDefaultHandledBy] = useState("");
@@ -873,12 +874,13 @@ export function MaringoWorkspaceClient() {
         const data = await res.json().catch(() => ({}));
         if (res.status === 503) {
           setConfigured(false);
+          setPasswordUnreadable(Boolean(data.mariPasswordUnreadable));
           setTickets([]);
           setListCalendarStamps({});
-          setError(data.error || "MARI nicht konfiguriert.");
           return;
         }
         setConfigured(true);
+        setPasswordUnreadable(false);
         if (!res.ok) throw new Error(data.error || "Liste fehlgeschlagen");
         setTickets(Array.isArray(data.tickets) ? data.tickets : []);
         applyStamps(data.calendarStamps);
@@ -896,12 +898,13 @@ export function MaringoWorkspaceClient() {
       const data = await res.json().catch(() => ({}));
       if (res.status === 503) {
         setConfigured(false);
+        setPasswordUnreadable(Boolean(data.mariPasswordUnreadable));
         setTickets([]);
         setListCalendarStamps({});
-        setError(data.error || "MARI nicht konfiguriert.");
         return;
       }
       setConfigured(true);
+      setPasswordUnreadable(false);
       if (!res.ok) throw new Error(data.error || "Liste fehlgeschlagen");
       setTickets(Array.isArray(data.tickets) ? data.tickets : []);
       applyStamps(data.calendarStamps);
@@ -1781,14 +1784,18 @@ export function MaringoWorkspaceClient() {
         <Card className="border-amber-200/80 bg-amber-50/50 dark:border-amber-400/30 dark:bg-amber-500/10">
           <CardContent className="space-y-3 p-4 text-sm">
             <p>
-              MARI-Login fehlt. Unter{" "}
+              {passwordUnreadable
+                ? "Maringo-Passwort ist unlesbar. Unter "
+                : "MARI-Login fehlt. Unter "}
               <Link
-                href="/settings?tab=maringo"
+                href="/account"
                 className="font-semibold text-orange-900 underline underline-offset-2 dark:text-orange-200"
               >
-                Einstellungen → Maringo
-              </Link>{" "}
-              Benutzer, Passwort und Personalnummer hinterlegen.
+                Konto
+              </Link>
+              {passwordUnreadable
+                ? " neu setzen."
+                : " Benutzer, Passwort und Personalnummer hinterlegen."}
             </p>
           </CardContent>
         </Card>

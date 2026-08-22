@@ -15,8 +15,9 @@ import {
   getAppUserByUsername,
   userHasModule,
 } from "@/lib/users/queries";
-import { enterMariRequestUser } from "@/lib/mari/request-context";
-import { enterAiRequestUser } from "@/lib/ai/request-context";
+import { enterAiRequestUser, runWithAiUser } from "@/lib/ai/request-context";
+import { enterMariRequestUser, runWithMariUser } from "@/lib/mari/request-context";
+import { resolveAppUserId } from "@/lib/users/resolve-user";
 
 export type AuthContext = {
   kind: "admin" | "user";
@@ -29,6 +30,18 @@ export type AuthContext = {
 function bindRequestSecrets(userId: number | null): void {
   enterMariRequestUser(userId);
   enterAiRequestUser(userId);
+}
+
+/**
+ * ALS `enterWith` after `await cookies()` is not visible to the route
+ * continuation. Wrap handler work in `run()` so per-user MARI/AI secrets resolve.
+ */
+export function runWithRequestSecrets<T>(
+  auth: Pick<AuthContext, "userId" | "username" | "isAdmin">,
+  fn: () => T
+): T {
+  const userId = resolveAppUserId(auth);
+  return runWithMariUser(userId, () => runWithAiUser(userId, fn));
 }
 
 export async function getSessionFromCookies(): Promise<SessionPayload | null> {

@@ -20,6 +20,7 @@ type AccountPayload = {
     mariBaseUrl: string;
     mariUsername: string;
     hasMariPassword: boolean;
+    mariPasswordUnreadable: boolean;
     mariEmployeeNumber: string;
     mariConfigured: boolean;
   };
@@ -221,9 +222,11 @@ export function AccountSecretsPanel() {
           <p className="text-sm text-muted-foreground">
             Basis-URL kommt vom Server
             {data?.mari.mariBaseUrl ? ` (${data.mari.mariBaseUrl})` : ""}.
-            {data?.mari.mariConfigured
-              ? " Login ist gesetzt."
-              : " Noch nicht vollständig konfiguriert."}
+            {data?.mari.mariPasswordUnreadable
+              ? " Passwort unlesbar, neu setzen."
+              : data?.mari.mariConfigured
+                ? " Login ist gesetzt."
+                : " Noch nicht vollständig konfiguriert."}
           </p>
           <div className="space-y-2">
             <Label htmlFor="mari-user">REST-Benutzer</Label>
@@ -240,7 +243,13 @@ export function AccountSecretsPanel() {
               type="password"
               value={mariPassword}
               onChange={(e) => setMariPassword(e.target.value)}
-              placeholder={data?.mari.hasMariPassword ? "gesetzt" : ""}
+              placeholder={
+                data?.mari.mariPasswordUnreadable
+                  ? "unlesbar — neu setzen"
+                  : data?.mari.hasMariPassword
+                    ? "gesetzt"
+                    : ""
+              }
             />
           </div>
           <div className="space-y-2">

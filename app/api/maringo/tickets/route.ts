@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { ensureInitialized } from "@/lib/db/migrations";
-import { isAuthError, requireModule } from "@/lib/auth/current-user";
+import { withMariModule } from "@/lib/mari/with-module";
 import { zurichYmd } from "@/lib/microsoft/time";
 import { MariApiError, requireMariConfig } from "@/lib/mari/client";
 import { hasMariConfig } from "@/lib/mari/config";
+import { getMariUnconfiguredPublic } from "@/lib/mari/settings";
 import { mapPrimaryMariCalendarStampsByIssueIds } from "@/lib/mari/calendar-stamp";
 import { parseCardCodesParam } from "@/lib/mari/customers";
 import { parseStatusIdsParam, WORK_STATUS_IDS } from "@/lib/mari/status";
@@ -27,16 +27,12 @@ function stampsForTickets(userId: number | null, tickets: MariTicketListItem[]) 
 }
 
 export async function GET(request: Request) {
-  ensureInitialized();
-  const auth = await requireModule("maringo");
-  if (isAuthError(auth)) return auth;
+  return withMariModule(async (auth) => {
 
   if (!hasMariConfig()) {
     return NextResponse.json(
       {
-        error:
-          "MARI nicht konfiguriert. Hinterlege dein Maringo-Login unter Konto.",
-        configured: false,
+        ...getMariUnconfiguredPublic(),
         tickets: [],
         calendarStamps: {},
       },
@@ -129,4 +125,5 @@ export async function GET(request: Request) {
       { status }
     );
   }
+  });
 }

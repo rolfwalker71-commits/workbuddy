@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { ensureInitialized } from "@/lib/db/migrations";
-import { isAuthError, requireModule } from "@/lib/auth/current-user";
+import { withMariModule } from "@/lib/mari/with-module";
 import { MariApiError, requireMariConfig } from "@/lib/mari/client";
 import { hasMariConfig } from "@/lib/mari/config";
 import { searchMariCustomers } from "@/lib/mari/customers";
@@ -9,9 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  ensureInitialized();
-  const auth = await requireModule("maringo");
-  if (isAuthError(auth)) return auth;
+  return withMariModule(async () => {
 
   if (!hasMariConfig()) {
     return NextResponse.json(
@@ -51,4 +48,5 @@ export async function GET(request: Request) {
     const status = err instanceof MariApiError ? err.status || 502 : 502;
     return NextResponse.json({ error: message, customers: [] }, { status });
   }
+  });
 }

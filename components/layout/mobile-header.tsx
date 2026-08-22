@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/sheet";
 import { BRAND } from "@/lib/branding";
 import { BuddyLogo } from "@/components/brand/buddy-logo";
+import { WorkBuddyWordmark } from "@/components/brand/wordmark";
 import { Sidebar } from "./sidebar";
 
 export function MobileHeader() {
@@ -35,7 +36,7 @@ export function MobileHeader() {
         </SheetContent>
       </Sheet>
       <BuddyLogo size={32} className="size-8" />
-      <p className="text-base font-semibold tracking-tight">{BRAND.app}</p>
+      <WorkBuddyWordmark size="sm" className="font-semibold" />
     </header>
   );
 }

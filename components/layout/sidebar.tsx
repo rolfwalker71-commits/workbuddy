@@ -19,8 +19,8 @@ import {
 } from "@/components/branding/provider-logos";
 import { UserAvatar } from "@/components/users/user-avatar";
 import { APP_VERSION } from "@/lib/app-version";
-import { BRAND } from "@/lib/branding";
 import { BuddyLogo } from "@/components/brand/buddy-logo";
+import { WorkBuddyWordmark } from "@/components/brand/wordmark";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
@@ -155,7 +155,7 @@ export function Sidebar({
           type="button"
           variant="ghost"
           className={cn(
-            "h-auto w-full px-0 py-0 text-left hover:bg-transparent",
+            "h-auto w-full whitespace-normal px-0 py-0 text-left hover:bg-transparent",
             collapsed ? "justify-center" : "justify-start gap-3"
           )}
           onClick={() => {
@@ -168,11 +168,7 @@ export function Sidebar({
             className={collapsed ? "h-10 w-10" : "h-14 w-14"}
             priority
           />
-          {!collapsed ? (
-            <span className="text-3xl font-extrabold leading-none tracking-tight">
-              {BRAND.app}
-            </span>
-          ) : null}
+          {!collapsed ? <WorkBuddyWordmark /> : null}
         </Button>
         {me ? (
           <div

@@ -1,3 +1,4 @@
+import { readStoredSecret } from "@/lib/crypto/secret-box";
 import { getSetting, setSetting } from "@/lib/db/migrations";
 import type { MariConfig } from "@/lib/mari/config";
 import { getMariRequestUserId } from "@/lib/mari/request-context";
@@ -54,11 +55,24 @@ export function resolveMariConfig(): MariConfig | null {
 export function getMariSettingsPublic(userId: number | null) {
   const resolved = resolveMariConfigForUser(userId);
   const user = userId ? getAppUserById(userId) : null;
+  const passwordRead = readStoredSecret(user?.mari_rest_password_enc);
   return {
     mariBaseUrl: getMariBaseUrl(),
     mariUsername: user?.mari_rest_username?.trim() || "",
-    hasMariPassword: Boolean(resolved || user?.mari_rest_password_enc),
+    hasMariPassword: Boolean(passwordRead.value),
+    mariPasswordUnreadable: passwordRead.unreadable,
     mariEmployeeNumber: user?.mari_employee_number?.trim() || "",
     mariConfigured: Boolean(resolved),
+  };
+}
+
+export function getMariUnconfiguredPublic(userId?: number | null) {
+  const pub = getMariSettingsPublic(userId ?? getMariRequestUserId());
+  return {
+    error: pub.mariPasswordUnreadable
+      ? "Maringo-Passwort ist unlesbar. Unter Konto neu setzen."
+      : "MARI nicht konfiguriert. Hinterlege dein Maringo-Login unter Konto.",
+    configured: false as const,
+    mariPasswordUnreadable: pub.mariPasswordUnreadable,
   };
 }

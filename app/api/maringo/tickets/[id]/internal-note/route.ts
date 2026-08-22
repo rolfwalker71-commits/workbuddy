@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { ensureInitialized } from "@/lib/db/migrations";
-import { isAuthError, requireModule } from "@/lib/auth/current-user";
+import { withMariModule } from "@/lib/mari/with-module";
 import { ownerKeyFromAuth } from "@/lib/auth/owner-key";
 import { MariApiError } from "@/lib/mari/client";
 import { hasMariConfig } from "@/lib/mari/config";
@@ -43,9 +42,7 @@ const DeleteBodySchema = z.object({
 });
 
 export async function POST(request: Request, context: Ctx) {
-  ensureInitialized();
-  const auth = await requireModule("maringo");
-  if (isAuthError(auth)) return auth;
+  return withMariModule(async (auth) => {
   if (!hasMariConfig()) {
     return NextResponse.json(
       { error: "MARI nicht konfiguriert." },
@@ -107,13 +104,12 @@ export async function POST(request: Request, context: Ctx) {
     const status = err instanceof MariApiError ? err.status || 502 : 502;
     return NextResponse.json({ error: message }, { status });
   }
+  });
 }
 
 /** Löscht einen internen Kommentar (SupportIssueAttachment / Notiz) am Ticket. */
 export async function DELETE(request: Request, context: Ctx) {
-  ensureInitialized();
-  const auth = await requireModule("maringo");
-  if (isAuthError(auth)) return auth;
+  return withMariModule(async (auth) => {
   if (!hasMariConfig()) {
     return NextResponse.json(
       { error: "MARI nicht konfiguriert." },
@@ -181,4 +177,5 @@ export async function DELETE(request: Request, context: Ctx) {
     const status = err instanceof MariApiError ? err.status || 502 : 502;
     return NextResponse.json({ error: message }, { status });
   }
+  });
 }

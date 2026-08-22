@@ -352,6 +352,12 @@ export async function finishMicrosoftOauth(
     updatedAt: new Date().toISOString(),
   };
   saveMicrosoftUserTokens(userId, saved);
+  try {
+    const { syncMicrosoftProfilePhoto } = await import("@/lib/microsoft/photo");
+    await syncMicrosoftProfilePhoto(userId);
+  } catch {
+    /* Photo optional — login still succeeds */
+  }
   return saved;
 }
 

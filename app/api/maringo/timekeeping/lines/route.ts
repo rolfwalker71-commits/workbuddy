@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { ensureInitialized } from "@/lib/db/migrations";
-import { isAuthError, requireModule } from "@/lib/auth/current-user";
+import { withMariModule } from "@/lib/mari/with-module";
 import { MariApiError } from "@/lib/mari/client";
 import { hasMariConfig } from "@/lib/mari/config";
 import {
@@ -12,9 +11,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  ensureInitialized();
-  const auth = await requireModule("maringo");
-  if (isAuthError(auth)) return auth;
+  return withMariModule(async () => {
   if (!hasMariConfig()) {
     return NextResponse.json(
       { error: "MARI nicht konfiguriert." },
@@ -42,4 +39,5 @@ export async function POST(request: Request) {
     const status = err instanceof MariApiError ? err.status || 502 : 502;
     return NextResponse.json({ error: message }, { status });
   }
+  });
 }

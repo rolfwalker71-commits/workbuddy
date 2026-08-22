@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { ensureInitialized } from "@/lib/db/migrations";
-import { isAuthError, requireModule } from "@/lib/auth/current-user";
+import { withMariModule } from "@/lib/mari/with-module";
 import { ownerKeyFromAuth } from "@/lib/auth/owner-key";
 import {
   createMariTimeBookFavorite,
@@ -12,18 +11,15 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  ensureInitialized();
-  const auth = await requireModule("maringo");
-  if (isAuthError(auth)) return auth;
+  return withMariModule(async (auth) => {
   const ownerKey = ownerKeyFromAuth(auth);
   const favorites = listMariTimeBookFavorites(ownerKey);
   return NextResponse.json({ ok: true, favorites });
+  });
 }
 
 export async function POST(request: Request) {
-  ensureInitialized();
-  const auth = await requireModule("maringo");
-  if (isAuthError(auth)) return auth;
+  return withMariModule(async (auth) => {
   try {
     const json = await request.json();
     const parsed = MariTimeBookFavoriteCreateSchema.safeParse(json);
@@ -42,4 +38,5 @@ export async function POST(request: Request) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
+  });
 }

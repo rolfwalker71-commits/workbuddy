@@ -133,7 +133,7 @@ export function requireMariConfig(): MariConfig {
   const cfg = getMariConfig();
   if (!cfg) {
     throw new MariApiError(
-      "MARI nicht konfiguriert. Unter Einstellungen → Maringo oder beim User Benutzer, Passwort und Personalnummer hinterlegen.",
+      "MARI nicht konfiguriert. Hinterlege dein Maringo-Login unter Konto.",
       503
     );
   }
