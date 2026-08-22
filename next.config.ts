@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
     "workbuddy.rolfwalker.ch",
     "*.rolfwalker.ch",
     "192.168.5.105",
+    "192.168.5.46",
   ],
   experimental: {
     serverActions: {
