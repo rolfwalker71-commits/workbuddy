@@ -29,18 +29,58 @@ const ASIDE_WIDGET_CLASS =
 
 const MARI_DONUT_COLORS: Record<number, string> = {
   11: "#f43f5e",
-  1: "#0ea5e9",
-  3: "#14b8a6",
+  1: "#e86a2b",
+  3: "#8b7cf6",
   13: "#22d3ee",
-  6: "#f59e0b",
-  9: "#f97316",
-  7: "#8b5cf6",
-  10: "#7c3aed",
-  4: "#f59e0b",
+  6: "#eab308",
+  9: "#f59e0b",
+  7: "#a78bfa",
+  10: "#c084fc",
+  4: "#fb923c",
   14: "#ef4444",
-  15: "#64748b",
-  16: "#475569",
+  15: "#38bdf8",
+  16: "#34d399",
 };
+
+function mariDonutColor(statusId: number, index: number): string {
+  return (
+    MARI_DONUT_COLORS[statusId] ||
+    ["#e86a2b", "#8b7cf6", "#eab308", "#38bdf8", "#34d399"][index % 5]!
+  );
+}
+
+function polarDeg(cx: number, cy: number, r: number, angleDeg: number) {
+  const rad = ((angleDeg - 90) * Math.PI) / 180;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+
+function donutArcPath(
+  cx: number,
+  cy: number,
+  r: number,
+  startAngle: number,
+  endAngle: number
+): string {
+  const start = polarDeg(cx, cy, r, endAngle);
+  const end = polarDeg(cx, cy, r, startAngle);
+  const large = endAngle - startAngle > 180 ? 1 : 0;
+  return `M ${start.x} ${start.y} A ${r} ${r} 0 ${large} 0 ${end.x} ${end.y}`;
+}
+
+function formatPollAt(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return null;
+  return new Intl.DateTimeFormat("de-CH", {
+    timeZone: "Europe/Zurich",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
+}
 
 const WAITING_ON_ME_STATUS = new Set([11, 1, 3, 13, 4, 14]);
 
@@ -113,7 +153,7 @@ function MariStatusDonut({
   const cx = size / 2;
   const cy = size / 2;
   const stroke = size >= 80 ? Math.max(14, size * 0.18) : Math.max(6, size * 0.16);
-  const r = size / 2 - stroke / 2 - 1;
+  const r = size >= 80 ? size / 2 - 10 : size / 2 - stroke / 2 - 1;
   if (total <= 0) {
     return (
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
@@ -122,34 +162,57 @@ function MariStatusDonut({
     );
   }
   let angle = 0;
-  const arcs = segments.map((seg, i) => {
-    const sweep = (seg.count / total) * 360;
-    const start = angle;
-    const end = angle + sweep;
-    angle = end;
-    const color =
-      MARI_DONUT_COLORS[seg.statusId] ||
-      ["#e86a2b", "#8b7cf6", "#eab308", "#38bdf8"][i % 4]!;
-    const large = sweep > 180 ? 1 : 0;
-    const rad = (deg: number) => ((deg - 90) * Math.PI) / 180;
-    const sx = cx + r * Math.cos(rad(end));
-    const sy = cy + r * Math.sin(rad(end));
-    const ex = cx + r * Math.cos(rad(start));
-    const ey = cy + r * Math.sin(rad(start));
-    return (
-      <path
-        key={seg.statusId}
-        d={`M ${sx} ${sy} A ${r} ${r} 0 ${large} 0 ${ex} ${ey}`}
-        fill="none"
-        stroke={color}
-        strokeWidth={stroke}
-        strokeLinecap="butt"
-      />
-    );
+  const slices = segments.map((seg, i) => {
+    const span = (seg.count / total) * 360;
+    const startAngle = angle;
+    const endAngle = i === segments.length - 1 ? 360 : angle + span;
+    angle = endAngle;
+    return {
+      ...seg,
+      color: mariDonutColor(seg.statusId, i),
+      startAngle,
+      endAngle,
+      mid: (startAngle + endAngle) / 2,
+      span: endAngle - startAngle,
+    };
   });
+  const showCounts = size >= 80;
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
-      {arcs}
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      role="img"
+      aria-label="Ticket-Status"
+    >
+      {slices.map((s) => {
+        const labelPos = polarDeg(cx, cy, r, s.mid);
+        return (
+          <g key={s.statusId}>
+            <path
+              d={donutArcPath(cx, cy, r, s.startAngle, s.endAngle)}
+              fill="none"
+              stroke={s.color}
+              strokeWidth={stroke}
+              strokeLinecap="butt"
+            />
+            {showCounts && s.span >= 24 ? (
+              <text
+                x={labelPos.x}
+                y={labelPos.y}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill="#fff"
+                fontSize={Math.max(9, size * 0.11)}
+                fontWeight={700}
+                className="tabular-nums"
+              >
+                {s.count}
+              </text>
+            ) : null}
+          </g>
+        );
+      })}
     </svg>
   );
 }
@@ -258,6 +321,7 @@ export function HomeOverview() {
   const mailSample = data?.microsoft?.mailInbox[0] || null;
   const tickets = data?.maringo?.tickets;
   const positiveCounts = (tickets?.countsByStatus || []).filter((c) => c.count > 0);
+  const pollLabel = formatPollAt(tickets?.lastPollAt);
   const waitingOnMe = (tickets?.countsByStatus || [])
     .filter((c) => WAITING_ON_ME_STATUS.has(c.statusId))
     .reduce((sum, c) => sum + c.count, 0);
@@ -502,27 +566,41 @@ export function HomeOverview() {
                   </div>
                   {positiveCounts.length > 0 ? (
                     <>
-                      <MariStatusDonut segments={positiveCounts} />
-                      <ul className="min-w-0 flex-1 space-y-1.5">
-                        {positiveCounts.map((c, i) => (
-                          <li
-                            key={c.statusId}
-                            className="flex items-center gap-2 border-b border-border/50 pb-1.5 last:border-b-0 last:pb-0"
-                          >
-                            <span
-                              className="size-2.5 shrink-0 rounded-full"
-                              style={{
-                                backgroundColor:
-                                  MARI_DONUT_COLORS[c.statusId] ||
-                                  ["#e86a2b", "#8b7cf6", "#eab308"][i % 3],
-                              }}
-                            />
-                            <span className="min-w-0 flex-1 break-words text-xs font-medium leading-snug">
-                              {c.label}
-                            </span>
-                            <span className="text-sm font-bold tabular-nums">{c.count}</span>
-                          </li>
-                        ))}
+                      <div className="shrink-0">
+                        <MariStatusDonut segments={positiveCounts} size={100} />
+                      </div>
+                      <ul className="min-w-0 flex-1">
+                        {positiveCounts.map((c, i) => {
+                          const pct =
+                            tickets.total > 0
+                              ? ((c.count / tickets.total) * 100).toLocaleString(
+                                  "de-CH",
+                                  { maximumFractionDigits: 1 }
+                                )
+                              : "0";
+                          return (
+                            <li
+                              key={c.statusId}
+                              className="flex min-w-0 items-center gap-2 border-b border-border/50 py-0.5 last:border-b-0 last:pb-0"
+                              title={`${c.label}: ${c.count}`}
+                            >
+                              <span
+                                className="size-2.5 shrink-0 rounded-full"
+                                style={{ backgroundColor: mariDonutColor(c.statusId, i) }}
+                                aria-hidden
+                              />
+                              <span className="min-w-0 flex-1 break-words text-xs font-medium leading-snug">
+                                {c.label}
+                              </span>
+                              <span className="shrink-0 text-[0.8125rem] font-bold tabular-nums">
+                                {c.count}
+                              </span>
+                              <span className="w-10 shrink-0 text-right text-[0.6875rem] tabular-nums text-muted-foreground">
+                                {pct}%
+                              </span>
+                            </li>
+                          );
+                        })}
                       </ul>
                     </>
                   ) : (
@@ -534,12 +612,18 @@ export function HomeOverview() {
                   )}
                 </div>
               )}
-              <Link
-                href="/maringo"
-                className="inline-flex h-11 items-center text-sm font-medium text-orange-600 hover:underline"
-              >
-                Meine offenen Tickets anzeigen
-              </Link>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Link
+                  href="/maringo"
+                  className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-orange-600 hover:underline"
+                >
+                  Meine offenen Tickets anzeigen
+                  <ExternalLink className="size-3.5" aria-hidden />
+                </Link>
+                <p className="text-[0.625rem] text-muted-foreground">
+                  {pollLabel ? `Zuletzt geprüft: ${pollLabel}` : "Noch nicht geprüft"}
+                </p>
+              </div>
             </CardContent>
           </Card>
         </section>
