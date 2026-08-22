@@ -1,0 +1,56 @@
+import { NextResponse } from "next/server";
+import { isAuthError, requireModule } from "@/lib/auth/current-user";
+import { ensureInitialized } from "@/lib/db/migrations";
+import {
+  hasMicrosoftMailScope,
+  isMicrosoftConnected,
+  resolveMicrosoftUserId,
+} from "@/lib/microsoft/oauth";
+import { listMicrosoftPdfAttachments } from "@/lib/microsoft/mail-attachments";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+type Ctx = { params: Promise<{ id: string }> };
+
+export async function GET(_request: Request, context: Ctx) {
+  ensureInitialized();
+  const auth = await requireModule("microsoft");
+  if (isAuthError(auth)) return auth;
+  const userId = resolveMicrosoftUserId(auth);
+  const { id } = await context.params;
+  if (!id) {
+    return NextResponse.json({ error: "id fehlt" }, { status: 400 });
+  }
+  if (
+    userId == null ||
+    !isMicrosoftConnected(userId) ||
+    !hasMicrosoftMailScope(userId)
+  ) {
+    return NextResponse.json(
+      { error: "Microsoft 365 nicht verbunden." },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const pdfs = await listMicrosoftPdfAttachments(userId, id);
+    return NextResponse.json({
+      attachments: pdfs.map((a) => ({
+        id: a.id,
+        name: a.name,
+        size: a.size,
+        contentType: a.contentType,
+        alreadyIngested: false,
+        documentId: null,
+      })),
+    });
+  } catch (err) {
+    return NextResponse.json(
+      {
+        error: err instanceof Error ? err.message : String(err),
+      },
+      { status: 502 }
+    );
+  }
+}

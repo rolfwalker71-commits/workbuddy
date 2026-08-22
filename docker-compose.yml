@@ -1,0 +1,36 @@
+services:
+  workbuddy:
+    image: ghcr.io/rolfwalker71-commits/workbuddy:${WORKBUDDY_IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: workbuddy
+    user: "1000:1000"
+    ports:
+      - "${WORKBUDDY_PORT:-3200}:3000"
+    environment:
+      HOSTNAME: "0.0.0.0"
+      PORT: "3000"
+      DATABASE_PATH: ${DATABASE_PATH:-/app/data/supportdesk.sqlite}
+      WORKBUDDY_USERNAME: ${WORKBUDDY_USERNAME:-admin}
+      WORKBUDDY_PASSWORD: ${WORKBUDDY_PASSWORD:-}
+      WORKBUDDY_PASSWORD_HASH: ${WORKBUDDY_PASSWORD_HASH:-}
+      WORKBUDDY_SESSION_SECRET: ${WORKBUDDY_SESSION_SECRET:-}
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:-}
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-}
+      MICROSOFT_OAUTH_CLIENT_ID: ${MICROSOFT_OAUTH_CLIENT_ID:-}
+      MICROSOFT_OAUTH_CLIENT_SECRET: ${MICROSOFT_OAUTH_CLIENT_SECRET:-}
+      MICROSOFT_OAUTH_TENANT: ${MICROSOFT_OAUTH_TENANT:-organizations}
+      MARI_REST_BASE_URL: ${MARI_REST_BASE_URL:-https://marirestservice.an-group.international}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/auth/me').then(r=>process.exit(r.status===401||r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s

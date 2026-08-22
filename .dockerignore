@@ -1,0 +1,16 @@
+node_modules
+npm-debug.log*
+.next
+out
+.git
+.cursor
+.vscode
+.env
+.env.*
+!.env.example
+data/*
+!data/.gitkeep
+.DS_Store
+coverage
+*.tsbuildinfo
+next-env.d.ts

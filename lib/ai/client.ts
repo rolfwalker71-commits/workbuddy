@@ -1,0 +1,194 @@
+import OpenAI from "openai";
+import { getAiRequestUserId } from "@/lib/ai/request-context";
+import {
+  getAppUserById,
+  getUserChatApiKey,
+  getUserOpenAiApiKey,
+} from "@/lib/users/queries";
+
+export const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
+export const MISSING_OPENAI_KEY_MESSAGE =
+  "Hinterlege deinen OpenAI-Key unter Konto";
+
+export type ChatProviderId = "openai" | "deepseek" | "custom";
+
+export type UserAiConfig = {
+  userId: number;
+  openaiApiKey: string | null;
+  openaiModel: string;
+  chatProvider: ChatProviderId;
+  chatApiKey: string | null;
+  chatBaseUrl: string | null;
+  chatModel: string;
+};
+
+function normalizeBaseUrl(url: string | null | undefined): string | null {
+  const trimmed = url?.trim().replace(/\/$/, "") || null;
+  return trimmed;
+}
+
+function asChatProvider(raw: string | null | undefined): ChatProviderId {
+  const v = (raw || "").trim().toLowerCase();
+  if (v === "openai" || v === "deepseek" || v === "custom") return v;
+  return "openai";
+}
+
+export function resolveUserAiConfig(
+  userId: number | null | undefined
+): UserAiConfig | null {
+  if (userId == null || userId <= 0) return null;
+  const user = getAppUserById(userId);
+  if (!user) return null;
+  const openaiApiKey = getUserOpenAiApiKey(user);
+  const chatProvider = asChatProvider(user.chat_provider);
+  const storedChatKey = getUserChatApiKey(user);
+  const chatBaseUrl =
+    chatProvider === "deepseek"
+      ? normalizeBaseUrl(user.chat_base_url) || DEEPSEEK_BASE_URL
+      : normalizeBaseUrl(user.chat_base_url);
+  const openaiModel = user.openai_model?.trim() || "gpt-4o-mini";
+  const chatModel =
+    user.chat_model?.trim() ||
+    (chatProvider === "deepseek" ? "deepseek-v4-flash" : openaiModel);
+  const chatApiKey =
+    storedChatKey || (chatProvider === "openai" ? openaiApiKey : null);
+  return {
+    userId,
+    openaiApiKey,
+    openaiModel,
+    chatProvider,
+    chatApiKey,
+    chatBaseUrl,
+    chatModel,
+  };
+}
+
+function currentAiConfig(): UserAiConfig | null {
+  return resolveUserAiConfig(getAiRequestUserId());
+}
+
+export function getOpenAIApiKey(): string | null {
+  return currentAiConfig()?.openaiApiKey || null;
+}
+
+export function getOpenAIClient(): OpenAI {
+  const apiKey = getOpenAIApiKey();
+  if (!apiKey) {
+    throw new Error(MISSING_OPENAI_KEY_MESSAGE);
+  }
+  return new OpenAI({
+    apiKey,
+    timeout: 120_000,
+    maxRetries: 2,
+  });
+}
+
+export function getOpenAIModel(): string {
+  return currentAiConfig()?.openaiModel || "gpt-4o-mini";
+}
+
+export function hasOpenAIKey(): boolean {
+  return Boolean(getOpenAIApiKey());
+}
+
+export function getChatProvider(): ChatProviderId {
+  return currentAiConfig()?.chatProvider || "openai";
+}
+
+export function getChatBaseUrl(): string | null {
+  const cfg = currentAiConfig();
+  if (!cfg || cfg.chatProvider === "openai") return null;
+  return cfg.chatBaseUrl;
+}
+
+export function getChatApiKey(): string | null {
+  return currentAiConfig()?.chatApiKey || null;
+}
+
+export function getChatModel(): string {
+  return currentAiConfig()?.chatModel || "gpt-4o-mini";
+}
+
+export function getChatClient(): OpenAI {
+  const apiKey = getChatApiKey();
+  if (!apiKey) {
+    throw new Error(MISSING_OPENAI_KEY_MESSAGE);
+  }
+  const baseURL = getChatBaseUrl() || undefined;
+  return new OpenAI({
+    apiKey,
+    ...(baseURL ? { baseURL } : {}),
+    timeout: 120_000,
+    maxRetries: 2,
+  });
+}
+
+export function hasChatKey(): boolean {
+  return Boolean(getChatApiKey());
+}
+
+export function getDeepSeekMailApiKey(): string | null {
+  const cfg = currentAiConfig();
+  if (!cfg) return null;
+  if (cfg.chatProvider === "deepseek" || cfg.chatProvider === "custom") {
+    return cfg.chatApiKey;
+  }
+  return null;
+}
+
+export function hasDeepSeekMailKey(): boolean {
+  return Boolean(getDeepSeekMailApiKey());
+}
+
+export function getDeepSeekMailModel(): string {
+  const cfg = currentAiConfig();
+  if (cfg?.chatModel?.toLowerCase().includes("deepseek")) return cfg.chatModel;
+  return "deepseek-v4-flash";
+}
+
+export function getDeepSeekMailClient(): OpenAI {
+  const apiKey = getDeepSeekMailApiKey();
+  if (!apiKey) {
+    throw new Error(
+      "Optionalen Chat-Key (DeepSeek/Custom) unter Konto hinterlegen — oder den OpenAI-Key für Compose nutzen."
+    );
+  }
+  const baseURL =
+    currentAiConfig()?.chatBaseUrl || DEEPSEEK_BASE_URL;
+  return new OpenAI({
+    apiKey,
+    baseURL,
+    timeout: 120_000,
+    maxRetries: 2,
+  });
+}
+
+export function getDeepSeekMailJsonExtras(): Record<string, unknown> {
+  return { thinking: { type: "disabled" } };
+}
+
+export function getChatJsonRequestExtras(): Record<string, unknown> {
+  if (getChatProvider() !== "deepseek") return {};
+  return { thinking: { type: "disabled" } };
+}
+
+export function getAnalysisClient(options?: {
+  needsVision?: boolean;
+}): { client: OpenAI; model: string; provider: "openai" | "chat" } {
+  if (options?.needsVision) {
+    return {
+      client: getOpenAIClient(),
+      model: getOpenAIModel(),
+      provider: "openai",
+    };
+  }
+  return {
+    client: getChatClient(),
+    model: getChatModel(),
+    provider: "chat",
+  };
+}
+
+export function getOpenAIBaseUrl(): string | null {
+  return getChatBaseUrl();
+}

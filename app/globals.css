@@ -1,0 +1,339 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-brand-docs: var(--brand-docs);
+  --color-brand-docs-soft: var(--brand-docs-soft);
+  --color-brand-finance: var(--brand-finance);
+  --color-brand-finance-soft: var(--brand-finance-soft);
+  --color-brand-settings: var(--brand-settings);
+  --color-brand-settings-soft: var(--brand-settings-soft);
+  --color-brand-sync: var(--brand-sync);
+  --color-brand-sync-soft: var(--brand-sync-soft);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+}
+
+:root {
+  /* Soft-UI canvas */
+  --background: #f5f7f6;
+  --foreground: #14201c;
+  --card: #ffffff;
+  --card-foreground: #14201c;
+  --popover: #ffffff;
+  --popover-foreground: #14201c;
+  /* Soft-UI default = sage */
+  --primary: #3f6b52;
+  --primary-foreground: #ffffff;
+  --secondary: #e8eeec;
+  --secondary-foreground: #14201c;
+  --muted: #eef2f0;
+  --muted-foreground: #5b6b66;
+  --accent: #d9e4d1;
+  --accent-foreground: #3f6b52;
+  --destructive: #dc2626;
+  --border: #d7e0dc;
+  --input: #d7e0dc;
+  --ring: #3f6b52;
+  --chart-1: #3f6b52;
+  --chart-2: #f59e0b;
+  --chart-3: #ec4899;
+  --chart-4: #0f766e;
+  --chart-5: #14b8a6;
+  --radius: 0.5rem;
+  /* Domain accents — docs/travel share finance sage so TravelBuddy matches FinanzBuddy */
+  --brand-docs: #3f6b52;
+  --brand-docs-soft: #d9e4d1;
+  --brand-finance: #3f6b52;
+  --brand-finance-soft: #d9e4d1;
+  --brand-settings: #1e3a5f;
+  --brand-settings-soft: #e2e8f0;
+  --brand-sync: #3f6b52;
+  --brand-sync-soft: #d9e4d1;
+  /* Buddy mark (3-card stack) */
+  --brand-mark-front: #e86a2b;
+  --brand-mark: #252a34;
+  --brand-mark-gap: var(--sidebar);
+  /* Light slate rail — dark brand marks (Buddy charcoal, Maringo navy) read without white chips */
+  --sidebar: #d6dbe3;
+  --sidebar-foreground: #1e293b;
+  --sidebar-primary: #e86a2b;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #c2cad5;
+  --sidebar-accent-foreground: #0f172a;
+  --sidebar-border: #b0b9c6;
+  --sidebar-ring: #e86a2b;
+  color-scheme: light;
+}
+
+.dark {
+  /* Dim dark — not OLED black; readable off-white type + orange accent */
+  --background: #1c212b;
+  --foreground: #e8eaed;
+  --card: #272d38;
+  --card-foreground: #e8eaed;
+  --popover: #2a303c;
+  --popover-foreground: #e8eaed;
+  --primary: #5f8f6e;
+  --primary-foreground: #ffffff;
+  --secondary: #323948;
+  --secondary-foreground: #e8eaed;
+  --muted: #323948;
+  --muted-foreground: #9aa3b2;
+  --accent: #343b49;
+  --accent-foreground: #e8eaed;
+  --destructive: #f87171;
+  --border: #3a4252;
+  --input: #3a4252;
+  --ring: #e86a2b;
+  --chart-1: #5f8f6e;
+  --chart-2: #e86a2b;
+  --chart-3: #fbbf24;
+  --chart-4: #7dd3fc;
+  --chart-5: #94a3b8;
+  --brand-docs: #9db8a6;
+  --brand-docs-soft: #2a3330;
+  --brand-finance: #9db8a6;
+  --brand-finance-soft: #2a3330;
+  --brand-settings: #93c5fd;
+  --brand-settings-soft: #2a3548;
+  --brand-sync: #9db8a6;
+  --brand-sync-soft: #2a3330;
+  --brand-mark-front: #e86a2b;
+  --brand-mark: #c8cdd6;
+  --brand-mark-gap: var(--sidebar);
+  --sidebar: #151922;
+  --sidebar-foreground: #e8eaed;
+  --sidebar-primary: #e86a2b;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #272d38;
+  --sidebar-accent-foreground: #e8eaed;
+  --sidebar-border: #2a303c;
+  --sidebar-ring: #e86a2b;
+  color-scheme: dark;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    min-height: 100dvh;
+    -webkit-tap-highlight-color: transparent;
+  }
+  html {
+    @apply font-sans;
+    min-height: 100%;
+    overscroll-behavior-y: none;
+    background-color: var(--background);
+  }
+}
+
+@media (pointer: coarse) {
+  /* shadcn Button / Input / Select */
+  [data-slot="button"] {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+  [data-slot="select-trigger"],
+  [data-slot="input"] {
+    min-height: 2.75rem;
+  }
+  /* Native controls that still use raw <button> (until fully migrated) */
+  button:not([data-slot]):not(:disabled),
+  [role="button"]:not([data-slot]):not([aria-disabled="true"]) {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+}
+
+/* Safari paints "today"/placeholder chrome into empty date/time fields — hide
+   that fake text when empty AND not focused. While typing/focusing, keep
+   foreground color so manually entered values stay readable (picker-only
+   visibility was a common bug). */
+input[type="date"][data-empty="true"]:not(:focus)::-webkit-datetime-edit-year-field,
+input[type="date"][data-empty="true"]:not(:focus)::-webkit-datetime-edit-month-field,
+input[type="date"][data-empty="true"]:not(:focus)::-webkit-datetime-edit-day-field,
+input[type="date"][data-empty="true"]:not(:focus)::-webkit-datetime-edit-text,
+input[type="time"][data-empty="true"]:not(:focus)::-webkit-datetime-edit-hour-field,
+input[type="time"][data-empty="true"]:not(:focus)::-webkit-datetime-edit-minute-field,
+input[type="time"][data-empty="true"]:not(:focus)::-webkit-datetime-edit-ampm-field,
+input[type="time"][data-empty="true"]:not(:focus)::-webkit-datetime-edit-text {
+  color: transparent;
+}
+
+input[type="date"]:not([data-empty="true"])::-webkit-datetime-edit-year-field,
+input[type="date"]:not([data-empty="true"])::-webkit-datetime-edit-month-field,
+input[type="date"]:not([data-empty="true"])::-webkit-datetime-edit-day-field,
+input[type="date"]:not([data-empty="true"])::-webkit-datetime-edit-text,
+input[type="time"]:not([data-empty="true"])::-webkit-datetime-edit-hour-field,
+input[type="time"]:not([data-empty="true"])::-webkit-datetime-edit-minute-field,
+input[type="time"]:not([data-empty="true"])::-webkit-datetime-edit-ampm-field,
+input[type="time"]:not([data-empty="true"])::-webkit-datetime-edit-text,
+input[type="date"]:focus::-webkit-datetime-edit-year-field,
+input[type="date"]:focus::-webkit-datetime-edit-month-field,
+input[type="date"]:focus::-webkit-datetime-edit-day-field,
+input[type="date"]:focus::-webkit-datetime-edit-text,
+input[type="time"]:focus::-webkit-datetime-edit-hour-field,
+input[type="time"]:focus::-webkit-datetime-edit-minute-field,
+input[type="time"]:focus::-webkit-datetime-edit-ampm-field,
+input[type="time"]:focus::-webkit-datetime-edit-text {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+/* Text/number inputs: values read as set; placeholders stay soft. */
+[data-slot="input"]:not([data-empty="true"]),
+[data-slot="textarea"] {
+  font-weight: 500;
+}
+
+[data-slot="input"]::placeholder,
+[data-slot="textarea"]::placeholder {
+  font-weight: 400;
+  color: var(--muted-foreground);
+  opacity: 1;
+}
+
+/* Soft AI wallpaper behind dashboard chrome content */
+.buddy-scene {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--background);
+}
+
+.buddy-scene__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 55%;
+  opacity: 0.42;
+}
+
+.buddy-scene__wash {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--background) 55%, transparent) 0%,
+      color-mix(in oklab, var(--background) 35%, transparent) 35%,
+      color-mix(in oklab, var(--background) 72%, transparent) 72%,
+      var(--background) 100%
+    ),
+    radial-gradient(
+      90% 55% at 50% 0%,
+      color-mix(in oklab, var(--brand-docs-soft) 40%, transparent),
+      transparent 70%
+    );
+}
+
+.buddy-scene--chat .buddy-scene__image {
+  opacity: 0.22;
+}
+
+.buddy-scene--chat .buddy-scene__wash {
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--background) 70%, transparent) 0%,
+    var(--background) 100%
+  );
+}
+
+/* Compact vertical map zoom slider (rotated range input) */
+.map-zoom-range {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  accent-color: #0f766e;
+}
+.map-zoom-range::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+.map-zoom-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  margin-top: -3.5px;
+  border-radius: 999px;
+  background: #0f766e;
+  border: 1px solid #fff;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.15);
+}
+.map-zoom-range::-moz-range-track {
+  height: 3px;
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+.map-zoom-range::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border: 1px solid #fff;
+  border-radius: 999px;
+  background: #0f766e;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.15);
+}
+
+/* Dim dark: neutralize light email/ticket HTML so panes don't flash white */
+.dark .mail-html-body,
+.dark .mari-note-html {
+  color: var(--foreground);
+}
+.dark .mail-html-body :where(div, p, span, table, td, th, font, center, section, article, body),
+.dark .mari-note-html :where(div, p, span, table, td, th, font, center, section, article, body) {
+  background-color: transparent !important;
+  color: inherit !important;
+}
+.dark .mail-html-body :where(a),
+.dark .mari-note-html :where(a) {
+  color: color-mix(in oklab, var(--primary) 85%, white) !important;
+}
