@@ -2612,7 +2612,7 @@ export function MaringoWorkspaceClient() {
                                   <span className="flex flex-col gap-0.5">
                                     <span className="font-medium">Nur Text</span>
                                     <span className="text-[0.6875rem] text-muted-foreground">
-                                      Chat-Provider (z. B. DeepSeek) — empfohlen
+                                      OpenAI — nur Text
                                     </span>
                                   </span>
                                 </DropdownMenuItem>
@@ -2628,8 +2628,7 @@ export function MaringoWorkspaceClient() {
                                       {detailImageAttachmentCount})
                                     </span>
                                     <span className="text-[0.6875rem] text-muted-foreground">
-                                      OpenAI Vision — wenn Bildinhalt wichtig
-                                      ist
+                                      OpenAI Vision — wenn Bildinhalt wichtig ist
                                     </span>
                                   </span>
                                 </DropdownMenuItem>
@@ -2715,8 +2714,7 @@ export function MaringoWorkspaceClient() {
                                 </p>
                               ) : (
                                 <p className="text-[0.6875rem] text-muted-foreground">
-                                  Textanalyse ohne Screenshot-Vision
-                                  (Chat-Provider).
+                                  Textanalyse ohne Screenshot-Vision (OpenAI).
                                 </p>
                               )}
                               {analysisUsageLines.length > 0 ? (

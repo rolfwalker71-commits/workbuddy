@@ -61,7 +61,7 @@ export const MsDayTaskSuggestionSchema = z.object({
   counterpartEmail: aiNullableString(200).optional(),
   senderInitials: aiNullableString(80).optional(),
   theme: aiNullableString(200).optional(),
-  reason: aiString(400).optional(),
+  reason: aiString(800).optional(),
 });
 
 export const ExistingDayTaskRefSchema = z.object({
@@ -92,7 +92,7 @@ export const MsDayEventSuggestionSchema = z.object({
   company: aiNullableString(120).optional(),
   counterpartEmail: aiNullableString(200).optional(),
   theme: aiNullableString(200).optional(),
-  reason: aiString(400).optional(),
+  reason: aiString(800).optional(),
   /** Automatisch aus Aufgaben-Vorschlag erzeugt — Slotwahl vor Anlegen. */
   fromTaskTwin: z.boolean().optional(),
 });
@@ -107,7 +107,7 @@ export const MsDayReplyDraftSchema = z.object({
   sourceMailId: aiNullableString(200).optional(),
   company: aiNullableString(120).optional(),
   theme: aiNullableString(200).optional(),
-  reason: aiString(400).optional(),
+  reason: aiString(800).optional(),
 });
 
 function aiItemArray<T extends z.ZodTypeAny>(itemSchema: T, max: number) {
@@ -958,7 +958,10 @@ AKTION vs INFO (wichtig):
 - Offene Kundenfragen, «bitte», Rückmeldung erbeten, Zusagen, Deadlines, Ticket-Nachfragen, Terminabsprachen = IMMER actionNeeded=true und mindestens 1 task und/oder 1 reply.
 - «In Arbeit» / Support-Tickets / Nachfass-Mails sind KEINE reinen Infos.
 
-SUMMARY: 3–6 Sätze inhaltlicher Kern (wer will was, Stand, offene Punkte). NIEMALS Signaturen, Grussformeln, Adressen, Disclaimer, Trennlinien (***/---), «Sent from…».
+REASONING: Pro Thread zuerst klären — wer will was, was ist belegt vs. impliziert, was blockiert, nächster Schritt und warum. Das Ergebnis gehört in summary + task/reply.reason, nicht intern verschlucken.
+
+SUMMARY: 5–8 Sätze (Fakten, Einschätzung, offene Punkte, nächste Aktion). NIEMALS Signaturen, Grussformeln, Adressen, Disclaimer, Trennlinien (***/---), «Sent from…».
+Jede task und reply braucht reason (2–4 Sätze): warum jetzt, welche Mail stützt das, was passiert beim Warten.
 
 SYSTEM INFOBOARD und [Monitoring] sind bereits ausgefiltert — nicht erfinden.
 
@@ -976,13 +979,13 @@ JSON:
       "counterpartEmail": "…"|null,
       "theme": "…",
       "conversationId": "conv oder null",
-      "summary": "3–6 Sätze ohne Signatur/Trennlinien",
+      "summary": "5–8 Sätze ohne Signatur/Trennlinien",
       "mailIds": ["id"],
       "status": "open"|"waiting"|"done"|"fyi",
       "actionNeeded": true|false,
-      "tasks": [],
+      "tasks": [{ "title": "…", "reason": "2–4 Sätze Begründung", "dueDate": "${defaultDue}" }],
       "events": [],
-      "replies": []
+      "replies": [{ "to": "a@b.ch", "subject": "…", "body": "…", "language": "de", "reason": "2–4 Sätze Begründung" }]
     }
   ]
 }`;
@@ -990,7 +993,7 @@ JSON:
     const completion = await client.chat.completions.create({
       model,
       temperature: 0.2,
-      max_tokens: 8000,
+      max_tokens: 10000,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: system },
@@ -1187,6 +1190,12 @@ function buildClusterBatchSystemPrompt(defaultDue: string): string {
 
 SCHREIBWEISE: Schweizer Hochdeutsch, kein ß (ss). Klar, vollständig.
 
+REASONING (sichtbar in den JSON-Feldern — kein stummes Mitdenken):
+- Pro Thread in dieser Reihenfolge denken: (1) Akteure und Absicht, (2) Beleg vs. Vermutung, (3) Blocker/Deadline, (4) nächster sinnvoller Schritt und warum.
+- summary: 5–8 Sätze, kein Telegrammstil. Enthält Lage, deine Einschätzung und die empfohlene nächste Aktion.
+- Jede task und jede reply braucht reason (2–4 Sätze): warum genau diese Aktion jetzt, welche Mail das stützt, Risiko wenn man wartet.
+- Lieber eine gut begründete Aufgabe als drei leere Titel. Keine Aufgaben ohne nachvollziehbare Begründung.
+
 CLUSTER (hart):
 - Genau ein Cluster pro seedKey / THREAD-Block — seedKey immer zurückgeben.
 - conversationId und mailIds aus dem Thread übernehmen.
@@ -1197,11 +1206,11 @@ CLUSTER (hart):
 - Nur Zeitraum der Analyse — keine Halluzinationen.
 
 SUMMARY:
-- Nur inhaltlicher Kern: Absicht, Stand, offene Punkte.
+- Inhaltlicher Kern plus Begründung: Absicht, Stand, offene Punkte, warum Handlungsbedarf ja/nein.
 - Niemals Signaturen, Grussformeln, Adressen, Telefon, Disclaimer, Trennlinien (*** --- ___), «Sent from…».
 
-TASKS: dueDate Default ${defaultDue}, Titel ohne Absender-Suffix.
-REPLIES: to = E-Mail mit @; language de|en; subject und body als Strings (nie null); AW:/Re: passend.
+TASKS: dueDate Default ${defaultDue}, Titel ohne Absender-Suffix; reason Pflicht wenn Task existiert.
+REPLIES: to = E-Mail mit @; language de|en; subject und body als Strings (nie null); AW:/Re: passend; reason Pflicht.
 ANREDE (hart): Pro Thread steht «Anrede-Muster für REPLIES». Entweder konsequent per Du ODER konsequent formell — nie mischen.
 - per Du: Hallo/Hi + Vorname wie im Verlauf; du/dir/dein (DE) bzw. informal first-name (EN).
 - formell: Sehr geehrte/r bzw. Herr/Frau + Name (DE) bzw. Dear Mr/Ms (EN); Sie/Ihnen.
@@ -1351,13 +1360,13 @@ async function writeDaySummaryOverview(input: {
     const completion = await input.client.chat.completions.create({
       model: input.model,
       temperature: 0.3,
-      max_tokens: 1200,
+      max_tokens: 2200,
       response_format: { type: "json_object" },
       messages: [
         {
           role: "system",
           content:
-            "Buddy Büro-Assistent CH. Schreibe daySummary (5–10 Sätze, Schweizer Deutsch, kein ß). Erwähne grob Handlung vs. Info. NUR JSON {\"daySummary\":\"…\"}.",
+            "Buddy Büro-Assistent CH. Schreibe daySummary als Briefing (8–14 Sätze, Schweizer Deutsch, kein ß): Lage, Prioritäten mit Begründung, Risiken/Deadlines, was warten kann. Nicht nur zählen. NUR JSON {\"daySummary\":\"…\"}.",
         },
         {
           role: "user",

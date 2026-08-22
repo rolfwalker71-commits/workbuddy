@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { withMariModule } from "@/lib/mari/with-module";
 import { ownerKeyFromAuth } from "@/lib/auth/owner-key";
-import { hasChatKey, hasOpenAIKey } from "@/lib/ai/client";
+import { hasOpenAIKey } from "@/lib/ai/client";
 import { MariApiError } from "@/lib/mari/client";
 import { hasMariConfig } from "@/lib/mari/config";
 import { listMariImageAttachmentsForAi } from "@/lib/mari/attachments";
@@ -80,18 +80,9 @@ export async function POST(_request: Request, context: Ctx) {
     includeImages = false;
   }
 
-  if (includeImages && !hasOpenAIKey()) {
+  if (!hasOpenAIKey()) {
     return NextResponse.json(
-      {
-        error:
-          "Screenshot-Analyse braucht den OpenAI-Key (Einstellungen → KI-API → OpenAI).",
-      },
-      { status: 400 }
-    );
-  }
-  if (!includeImages && !hasChatKey()) {
-    return NextResponse.json(
-      { error: "Chat-/Analyse-API-Key fehlt (Einstellungen → KI-API)." },
+      { error: "Hinterlege deinen OpenAI-Key unter Konto" },
       { status: 400 }
     );
   }

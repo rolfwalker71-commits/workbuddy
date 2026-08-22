@@ -1,4 +1,4 @@
-import { getAnalysisClient, getChatJsonRequestExtras, hasChatKey, hasOpenAIKey } from "@/lib/ai/client";
+import { getOpenAIClient, getOpenAIModel, hasOpenAIKey } from "@/lib/ai/client";
 import {
   buildAiTokenUsage,
   type AiTokenUsage,
@@ -10,7 +10,6 @@ import {
   detectReplyLanguage,
   replyAddressFormInstruction,
 } from "@/lib/microsoft/reply-language-shared";
-import type OpenAI from "openai";
 import { z } from "zod";
 
 function clip(s: string, max: number): string {
@@ -238,7 +237,7 @@ export function normalizeMariTicketAnalysisInput(raw: unknown): unknown {
         : { title: item };
     return {
       title: asString(t.title, 200) || "Aufgabe",
-      reason: asNullableString(t.reason, 300) ?? undefined,
+      reason: asNullableString(t.reason, 500) ?? undefined,
       dueHint: asNullableString(t.dueHint, 40),
     };
   });
@@ -256,7 +255,7 @@ export function normalizeMariTicketAnalysisInput(raw: unknown): unknown {
     recommendedStatus = {
       statusId,
       label: asNullableString(r.label, 80) ?? undefined,
-      reason: asNullableString(r.reason, 300) ?? undefined,
+      reason: asNullableString(r.reason, 500) ?? undefined,
     };
   } else if (typeof rs === "string" && rs.trim()) {
     recommendedStatus = {
@@ -269,11 +268,11 @@ export function normalizeMariTicketAnalysisInput(raw: unknown): unknown {
   const score = Math.min(100, Math.max(0, Math.round(asNumber(completenessRaw.score, 0))));
 
   return {
-    summary: asString(o.summary, 800) || "Keine Zusammenfassung.",
+    summary: asString(o.summary, 1800) || "Keine Zusammenfassung.",
     completeness: {
       score,
-      missing: asStringArray(completenessRaw.missing, 10, 200),
-      notes: asNullableString(completenessRaw.notes, 500) ?? undefined,
+      missing: asStringArray(completenessRaw.missing, 10, 280),
+      notes: asNullableString(completenessRaw.notes, 800) ?? undefined,
     },
     suggestedTasks,
     suggestions: asStringArray(o.suggestions, 8, 300),
@@ -329,17 +328,17 @@ export const MariSolutionSketchSchema = z.object({
 });
 
 export const MariTicketAnalysisSchema = z.object({
-  summary: z.string().min(1).max(800),
+  summary: z.string().min(1).max(1800),
   completeness: z.object({
     score: z.number().min(0).max(100),
-    missing: z.array(z.string().max(200)).max(10),
-    notes: z.string().max(500).optional(),
+    missing: z.array(z.string().max(280)).max(10),
+    notes: z.string().max(800).optional(),
   }),
   suggestedTasks: z
     .array(
       z.object({
         title: z.string().min(1).max(200),
-        reason: z.string().max(300).optional(),
+        reason: z.string().max(500).optional(),
         dueHint: z.string().max(40).nullable().optional(),
       })
     )
@@ -349,7 +348,7 @@ export const MariTicketAnalysisSchema = z.object({
     .object({
       statusId: z.number().int().positive().nullable().optional(),
       label: z.string().max(80).optional(),
-      reason: z.string().max(300).optional(),
+      reason: z.string().max(500).optional(),
     })
     .nullable()
     .optional(),
@@ -388,6 +387,19 @@ export function detectRelevantVendorsFromTicketText(text: string): string[] {
 const SYSTEM = `Du bist Buddy, Senior-Support-Assistent für Maringo/MARI Tickets (Schweiz, de-CH).
 Kontext: SAP Business One (B1) inkl. HANA/SQL Server, Transaction Notification (SBO_SP_TransactionNotification), Formatted Search, UDFs/UDT, DI-API, Service Layer, Add-ons (Coresystems/coresuite, Boyum IT), Microsoft 365/Outlook/Graph, Maringo/MARI u.ä.
 WICHTIG zu SAP: IMMER SAP Business One — NIEMALS R/3, ECC, S/4HANA, Fiori oder ECC-T-Codes.
+
+REASONING (sichtbar in summary, outline, reasons — nicht intern verschlucken):
+- Reihenfolge: Lage klären → 2–3 Hypothesen mit Für/Wider → wahrscheinlichste Diagnose → Plan.
+- summary: 6–10 Sätze — Symptom, Kontext, wahrscheinlichste Ursache, Unsicherheit, nächster Schritt. Kein Telegrammstil.
+- outline: ausformulierte Argumentation (nicht Stichworte): Evidenz aus Verlauf und Screenshots, Alternativen, warum dieser Weg zuerst.
+- suggestedTasks[].reason und recommendedStatus.reason konkret begründen (was spricht dafür, was bleibt unsicher).
+- Keine Diagnose ohne Beleg; wenn Evidenz dünn ist, das in completeness.notes sagen.
+
+VISION (wenn Bilder mitgeliefert):
+- Jedes Bild bewusst lesen: Fenster/UI-Pfad, exakter Fehlertext, Codes, rote Markierungen, Versionen, Firma, betroffene Belege/Felder.
+- Sichtbaren Fehlertext wörtlich in summary oder completeness.missing zitieren.
+- Bilder als Beleg oder Widerspruch zum Text nutzen — nicht nur «Screenshot vorhanden».
+- Unscharf/unleserlich: in completeness.notes sagen, nicht raten.
 
 HERSTELLER / PRODUKTWISSEN (solutionSketch — Pflicht wenn relevant):
 Ermittle aus Ticket-Produkt, Betreff, Anfrage und Verlauf, welche Hersteller/Produkte betroffen sind, und nutze typisches Produktwissen in outline/steps/artifacts/caveats. vendors[] muss die relevanten Namen listen.
@@ -435,7 +447,7 @@ Support- und Kundenaussagen getrennt auswerten; bereits geklärte Punkte nicht e
 
 Liefere JSON genau in diesem Schema:
 {
-  "summary": "string, max ~800 Zeichen",
+  "summary": "string, 6–10 Sätze, max ~1800 Zeichen",
   "completeness": { "score": 0-100, "missing": ["…"], "notes": "optional" },
   "suggestedTasks": [{ "title": "…", "reason": "optional", "dueHint": "YYYY-MM-DD|null" }],
   "suggestions": ["…"],
@@ -443,7 +455,7 @@ Liefere JSON genau in diesem Schema:
   "nextReplyDraft": "Kundenantwort in der Sprache/Anrede des Verlaufs oder null",
   "solutionSketch": {
     "problemStillOpen": true|false,
-    "outline": "AUSFÜHRLICHE Analyse inkl. relevanter Hersteller-Hinweise: Hypothesen, B1-Objekte/Tabellen, Addon-/Cloud-Einfluss, Risiken, Alternativen",
+    "outline": "AUSFÜHRLICHE begründete Analyse: Hypothesen mit Für/Wider, Screenshot-Evidenz, B1-Objekte/Tabellen, Addon-/Cloud-Einfluss, Risiken, Alternativen, warum dieser Weg zuerst",
     "vendors": ["SAP Business One", "Coresystems coresuite", "…"],
     "steps": [
       {
@@ -467,7 +479,7 @@ Liefere JSON genau in diesem Schema:
 
 solutionSketch — UMFANGREICH und PRAXISTAUGICH (Support-Qualität):
 - Nur wenn Problem noch offen; sonst problemStillOpen=false oder null.
-- outline: nicht nur 2 Sätze — Ursache, Auswirkungen, Lösungsstrategie, Hersteller-Kontext, was man zuerst prüft vs. ändert.
+- outline: nicht nur 2 Sätze — Ursache, Auswirkungen, Lösungsstrategie, Hersteller-Kontext, Screenshot-Befunde, was man zuerst prüft vs. ändert und warum.
 - vendors: alle aus Ticket erkennbaren relevanten Hersteller/Produkte (mind. SAP Business One wenn B1-Thema).
 - steps: 4–12 navigierbare Schritte wo sinnvoll (Diagnose → Fix → Verifikation), inkl. Addon-/Hersteller-UI wenn betroffen.
 - artifacts: LIEFERE substanzielle Skripte, sobald Daten/Regeln involviert sind:
@@ -485,7 +497,7 @@ solutionSketch — UMFANGREICH und PRAXISTAUGICH (Support-Qualität):
 - Klar als Vorschlag; kein Blind-Deploy auf Produktiv.
 - Bereits gegebene Support-Infos im Verlauf berücksichtigen.
 
-Screenshots: Fehlermeldungen/UI in summary, missing, steps und artifacts einbeziehen.
+Screenshots: Fehlermeldungen/UI wörtlich in summary, missing, outline, steps und artifacts einbeziehen — Vision ist Teil der Diagnose, nicht Anhang.
 
 nextReplyDraft — ANREDE (hart):
 - Im User-Prompt steht «Anrede-Muster». Entweder konsequent per Du ODER konsequent formell — nie mischen.
@@ -514,18 +526,8 @@ export async function analyzeMariTicket(
   }
 ): Promise<AnalyzeMariTicketResult> {
   const images = (options?.images || []).slice(0, 6);
-  if (images.length > 0 && !hasOpenAIKey()) {
-    throw new Error(
-      "Screenshots brauchen den OpenAI-Key (Einstellungen → KI-API → OpenAI)."
-    );
-  }
-  if (!hasChatKey() && images.length === 0) {
-    throw new Error(
-      "Chat-/Analyse-API-Key fehlt (Einstellungen → KI-API)."
-    );
-  }
-  if (!hasChatKey() && !hasOpenAIKey()) {
-    throw new Error("KI-API-Key fehlt (Einstellungen → KI-API).");
+  if (!hasOpenAIKey()) {
+    throw new Error("Hinterlege deinen OpenAI-Key unter Konto");
   }
 
   const imageNames = images.map((i) => i.orgFilename).filter(Boolean);
@@ -569,6 +571,13 @@ export async function analyzeMariTicket(
     })
     .join("\n\n");
 
+  const visionHint =
+    images.length > 0
+      ? `
+
+VISION-Auftrag: Lies jedes angehängte Bild genau. Transkribiere sichtbare Fehlertexte/Codes. Verknüpfe Befunde mit outline, completeness.missing und steps (welches Bild, was sichtbar). Widerspricht ein Screenshot dem Text, das explizit sagen.`
+      : "";
+
   const userPrompt = `Ticket #${ticket.issueId}
 Betreff: ${ticket.briefDescription}
 Status: ${ticket.statusName} (${ticket.status})
@@ -607,11 +616,11 @@ Anfragetext (ursprünglich, oft Kunde):
 ${ticket.requestTextPlain.slice(0, 6000)}
 
 Verlauf (chronologisch; [Seite: Support (wir)|Kunde|System|Unklar] markiert den Absender):
-${timelineText.slice(0, 14000) || "(keine Positionen)"}`;
+${timelineText.slice(0, 14000) || "(keine Positionen)"}${visionHint}`;
 
   type ContentPart =
     | { type: "text"; text: string }
-    | { type: "image_url"; image_url: { url: string; detail: "low" | "auto" } };
+    | { type: "image_url"; image_url: { url: string; detail: "low" | "auto" | "high" } };
 
   const userContent: string | ContentPart[] =
     images.length === 0
@@ -621,28 +630,23 @@ ${timelineText.slice(0, 14000) || "(keine Positionen)"}`;
           ...images.map(
             (img): ContentPart => ({
               type: "image_url",
-              image_url: { url: img.dataUrl, detail: "low" },
+              image_url: { url: img.dataUrl, detail: "high" },
             })
           ),
         ];
 
-  const { client, model, provider } = getAnalysisClient({
-    needsVision: images.length > 0,
-  });
+  const client = getOpenAIClient();
+  const model = getOpenAIModel();
   const completion = await client.chat.completions.create({
     model,
     temperature: 0.25,
-    // DeepSeek-Thinking (falls doch an) + lange solutionSketch brauchen Luft.
     max_tokens: 12_000,
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: SYSTEM },
       { role: "user", content: userContent },
     ],
-    // Structured JSON: Thinking aus — sonst frisst Reasoning max_tokens und
-    // content bleibt leer («Keine Zusammenfassung.»).
-    ...(provider === "chat" ? getChatJsonRequestExtras() : {}),
-  } as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming);
+  });
 
   const finishReason = completion.choices[0]?.finish_reason;
   const raw = completion.choices[0]?.message?.content?.trim() || "";
@@ -694,7 +698,7 @@ ${timelineText.slice(0, 14000) || "(keine Positionen)"}`;
   };
 }
 
-/** Placeholder / truncated DeepSeek JSON that looks „fertig“, aber nichts enthält. */
+/** Placeholder / truncated JSON that looks „fertig“, aber nichts enthält. */
 export function isHollowMariTicketAnalysis(
   analysis: MariTicketAnalysis
 ): boolean {
