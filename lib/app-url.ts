@@ -77,7 +77,7 @@ export function getAppPublicOrigin(request?: Request | null): string {
   if (fromSettings) return fromSettings;
   const fromRequest = requestOriginFromHeaders(request);
   if (fromRequest) return fromRequest;
-  return "http://localhost:3200";
+  return "http://localhost:3311";
 }
 
 /**

@@ -12,3 +12,9 @@ This version has breaking changes — APIs, conventions, and file structure may 
 Agents: still run `npm run version:bump` and stage `lib/app-version.ts` before
 `git commit` when preparing a commit, so the stamp is correct even if hooks are
 skipped. Never commit with a stale sidebar version.
+
+## Local server port
+
+WorkBuddy binds on **3311** (`PORT=3311`), never 3000 (that port is taken).
+Local: `PORT=3311 npm run dev` → http://localhost:3311
+Docker: `${WORKBUDDY_PORT:-3311}:3311` with `PORT=3311` in the container.

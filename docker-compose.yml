@@ -7,10 +7,10 @@ services:
     container_name: workbuddy
     user: "1000:1000"
     ports:
-      - "${WORKBUDDY_PORT:-3200}:3000"
+      - "${WORKBUDDY_PORT:-3311}:3311"
     environment:
       HOSTNAME: "0.0.0.0"
-      PORT: "3000"
+      PORT: "3311"
       DATABASE_PATH: ${DATABASE_PATH:-/app/data/supportdesk.sqlite}
       WORKBUDDY_USERNAME: ${WORKBUDDY_USERNAME:-admin}
       WORKBUDDY_PASSWORD: ${WORKBUDDY_PASSWORD:-}
@@ -29,7 +29,7 @@ services:
       - ./data:/app/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/auth/me').then(r=>process.exit(r.status===401||r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "const p=process.env.PORT||3311;fetch('http://127.0.0.1:'+p+'/api/auth/me').then(r=>process.exit(r.status===401||r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3

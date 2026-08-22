@@ -46,5 +46,5 @@ Ohne OpenAI-Key zeigt die UI: «Hinterlege deinen OpenAI-Key unter Konto». Es g
 ## Betrieb
 
 - SQLite WAL unter `./data` (`DATABASE_PATH=/app/data/supportdesk.sqlite`).
-- Interner Port 3000, Host default 3200.
+- Interner Port 3311 (`PORT=3311`), Host default 3311 (`WORKBUDDY_PORT`).
 - Ticket-Poll und Tagesanalyse laufen pro User (dessen MARI-Login / Graph-Token / OpenAI-Key).

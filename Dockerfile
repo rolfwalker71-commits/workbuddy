@@ -24,7 +24,7 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV PORT=3000
+ENV PORT=3311
 ENV HOSTNAME=0.0.0.0
 ENV DATABASE_PATH=/app/data/supportdesk.sqlite
 
@@ -46,8 +46,8 @@ COPY --chown=node:node docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
 USER root
-EXPOSE 3000
+EXPOSE 3311
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:3000/api/auth/me').then(r=>process.exit(r.status===401||r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "const p=process.env.PORT||3311;fetch('http://127.0.0.1:'+p+'/api/auth/me').then(r=>process.exit(r.status===401||r.ok?0:1)).catch(()=>process.exit(1))"
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
