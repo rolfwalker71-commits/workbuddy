@@ -167,6 +167,22 @@ export async function getTodayMicrosoftMailExcerpt(
   }
 }
 
+/** Inbox unread count from Graph (cheap folder metadata). */
+export async function getInboxUnreadCount(
+  userId: number
+): Promise<number | null> {
+  try {
+    const folder = await graphJson<{ unreadItemCount?: number }>(
+      userId,
+      "/me/mailFolders/inbox?$select=unreadItemCount"
+    );
+    const n = folder.unreadItemCount;
+    return typeof n === "number" && Number.isFinite(n) ? Math.max(0, n) : 0;
+  } catch {
+    return null;
+  }
+}
+
 export async function getMicrosoftMessage(
   userId: number,
   messageId: string

@@ -9,6 +9,7 @@ import {
 } from "@/lib/microsoft/oauth";
 import { listMicrosoftEventsToday } from "@/lib/microsoft/calendar-review";
 import type { MsCalendarEvent } from "@/lib/microsoft/calendar-review";
+import { getInboxUnreadCount } from "@/lib/microsoft/mail-inbox";
 import { listMicrosoftMailToday } from "@/lib/microsoft/mail-day";
 import type { MsMailItem } from "@/lib/microsoft/mail-day";
 import { getMsMailDayCached } from "@/lib/microsoft/mail-day-analysis-job";
@@ -42,6 +43,7 @@ export type HomeOverviewPayload = {
     connected: boolean;
     events: MsCalendarEvent[];
     mailInbox: HomeMailSample[];
+    unreadCount: number | null;
     mailDay: HomeMailDaySummary | null;
     tasks: HomeTasksBundle;
   } | null;
@@ -75,6 +77,7 @@ export async function getHomeOverview(
     const connected = userId != null && isMicrosoftConnected(userId);
     let events: MsCalendarEvent[] = [];
     let mailInbox: HomeMailSample[] = [];
+    let unreadCount: number | null = null;
     let mailDay: HomeMailDaySummary | null = null;
     if (userId != null && connected && hasMicrosoftCalendarScope(userId)) {
       try {
@@ -84,12 +87,14 @@ export async function getHomeOverview(
       }
     }
     if (userId != null && connected && hasMicrosoftMailScope(userId)) {
-      try {
-        const mail = await listMicrosoftMailToday(userId);
-        mailInbox = (mail.inbox || []).slice(0, 4).map(mailSample);
-      } catch {
-        mailInbox = [];
-      }
+      const [mailResult, unread] = await Promise.all([
+        listMicrosoftMailToday(userId)
+          .then((mail) => (mail.inbox || []).slice(0, 4).map(mailSample))
+          .catch(() => [] as HomeMailSample[]),
+        getInboxUnreadCount(userId),
+      ]);
+      mailInbox = mailResult;
+      unreadCount = unread;
       const cached = getMsMailDayCached(userId, today);
       if (cached) {
         mailDay = {
@@ -102,7 +107,15 @@ export async function getHomeOverview(
       }
     }
     const tasks = await loadHomeTasksBundle(userId);
-    microsoft = { enabled: true, connected, events, mailInbox, mailDay, tasks };
+    microsoft = {
+      enabled: true,
+      connected,
+      events,
+      mailInbox,
+      unreadCount,
+      mailDay,
+      tasks,
+    };
   }
 
   let maringo: HomeOverviewPayload["maringo"] = null;

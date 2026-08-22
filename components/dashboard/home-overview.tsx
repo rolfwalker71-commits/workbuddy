@@ -8,6 +8,7 @@ import {
   ChevronRight,
   ExternalLink,
   ListChecks,
+  Mail,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -32,6 +33,11 @@ const MARI_DONUT_COLORS: Record<number, string> = {
   13: "#22d3ee",
   6: "#eab308",
 };
+
+const WAITING_ON_ME_STATUS = new Set([11, 1, 3, 13, 4, 14]);
+
+const HERO_KPI_CLASS =
+  "flex min-h-11 items-center gap-3 rounded-2xl bg-card px-3 py-2.5 shadow-sm ring-1 ring-foreground/10 transition-shadow hover:bg-muted hover:shadow-md";
 
 function formatLongDeDate(d = new Date()): string {
   return new Intl.DateTimeFormat("de-CH", {
@@ -98,8 +104,8 @@ function MariStatusDonut({
   const total = segments.reduce((s, x) => s + x.count, 0);
   const cx = size / 2;
   const cy = size / 2;
-  const r = size / 2 - 10;
-  const stroke = Math.max(14, size * 0.18);
+  const stroke = size >= 80 ? Math.max(14, size * 0.18) : Math.max(6, size * 0.16);
+  const r = size / 2 - stroke / 2 - 1;
   if (total <= 0) {
     return (
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
@@ -220,6 +226,9 @@ export function HomeOverview() {
   const mailSample = data?.microsoft?.mailInbox[0] || null;
   const tickets = data?.maringo?.tickets;
   const positiveCounts = (tickets?.countsByStatus || []).filter((c) => c.count > 0);
+  const waitingOnMe = (tickets?.countsByStatus || [])
+    .filter((c) => WAITING_ON_ME_STATUS.has(c.statusId))
+    .reduce((sum, c) => sum + c.count, 0);
 
   return (
     <div className="space-y-6 pb-10">
@@ -239,26 +248,110 @@ export function HomeOverview() {
           className="absolute inset-0 bg-gradient-to-t from-white/55 via-transparent to-sky-50/30 dark:from-background/70 dark:via-transparent dark:to-black/20"
           aria-hidden
         />
-        <div className="relative flex flex-col gap-4 px-5 py-6 sm:px-6 sm:py-7 @[36rem]:flex-row @[36rem]:items-start @[36rem]:justify-between @[36rem]:gap-6">
-          <div className="min-w-0 flex-1">
-            <h1 className="text-[1.75rem] font-extrabold leading-snug tracking-tight drop-shadow-sm">
-              {greetingWord()}
-              {data?.greetingName ? `, ${data.greetingName}` : ""}
-            </h1>
-            <p className="mt-1 text-sm capitalize text-muted-foreground">
-              {formatLongDeDate()}
-            </p>
-            {data && data.modules.length === 0 ? (
-              <p className="mt-3 text-sm text-muted-foreground">
-                Dir sind noch keine Module zugewiesen. Bitte den Admin unter Einstellungen.
+        <div className="relative space-y-4 px-5 py-6 sm:px-6 sm:py-7">
+          <div className="flex flex-col gap-4 @[36rem]:flex-row @[36rem]:items-start @[36rem]:justify-between @[36rem]:gap-6">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-[1.75rem] font-extrabold leading-snug tracking-tight drop-shadow-sm">
+                {greetingWord()}
+                {data?.greetingName ? `, ${data.greetingName}` : ""}
+              </h1>
+              <p className="mt-1 text-sm capitalize text-muted-foreground">
+                {formatLongDeDate()}
               </p>
-            ) : null}
-          </div>
-          {loading && !data ? null : (
-            <div className="w-full min-w-0 @[36rem]:w-[20rem] @[36rem]:shrink-0">
-              <HomeWeatherWidget weather={data?.weather ?? null} />
+              {data && data.modules.length === 0 ? (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Dir sind noch keine Module zugewiesen. Bitte den Admin unter Einstellungen.
+                </p>
+              ) : null}
             </div>
-          )}
+            {loading && !data ? null : (
+              <div className="w-full min-w-0 @[36rem]:w-[20rem] @[36rem]:shrink-0">
+                <HomeWeatherWidget weather={data?.weather ?? null} />
+              </div>
+            )}
+          </div>
+          {data && (data.microsoft || data.maringo) ? (
+            <div
+              className={cn(
+                "grid gap-2",
+                data.microsoft && data.maringo
+                  ? "min-[22rem]:grid-cols-2 @[48rem]:grid-cols-3"
+                  : "min-[22rem]:grid-cols-2"
+              )}
+            >
+              {data.microsoft ? (
+                <Link href="/microsoft?tab=mail" className={HERO_KPI_CLASS}>
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-800 dark:bg-sky-500/15 dark:text-sky-100">
+                    <Mail className="size-4" strokeWidth={APP_ICON_STROKE} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[1.35rem] font-black tabular-nums leading-none tracking-tight">
+                      {data.microsoft.connected
+                        ? data.microsoft.unreadCount ?? "—"
+                        : "—"}
+                    </span>
+                    <span className="mt-1 block text-xs leading-snug text-muted-foreground">
+                      {data.microsoft.connected
+                        ? "Ungelesene Mails"
+                        : "Microsoft verbinden"}
+                    </span>
+                  </span>
+                </Link>
+              ) : null}
+              {data.maringo ? (
+                <Link href="/maringo" className={HERO_KPI_CLASS}>
+                  <span className="relative flex size-14 shrink-0 items-center justify-center">
+                    <MariStatusDonut
+                      segments={positiveCounts}
+                      size={56}
+                    />
+                    <span className="absolute inset-0 flex items-center justify-center text-sm font-black tabular-nums">
+                      {tickets?.configured ? tickets.total : "—"}
+                    </span>
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold leading-snug">
+                      Tickets
+                    </span>
+                    <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">
+                      {!tickets?.configured
+                        ? "Maringo unter Konto hinterlegen"
+                        : waitingOnMe > 0
+                          ? `${waitingOnMe} warten auf dich`
+                          : tickets.total > 0
+                            ? `${tickets.total} offen`
+                            : tickets.lastPollAt
+                              ? "Keine offenen Tickets"
+                              : "Noch kein Poll"}
+                    </span>
+                  </span>
+                </Link>
+              ) : null}
+              {data.microsoft ? (
+                <Link href="/microsoft?tab=calendar" className={HERO_KPI_CLASS}>
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-800 dark:bg-violet-500/15 dark:text-violet-100">
+                    <CalendarDays className="size-4" strokeWidth={APP_ICON_STROKE} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold leading-snug">
+                      {nextEvent
+                        ? nextEvent.isAllDay
+                          ? "Ganztägig"
+                          : nextEvent.startHm || "Heute"
+                        : "Kein Termin"}
+                    </span>
+                    <span className="mt-0.5 block break-words text-xs leading-snug text-muted-foreground">
+                      {nextEvent
+                        ? nextEvent.subject
+                        : data.microsoft.connected
+                          ? "Heute frei"
+                          : "Microsoft verbinden"}
+                    </span>
+                  </span>
+                </Link>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </header>
 
