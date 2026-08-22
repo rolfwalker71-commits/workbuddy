@@ -397,7 +397,7 @@ export function HomeOverview() {
                                   ["#e86a2b", "#8b7cf6", "#eab308"][i % 3],
                               }}
                             />
-                            <span className="min-w-0 flex-1 truncate text-xs font-medium">
+                            <span className="min-w-0 flex-1 break-words text-xs font-medium leading-snug">
                               {c.label}
                             </span>
                             <span className="text-sm font-bold tabular-nums">{c.count}</span>

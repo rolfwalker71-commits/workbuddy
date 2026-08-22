@@ -86,7 +86,7 @@ export function DataList({
   return (
     <div
       className={cn(
-        "flex w-full min-w-0 flex-col gap-3 p-3 md:gap-0 md:divide-y md:divide-border/70 md:p-0",
+        "flex w-full min-w-0 flex-col gap-2 p-2",
         className
       )}
     >
@@ -107,7 +107,7 @@ export function DataListRow({
   return (
     <div
       className={cn(
-        "w-full min-w-0 rounded-xl border border-border/60 bg-card p-3.5 shadow-[0_4px_16px_rgba(20,32,28,0.05)] transition-colors hover:bg-muted/30 md:rounded-none md:border-0 md:bg-transparent md:px-4 md:py-3 md:shadow-none",
+        "w-full min-w-0 rounded-2xl bg-card p-3.5 shadow-sm ring-1 ring-foreground/10 transition-colors hover:bg-muted",
         onClick && "cursor-pointer",
         className
       )}
@@ -178,7 +178,7 @@ export function DataListHeader({
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted px-4 py-1.5">
       <div className="flex min-h-8 min-w-0 items-center">
-        <h3 className="text-[16px] font-bold leading-none text-foreground">{title}</h3>
+        <h3 className="text-base font-bold leading-none text-foreground">{title}</h3>
         {description ? (
           <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
         ) : null}

@@ -92,16 +92,17 @@ export function AppTabNav<T extends string>({
             <Button
               type="button"
               variant="ghost"
+              data-segment={variant === "desktop" ? "true" : undefined}
               className={
                 variant === "desktop"
                   ? cn(
-                      "inline-flex h-auto flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
+                      "inline-flex h-full min-h-0 flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-0 text-sm font-medium leading-none transition-colors",
                       overflowActive
                         ? cn("bg-card shadow-sm", activeText)
-                        : "text-muted-foreground hover:text-foreground"
+                        : "text-muted-foreground hover:bg-transparent hover:text-foreground"
                     )
                   : cn(
-                      "flex h-auto min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-1 text-[10px] font-bold tracking-tight transition-colors",
+                      "flex h-auto min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-1 text-[0.625rem] font-bold tracking-tight transition-colors",
                       overflowActive ? "text-foreground" : "text-foreground/55"
                     )
               }
@@ -155,7 +156,7 @@ export function AppTabNav<T extends string>({
         className={cn(
           alwaysBottom
             ? "hidden"
-            : "hidden flex-wrap gap-1 rounded-xl bg-muted/50 p-1 md:flex",
+            : "hidden h-10 min-h-10 flex-wrap items-center rounded-full bg-muted p-0.5 md:flex",
           className
         )}
       >
@@ -167,12 +168,13 @@ export function AppTabNav<T extends string>({
               key={item.id}
               type="button"
               variant="ghost"
+              data-segment="true"
               onClick={() => onChange(item.id)}
               className={cn(
-                "inline-flex h-auto flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium leading-snug whitespace-normal transition-colors",
+                "inline-flex h-full min-h-0 flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-0 text-sm font-medium leading-none whitespace-normal transition-colors",
                 isActive
                   ? cn("bg-card shadow-sm", activeText)
-                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                  : "text-muted-foreground hover:bg-transparent hover:text-foreground"
               )}
             >
               <Icon className="size-4 shrink-0" />
@@ -205,7 +207,7 @@ export function AppTabNav<T extends string>({
                   variant="ghost"
                   onClick={() => onChange(item.id)}
                   className={cn(
-                    "flex h-auto min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-1 text-[10px] font-bold tracking-tight transition-colors",
+                    "flex h-auto min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-1 text-[0.625rem] font-bold tracking-tight transition-colors",
                     isEmphasize
                       ? "text-foreground"
                       : isActive

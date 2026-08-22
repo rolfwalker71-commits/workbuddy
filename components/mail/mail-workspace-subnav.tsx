@@ -2,41 +2,28 @@
 
 import { History, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  segmentedTrackClass,
+  segmentedTriggerClass,
+} from "@/components/layout/segmented-control";
 import { cn } from "@/lib/utils";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 
 export type MailWorkspaceView = "chronik" | "tagesanalysen";
 export type MailWorkspaceAccent = "google" | "microsoft";
 
-const ACCENT = {
-  google: {
-    activeText: "text-teal-900 dark:text-teal-200",
-    softBg: "bg-teal-50/50 dark:bg-teal-500/15",
-  },
-  microsoft: {
-    activeText: "text-[var(--brand-docs)]",
-    softBg: "bg-[var(--brand-docs-soft)]/50",
-  },
-} as const;
-
-/** Soft pill tabs — no outline / underline borders (avoids clipped text). */
+/** Soft pill tabs — muted track + elevated active pill. */
 export function mailWorkspaceTabClass(
   active: boolean,
-  accent: MailWorkspaceAccent = "google"
+  _accent: MailWorkspaceAccent = "microsoft"
 ) {
-  const a = ACCENT[accent];
-  return cn(
-    "h-auto gap-1.5 rounded-lg px-3 py-2 text-sm font-medium leading-snug whitespace-normal",
-    active
-      ? cn("bg-card text-foreground shadow-sm", a.activeText)
-      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-  );
+  return segmentedTriggerClass(active);
 }
 
 export function MailWorkspaceSubnav({
   view,
   onChange,
-  accent = "google",
+  accent = "microsoft",
   className,
 }: {
   view: MailWorkspaceView;
@@ -52,7 +39,7 @@ export function MailWorkspaceSubnav({
       )}
     >
       <div
-        className="flex flex-wrap gap-1 rounded-xl bg-muted/50 p-1"
+        className={segmentedTrackClass}
         role="tablist"
         aria-label="Mail-Ansicht"
       >
@@ -60,22 +47,24 @@ export function MailWorkspaceSubnav({
           type="button"
           variant="ghost"
           role="tab"
+          data-segment="true"
           aria-selected={view === "chronik"}
           className={mailWorkspaceTabClass(view === "chronik", accent)}
           onClick={() => onChange("chronik")}
         >
-          <History className="size-3.5 shrink-0" strokeWidth={APP_ICON_STROKE} aria-hidden />
-          Mails · Chronik
+          <History className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} aria-hidden />
+          Chronik
         </Button>
         <Button
           type="button"
           variant="ghost"
           role="tab"
+          data-segment="true"
           aria-selected={view === "tagesanalysen"}
           className={mailWorkspaceTabClass(view === "tagesanalysen", accent)}
           onClick={() => onChange("tagesanalysen")}
         >
-          <Sparkles className="size-3.5 shrink-0" strokeWidth={APP_ICON_STROKE} aria-hidden />
+          <Sparkles className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} aria-hidden />
           Tagesanalysen
         </Button>
       </div>
@@ -92,7 +81,7 @@ export function MailWorkspaceSubnav({
   );
 }
 
-export function mailWorkspacePrimaryBtnClass(accent: MailWorkspaceAccent = "google") {
+export function mailWorkspacePrimaryBtnClass(accent: MailWorkspaceAccent = "microsoft") {
   return accent === "google"
     ? "bg-teal-800 text-white hover:bg-teal-800/90"
     : "bg-[var(--brand-docs)] text-white hover:bg-[var(--brand-docs)]/90";
