@@ -4,7 +4,7 @@ import {
   MARI_TICKETS_SYNC_INTERVAL_MS,
   getMariTicketsWatchState,
 } from "@/lib/mari/sync-tickets-if-due";
-import { WORK_STATUS_IDS } from "@/lib/mari/status";
+import { OPEN_WORK_STATUS_IDS } from "@/lib/mari/status";
 
 test("mari ticket poll interval is 10 minutes", () => {
   assert.equal(MARI_TICKETS_SYNC_INTERVAL_MS, 10 * 60 * 1000);
@@ -23,12 +23,12 @@ test("getMariTicketsWatchState accepts ownerKey", () => {
   assert.equal(typeof st.total, "number");
 });
 
-test("getMariTicketsWatchState returns a row per default work status", () => {
+test("getMariTicketsWatchState returns a row per open work status", () => {
   const st = getMariTicketsWatchState();
-  assert.equal(st.countsByStatus.length, WORK_STATUS_IDS.length);
+  assert.equal(st.countsByStatus.length, OPEN_WORK_STATUS_IDS.length);
   assert.deepEqual(
     st.countsByStatus.map((c) => c.statusId),
-    [...WORK_STATUS_IDS]
+    [...OPEN_WORK_STATUS_IDS]
   );
   assert.equal(
     st.total,

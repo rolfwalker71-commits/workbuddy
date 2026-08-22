@@ -108,6 +108,8 @@ export type MariTicketListItem = {
   /** Sichtbare Vertragsnummer wenn bekannt */
   contractNumber: string | null;
   contractPositionId: number | null;
+  /** WorkBuddy: gespeicherte AI-Analyse vorhanden */
+  hasAnalysis?: boolean;
 };
 
 export type MariTimelineAttachment = {

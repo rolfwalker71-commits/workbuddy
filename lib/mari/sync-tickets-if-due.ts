@@ -1,11 +1,11 @@
 import { getSetting, setSetting } from "@/lib/db/migrations";
 import { resolveMariConfigForUser } from "@/lib/mari/settings";
 import { listMyTickets, type MariTicketListItem } from "@/lib/mari/tickets";
-import { ALL_STATUS_IDS, statusChipLabel, WORK_STATUS_IDS } from "@/lib/mari/status";
 import {
-  defaultMariTicketFilterPrefs,
-  getMariTicketFilterPrefs,
-} from "@/lib/mari/ticket-filter-prefs";
+  ALL_STATUS_IDS,
+  OPEN_WORK_STATUS_IDS,
+  statusChipLabel,
+} from "@/lib/mari/status";
 import { runWithMariUser } from "@/lib/mari/request-context";
 import { notifyAppChange } from "@/lib/realtime/notify";
 import { toSwissDate } from "@/lib/utils/dates";
@@ -180,11 +180,7 @@ export function getMariTicketsWatchState(
   ownerKey?: string | null
 ): MariTicketsWatchState {
   const userId = userIdFromOwnerKey(ownerKey);
-  const prefs = ownerKey
-    ? getMariTicketFilterPrefs(ownerKey)
-    : defaultMariTicketFilterPrefs();
-  const statusIds =
-    prefs.statuses.length > 0 ? prefs.statuses : [...WORK_STATUS_IDS];
+  const statusIds = [...OPEN_WORK_STATUS_IDS];
   if (userId == null) {
     return {
       configured: false,
@@ -222,6 +218,21 @@ export function getMariTicketsWatchState(
 export async function getMariTicketsWatchStateLive(
   ownerKey?: string | null
 ): Promise<MariTicketsWatchState> {
+  const userId = userIdFromOwnerKey(ownerKey);
+  if (userId == null) return getMariTicketsWatchState(ownerKey);
+  const snapshot = readJsonSetting<MariTicketSnapshotRow[]>(
+    snapshotKey(userId),
+    []
+  );
+  const lastRaw = getSetting(lastPollKey(userId));
+  const last = lastRaw ? Date.parse(lastRaw) : NaN;
+  const fresh =
+    snapshot.length > 0 &&
+    Number.isFinite(last) &&
+    Date.now() - last < MARI_TICKETS_SYNC_INTERVAL_MS;
+  if (!fresh) {
+    await syncMariTicketsForUser(userId, { force: true }).catch(() => null);
+  }
   return getMariTicketsWatchState(ownerKey);
 }
 

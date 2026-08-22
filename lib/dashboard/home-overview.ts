@@ -14,7 +14,7 @@ import { listMicrosoftMailToday } from "@/lib/microsoft/mail-day";
 import type { MsMailItem } from "@/lib/microsoft/mail-day";
 import { getMsMailDayCached } from "@/lib/microsoft/mail-day-analysis-job";
 import { zurichYmd } from "@/lib/microsoft/time";
-import { getMariTicketsWatchState } from "@/lib/mari/sync-tickets-if-due";
+import { getMariTicketsWatchStateLive } from "@/lib/mari/sync-tickets-if-due";
 import type { MariTicketsWatchState } from "@/lib/mari/sync-tickets-if-due";
 import { loadHomeTasksBundle, type HomeTasksBundle } from "./home-tasks";
 import { fetchHomeWeatherCard, type HomeWeatherCard } from "@/lib/weather/fetch";
@@ -122,7 +122,7 @@ export async function getHomeOverview(
   if (showMari) {
     maringo = {
       enabled: true,
-      tickets: getMariTicketsWatchState(ownerKeyFromAuth(auth)),
+      tickets: await getMariTicketsWatchStateLive(ownerKeyFromAuth(auth)),
     };
   }
 

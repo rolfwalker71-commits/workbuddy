@@ -306,7 +306,8 @@ WHERE "IssueID" = ${issueId}
 
 /**
  * Bild-Anhänge für AI-Vision laden.
- * Begrenzt Anzahl/Größe; winzige GIFs (Signaturen) werden übersprungen.
+ * Ohne `attachmentIds`: begrenzt Anzahl/Größe; winzige GIFs (Signaturen) werden übersprungen.
+ * Mit `attachmentIds`: nur diese IDs des Tickets, Reihenfolge beibehalten; Signatur-Filter aus.
  */
 export async function listMariImageAttachmentsForAi(
   issueId: number,
@@ -314,9 +315,14 @@ export async function listMariImageAttachmentsForAi(
     maxImages?: number;
     maxBytesPerImage?: number;
     maxTotalBytes?: number;
+    attachmentIds?: number[];
   }
 ): Promise<MariImageAttachment[]> {
-  const maxImages = Math.min(Math.max(options?.maxImages ?? 4, 1), 6);
+  const honorSelection = Array.isArray(options?.attachmentIds);
+  const maxImages = Math.min(
+    Math.max(options?.maxImages ?? (honorSelection ? 6 : 4), 1),
+    6
+  );
   const maxBytesPerImage = options?.maxBytesPerImage ?? 1_800_000;
   const maxTotalBytes = options?.maxTotalBytes ?? 4_500_000;
 
@@ -325,17 +331,33 @@ export async function listMariImageAttachmentsForAi(
   );
   if (meta.length === 0) return [];
 
-  // Prefer customer/inbound-looking attachments; AttachmentTyp 3 oft Mail-Eingang
-  const ranked = [...meta].sort((a, b) => {
-    const score = (x: MariAttachmentMeta) =>
-      (x.attachmentTyp === 3 ? 0 : 1) + (x.internal ? 2 : 0);
-    return score(a) - score(b);
-  });
+  let candidates: MariAttachmentMeta[];
+  if (honorSelection) {
+    const order = new Map(
+      (options?.attachmentIds || [])
+        .map((n) => Number(n))
+        .filter((n) => Number.isInteger(n) && n > 0)
+        .map((id, i) => [id, i] as const)
+    );
+    candidates = meta
+      .filter((a) => order.has(a.attachmentId))
+      .sort(
+        (a, b) =>
+          (order.get(a.attachmentId) ?? 0) - (order.get(b.attachmentId) ?? 0)
+      );
+  } else {
+    // Prefer customer/inbound-looking attachments; AttachmentTyp 3 oft Mail-Eingang
+    candidates = [...meta].sort((a, b) => {
+      const score = (x: MariAttachmentMeta) =>
+        (x.attachmentTyp === 3 ? 0 : 1) + (x.internal ? 2 : 0);
+      return score(a) - score(b);
+    });
+  }
 
   const out: MariImageAttachment[] = [];
   let total = 0;
 
-  for (const item of ranked) {
+  for (const item of candidates) {
     if (out.length >= maxImages) break;
     try {
       const full = await mariJson<MariAttachmentApiRow>(
@@ -345,7 +367,6 @@ export async function listMariImageAttachmentsForAi(
       const bytes = decodeMariBase64(raw);
       if (!bytes) continue;
       const byteLength = bytes.length;
-      // Skip tiny signature GIFs / icons
       const mime = sniffImageMime(
         bytes,
         normalizeMariMime(
@@ -353,8 +374,10 @@ export async function listMariImageAttachmentsForAi(
           full.OrgFilename || item.orgFilename
         )
       );
-      if (mime === "image/gif" && byteLength < 12_000) continue;
-      if (byteLength < 2_500) continue;
+      if (!honorSelection) {
+        if (mime === "image/gif" && byteLength < 12_000) continue;
+        if (byteLength < 2_500) continue;
+      }
       if (byteLength > maxBytesPerImage) continue;
       if (total + byteLength > maxTotalBytes) continue;
       if (!mime.startsWith("image/")) continue;

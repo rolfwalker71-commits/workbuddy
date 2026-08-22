@@ -126,6 +126,7 @@ import {
   suggestionToBookDefaults,
   type MariTimeSuggestion,
 } from "@/components/maringo/maringo-time-suggestions-panel";
+import { TicketAnalyzeAttachmentPicker } from "@/components/maringo/ticket-analyze-attachment-picker";
 
 function ReplyLangToggle({
   lang,
@@ -672,6 +673,7 @@ export function MaringoWorkspaceClient() {
   const [listLoading, setListLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [analyzePickerOpen, setAnalyzePickerOpen] = useState(false);
   const [postingInternalNote, setPostingInternalNote] = useState(false);
   const [translatingReplyDraft, setTranslatingReplyDraft] = useState(false);
   const [replyDraftLang, setReplyDraftLang] = useState<ReplyLang | null>(null);
@@ -1296,11 +1298,13 @@ export function MaringoWorkspaceClient() {
   function openTicket(issueId: number) {
     setSelectedId(issueId);
     setTicketFlyoutOpen(true);
+    setAnalyzePickerOpen(false);
   }
 
   function closeTicketFlyout() {
     setSecondaryFlyouts([]);
     setTicketFlyoutOpen(false);
+    setAnalyzePickerOpen(false);
   }
 
   function toggleSecondary(id: MariSecondaryFlyoutId) {
@@ -1381,9 +1385,15 @@ export function MaringoWorkspaceClient() {
     setHandledBy(value);
   }
 
-  async function runAnalyze(options?: { includeImages?: boolean }) {
+  async function runAnalyze(options?: {
+    includeImages?: boolean;
+    attachmentIds?: number[];
+  }) {
     if (!selectedId) return;
     const includeImages = Boolean(options?.includeImages);
+    const attachmentIds = Array.isArray(options?.attachmentIds)
+      ? options.attachmentIds
+      : undefined;
     setAnalyzing(true);
     setError(null);
     setAnalysisUsage(null);
@@ -1391,7 +1401,7 @@ export function MaringoWorkspaceClient() {
       const res = await fetch(`/api/maringo/tickets/${selectedId}/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ includeImages }),
+        body: JSON.stringify({ includeImages, attachmentIds }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Analyse fehlgeschlagen");
@@ -1415,6 +1425,13 @@ export function MaringoWorkspaceClient() {
       );
       setAnalysisInternalNotePostedAt(null);
       setAnalysisOpen(true);
+      if (selectedId != null) {
+        setTickets((prev) =>
+          prev.map((t) =>
+            t.issueId === selectedId ? { ...t, hasAnalysis: true } : t
+          )
+        );
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -2245,6 +2262,19 @@ export function MaringoWorkspaceClient() {
                         <span className="shrink-0 text-xs font-bold tabular-nums text-foreground">
                           #{t.issueId}
                         </span>
+                        {t.hasAnalysis ? (
+                          <span
+                            title="AI-Analyse vorhanden"
+                            className="inline-flex shrink-0"
+                          >
+                            <Sparkles
+                              className="size-3.5 text-orange-500"
+                              strokeWidth={APP_ICON_STROKE}
+                              aria-hidden
+                            />
+                            <span className="sr-only">AI-Analyse vorhanden</span>
+                          </span>
+                        ) : null}
                         <p className="min-w-0 truncate text-[0.8125rem] font-semibold leading-snug tracking-tight">
                           {t.briefDescription}
                         </p>
@@ -2618,17 +2648,15 @@ export function MaringoWorkspaceClient() {
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   disabled={analyzing}
-                                  onClick={() =>
-                                    void runAnalyze({ includeImages: true })
-                                  }
+                                  onClick={() => setAnalyzePickerOpen(true)}
                                 >
                                   <span className="flex flex-col gap-0.5">
                                     <span className="font-medium">
-                                      Mit Screenshots (
+                                      Grafiken auswählen (
                                       {detailImageAttachmentCount})
                                     </span>
                                     <span className="text-[0.6875rem] text-muted-foreground">
-                                      OpenAI Vision — wenn Bildinhalt wichtig ist
+                                      Vorschau — Signaturen weglassen
                                     </span>
                                   </span>
                                 </DropdownMenuItem>
@@ -3342,6 +3370,20 @@ export function MaringoWorkspaceClient() {
             document.body
           )
         : null}
+
+      <TicketAnalyzeAttachmentPicker
+        open={analyzePickerOpen}
+        onOpenChange={setAnalyzePickerOpen}
+        timeline={detail?.timeline ?? []}
+        analyzing={analyzing}
+        onConfirm={(attachmentIds) => {
+          setAnalyzePickerOpen(false);
+          void runAnalyze({
+            includeImages: attachmentIds.length > 0,
+            attachmentIds,
+          });
+        }}
+      />
 
       <MaringoTimeBookDialog
         open={bookDialogOpen}

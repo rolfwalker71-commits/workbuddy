@@ -69,15 +69,29 @@ export async function POST(_request: Request, context: Ctx) {
   }
 
   let includeImages = false;
+  let attachmentIds: number[] | undefined;
   try {
     const body = await _request.json();
-    if (body && typeof body === "object" && "includeImages" in body) {
-      includeImages = Boolean(
-        (body as { includeImages?: unknown }).includeImages
-      );
+    if (body && typeof body === "object") {
+      if ("includeImages" in body) {
+        includeImages = Boolean(
+          (body as { includeImages?: unknown }).includeImages
+        );
+      }
+      if ("attachmentIds" in body && Array.isArray((body as { attachmentIds?: unknown }).attachmentIds)) {
+        const rawIds = (body as { attachmentIds: unknown[] }).attachmentIds;
+        attachmentIds = [
+          ...new Set(
+            rawIds
+              .map((n) => Number(n))
+              .filter((n) => Number.isInteger(n) && n > 0)
+          ),
+        ].slice(0, 6);
+      }
     }
   } catch {
     includeImages = false;
+    attachmentIds = undefined;
   }
 
   if (!hasOpenAIKey()) {
@@ -92,7 +106,10 @@ export async function POST(_request: Request, context: Ctx) {
     let images: Awaited<ReturnType<typeof listMariImageAttachmentsForAi>> = [];
     if (includeImages) {
       try {
-        images = await listMariImageAttachmentsForAi(id, { maxImages: 4 });
+        images = await listMariImageAttachmentsForAi(id, {
+          maxImages: attachmentIds ? 6 : 4,
+          attachmentIds,
+        });
       } catch {
         images = [];
       }

@@ -174,6 +174,20 @@ export function clearMariTicketAnalysisInternalNotePosted(
   return getMariTicketAnalysis(ownerKey, issueId);
 }
 
+export function attachMariTicketAnalysisFlags<T extends { issueId: number }>(
+  ownerKey: string,
+  tickets: T[]
+): Array<T & { hasAnalysis: boolean }> {
+  const analyzed = listMariTicketAnalysisIssueIds(
+    ownerKey,
+    tickets.map((t) => t.issueId)
+  );
+  return tickets.map((t) => ({
+    ...t,
+    hasAnalysis: analyzed.has(t.issueId),
+  }));
+}
+
 export function listMariTicketAnalysisIssueIds(
   ownerKey: string,
   issueIds: number[]

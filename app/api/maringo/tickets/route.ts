@@ -13,6 +13,8 @@ import {
   type MariTicketListItem,
 } from "@/lib/mari/tickets";
 import { getAppUserById } from "@/lib/users/queries";
+import { ownerKeyFromAuth } from "@/lib/auth/owner-key";
+import { attachMariTicketAnalysisFlags } from "@/lib/mari/ticket-analysis-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,11 +53,14 @@ export async function GET(request: Request) {
     const cardCodes = parseCardCodesParam(url.searchParams.get("cardCodes"));
 
     if (cardCodes.length > 0) {
-      const tickets = await listMyTickets({
-        statuses,
-        overdueOnly,
-        cardCodes,
-      });
+      const tickets = attachMariTicketAnalysisFlags(
+        ownerKeyFromAuth(auth),
+        await listMyTickets({
+          statuses,
+          overdueOnly,
+          cardCodes,
+        })
+      );
       return NextResponse.json({
         configured: true,
         tickets,
@@ -95,11 +100,14 @@ export async function GET(request: Request) {
         { status: 400 }
       );
     }
-    const tickets = await listMyTickets({
-      statuses,
-      overdueOnly,
-      employeeNumber: handledBy,
-    });
+    const tickets = attachMariTicketAnalysisFlags(
+      ownerKeyFromAuth(auth),
+      await listMyTickets({
+        statuses,
+        overdueOnly,
+        employeeNumber: handledBy,
+      })
+    );
     return NextResponse.json({
       configured: true,
       tickets,

@@ -29,10 +29,17 @@ const ASIDE_WIDGET_CLASS =
 
 const MARI_DONUT_COLORS: Record<number, string> = {
   11: "#f43f5e",
-  1: "#e86a2b",
-  3: "#8b7cf6",
+  1: "#0ea5e9",
+  3: "#14b8a6",
   13: "#22d3ee",
-  6: "#eab308",
+  6: "#f59e0b",
+  9: "#f97316",
+  7: "#8b5cf6",
+  10: "#7c3aed",
+  4: "#f59e0b",
+  14: "#ef4444",
+  15: "#64748b",
+  16: "#475569",
 };
 
 const WAITING_ON_ME_STATUS = new Set([11, 1, 3, 13, 4, 14]);
@@ -521,7 +528,7 @@ export function HomeOverview() {
                   ) : (
                     <p className="text-sm text-muted-foreground">
                       {tickets.lastPollAt
-                        ? "Keine Tickets in den gewählten Status."
+                        ? "Keine offenen Tickets."
                         : "Noch kein Poll — Scheduler lädt gleich."}
                     </p>
                   )}
