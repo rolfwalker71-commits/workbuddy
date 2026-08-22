@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 3311",
+    "dev": "next dev --hostname 0.0.0.0 --port 3311",
     "build": "next build",
-    "start": "next start --port 3311",
+    "start": "next start --hostname 0.0.0.0 --port 3311",
     "lint": "eslint",
     "db:init": "tsx scripts/init-db.ts",
     "test": "node --import tsx --test lib/auth/auth.test.ts lib/app-url.test.ts lib/users/modules.test.ts lib/microsoft/oauth.test.ts lib/crypto/secret-box.test.ts lib/ai/user-ai.test.ts lib/mari/user-config.test.ts lib/mari/calendar-stamp.test.ts lib/auth/limited-routing.test.ts lib/users/oauth-token-key.test.ts",

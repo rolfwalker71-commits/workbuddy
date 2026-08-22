@@ -10,6 +10,7 @@ services:
       - "${WORKBUDDY_PORT:-3311}:3311"
     environment:
       HOSTNAME: "0.0.0.0"
+      # Must match published container port. Never 3000 — that overrides .env and causes NPM 502.
       PORT: "3311"
       DATABASE_PATH: ${DATABASE_PATH:-/app/data/supportdesk.sqlite}
       WORKBUDDY_USERNAME: ${WORKBUDDY_USERNAME:-admin}
