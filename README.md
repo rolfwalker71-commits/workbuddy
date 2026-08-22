@@ -25,12 +25,20 @@ npm run auth:secrets -- 'dein-sicheres-passwort'
 
 5. Stack starten:
 
+**Remote / Paperless** (kein Clone, kein `--build` — sonst scheitert Compose ohne Dockerfile):
+
 ```bash
 mkdir -p data && sudo chown -R 1000:1000 data
-docker compose up -d --build
+docker compose pull && docker compose up -d
 ```
 
-Image-Referenz: `ghcr.io/rolfwalker71-commits/workbuddy` (lokal via `build:`).
+Nur lokal aus dem Source-Tree bauen:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+```
+
+Image: `ghcr.io/rolfwalker71-commits/workbuddy` (öffentlich, Tag `latest`).
 
 ## So verbindet ein User Microsoft + Maringo + OpenAI
 

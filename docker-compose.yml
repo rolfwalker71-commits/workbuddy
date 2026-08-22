@@ -1,9 +1,8 @@
+# Production: image only. Remote needs no Dockerfile / no --build.
+# Local build: docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 services:
   workbuddy:
     image: ghcr.io/rolfwalker71-commits/workbuddy:${WORKBUDDY_IMAGE_TAG:-latest}
-    build:
-      context: .
-      dockerfile: Dockerfile
     container_name: workbuddy
     user: "1000:1000"
     ports:
