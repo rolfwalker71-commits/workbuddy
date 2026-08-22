@@ -223,10 +223,25 @@ export function HomeOverview() {
 
   return (
     <div className="space-y-6 pb-10">
-      <header className="rounded-2xl bg-card p-5 shadow-sm ring-1 ring-foreground/10 sm:p-6">
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)] lg:items-center lg:gap-6">
-          <div className="min-w-0">
-            <h1 className="text-[1.75rem] font-extrabold leading-snug tracking-tight">
+      <header className="@container relative overflow-hidden rounded-2xl shadow-sm ring-1 ring-foreground/10">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/images/overview-hero.jpg"
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover object-[center_40%]"
+          aria-hidden
+        />
+        <div
+          className="absolute inset-0 bg-gradient-to-r from-white/92 via-white/78 to-white/45 dark:from-background/92 dark:via-background/72 dark:to-background/35"
+          aria-hidden
+        />
+        <div
+          className="absolute inset-0 bg-gradient-to-t from-white/55 via-transparent to-sky-50/30 dark:from-background/70 dark:via-transparent dark:to-black/20"
+          aria-hidden
+        />
+        <div className="relative flex flex-col gap-4 px-5 py-6 sm:px-6 sm:py-7 @[36rem]:flex-row @[36rem]:items-start @[36rem]:justify-between @[36rem]:gap-6">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-[1.75rem] font-extrabold leading-snug tracking-tight drop-shadow-sm">
               {greetingWord()}
               {data?.greetingName ? `, ${data.greetingName}` : ""}
             </h1>
@@ -240,7 +255,7 @@ export function HomeOverview() {
             ) : null}
           </div>
           {loading && !data ? null : (
-            <div className="min-w-0 lg:justify-self-end">
+            <div className="w-full min-w-0 @[36rem]:w-[20rem] @[36rem]:shrink-0">
               <HomeWeatherWidget weather={data?.weather ?? null} />
             </div>
           )}
