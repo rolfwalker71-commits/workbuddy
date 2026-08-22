@@ -40,3 +40,38 @@ test("OpenAI resolves per user and never falls back to env", async () => {
   enterAiRequestUser(null);
   assert.equal(getOpenAIApiKey(), null);
 });
+
+test("after-style work keeps the user key only inside runWithAiUser", async () => {
+  process.env.WORKBUDDY_SESSION_SECRET =
+    "a-secure-test-secret-with-more-than-32-characters";
+  process.env.WORKBUDDY_USERNAME = "admin";
+  process.env.WORKBUDDY_PASSWORD_HASH = "scrypt:x:y";
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "wb-ai-after-"));
+  process.env.DATABASE_PATH = path.join(tmp, "test.sqlite");
+
+  const { resetDbForTests } = await import("../db/client.ts");
+  resetDbForTests();
+  const { createAppUser, updateAppUser } = await import("../users/queries.ts");
+  const { enterAiRequestUser, runWithAiUser } = await import(
+    "./request-context.ts"
+  );
+  const { hasChatKey } = await import("./client.ts");
+
+  const user = createAppUser({
+    username: "berta",
+    email: "berta@example.com",
+    displayName: "Berta",
+    passwordHash: "hash",
+  });
+  updateAppUser(user.id, { openaiApiKey: "sk-user-berta" });
+
+  enterAiRequestUser(null);
+  assert.equal(hasChatKey(), false);
+
+  const seen = await runWithAiUser(user.id, async () => {
+    await Promise.resolve();
+    return hasChatKey();
+  });
+  assert.equal(seen, true);
+  assert.equal(hasChatKey(), false);
+});

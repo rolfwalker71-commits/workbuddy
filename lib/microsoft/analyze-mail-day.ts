@@ -881,7 +881,7 @@ export async function analyzeMicrosoftMailDay(input: {
   sent: MsMailItem[];
 }): Promise<MsDayMailAnalysis> {
   if (!hasChatKey()) {
-    throw new Error("OpenAI API-Key fehlt (Einstellungen).");
+    throw new Error("Hinterlege deinen OpenAI-Key unter Konto");
   }
 
   const fromYmd = input.fromYmd || input.todayIso;

@@ -34,6 +34,7 @@ import {
 } from "@/lib/microsoft/oauth";
 import { formatTokenUsageLine } from "@/lib/ai/usage-cost";
 import { notifyAppChange } from "@/lib/realtime/notify";
+import { runWithAiUser } from "@/lib/ai/request-context";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -240,6 +241,17 @@ export async function GET(request: Request) {
     });
   }
 
+  if (job?.status === "error" && (!rangeKey || job.rangeKey === rangeKey)) {
+    return NextResponse.json({
+      ok: true,
+      status: "error",
+      job,
+      cachedDays,
+      cachedEntries,
+      fromCache: false,
+    });
+  }
+
   if (
     job?.status === "done" &&
     job.analysis &&
@@ -376,9 +388,9 @@ export async function POST(request: Request) {
 
   const job = startMsMailDayJob(userId, range);
   const skipTelegram = !auth.isAdmin;
-  after(() => {
-    void runAnalysisJob(userId, range, skipTelegram);
-  });
+  after(() =>
+    runWithAiUser(userId, () => runAnalysisJob(userId, range, skipTelegram))
+  );
 
   const label = formatMailAnalysisRangeLabel(range);
   return NextResponse.json(
