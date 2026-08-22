@@ -7,6 +7,7 @@ import {
   statusChipLabel,
 } from "@/lib/mari/status";
 import { runWithMariUser } from "@/lib/mari/request-context";
+import { getMariTicketFilterPrefs } from "@/lib/mari/ticket-filter-prefs";
 import { notifyAppChange } from "@/lib/realtime/notify";
 import { toSwissDate } from "@/lib/utils/dates";
 import { listActiveUsersWithModule } from "@/lib/users/queries";
@@ -180,7 +181,11 @@ export function getMariTicketsWatchState(
   ownerKey?: string | null
 ): MariTicketsWatchState {
   const userId = userIdFromOwnerKey(ownerKey);
-  const statusIds = [...OPEN_WORK_STATUS_IDS];
+  const prefs = ownerKey ? getMariTicketFilterPrefs(ownerKey) : null;
+  const statusIds =
+    prefs && prefs.statuses.length > 0
+      ? prefs.statuses
+      : [...OPEN_WORK_STATUS_IDS];
   if (userId == null) {
     return {
       configured: false,
@@ -215,25 +220,68 @@ export function getMariTicketsWatchState(
   };
 }
 
+/**
+ * Gleiche Ticket-Zahlen wie der Maringo-Bericht (gefilterte Status + Personalnummer).
+ * Nicht der Hintergrund-Snapshot — der kann leer bleiben, wenn der Poll scheitert.
+ */
+export async function loadMariHomeTicketWatch(params: {
+  userId: number;
+  ownerKey: string;
+}): Promise<MariTicketsWatchState> {
+  const { userId, ownerKey } = params;
+  const cfg = resolveMariConfigForUser(userId);
+  const prefs = getMariTicketFilterPrefs(ownerKey);
+  const statusIds =
+    prefs.statuses.length > 0 ? prefs.statuses : [...OPEN_WORK_STATUS_IDS];
+
+  if (!cfg) {
+    return {
+      configured: false,
+      employeeNumber: null,
+      lastPollAt: null,
+      countsByStatus: buildCountsForStatuses([], statusIds),
+      total: 0,
+      recentChanges: [],
+    };
+  }
+
+  try {
+    const tickets = await runWithMariUser(userId, () =>
+      listMyTickets({
+        employeeNumber: cfg.employeeNumber,
+        statuses: statusIds,
+        overdueOnly: Boolean(prefs.overdueOnly),
+        limit: 200,
+      })
+    );
+    const recentChanges = readJsonSetting<MariTicketChangeEvent[]>(
+      recentKey(userId),
+      []
+    );
+    const allowed = new Set(statusIds.map((n) => Number(n)));
+    const statusByIssue = new Map(tickets.map((t) => [t.issueId, t.status]));
+    return {
+      configured: true,
+      employeeNumber: cfg.employeeNumber,
+      lastPollAt: new Date().toISOString(),
+      countsByStatus: buildCountsForStatuses(tickets, statusIds),
+      total: tickets.length,
+      recentChanges: recentChanges
+        .filter((ch) => allowed.has(statusByIssue.get(Number(ch.issueId)) ?? -1))
+        .slice(0, 12),
+    };
+  } catch (error) {
+    console.warn("[workbuddy] home mari tickets", error);
+    return getMariTicketsWatchState(ownerKey);
+  }
+}
+
 export async function getMariTicketsWatchStateLive(
   ownerKey?: string | null
 ): Promise<MariTicketsWatchState> {
   const userId = userIdFromOwnerKey(ownerKey);
   if (userId == null) return getMariTicketsWatchState(ownerKey);
-  const snapshot = readJsonSetting<MariTicketSnapshotRow[]>(
-    snapshotKey(userId),
-    []
-  );
-  const lastRaw = getSetting(lastPollKey(userId));
-  const last = lastRaw ? Date.parse(lastRaw) : NaN;
-  const fresh =
-    snapshot.length > 0 &&
-    Number.isFinite(last) &&
-    Date.now() - last < MARI_TICKETS_SYNC_INTERVAL_MS;
-  if (!fresh) {
-    await syncMariTicketsForUser(userId, { force: true }).catch(() => null);
-  }
-  return getMariTicketsWatchState(ownerKey);
+  return loadMariHomeTicketWatch({ userId, ownerKey: ownerKey || `user:${userId}` });
 }
 
 export async function syncMariTicketsForUser(

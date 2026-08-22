@@ -14,7 +14,7 @@ import { listMicrosoftMailToday } from "@/lib/microsoft/mail-day";
 import type { MsMailItem } from "@/lib/microsoft/mail-day";
 import { getMsMailDayCached } from "@/lib/microsoft/mail-day-analysis-job";
 import { zurichYmd } from "@/lib/microsoft/time";
-import { getMariTicketsWatchStateLive } from "@/lib/mari/sync-tickets-if-due";
+import { loadMariHomeTicketWatch } from "@/lib/mari/sync-tickets-if-due";
 import type { MariTicketsWatchState } from "@/lib/mari/sync-tickets-if-due";
 import { loadHomeTasksBundle, type HomeTasksBundle } from "./home-tasks";
 import { fetchHomeWeatherCard, type HomeWeatherCard } from "@/lib/weather/fetch";
@@ -120,9 +120,21 @@ export async function getHomeOverview(
 
   let maringo: HomeOverviewPayload["maringo"] = null;
   if (showMari) {
+    const ownerKey =
+      userId != null ? `user:${userId}` : ownerKeyFromAuth(auth);
     maringo = {
       enabled: true,
-      tickets: await getMariTicketsWatchStateLive(ownerKeyFromAuth(auth)),
+      tickets:
+        userId != null
+          ? await loadMariHomeTicketWatch({ userId, ownerKey })
+          : {
+              configured: false,
+              employeeNumber: null,
+              lastPollAt: null,
+              countsByStatus: [],
+              total: 0,
+              recentChanges: [],
+            },
     };
   }
 
