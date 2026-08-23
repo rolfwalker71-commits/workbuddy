@@ -176,3 +176,43 @@ test("callback state binds that user's OAuth client", async () => {
     "owner-client.apps.googleusercontent.com"
   );
 });
+
+test("beginGoogleOauth sends APP_PUBLIC_URL redirect, not request host", async () => {
+  process.env.WORKBUDDY_SESSION_SECRET =
+    "a-secure-test-secret-with-more-than-32-characters";
+  process.env.APP_PUBLIC_URL = "https://workbuddy.rolfwalker.ch";
+  delete process.env.NEXT_PUBLIC_APP_URL;
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "wb-g-redir-"));
+  process.env.DATABASE_PATH = path.join(tmp, "test.sqlite");
+
+  const { resetDbForTests } = await import("../db/client.ts");
+  resetDbForTests();
+  const { createAppUser, updateAppUser } = await import("../users/queries.ts");
+  const { beginGoogleOauth, getGoogleOauthRedirectUri } = await import(
+    "./oauth.ts"
+  );
+
+  const user = createAppUser({
+    username: "redir",
+    email: "redir@example.com",
+    displayName: "Redir",
+    passwordHash: "hash",
+  });
+  updateAppUser(user.id, {
+    googleOauthClientId: "redir-client.apps.googleusercontent.com",
+    googleOauthClientSecret: "redir-secret",
+  });
+
+  const req = new Request("http://0.0.0.0:3311/api/google/oauth/start", {
+    headers: {
+      host: "0.0.0.0:3311",
+      "x-forwarded-proto": "https",
+      "x-forwarded-host": "0.0.0.0:3311",
+    },
+  });
+  const expected = "https://workbuddy.rolfwalker.ch/api/google/oauth/callback";
+  assert.equal(getGoogleOauthRedirectUri(req), expected);
+
+  const authUrl = new URL(beginGoogleOauth(user.id, req));
+  assert.equal(authUrl.searchParams.get("redirect_uri"), expected);
+});

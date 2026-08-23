@@ -181,6 +181,7 @@ export function beginGoogleOauth(
   userId: number,
   request?: Request | null
 ): string {
+  const redirectUri = getGoogleOauthRedirectUri(request);
   const client = createOAuth2Client(userId, request);
   const nonce = `${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 12)}`;
   setSetting(
@@ -192,12 +193,15 @@ export function beginGoogleOauth(
     "utf8"
   ).toString("base64url");
 
+  console.info("[google-oauth] start redirect_uri=%s", redirectUri);
+
   return client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
     scope: [...GOOGLE_OAUTH_SCOPES],
     include_granted_scopes: true,
     state,
+    redirect_uri: redirectUri,
   });
 }
 

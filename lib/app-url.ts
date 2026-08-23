@@ -81,30 +81,12 @@ export function getAppPublicOrigin(request?: Request | null): string {
 }
 
 /**
- * OAuth redirect URIs: prefer the browser-facing HTTPS host when it differs
- * from a stale app_public_url (e.g. old tripbook domain vs buddyapp).
- * Falls back to getAppPublicOrigin for local / non-HTTPS requests.
+ * OAuth redirect URIs must match the provider console exactly.
+ * Prefer APP_PUBLIC_URL / settings — never the incoming request host
+ * (Docker HOSTNAME=0.0.0.0, published :3311, http vs https, local preview).
+ * Falls back to the request origin only when no public URL is configured.
  */
 export function getOauthRedirectOrigin(request?: Request | null): string {
-  const fromRequest = requestOriginFromHeaders(request);
-  const fromSettings = getAppPublicUrlSetting();
-  if (
-    fromRequest &&
-    /^https:\/\//i.test(fromRequest) &&
-    !/localhost|127\.0\.0\.1/i.test(fromRequest)
-  ) {
-    try {
-      const reqHost = new URL(fromRequest).host.toLowerCase();
-      const setHost = fromSettings
-        ? new URL(fromSettings).host.toLowerCase()
-        : null;
-      if (!setHost || setHost !== reqHost) {
-        return fromRequest.replace(/\/+$/, "");
-      }
-    } catch {
-      /* use absoluteAppUrl path below */
-    }
-  }
   return getAppPublicOrigin(request).replace(/\/+$/, "");
 }
 
@@ -117,7 +99,7 @@ export function absoluteAppUrl(
   return `${origin}${normalized}`;
 }
 
-/** Like absoluteAppUrl but host-aware for OAuth callbacks. */
+/** Same as absoluteAppUrl — OAuth must use the configured public origin. */
 export function absoluteOauthRedirectUrl(
   path: string,
   request?: Request | null
