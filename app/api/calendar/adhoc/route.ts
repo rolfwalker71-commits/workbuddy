@@ -52,7 +52,7 @@ const BodySchema = z.discriminatedUnion("action", [
   }),
 ]);
 
-export async function GET() {
+export async function GET(request: Request) {
   ensureInitialized();
   const auth = await requireAuth();
   if (isAuthError(auth)) return auth;
@@ -61,6 +61,10 @@ export async function GET() {
     return NextResponse.json({ targets: [] });
   }
 
+  const scopeRaw = new URL(request.url).searchParams.get("provider");
+  const scope =
+    scopeRaw === "google" || scopeRaw === "microsoft" ? scopeRaw : null;
+
   const targets: Array<{
     provider: "microsoft" | "google";
     id: string;
@@ -68,7 +72,11 @@ export async function GET() {
     primary: boolean;
   }> = [];
 
-  if (isMicrosoftConnected(userId) && hasMicrosoftCalendarScope(userId)) {
+  if (
+    scope !== "google" &&
+    isMicrosoftConnected(userId) &&
+    hasMicrosoftCalendarScope(userId)
+  ) {
     try {
       const { calendars } = await listMicrosoftCalendarsForUser(userId);
       const writable = calendars.filter((x) => x.canEdit);
@@ -86,7 +94,11 @@ export async function GET() {
       /* ignore */
     }
   }
-  if (isGoogleMailConnected(userId) && hasGoogleCalendarScope(userId)) {
+  if (
+    scope !== "microsoft" &&
+    isGoogleMailConnected(userId) &&
+    hasGoogleCalendarScope(userId)
+  ) {
     try {
       const { calendars } = await listGoogleCalendarsForUser(userId);
       const writable = calendars.filter((x) => {

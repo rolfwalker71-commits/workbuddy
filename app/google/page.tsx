@@ -12,7 +12,7 @@ export default function GooglePage() {
         </p>
       }
     >
-      <WorkspaceDayClient />
+      <WorkspaceDayClient providerScope="google" />
     </Suspense>
   );
 }

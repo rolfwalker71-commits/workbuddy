@@ -62,6 +62,23 @@ test("mergeWorkspaceTodayEvents sorts by time then title", () => {
   assert.equal(ritual?.calendarId, "buddy-ritual");
 });
 
+test("mergeWorkspaceTodayEvents keeps ritual on a single-provider list", () => {
+  const merged = mergeWorkspaceTodayEvents([
+    ev({
+      id: "g1",
+      title: "Review",
+      provider: "google",
+      time: "11:00",
+      isAllDay: false,
+    }),
+  ]);
+  assert.deepEqual(
+    merged.map((e) => e.provider),
+    ["google", "buddy"]
+  );
+  assert.ok(!merged.some((e) => e.provider === "microsoft"));
+});
+
 test("mergeWorkspaceTodayEvents omits ritual on weekends", () => {
   const merged = mergeWorkspaceTodayEvents([
     ev({

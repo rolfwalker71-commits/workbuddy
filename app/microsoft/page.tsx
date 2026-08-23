@@ -10,7 +10,7 @@ export default function MicrosoftPage() {
         <p className="p-6 text-sm text-muted-foreground">Lade Microsoft 365…</p>
       }
     >
-      <WorkspaceDayClient />
+      <WorkspaceDayClient providerScope="microsoft" />
     </Suspense>
   );
 }

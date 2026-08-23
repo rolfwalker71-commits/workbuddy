@@ -399,16 +399,21 @@ function mapTodayEvents(
   });
 }
 
-export function WorkspaceDayClient() {
+export function WorkspaceDayClient({
+  providerScope,
+}: {
+  providerScope?: CloudProvider;
+} = {}) {
   const searchParams = useSearchParams();
   const pathname = usePathname() || "";
   const { me, loading: authLoading } = useAuth();
   const modules = me?.modules ?? [];
-  const wantMs = modules.includes("microsoft");
-  const wantGoogle = modules.includes("google");
-  const routeHint: CloudProvider = pathname.startsWith("/google")
-    ? "google"
-    : "microsoft";
+  const scope: CloudProvider =
+    providerScope ??
+    (pathname.startsWith("/google") ? "google" : "microsoft");
+  const wantMs = scope === "microsoft" && modules.includes("microsoft");
+  const wantGoogle = scope === "google" && modules.includes("google");
+  const routeHint = scope;
 
   const [tab, setTab] = useState<Tab>(() =>
     parseTab(searchParams.get("tab"), searchParams.get("open"))
@@ -1344,35 +1349,30 @@ export function WorkspaceDayClient() {
     <div className="min-w-0 space-y-5 pb-10">
       <PageHeader
         title={
-          wantMs && wantGoogle
-            ? "Kalender, Mail & Aufgaben"
-            : wantGoogle
-              ? "Google Workspace"
-              : "Microsoft 365"
+          scope === "google" ? "Google Workspace" : "Microsoft 365"
         }
         description={
-          wantMs && wantGoogle
-            ? "Outlook und Google gemischt — Termine, Postfächer und Aufgaben mit Provider-Badge."
-            : wantGoogle
-              ? "Gmail, Kalender und Tasks."
-              : "Outlook-Chronik, Kalender und Tagesanalysen — plus Planner und Slot-Suche."
+          scope === "google"
+            ? "Gmail, Kalender und Tasks."
+            : "Outlook-Chronik, Kalender und Tagesanalysen — plus Planner und Slot-Suche."
         }
         logo={
-          routeHint === "google" ? (
+          scope === "google" ? (
             <GoogleLogo className="size-8" />
           ) : (
             <MicrosoftLogo className="size-8" />
           )
         }
-        tone={routeHint === "google" ? "teal" : "blue"}
+        tone={scope === "google" ? "teal" : "blue"}
       />
 
       {connectionReady && !anyConnected ? (
         <Card>
           <CardContent className="space-y-3 p-5">
             <p className="text-sm text-muted-foreground">
-              Noch kein Konto verbunden. Unter Konto Microsoft 365 und/oder
-              Google Workspace verknüpfen.
+              {scope === "google"
+                ? "Noch kein Google-Konto verbunden. Unter Konto Google Workspace verknüpfen."
+                : "Noch kein Microsoft-Konto verbunden. Unter Konto Microsoft 365 verknüpfen."}
             </p>
             <Link
               href="/account"
@@ -1420,7 +1420,7 @@ export function WorkspaceDayClient() {
                 className={mailWorkspaceTabClass(tab === "mail", routeHint)}
                 onClick={() => setTab("mail")}
               >
-                {googleConnected && !msConnected ? (
+                {scope === "google" ? (
                   <GmailLogo className="size-4 shrink-0" />
                 ) : (
                   <OutlookLogo className="size-4 shrink-0" />
@@ -1445,13 +1445,14 @@ export function WorkspaceDayClient() {
                 onClick={() => setTab("planner")}
               >
                 <span className="inline-flex items-center gap-0.5">
-                  {msConnected ? (
+                  {scope === "microsoft" ? (
                     <>
                       <MicrosoftPlannerLogo className="size-4" />
                       <MicrosoftToDoLogo className="size-4" />
                     </>
-                  ) : null}
-                  {googleConnected ? <GoogleTasksLogo className="size-4" /> : null}
+                  ) : (
+                    <GoogleTasksLogo className="size-4" />
+                  )}
                 </span>
                 Aufgaben
               </Button>
@@ -1736,6 +1737,7 @@ export function WorkspaceDayClient() {
                 open={adhocOpen}
                 onOpenChange={setAdhocOpen}
                 onCreated={() => void loadCalendar()}
+                providerScope={scope}
               />
             </section>
           ) : tab === "planner" ? (
@@ -1744,8 +1746,9 @@ export function WorkspaceDayClient() {
                 Aufgaben nach Quelle
               </h2>
               <p className="text-sm text-muted-foreground">
-                To Do/Planner und Google Tasks — erledigen, umbenennen oder
-                Termin setzen.
+                {scope === "google"
+                  ? "Google Tasks — erledigen, umbenennen oder Termin setzen."
+                  : "To Do und Planner — erledigen, umbenennen oder Termin setzen."}
               </p>
               <WorkspaceTasksPanel
                 microsoft={Boolean(msConnected)}
@@ -1846,7 +1849,7 @@ export function WorkspaceDayClient() {
               <MailChronikList
                 items={mergeMailChronik(inbox, sent)}
                 loading={mailLoading}
-                provider={msConnected ? "microsoft" : "google"}
+                provider={scope}
                 onItemsChanged={() => void loadMail()}
               />
               {msConnected ? (

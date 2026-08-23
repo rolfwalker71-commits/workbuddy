@@ -38,6 +38,7 @@ export function AdhocEventDialog({
   dialogTitle,
   dialogDescription,
   defaultDurationMinutes = 60,
+  providerScope,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -49,6 +50,8 @@ export function AdhocEventDialog({
   dialogTitle?: string;
   dialogDescription?: string;
   defaultDurationMinutes?: number;
+  /** When set, only that cloud’s calendars appear as targets. */
+  providerScope?: "microsoft" | "google";
 }) {
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
@@ -99,10 +102,16 @@ export function AdhocEventDialog({
     setBusy(false);
     setProviderLabel(null);
     setTeamsMeeting(Boolean(isMari));
-    void fetch("/api/calendar/adhoc")
+    const qs = providerScope
+      ? `?provider=${encodeURIComponent(providerScope)}`
+      : "";
+    void fetch(`/api/calendar/adhoc${qs}`)
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
-        const next = (data.targets || []) as typeof targets;
+        const raw = (data.targets || []) as typeof targets;
+        const next = providerScope
+          ? raw.filter((t) => t.provider === providerScope)
+          : raw;
         setTargets(next);
         setTargetKey((prev) => {
           if (prev && next.some((t) => `${t.provider}:${t.id}` === prev)) {
@@ -115,7 +124,15 @@ export function AdhocEventDialog({
       .catch(() => {
         setTargets([]);
       });
-  }, [open, initialTitle, initialNotes, defaultDurationMinutes, mariIssueId, isMari]);
+  }, [
+    open,
+    initialTitle,
+    initialNotes,
+    defaultDurationMinutes,
+    mariIssueId,
+    isMari,
+    providerScope,
+  ]);
 
   async function suggestSlots() {
     setBusy(true);
