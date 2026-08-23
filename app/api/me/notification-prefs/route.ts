@@ -6,6 +6,7 @@ import {
   NOTIFY_REASON_DOMAIN,
   NOTIFY_REASON_LABELS,
   getNotificationPrefsForAuth,
+  notifyReasonVisibleForModules,
   saveNotificationPrefsForAuth,
 } from "@/lib/realtime/prefs";
 
@@ -20,8 +21,10 @@ const PutSchema = z.object({
   events: z.record(z.string(), z.boolean()).optional(),
 });
 
-function catalog() {
-  return ALL_NOTIFY_REASONS.map((reason) => ({
+function catalog(modules: readonly string[], isAdmin: boolean) {
+  return ALL_NOTIFY_REASONS.filter((reason) =>
+    notifyReasonVisibleForModules(reason, modules, isAdmin)
+  ).map((reason) => ({
     reason,
     label: NOTIFY_REASON_LABELS[reason],
     domain: NOTIFY_REASON_DOMAIN[reason],
@@ -33,7 +36,7 @@ export async function GET() {
   if (isAuthError(auth)) return auth;
   return NextResponse.json({
     prefs: getNotificationPrefsForAuth(auth),
-    catalog: catalog(),
+    catalog: catalog(auth.modules, auth.isAdmin),
   });
 }
 
@@ -45,5 +48,8 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Ungültige Eingabe" }, { status: 400 });
   }
   const prefs = saveNotificationPrefsForAuth(auth, parsed.data);
-  return NextResponse.json({ prefs, catalog: catalog() });
+  return NextResponse.json({
+    prefs,
+    catalog: catalog(auth.modules, auth.isAdmin),
+  });
 }

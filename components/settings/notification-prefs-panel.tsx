@@ -18,12 +18,14 @@ import {
 type CatalogItem = {
   reason: NotifyReason;
   label: string;
-  domain: "maringo" | "microsoft";
+  domain: "maringo" | "microsoft" | "google" | "app";
 };
 
 const DOMAIN_LABEL: Record<CatalogItem["domain"], string> = {
   microsoft: "Microsoft 365",
+  google: "Google Workspace",
   maringo: "Maringo Support",
+  app: "WorkBuddy",
 };
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -70,7 +72,7 @@ function explainPushError(err: unknown): string {
     return `${msg} — Unter Windows: Chrome/Edge-Benachrichtigungen in den Windows-Einstellungen erlauben; ggf. Buddy als App installieren.`;
   }
   if (/applicationServerKey|InvalidAccessError/i.test(msg)) {
-    return "VAPID-Public-Key ungültig — Keys in der Server-.env prüfen und Container neu erstellen.";
+    return "VAPID-Public-Key ungültig — Seite neu laden und Push erneut aktivieren.";
   }
   return msg || "Push aktivieren fehlgeschlagen.";
 }
@@ -87,7 +89,7 @@ async function ensureServiceWorkerRegistration(): Promise<ServiceWorkerRegistrat
   const existing = await navigator.serviceWorker.getRegistration("/");
   const reg =
     existing ||
-    (await navigator.serviceWorker.register("/sw.js?v=push-media-v3", {
+            (await navigator.serviceWorker.register("/sw.js?v=push-close-v1", {
       scope: "/",
       updateViaCache: "none",
     }));
@@ -188,7 +190,9 @@ export function NotificationPrefsPanel() {
   const byDomain = useMemo(() => {
     const map: Record<CatalogItem["domain"], CatalogItem[]> = {
       microsoft: [],
+      google: [],
       maringo: [],
+      app: [],
     };
     for (const item of catalog) {
       (map[item.domain] ||= []).push(item);
@@ -239,7 +243,7 @@ export function NotificationPrefsPanel() {
       if (!keyRes.ok || !keyJson.publicKey) {
         throw new Error(
           keyJson.error ||
-            "VAPID nicht konfiguriert — siehe docs/web-push.md"
+            "VAPID-Keys konnten nicht geladen werden."
         );
       }
       const perm = await Notification.requestPermission();
@@ -339,8 +343,9 @@ export function NotificationPrefsPanel() {
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
         Live-Toasts bei offenem Tab; Desktop-Toasts im Hintergrund-Tab; Web Push
-        (VAPID) auch bei geschlossener App — z. B. neuer TravelBuddy-Kommentar.
-        Events unten filtern. Pro Benutzer speicherbar.
+        (VAPID) auch bei geschlossener App — z. B. Tagesabschluss oder
+        Mail-Tagesanalyse. Events unten nach Modul filtern. Pro Benutzer
+        speicherbar.
       </p>
 
       <div className="space-y-3 rounded-xl border border-border/60 bg-muted/30 px-3 py-3">
@@ -348,7 +353,7 @@ export function NotificationPrefsPanel() {
         <p className="text-xs text-muted-foreground">
           Status:{" "}
           {!pushConfigured
-            ? "Server ohne VAPID (Keys in .env setzen)"
+            ? "VAPID nicht bereit"
             : pushStatus === "on"
               ? "aktiv"
               : pushStatus === "unsupported"
@@ -408,7 +413,7 @@ export function NotificationPrefsPanel() {
             Live-Benachrichtigungen
           </Label>
           <p className="text-xs text-muted-foreground">
-            Toasts bei Dokument-, Reise- und Finanz-Ereignissen.
+            Toasts bei Ticket-, Mail- und Kalender-Ereignissen.
           </p>
         </div>
       </div>
@@ -521,31 +526,35 @@ export function NotificationPrefsPanel() {
         <span className="text-xs text-muted-foreground">Sekunden (3–60)</span>
       </div>
 
-      {(["microsoft", "maringo"] as const).map((domain) => (
-        <div
-          key={domain}
-          className="space-y-2 rounded-xl border border-border/60 p-3"
-        >
-          <p className="text-sm font-medium">{DOMAIN_LABEL[domain]}</p>
-          <div className="space-y-2">
-            {(byDomain[domain] || []).map((item) => (
-              <label
-                key={item.reason}
-                className="flex cursor-pointer items-center gap-2 text-sm"
-              >
-                <input
-                  type="checkbox"
-                  className="size-4 accent-[var(--brand-docs)]"
-                  disabled={!prefs.enabled}
-                  checked={prefs.events[item.reason] !== false}
-                  onChange={(e) => toggleEvent(item.reason, e.target.checked)}
-                />
-                {item.label}
-              </label>
-            ))}
+      {(["microsoft", "google", "maringo", "app"] as const).map((domain) => {
+        const items = byDomain[domain] || [];
+        if (!items.length) return null;
+        return (
+          <div
+            key={domain}
+            className="space-y-2 rounded-xl border border-border/60 p-3"
+          >
+            <p className="text-sm font-medium">{DOMAIN_LABEL[domain]}</p>
+            <div className="space-y-2">
+              {items.map((item) => (
+                <label
+                  key={item.reason}
+                  className="flex cursor-pointer items-center gap-2 text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-[var(--brand-docs)]"
+                    disabled={!prefs.enabled}
+                    checked={prefs.events[item.reason] !== false}
+                    onChange={(e) => toggleEvent(item.reason, e.target.checked)}
+                  />
+                  {item.label}
+                </label>
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       {message ? (

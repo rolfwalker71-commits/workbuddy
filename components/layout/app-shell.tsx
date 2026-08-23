@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { AuthProvider, useAuth } from "@/components/auth/auth-provider";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { RealtimeToasts } from "@/components/realtime/realtime-toasts";
+import { CloseoutAssistant } from "@/components/closeout/closeout-assistant";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
 import { MobileHeader } from "./mobile-header";
 import { MobileDock } from "./mobile-dock";
@@ -40,6 +41,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           <MobileHeader />
           {me ? <RealtimeToasts /> : null}
           {me ? <ServiceWorkerRegister /> : null}
+          {me ? <CloseoutAssistant /> : null}
           <div
             className={`mx-auto w-full min-w-0 px-4 py-5 pb-[max(6.5rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-7 lg:px-8 lg:py-8 lg:pb-8 ${
               isWideContent ? "max-w-[96rem]" : "max-w-7xl"

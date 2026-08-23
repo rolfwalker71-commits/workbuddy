@@ -12,6 +12,8 @@ export type CreateOutlookEventInput = {
   categories?: string[] | null;
   /** Graph: Teams online meeting (Outlook only). */
   teamsMeeting?: boolean;
+  /** Optional target calendar (default: /me/events). */
+  calendarId?: string | null;
 };
 
 export type CreatedOutlookEvent = {
@@ -81,13 +83,16 @@ export async function createOutlookCalendarEvent(
     };
   }
 
+  const calendarPath = input.calendarId?.trim()
+    ? `/me/calendars/${encodeURIComponent(input.calendarId.trim())}/events`
+    : "/me/events";
   const created = await graphJson<{
     id?: string;
     subject?: string;
     webLink?: string | null;
     onlineMeeting?: { joinUrl?: string | null } | null;
     onlineMeetingUrl?: string | null;
-  }>(userId, "/me/events", {
+  }>(userId, calendarPath, {
     method: "POST",
     body: JSON.stringify(body),
     headers: { Prefer: 'outlook.timezone="Europe/Zurich"' },

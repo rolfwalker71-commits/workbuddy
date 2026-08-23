@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { MicrosoftDayClient } from "@/components/microsoft/microsoft-day-client";
+import { WorkspaceDayClient } from "@/components/workspace/workspace-day-client";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +10,7 @@ export default function MicrosoftPage() {
         <p className="p-6 text-sm text-muted-foreground">Lade Microsoft 365…</p>
       }
     >
-      <MicrosoftDayClient />
+      <WorkspaceDayClient />
     </Suspense>
   );
 }

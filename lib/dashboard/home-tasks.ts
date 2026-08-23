@@ -4,8 +4,13 @@ import {
 } from "@/lib/microsoft/oauth";
 import { listOutlookTodoTasksUpcoming } from "@/lib/microsoft/mail-day-actions";
 import { listMyPlannerTasks } from "@/lib/microsoft/planner";
+import {
+  hasGoogleTasksScope,
+  isGoogleMailConnected,
+} from "@/lib/google/oauth";
+import { listUpcomingGoogleTasks } from "@/lib/google/tasks";
 
-export type HomeTaskSource = "todo" | "planner";
+export type HomeTaskSource = "todo" | "planner" | "google";
 
 export type HomeTaskItem = {
   key: string;
@@ -42,6 +47,8 @@ function addDaysIso(iso: string, days: number): string {
 export type HomeTasksBundle = {
   microsoftConnected: boolean;
   hasMicrosoftScope: boolean;
+  googleConnected: boolean;
+  hasGoogleScope: boolean;
   items: HomeTaskItem[];
 };
 
@@ -53,6 +60,8 @@ export async function loadHomeTasksBundle(
   const empty: HomeTasksBundle = {
     microsoftConnected: false,
     hasMicrosoftScope: false,
+    googleConnected: false,
+    hasGoogleScope: false,
     items: [],
   };
   if (userId == null) return empty;
@@ -60,10 +69,12 @@ export async function loadHomeTasksBundle(
   const microsoftConnected = isMicrosoftConnected(userId);
   const hasMicrosoftScope =
     microsoftConnected && hasMicrosoftTasksScope(userId);
+  const googleConnected = isGoogleMailConnected(userId);
+  const hasGoogleScope = googleConnected && hasGoogleTasksScope(userId);
   const today = zurichYmd();
   const horizon = addDaysIso(today, horizonDays);
 
-  const [todoItems, plannerItems] = await Promise.all([
+  const [todoItems, plannerItems, googleItems] = await Promise.all([
     (async () => {
       if (!hasMicrosoftScope) return [] as HomeTaskItem[];
       try {
@@ -121,9 +132,31 @@ export async function loadHomeTasksBundle(
         return [] as HomeTaskItem[];
       }
     })(),
+    (async () => {
+      if (!hasGoogleScope) return [] as HomeTaskItem[];
+      try {
+        const items = await listUpcomingGoogleTasks(userId, { horizonDays });
+        return items.map((t) => ({
+          key: `google:${t.listId}:${t.id}`,
+          id: t.id,
+          source: "google" as const,
+          title: t.title,
+          dueDate: t.dueDate,
+          overdue: t.overdue,
+          subtitle: t.listTitle || "Google Tasks",
+          accountLabel: "Google",
+          bucketLabel: t.listTitle || "Tasks",
+          href: t.href || "/google?tab=planner",
+          listId: t.listId,
+          etag: null,
+        }));
+      } catch {
+        return [] as HomeTaskItem[];
+      }
+    })(),
   ]);
 
-  const items = [...todoItems, ...plannerItems].sort((a, b) => {
+  const items = [...todoItems, ...plannerItems, ...googleItems].sort((a, b) => {
     if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
     const da = a.dueDate || "9999-99-99";
     const db = b.dueDate || "9999-99-99";
@@ -132,5 +165,11 @@ export async function loadHomeTasksBundle(
     return a.title.localeCompare(b.title, "de");
   });
 
-  return { microsoftConnected, hasMicrosoftScope, items };
+  return {
+    microsoftConnected,
+    hasMicrosoftScope,
+    googleConnected,
+    hasGoogleScope,
+    items,
+  };
 }

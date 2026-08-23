@@ -6,6 +6,7 @@ import { SettingsMicrosoftConnectPanel } from "@/components/settings/settings-mi
 import { NotificationPrefsPanel } from "@/components/settings/notification-prefs-panel";
 import { AccountSecretsPanel } from "@/components/settings/account-secrets-panel";
 import { AccountWeatherPanel } from "@/components/settings/account-weather-panel";
+import { AccountGoogleSection } from "@/components/settings/account-google-section";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ export default function AccountPage() {
     <div className="space-y-8 pb-28 md:pb-0">
       <PageHeader
         title="Konto"
-        description="Dein Wetter, OpenAI-Key, Maringo-Login und Microsoft 365 — nur für dich."
+        description="Dein Wetter, OpenAI-Key, Maringo-Login, Microsoft 365 und Google Workspace — nur für dich."
         icon={pageVisuals.account.icon}
         tone={pageVisuals.account.tone}
       />
@@ -45,6 +46,8 @@ export default function AccountPage() {
         </Suspense>
         <SettingsMicrosoftCalendarsPanel />
       </section>
+
+      <AccountGoogleSection />
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold tracking-tight">Benachrichtigungen</h2>

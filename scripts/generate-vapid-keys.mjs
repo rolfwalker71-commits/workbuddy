@@ -1,9 +1,9 @@
-import { generateVAPIDKeys } from "web-push";
+import webpush from "web-push";
 
-const keys = generateVAPIDKeys();
+const keys = webpush.generateVAPIDKeys();
 process.stdout.write(
   [
-    "# Add to host .env (Docker) or .env.local — then restart Buddy",
+    "# Optional override only — WorkBuddy auto-generates keys in the DB if unset.",
     `VAPID_PUBLIC_KEY=${keys.publicKey}`,
     `VAPID_PRIVATE_KEY=${keys.privateKey}`,
     "VAPID_SUBJECT=mailto:you@example.com",

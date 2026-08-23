@@ -1,5 +1,5 @@
 /** App modules that can be granted to non-admin users. */
-export const APP_MODULES = ["microsoft", "maringo"] as const;
+export const APP_MODULES = ["microsoft", "maringo", "google"] as const;
 
 export type AppModule = (typeof APP_MODULES)[number];
 
@@ -22,6 +22,6 @@ export function normalizeAppModules(raw: unknown): AppModule[] {
 
 /** Login / redirect home: slim module overview, or Konto if nothing is granted. */
 export function homePathForModules(modules: readonly AppModule[]): string {
-  if (modules.includes("microsoft") || modules.includes("maringo")) return "/";
+  if (modules.length > 0) return "/";
   return "/account";
 }

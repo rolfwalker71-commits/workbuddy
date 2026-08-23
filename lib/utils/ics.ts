@@ -181,7 +181,7 @@ export function buildIcsCalendar(events: CalendarEvent[]): string {
   const lines: string[] = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//TripBook//CH//DE",
+    "PRODID:-//WorkBuddy//CH//DE",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
   ];

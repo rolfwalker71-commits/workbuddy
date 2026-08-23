@@ -37,7 +37,7 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
       const target =
         nextPath && nextPath !== "/"
           ? nextPath
-          : data.home || "/microsoft";
+          : data.home || "/";
       window.location.assign(target);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

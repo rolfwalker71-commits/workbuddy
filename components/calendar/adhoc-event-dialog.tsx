@@ -60,8 +60,20 @@ export function AdhocEventDialog({
   const [providerLabel, setProviderLabel] = useState<string | null>(null);
   /** Outlook/Teams only — ignored for Google. */
   const [teamsMeeting, setTeamsMeeting] = useState(false);
+  const [targets, setTargets] = useState<
+    Array<{
+      provider: "microsoft" | "google";
+      id: string;
+      name: string;
+      primary: boolean;
+    }>
+  >([]);
+  const [targetKey, setTargetKey] = useState<string>("");
 
   const isMari = mariIssueId != null && mariIssueId > 0;
+  const selectedTarget = targets.find(
+    (t) => `${t.provider}:${t.id}` === targetKey
+  );
 
   function reset() {
     setTitle("");
@@ -73,6 +85,7 @@ export function AdhocEventDialog({
     setBusy(false);
     setProviderLabel(null);
     setTeamsMeeting(false);
+    setTargetKey("");
   }
 
   useEffect(() => {
@@ -86,6 +99,22 @@ export function AdhocEventDialog({
     setBusy(false);
     setProviderLabel(null);
     setTeamsMeeting(Boolean(isMari));
+    void fetch("/api/calendar/adhoc")
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        const next = (data.targets || []) as typeof targets;
+        setTargets(next);
+        setTargetKey((prev) => {
+          if (prev && next.some((t) => `${t.provider}:${t.id}` === prev)) {
+            return prev;
+          }
+          const primary = next.find((t) => t.primary) || next[0];
+          return primary ? `${primary.provider}:${primary.id}` : "";
+        });
+      })
+      .catch(() => {
+        setTargets([]);
+      });
   }, [open, initialTitle, initialNotes, defaultDurationMinutes, mariIssueId, isMari]);
 
   async function suggestSlots() {
@@ -101,6 +130,8 @@ export function AdhocEventDialog({
           action: "suggest_slots",
           durationMinutes: duration,
           rangeDays: 7,
+          provider: selectedTarget?.provider || "auto",
+          calendarId: selectedTarget?.id,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -150,6 +181,8 @@ export function AdhocEventDialog({
           notes: notes.trim() || null,
           mariIssueId: isMari ? mariIssueId : null,
           teamsMeeting,
+          provider: selectedTarget?.provider || "auto",
+          calendarId: selectedTarget?.id,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -249,6 +282,32 @@ export function AdhocEventDialog({
             )}
           </div>
 
+          {targets.length > 0 ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="adhoc-calendar">Zielkalender</Label>
+              <select
+                id="adhoc-calendar"
+                className="h-11 w-full rounded-xl border border-border/70 bg-background px-3 text-sm"
+                value={targetKey}
+                disabled={busy}
+                onChange={(e) => {
+                  setTargetKey(e.target.value);
+                  setSlots([]);
+                  setMsg(null);
+                }}
+              >
+                {targets.map((t) => (
+                  <option key={`${t.provider}:${t.id}`} value={`${t.provider}:${t.id}`}>
+                    {t.provider === "google" ? "Google" : "Outlook"}
+                    {" · "}
+                    {t.name}
+                    {t.primary ? " (primär)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+
           <div className="space-y-1.5">
             <Label>Dauer</Label>
             <div className="flex flex-wrap gap-1.5">
@@ -272,23 +331,25 @@ export function AdhocEventDialog({
             </div>
           </div>
 
-          <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
-            <input
-              type="checkbox"
-              className="mt-0.5 size-4 accent-teal-700"
-              checked={teamsMeeting}
-              disabled={busy}
-              onChange={(e) => setTeamsMeeting(e.target.checked)}
-            />
-            <span className="min-w-0">
-              <span className="block text-[0.8125rem] font-semibold">
-                Teams-Meeting
+          {selectedTarget?.provider !== "google" ? (
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
+              <input
+                type="checkbox"
+                className="mt-0.5 size-4 accent-teal-700"
+                checked={teamsMeeting}
+                disabled={busy}
+                onChange={(e) => setTeamsMeeting(e.target.checked)}
+              />
+              <span className="min-w-0">
+                <span className="block text-[0.8125rem] font-semibold">
+                  Teams-Meeting
+                </span>
+                <span className="block text-[0.6875rem] text-muted-foreground">
+                  Online-Meeting in Outlook anlegen.
+                </span>
               </span>
-              <span className="block text-[0.6875rem] text-muted-foreground">
-                Bei Outlook: Online-Meeting anlegen. Bei Google ohne Wirkung.
-              </span>
-            </span>
-          </label>
+            </label>
+          ) : null}
 
           <Button
             type="button"

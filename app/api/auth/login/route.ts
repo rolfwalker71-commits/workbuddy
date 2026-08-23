@@ -15,7 +15,7 @@ import {
   createSessionToken,
   sessionCookieOptions,
 } from "@/lib/auth/session";
-import { homePathForModules } from "@/lib/users/modules";
+import { ALL_APP_MODULES, homePathForModules } from "@/lib/users/modules";
 import {
   effectiveUserModules,
   getAppUserByUsername,
@@ -81,7 +81,7 @@ export async function POST(request: Request) {
   );
 
   let token: string | null = null;
-  let home = "/microsoft";
+  let home = "/";
 
   if (adminValid) {
     const { ensureEnvAdminUser } = await import("@/lib/users/resolve-user");
@@ -90,7 +90,7 @@ export async function POST(request: Request) {
       { kind: "admin", username: config.username },
       config.sessionSecret
     );
-    home = "/microsoft";
+    home = homePathForModules(ALL_APP_MODULES);
   } else {
     const user = getAppUserByUsername(parsed.data.username);
     if (

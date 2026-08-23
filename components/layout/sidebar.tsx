@@ -14,6 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import {
+  GoogleLogo,
   MaringoLogo,
   MicrosoftLogo,
 } from "@/components/branding/provider-logos";
@@ -30,7 +31,7 @@ const SIDEBAR_COLLAPSED_KEY = "workbuddy.sidebar.collapsed";
 type NavItem = {
   href: string;
   label: string;
-  module?: "microsoft" | "maringo";
+  module?: "microsoft" | "maringo" | "google";
   adminOnly?: boolean;
   logo?: React.ReactNode;
   icon?: React.ReactNode;
@@ -47,6 +48,12 @@ const NAV: NavItem[] = [
     label: "Microsoft 365",
     module: "microsoft",
     logo: <MicrosoftLogo className="size-4" />,
+  },
+  {
+    href: "/google",
+    label: "Google Workspace",
+    module: "google",
+    logo: <GoogleLogo className="size-4" />,
   },
   {
     href: "/maringo",

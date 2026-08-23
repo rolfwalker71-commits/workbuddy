@@ -49,6 +49,16 @@ async function tick(): Promise<void> {
     } else {
       state.lastResult = `mari:${mariSync?.reason ?? "idle"}`;
     }
+    const { maybeDispatchEveningClose } = await import(
+      "@/lib/dashboard/evening-close-push"
+    );
+    const evening = await maybeDispatchEveningClose().catch((error) => {
+      console.warn("[scheduler] evening close:", error);
+      return null;
+    });
+    if (evening) {
+      state.lastResult += ` evening:${evening.sent}/${evening.skipped}`;
+    }
   } catch (error) {
     state.lastResult = error instanceof Error ? error.message : String(error);
   } finally {

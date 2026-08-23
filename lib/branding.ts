@@ -5,10 +5,11 @@ export const BRAND = {
   app: "WorkBuddy",
   microsoft: "Microsoft 365",
   maringo: "Maringo Support",
+  google: "Google Workspace",
 } as const;
 
 export const BRAND_TAGLINE =
-  "Microsoft 365 und Maringo Support — klar getrennt, pro Person.";
+  "Microsoft 365, Google Workspace und Maringo Support — klar getrennt, pro Person.";
 
 /** Inline B-Monogramm (SVG), Sidebar + Login. */
 export const BRAND_LOGO_SRC = "/workbuddy-logo.svg";

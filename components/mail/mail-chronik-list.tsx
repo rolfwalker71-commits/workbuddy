@@ -21,6 +21,7 @@ import {
   buildMailChronikThreads,
   chronikDateTimeLabel,
 } from "@/lib/mail/mail-threads";
+import { ProviderBadge } from "@/components/workspace/provider-badge";
 
 export type MailChronikProvider = "microsoft" | "google";
 
@@ -78,14 +79,18 @@ export function MailChronikSummary({
   );
 }
 
+type ChronikMail = MsMailItem & { provider?: MailChronikProvider };
+
 function MailChronikRow({
   mail,
   indented,
   onOpen,
+  listProvider,
 }: {
-  mail: MsMailItem;
+  mail: ChronikMail;
   indented: boolean;
-  onOpen: (m: MsMailItem) => void;
+  onOpen: (m: ChronikMail) => void;
+  listProvider: MailChronikProvider;
 }) {
   const isInbox = mail.folder === "inbox";
   const isContext = mail.inRange === false;
@@ -164,6 +169,14 @@ function MailChronikRow({
         >
           {sub}
         </p>
+        {mail.provider || listProvider ? (
+          <div className="mt-1">
+            <ProviderBadge
+              provider={mail.provider || listProvider}
+              kind="mail"
+            />
+          </div>
+        ) : null}
       </div>
     </Button>
   );
@@ -175,7 +188,7 @@ export function MailChronikList({
   provider,
   onItemsChanged,
 }: {
-  items: MsMailItem[];
+  items: ChronikMail[];
   loading?: boolean;
   provider: MailChronikProvider;
   onItemsChanged?: () => void;
@@ -193,8 +206,12 @@ export function MailChronikList({
   const threads = useMemo(() => buildMailChronikThreads(items), [items]);
   const hasInRange = items.some((m) => m.inRange !== false);
 
+  const [openProvider, setOpenProvider] = useState<MailChronikProvider>(provider);
+
   const openMail = useCallback(
-    async (item: MsMailItem) => {
+    async (item: ChronikMail) => {
+      const itemProvider = item.provider || provider;
+      setOpenProvider(itemProvider);
       setOpenId(item.id);
       setWebLink(item.webLink);
       setOpenFolder(item.folder);
@@ -204,11 +221,28 @@ export function MailChronikList({
       setDetailError(null);
       setDetailLoading(true);
       try {
-        const path =
-          provider === "microsoft"
-            ? `/api/microsoft/mail/${encodeURIComponent(item.id)}`
-            : `/api/mail/${encodeURIComponent(item.id)}`;
-        const res = await fetch(path);
+        if (itemProvider === "google") {
+          setDetail({
+            id: item.id,
+            threadId: item.conversationId || item.id,
+            from: item.fromEmail || item.from,
+            fromName: item.from,
+            subject: item.subject,
+            snippet: item.preview,
+            date: item.receivedOrSentAt,
+            internalDate: item.receivedOrSentAt
+              ? String(new Date(item.receivedOrSentAt).getTime())
+              : null,
+            unread: !item.isRead,
+            to: item.toPreview,
+            bodyHtml: null,
+            bodyText: item.bodyText || item.preview,
+          });
+          return;
+        }
+        const res = await fetch(
+          `/api/microsoft/mail/${encodeURIComponent(item.id)}`
+        );
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           throw new Error(
@@ -241,7 +275,7 @@ export function MailChronikList({
   }
 
   const externalLabel =
-    provider === "microsoft" ? "In Outlook öffnen" : "In Gmail öffnen";
+    openProvider === "microsoft" ? "In Outlook öffnen" : "In Gmail öffnen";
 
   return (
     <>
@@ -277,6 +311,7 @@ export function MailChronikList({
                       <MailChronikRow
                         mail={m}
                         indented={idx > 0}
+                        listProvider={provider}
                         onOpen={(item) => void openMail(item)}
                       />
                     </li>
@@ -315,7 +350,7 @@ export function MailChronikList({
                       ? ` <${detail.from}>`
                       : ""
                   }${formatDetailWhen(detail) ? ` · ${formatDetailWhen(detail)}` : ""}`
-                : provider === "microsoft"
+                : openProvider === "microsoft"
                   ? "Outlook-Nachricht"
                   : "Gmail-Nachricht"}
             </DialogDescription>
@@ -336,7 +371,7 @@ export function MailChronikList({
                   {externalLabel}
                 </a>
               ) : null}
-              {provider === "microsoft" && openId ? (
+              {openProvider === "microsoft" && openId ? (
                 <MicrosoftMailQuickActions
                   messageId={openId}
                   unread={detail?.unread}
@@ -378,7 +413,7 @@ export function MailChronikList({
         </DialogContent>
       </Dialog>
 
-      {provider === "microsoft" ? (
+      {openProvider === "microsoft" ? (
         <MicrosoftMailComposeDialog
           open={composeOpen}
           onOpenChange={setComposeOpen}

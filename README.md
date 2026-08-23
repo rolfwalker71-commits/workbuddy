@@ -56,3 +56,13 @@ Ohne OpenAI-Key zeigt die UI: «Hinterlege deinen OpenAI-Key unter Konto». Es g
 - SQLite WAL unter `./data` (`DATABASE_PATH=/app/data/supportdesk.sqlite`).
 - Interner Port 3311 (`PORT=3311`), Host default 3311 (`WORKBUDDY_PORT`).
 - Ticket-Poll und Tagesanalyse laufen pro User (dessen MARI-Login / Graph-Token / OpenAI-Key).
+
+## Web Push (VAPID)
+
+Abend-Digest «Tagesabschluss» (Mo–Fr 18:30–19:30 Europe/Zurich) und Live-Events
+nutzen Web Push. Keys werden automatisch in der Datenbank erzeugt; `.env`
+(`VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`) ist nur ein
+optionaler Override.
+
+In der App: **Konto → Benachrichtigungen → Push aktivieren**. Details:
+[`docs/web-push.md`](docs/web-push.md).

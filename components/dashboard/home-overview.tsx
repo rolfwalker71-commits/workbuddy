@@ -12,11 +12,16 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  GoogleLogo,
+  GoogleTasksLogo,
+  GmailLogo,
   MaringoLogo,
   MicrosoftLogo,
   MicrosoftPlannerLogo,
   MicrosoftToDoLogo,
+  OutlookLogo,
 } from "@/components/branding/provider-logos";
+import { ProviderBadge } from "@/components/workspace/provider-badge";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { weekdayLabel } from "@/lib/utils/weekday";
 import { cn } from "@/lib/utils";
@@ -228,7 +233,12 @@ function TaskGroupList({ items }: { items: HomeTaskItem[] }) {
       {items.map((task) => (
         <li key={task.key}>
           <Link
-            href={task.href || "/microsoft?tab=planner"}
+            href={
+              task.href ||
+              (task.source === "google"
+                ? "/google?tab=planner"
+                : "/microsoft?tab=planner")
+            }
             className="flex items-start justify-between gap-2 rounded-xl bg-muted/40 px-3 py-2 hover:bg-muted"
           >
             <span className="min-w-0">
@@ -254,44 +264,80 @@ function TaskGroupList({ items }: { items: HomeTaskItem[] }) {
   );
 }
 
-function TasksCard({ items }: { items: HomeTaskItem[] }) {
+function TasksCard({
+  items,
+  showMicrosoft,
+  showGoogle,
+}: {
+  items: HomeTaskItem[];
+  showMicrosoft: boolean;
+  showGoogle: boolean;
+}) {
   const planner = items.filter((t) => t.source === "planner").slice(0, 5);
   const todo = items.filter((t) => t.source === "todo").slice(0, 5);
+  const google = items.filter((t) => t.source === "google").slice(0, 5);
   return (
     <Card className={ASIDE_WIDGET_CLASS}>
       <CardContent className="space-y-4 p-4 sm:p-5">
-        <section className="space-y-2.5">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="flex items-center gap-2 text-base font-bold">
-              <MicrosoftPlannerLogo className="size-4" />
-              Planner
-            </h3>
-            <Link
-              href="/microsoft?tab=planner"
-              className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
-            >
-              Öffnen
-              <ChevronRight className="size-3.5" />
-            </Link>
-          </div>
-          <TaskGroupList items={planner} />
-        </section>
-        <section className="space-y-2.5 border-t border-border/60 pt-4">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="flex items-center gap-2 text-base font-bold">
-              <MicrosoftToDoLogo className="size-4" />
-              To Do
-            </h3>
-            <Link
-              href="/microsoft?tab=planner"
-              className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
-            >
-              Öffnen
-              <ChevronRight className="size-3.5" />
-            </Link>
-          </div>
-          <TaskGroupList items={todo} />
-        </section>
+        {showMicrosoft ? (
+          <>
+            <section className="space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="flex items-center gap-2 text-base font-bold">
+                  <MicrosoftPlannerLogo className="size-4" />
+                  Planner
+                </h3>
+                <Link
+                  href="/microsoft?tab=planner"
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                >
+                  Öffnen
+                  <ChevronRight className="size-3.5" />
+                </Link>
+              </div>
+              <TaskGroupList items={planner} />
+            </section>
+            <section className="space-y-2.5 border-t border-border/60 pt-4">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="flex items-center gap-2 text-base font-bold">
+                  <MicrosoftToDoLogo className="size-4" />
+                  To Do
+                </h3>
+                <Link
+                  href="/microsoft?tab=planner"
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                >
+                  Öffnen
+                  <ChevronRight className="size-3.5" />
+                </Link>
+              </div>
+              <TaskGroupList items={todo} />
+            </section>
+          </>
+        ) : null}
+        {showGoogle ? (
+          <section
+            className={cn(
+              "space-y-2.5",
+              showMicrosoft && "border-t border-border/60 pt-4"
+            )}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="flex items-center gap-2 text-base font-bold">
+                <GoogleTasksLogo className="size-4" />
+                Google Tasks
+              </h3>
+              <Link
+                href="/google?tab=planner"
+                className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+              >
+                Öffnen
+                <ChevronRight className="size-3.5" />
+              </Link>
+            </div>
+            <TaskGroupList items={google} />
+          </section>
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -314,11 +360,45 @@ export function HomeOverview() {
   }, []);
 
   const nextEvent = useMemo(() => {
-    const events = data?.microsoft?.events || [];
+    const mixed = data?.todayEvents || [];
+    if (mixed.length > 0) {
+      return mixed.find((e) => !e.done) || mixed[0] || null;
+    }
+    const events = data?.microsoft?.events || data?.google?.events || [];
     return events.find((e) => !e.done) || events[0] || null;
   }, [data]);
 
-  const mailSample = data?.microsoft?.mailInbox[0] || null;
+  const mailSample =
+    data?.todayMail[0] ||
+    data?.microsoft?.mailInbox[0] ||
+    data?.google?.mailInbox[0] ||
+    null;
+  const calendarHref =
+    data?.google && !data.microsoft
+      ? "/google?tab=calendar"
+      : "/microsoft?tab=calendar";
+  const mailHref =
+    data?.google && !data.microsoft ? "/google?tab=mail" : "/microsoft?tab=mail";
+  const analysisHref =
+    data?.google && !data.microsoft
+      ? "/google?tab=mail&view=tagesanalysen"
+      : "/microsoft?tab=mail&view=tagesanalysen";
+  const unreadTotal = [data?.microsoft, data?.google]
+    .filter(Boolean)
+    .reduce((sum, block) => sum + (block?.unreadCount ?? 0), 0);
+  const anyMailConnected = Boolean(
+    data?.microsoft?.connected || data?.google?.connected
+  );
+  const taskItems = [
+    ...(data?.microsoft?.tasks.items || []),
+    ...(data?.google && !data.microsoft ? data.google.tasks.items : []),
+    ...(data?.microsoft && data?.google
+      ? data.google.tasks.items.filter((t) => t.source === "google")
+      : []),
+  ];
+  const uniqueTasks = Array.from(
+    new Map(taskItems.map((t) => [t.key, t])).values()
+  );
   const tickets = data?.maringo?.tickets;
   const positiveCounts = (tickets?.countsByStatus || []).filter((c) => c.count > 0);
   const pollLabel = formatPollAt(tickets?.lastPollAt);
@@ -366,23 +446,21 @@ export function HomeOverview() {
               </div>
             )}
           </div>
-          {data && (data.microsoft || data.maringo) ? (
+          {data && (data.microsoft || data.google || data.maringo) ? (
             <div className="grid gap-2 min-[22rem]:grid-cols-2">
-              {data.microsoft ? (
-                <Link href="/microsoft?tab=mail" className={HERO_KPI_CLASS}>
+              {data.microsoft || data.google ? (
+                <Link href={mailHref} className={HERO_KPI_CLASS}>
                   <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-800 dark:bg-sky-500/15 dark:text-sky-100">
                     <Mail className="size-4" strokeWidth={APP_ICON_STROKE} />
                   </span>
                   <span className="min-w-0">
                     <span className="block text-[1.35rem] font-black tabular-nums leading-none tracking-tight">
-                      {data.microsoft.connected
-                        ? data.microsoft.unreadCount ?? "—"
-                        : "—"}
+                      {anyMailConnected ? unreadTotal : "—"}
                     </span>
                     <span className="mt-1 block text-xs leading-snug text-muted-foreground">
-                      {data.microsoft.connected
+                      {anyMailConnected
                         ? "Ungelesene Mails"
-                        : "Microsoft verbinden"}
+                        : "Konto verbinden"}
                     </span>
                   </span>
                 </Link>
@@ -426,75 +504,116 @@ export function HomeOverview() {
         <p className="text-sm text-muted-foreground">Lade Übersicht…</p>
       ) : null}
 
-      {data?.microsoft ? (
+      {data?.microsoft || data?.google ? (
         <section className="space-y-3">
-          <h2 className="text-sm font-bold tracking-tight">Microsoft 365</h2>
+          <h2 className="text-sm font-bold tracking-tight">
+            {data.microsoft && data.google
+              ? "Heute · Microsoft & Google"
+              : data.google
+                ? "Google Workspace"
+                : "Microsoft 365"}
+          </h2>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <FocusTile
-              href="/microsoft?tab=calendar"
+              href={calendarHref}
               icon={CalendarDays}
               eyebrow="Nächster Termin"
-              title={nextEvent?.subject || "Keine Termine"}
+              title={
+                nextEvent && "title" in nextEvent
+                  ? nextEvent.title
+                  : nextEvent && "subject" in nextEvent
+                    ? nextEvent.subject
+                    : "Keine Termine"
+              }
               detail={
                 nextEvent
-                  ? [nextEvent.startHm, nextEvent.location].filter(Boolean).join(" · ") ||
-                    "Heute"
-                  : data.microsoft.connected
+                  ? [
+                      "time" in nextEvent
+                        ? nextEvent.time
+                        : "startHm" in nextEvent
+                          ? nextEvent.startHm
+                          : null,
+                      nextEvent.location,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "Heute"
+                  : anyMailConnected
                     ? "Kalender öffnen"
-                    : "Microsoft verbinden"
+                    : "Konto verbinden"
               }
             />
             <FocusTile
-              href="/microsoft?tab=mail"
-              logo={<MicrosoftLogo className="size-5" />}
-              eyebrow="Outlook Mail"
+              href={mailHref}
+              logo={
+                data.microsoft && data.google ? (
+                  <span className="inline-flex items-center gap-1">
+                    <OutlookLogo className="size-5" />
+                    <GmailLogo className="size-5" />
+                  </span>
+                ) : data.google ? (
+                  <GmailLogo className="size-5" />
+                ) : (
+                  <MicrosoftLogo className="size-5" />
+                )
+              }
+              eyebrow={
+                data.microsoft && data.google
+                  ? "Posteingang"
+                  : data.google
+                    ? "Gmail"
+                    : "Outlook Mail"
+              }
               title={mailSample?.subject || "Posteingang"}
               detail={
                 mailSample
                   ? mailSample.from
-                  : data.microsoft.connected
-                    ? `${data.microsoft.mailInbox.length} Mails heute`
-                    : "Microsoft verbinden"
+                  : anyMailConnected
+                    ? `${data.todayMail.length} Mails heute`
+                    : "Konto verbinden"
               }
             />
             <FocusTile
-              href="/microsoft?tab=mail&view=tagesanalysen"
+              href={analysisHref}
               icon={ListChecks}
               eyebrow="Tagesanalyse"
               title={
-                data.microsoft.mailDay?.headline ||
-                (data.microsoft.mailDay
-                  ? `${data.microsoft.mailDay.inboxCount} Posteingang`
+                data.microsoft?.mailDay?.headline ||
+                data.google?.mailDay?.headline ||
+                (data.microsoft?.mailDay || data.google?.mailDay
+                  ? `${(data.microsoft?.mailDay || data.google?.mailDay)?.inboxCount} Posteingang`
                   : "Noch keine Analyse")
               }
               detail={
-                data.microsoft.mailDay
-                  ? `${data.microsoft.mailDay.inboxCount} rein · ${data.microsoft.mailDay.sentCount} raus`
-                  : "Analyse im Microsoft-Tab starten"
+                data.microsoft?.mailDay || data.google?.mailDay
+                  ? `${(data.microsoft?.mailDay || data.google?.mailDay)?.inboxCount} rein · ${(data.microsoft?.mailDay || data.google?.mailDay)?.sentCount} raus`
+                  : "Analyse im Mail-Tab starten"
               }
             />
           </div>
 
-          {data.microsoft.events.length > 0 ? (
+          {data.todayEvents.length > 0 ? (
             <Card className={ASIDE_WIDGET_CLASS}>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base font-bold">Heute im Kalender</CardTitle>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2">
-                  {data.microsoft.events.slice(0, 8).map((ev) => (
+                  {data.todayEvents.slice(0, 8).map((ev) => (
                     <li
-                      key={ev.id}
+                      key={`${ev.provider}:${ev.calendarId || ""}:${ev.id}`}
                       className="flex items-start justify-between gap-3 rounded-xl bg-muted/40 px-3 py-2"
                     >
                       <span className="min-w-0">
+                        <span className="mb-0.5 block">
+                          <ProviderBadge provider={ev.provider} kind="calendar" />
+                        </span>
                         <span className="block break-words text-sm font-medium leading-snug">
-                          {ev.subject}
+                          {ev.title}
                         </span>
                         <span className="text-xs text-muted-foreground">
                           {ev.isAllDay
                             ? "Ganztägig"
-                            : [ev.startHm, ev.endHm].filter(Boolean).join("–")}
+                            : [ev.time, ev.endTime].filter(Boolean).join("–")}
                           {ev.location ? ` · ${ev.location}` : ""}
                         </span>
                       </span>
@@ -508,18 +627,25 @@ export function HomeOverview() {
             </Card>
           ) : null}
 
-          <TasksCard items={data.microsoft.tasks.items} />
+          <TasksCard
+            items={uniqueTasks}
+            showMicrosoft={Boolean(data.microsoft)}
+            showGoogle={Boolean(data.google)}
+          />
 
           <p className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5">
-              <MicrosoftLogo className="size-3.5" />
-              O365 {data.microsoft.connected ? "verbunden" : "nicht verbunden"}
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <MicrosoftPlannerLogo className="size-3.5" />
-              Planner/To Do{" "}
-              {data.microsoft.tasks.hasMicrosoftScope ? "bereit" : "ohne Tasks-Scope"}
-            </span>
+            {data.microsoft ? (
+              <span className="inline-flex items-center gap-1.5">
+                <MicrosoftLogo className="size-3.5" />
+                O365 {data.microsoft.connected ? "verbunden" : "nicht verbunden"}
+              </span>
+            ) : null}
+            {data.google ? (
+              <span className="inline-flex items-center gap-1.5">
+                <GoogleLogo className="size-3.5" />
+                Google {data.google.connected ? "verbunden" : "nicht verbunden"}
+              </span>
+            ) : null}
             <Link href="/account" className="font-medium text-foreground hover:underline">
               Konto
             </Link>

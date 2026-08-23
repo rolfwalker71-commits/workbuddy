@@ -12,6 +12,7 @@ import {
   isMicrosoftConnected,
   resolveMicrosoftUserId,
 } from "@/lib/microsoft/oauth";
+import { isDayCloseRitualId } from "@/lib/dashboard/day-close-ritual";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,6 +60,13 @@ export async function POST(request: Request) {
       {
         error: error instanceof Error ? error.message : "Ungültige Anfrage",
       },
+      { status: 400 }
+    );
+  }
+
+  if (isDayCloseRitualId(body.eventId)) {
+    return NextResponse.json(
+      { error: "Virtueller Tagesabschluss — nicht in Outlook speichern." },
       { status: 400 }
     );
   }

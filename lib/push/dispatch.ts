@@ -1,24 +1,26 @@
 import webpush from "web-push";
 import type { AppNotifyPayload } from "@/lib/realtime/hub";
-import { parseOwnerKey } from "@/lib/auth/owner-key";
 import {
   deletePushSubscriptionRow,
   listAllPushSubscriptions,
   type PushSubscriptionRow,
 } from "@/lib/push/subscriptions";
 import { ensureWebPushConfigured } from "@/lib/push/vapid";
+import { ownerMayReceive } from "@/lib/push/owner-filter";
+import {
+  getNotificationPrefsForOwnerKey,
+  isReasonEnabled,
+} from "@/lib/realtime/prefs";
 
-function ownerMayReceive(
+export { ownerMayReceive } from "@/lib/push/owner-filter";
+
+export function subscriptionMayReceivePush(
   ownerKey: string,
   notification: AppNotifyPayload
 ): boolean {
-  const parsed = parseOwnerKey(ownerKey);
-  if (!parsed) return false;
-  if (parsed.kind === "admin") return true;
-  if (notification.ownerUserId != null) {
-    return parsed.userId === notification.ownerUserId;
-  }
-  return true;
+  if (!ownerMayReceive(ownerKey, notification)) return false;
+  const prefs = getNotificationPrefsForOwnerKey(ownerKey);
+  return isReasonEnabled(prefs, notification.reason);
 }
 
 async function sendOne(
@@ -43,20 +45,20 @@ async function sendOne(
 
 export async function dispatchWebPush(notification: AppNotifyPayload): Promise<void> {
   try {
-    ensureWebPushConfigured();
+    if (!ensureWebPushConfigured()) return;
   } catch {
     return;
   }
   const payload = JSON.stringify({
     title: notification.headline,
     body: notification.detail || notification.title || "",
-    url: notification.href || "/microsoft",
+    url: notification.href || "/",
     badge: "/icon-192.png",
   });
   const rows = listAllPushSubscriptions();
   await Promise.all(
     rows
-      .filter((row) => ownerMayReceive(row.owner_key, notification))
+      .filter((row) => subscriptionMayReceivePush(row.owner_key, notification))
       .map((row) => sendOne(row, payload))
   );
 }

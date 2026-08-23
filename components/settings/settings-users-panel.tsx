@@ -217,6 +217,14 @@ export function SettingsUsersPanel() {
                   <label className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
+                      checked={editModules.includes("google")}
+                      onChange={() => toggleModule("google")}
+                    />
+                    Google Workspace
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
                       checked={editModules.includes("maringo")}
                       onChange={() => toggleModule("maringo")}
                     />

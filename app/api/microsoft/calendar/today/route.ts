@@ -6,6 +6,9 @@ import {
   isMicrosoftConnected,
   resolveMicrosoftUserId,
 } from "@/lib/microsoft/oauth";
+import { isDayCloseRitualId } from "@/lib/dashboard/day-close-ritual";
+import { attachDayCloseRitualMs } from "@/lib/dashboard/day-close-status";
+import { zurichYmd } from "@/lib/microsoft/time";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,11 +25,13 @@ export async function GET() {
     );
   }
   try {
-    const events = await listMicrosoftEventsToday(userId);
+    const raw = await listMicrosoftEventsToday(userId);
+    const events = await attachDayCloseRitualMs(userId, zurichYmd(), raw);
+    const cloud = events.filter((e) => !isDayCloseRitualId(e.id));
     return NextResponse.json({
       events,
-      openCount: events.filter((e) => !e.done).length,
-      doneCount: events.filter((e) => e.done).length,
+      openCount: cloud.filter((e) => !e.done).length,
+      doneCount: cloud.filter((e) => e.done).length,
     });
   } catch (error) {
     return NextResponse.json(

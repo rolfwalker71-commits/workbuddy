@@ -26,6 +26,9 @@ const PutSchema = z.object({
   mariRestPassword: z.string().optional(),
   clearMariRestPassword: z.boolean().optional(),
   mariEmployeeNumber: z.string().optional().nullable(),
+  googleOauthClientId: z.string().optional().nullable(),
+  googleOauthClientSecret: z.string().optional(),
+  clearGoogleOauthClientSecret: z.boolean().optional(),
 });
 
 export async function GET() {
@@ -51,6 +54,10 @@ export async function GET() {
       hasChatKey: Boolean(row?.chat_api_key_enc),
       chatBaseUrl: row?.chat_base_url || "",
       chatModel: row?.chat_model || "",
+    },
+    google: {
+      clientId: row?.google_oauth_client_id || "",
+      hasGoogleOauthClient: Boolean(row?.google_oauth_client_secret_enc),
     },
   });
 }
@@ -84,6 +91,10 @@ export async function PUT(request: Request) {
           hasChatKey: Boolean(row?.chat_api_key_enc),
           chatBaseUrl: row?.chat_base_url || "",
           chatModel: row?.chat_model || "",
+        },
+        google: {
+          clientId: row?.google_oauth_client_id || "",
+          hasGoogleOauthClient: Boolean(row?.google_oauth_client_secret_enc),
         },
       };
     })()) });

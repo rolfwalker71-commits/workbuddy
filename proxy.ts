@@ -9,6 +9,7 @@ import {
   getAppUserById,
 } from "@/lib/users/queries";
 import {
+  ALL_APP_MODULES,
   homePathForModules,
   type AppModule,
 } from "@/lib/users/modules";
@@ -31,6 +32,7 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 function isPublicPath(pathname: string): boolean {
   if (PUBLIC_PATHS.has(pathname)) return true;
   if (pathname === "/api/microsoft/oauth/callback") return true;
+  if (pathname === "/api/google/oauth/callback") return true;
   if (pathname === "/api/push/media" || pathname.startsWith("/api/push/media/")) {
     return true;
   }
@@ -57,12 +59,20 @@ function isAlwaysAllowedForLimitedUser(pathname: string): boolean {
     return true;
   }
   if (pathname.startsWith("/api/home/")) return true;
+  if (pathname === "/api/dashboard/day-close") return true;
   if (
     pathname === "/api/microsoft/connection" ||
     pathname.startsWith("/api/microsoft/oauth/") ||
     pathname === "/api/microsoft/probe" ||
     pathname === "/api/microsoft/calendars" ||
     pathname === "/api/microsoft/mail/signature"
+  ) {
+    return true;
+  }
+  if (
+    pathname === "/api/google/connection" ||
+    pathname.startsWith("/api/google/oauth/") ||
+    pathname === "/api/google/calendars"
   ) {
     return true;
   }
@@ -82,6 +92,15 @@ function isModulePathAllowed(
       pathname !== "/api/microsoft/settings" &&
       !pathname.startsWith("/api/microsoft/settings/")
     ) {
+      return true;
+    }
+    if (pathname === "/api/calendar/adhoc") return true;
+  }
+  if (modules.includes("google")) {
+    if (pathname === "/google" || pathname.startsWith("/google/")) {
+      return true;
+    }
+    if (pathname.startsWith("/api/google/")) {
       return true;
     }
     if (pathname === "/api/calendar/adhoc") return true;
@@ -183,7 +202,7 @@ function limitedUserHome(session: {
 }): string {
   if (session.kind === "user" && session.userId) {
     const user = getAppUserById(session.userId);
-    if (user?.is_admin) return homePathForModules(["microsoft", "maringo"]);
+    if (user?.is_admin) return homePathForModules(ALL_APP_MODULES);
     if (user) {
       return homePathForModules(effectiveUserModules(user.id, false));
     }

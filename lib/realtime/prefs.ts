@@ -12,10 +12,14 @@ export const LIVE_NOTIFICATIONS_DEFAULT_DURATION_SEC = 9;
 export const LIVE_NOTIFICATIONS_MIN_DURATION_SEC = 3;
 export const LIVE_NOTIFICATIONS_MAX_DURATION_SEC = 60;
 
+export type NotifyReasonDomain = "maringo" | "microsoft" | "google" | "app";
+
 export const ALL_NOTIFY_REASONS: NotifyReason[] = [
   "mari_ticket_changed",
   "mail_calendar_patch",
   "microsoft_mail_day",
+  "google_mail_day",
+  "evening_digest",
   "app_status",
 ];
 
@@ -23,18 +27,35 @@ export const NOTIFY_REASON_LABELS: Record<NotifyReason, string> = {
   mari_ticket_changed: "Maringo Ticket-Update",
   mail_calendar_patch: "Termin aus Mail aktualisiert",
   microsoft_mail_day: "Microsoft Tagesanalyse",
+  google_mail_day: "Gmail-Tagesanalyse",
+  evening_digest: "Tagesabschluss (Abend)",
   app_status: "App-Hinweis",
 };
 
-export const NOTIFY_REASON_DOMAIN: Record<
-  NotifyReason,
-  "maringo" | "microsoft"
-> = {
+export const NOTIFY_REASON_DOMAIN: Record<NotifyReason, NotifyReasonDomain> = {
   mari_ticket_changed: "maringo",
   mail_calendar_patch: "microsoft",
   microsoft_mail_day: "microsoft",
-  app_status: "microsoft",
+  google_mail_day: "google",
+  evening_digest: "app",
+  app_status: "app",
 };
+
+export function notifyReasonVisibleForModules(
+  reason: NotifyReason,
+  modules: readonly string[],
+  isAdmin = false
+): boolean {
+  if (isAdmin) return true;
+  const domain = NOTIFY_REASON_DOMAIN[reason];
+  if (domain === "app") {
+    if (reason === "evening_digest") {
+      return modules.includes("microsoft") || modules.includes("google");
+    }
+    return true;
+  }
+  return modules.includes(domain);
+}
 
 export type UserNotificationPrefs = {
   enabled: boolean;

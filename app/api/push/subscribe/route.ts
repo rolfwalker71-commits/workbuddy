@@ -30,8 +30,7 @@ export async function POST(request: Request) {
   if (!isWebPushConfigured()) {
     return NextResponse.json(
       {
-        error:
-          "Web Push ist nicht konfiguriert (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY).",
+        error: "Web Push konnte nicht eingerichtet werden.",
       },
       { status: 503 }
     );

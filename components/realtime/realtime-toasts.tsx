@@ -63,6 +63,7 @@ function playBling() {
 function sourceLabel(n: AppNotifyPayload): string {
   if (n.source === "maringo") return "Maringo";
   if (n.source === "microsoft") return "Microsoft 365";
+  if (n.source === "google") return "Google Workspace";
   return "WorkBuddy";
 }
 

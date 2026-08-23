@@ -2,12 +2,14 @@
  * In-process pub/sub for live UI (single Node instance / Docker).
  */
 
-export type NotifyDomain = "maringo" | "microsoft";
+export type NotifyDomain = "maringo" | "microsoft" | "google" | "app";
 
 export type NotifyReason =
   | "mari_ticket_changed"
   | "mail_calendar_patch"
   | "microsoft_mail_day"
+  | "google_mail_day"
+  | "evening_digest"
   | "app_status";
 
 /** @deprecated use NotifyReason */
@@ -23,7 +25,7 @@ export type AppNotifyPayload = {
   aiIconUrl: string | null;
   category: string | null;
   meta: string | null;
-  source: "workbuddy" | "maringo" | "microsoft";
+  source: "workbuddy" | "maringo" | "microsoft" | "google";
   /** Only this app user (and admins) should toast this event. */
   ownerUserId?: number | null;
   ownerKey?: string | null;

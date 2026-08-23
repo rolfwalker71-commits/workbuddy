@@ -8,6 +8,7 @@ import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { toSwissDate } from "@/lib/utils/dates";
 import type { MailDayCachedSummary } from "@/lib/mail/mail-day-cache-summary";
 import type { MailWorkspaceAccent } from "@/components/mail/mail-workspace-subnav";
+import { ProviderBadge } from "@/components/workspace/provider-badge";
 
 function finishedLabel(iso: string): string {
   try {
@@ -64,9 +65,10 @@ export function MailTagesanalysenList({
   return (
     <ul className="space-y-2.5">
       {entries.map((e) => {
-        const active = e.rangeKey === selectedKey;
+        const entryKey = e.provider ? `${e.provider}:${e.rangeKey}` : e.rangeKey;
+        const active = entryKey === selectedKey || e.rangeKey === selectedKey;
         return (
-          <li key={e.rangeKey}>
+          <li key={entryKey}>
             <Button
               type="button"
               variant="ghost"
@@ -99,8 +101,15 @@ export function MailTagesanalysenList({
                     · {rangeLabel(e.fromYmd, e.toYmd)}
                   </span>
                 </p>
-                <p className="text-[0.9375rem] font-black tracking-tight">
+                <p className="flex flex-wrap items-center gap-2 text-[0.9375rem] font-black tracking-tight">
                   AI · Tagesbild
+                  {e.provider ? (
+                    <ProviderBadge
+                      provider={e.provider}
+                      kind="mail"
+                      className="font-semibold"
+                    />
+                  ) : null}
                 </p>
                 <p className="line-clamp-2 text-[0.8125rem] leading-snug text-muted-foreground">
                   {e.daySummary ||

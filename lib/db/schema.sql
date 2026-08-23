@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS users (
   chat_api_key_enc TEXT,
   chat_base_url TEXT,
   chat_model TEXT,
+  google_oauth_client_id TEXT,
+  google_oauth_client_secret_enc TEXT,
   notification_prefs TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL

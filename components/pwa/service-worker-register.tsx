@@ -13,7 +13,7 @@ export function ServiceWorkerRegister() {
     void (async () => {
       try {
         const reg = await navigator.serviceWorker.register(
-          "/sw.js?v=push-media-v3",
+          "/sw.js?v=push-close-v1",
           {
             scope: "/",
             updateViaCache: "none",

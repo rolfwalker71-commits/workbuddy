@@ -21,7 +21,7 @@ self.addEventListener("notificationclick", (event) => {
       ? raw
       : typeof raw === "string" && /^https?:\/\//i.test(raw)
         ? raw
-        : "/dashboard";
+        : "/";
 
   event.waitUntil(
     (async () => {
@@ -104,7 +104,7 @@ self.addEventListener("push", (event) => {
     (async () => {
       let title = "Buddy";
       let body = "Neue Benachrichtigung";
-      let url = "/dashboard";
+      let url = "/";
       let icon = "/icon-512.png";
       let badge = "/icon-192.png";
       let image = null;

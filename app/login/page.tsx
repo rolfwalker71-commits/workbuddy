@@ -3,7 +3,7 @@ import { LoginForm } from "@/components/auth/login-form";
 function safeNextPath(value: string | string[] | undefined): string {
   const candidate = Array.isArray(value) ? value[0] : value;
   if (!candidate?.startsWith("/") || candidate.startsWith("//")) {
-    return "/microsoft";
+    return "/";
   }
   return candidate;
 }
