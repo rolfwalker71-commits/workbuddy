@@ -25,10 +25,14 @@ import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { weekdayLabel } from "@/lib/utils/weekday";
 import { cn } from "@/lib/utils";
 import {
+  mergeHomeKpis,
+  mergeHomeMaringoTickets,
   mergeHomeOverviewDetails,
   type HomeDetailsPayload,
+  type HomeKpiLive,
   type HomeOverviewPayload,
 } from "@/lib/dashboard/home-overview-shared";
+import type { MariTicketsWatchState } from "@/lib/mari/sync-tickets-if-due";
 import type { HomeTaskItem } from "@/lib/dashboard/home-tasks";
 import {
   MS_TASK_DISPLAY_KEY,
@@ -458,6 +462,28 @@ export function HomeOverview() {
         setData(json);
         setLoading(false);
         setDetailsLoading(true);
+        void fetch("/api/home/kpis")
+          .then(async (kpiRes) => {
+            if (!kpiRes.ok || cancelled) return;
+            const kpis = (await kpiRes.json()) as HomeKpiLive;
+            if (cancelled) return;
+            setData((prev) => (prev ? mergeHomeKpis(prev, kpis) : prev));
+          })
+          .catch(() => undefined);
+        if (json.maringo) {
+          void fetch("/api/home/tickets")
+            .then(async (ticketsRes) => {
+              if (!ticketsRes.ok || cancelled) return;
+              const live = (await ticketsRes.json()) as {
+                tickets?: MariTicketsWatchState | null;
+              };
+              if (cancelled || !live.tickets) return;
+              setData((prev) =>
+                prev ? mergeHomeMaringoTickets(prev, live.tickets!) : prev
+              );
+            })
+            .catch(() => undefined);
+        }
         const detailsRes = await fetch("/api/home/details");
         if (!detailsRes.ok || cancelled) return;
         const details = (await detailsRes.json()) as HomeDetailsPayload;

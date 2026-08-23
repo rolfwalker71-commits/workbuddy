@@ -171,6 +171,24 @@ function diffTickets(
   return changes;
 }
 
+function persistHomeTicketSnapshot(
+  userId: number,
+  tickets: MariTicketListItem[],
+  statusIds: number[]
+): void {
+  const fetched = new Set(statusIds.map((n) => Number(n)));
+  const prev = readJsonSetting<MariTicketSnapshotRow[]>(snapshotKey(userId), []);
+  const kept = prev.filter((row) => !fetched.has(Number(row.status)));
+  const next = [...kept, ...tickets.map(ticketToSnapshot)];
+  const at = new Date().toISOString();
+  setSetting(snapshotKey(userId), JSON.stringify(next));
+  setSetting(
+    countsKey(userId),
+    JSON.stringify(buildCountsForStatuses(next, SYNC_STATUS_IDS))
+  );
+  setSetting(lastPollKey(userId), at);
+}
+
 function userIdFromOwnerKey(ownerKey?: string | null): number | null {
   if (!ownerKey) return null;
   const parsed = parseOwnerKey(ownerKey);
@@ -254,6 +272,7 @@ export async function loadMariHomeTicketWatch(params: {
         limit: 200,
       })
     );
+    persistHomeTicketSnapshot(userId, tickets, statusIds);
     const recentChanges = readJsonSetting<MariTicketChangeEvent[]>(
       recentKey(userId),
       []
@@ -276,12 +295,24 @@ export async function loadMariHomeTicketWatch(params: {
   }
 }
 
+const homeTicketRefresh = new Map<number, Promise<MariTicketsWatchState>>();
+
 export async function getMariTicketsWatchStateLive(
   ownerKey?: string | null
 ): Promise<MariTicketsWatchState> {
   const userId = userIdFromOwnerKey(ownerKey);
   if (userId == null) return getMariTicketsWatchState(ownerKey);
-  return loadMariHomeTicketWatch({ userId, ownerKey: ownerKey || `user:${userId}` });
+  const key = userId;
+  const existing = homeTicketRefresh.get(key);
+  if (existing) return existing;
+  const promise = loadMariHomeTicketWatch({
+    userId,
+    ownerKey: ownerKey || `user:${userId}`,
+  }).finally(() => {
+    if (homeTicketRefresh.get(key) === promise) homeTicketRefresh.delete(key);
+  });
+  homeTicketRefresh.set(key, promise);
+  return promise;
 }
 
 export async function syncMariTicketsForUser(

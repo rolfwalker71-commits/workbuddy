@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  mergeHomeKpis,
+  mergeHomeMaringoTickets,
   mergeHomeOverviewDetails,
   type HomeDetailsPayload,
   type HomeOverviewPayload,
@@ -105,4 +107,89 @@ test("mergeHomeOverviewDetails keeps unread KPIs and fills lists", () => {
   assert.equal(merged.microsoft?.events.length, 1);
   assert.equal(merged.todayEvents[0]?.title, "Standup");
   assert.equal(merged.todayMail[0]?.subject, "Hallo");
+});
+
+test("mergeHomeMaringoTickets updates bagel counts without dropping modules", () => {
+  const overview: HomeOverviewPayload = {
+    greetingName: "Rolf",
+    today: "2026-08-23",
+    modules: ["maringo"],
+    microsoft: null,
+    google: null,
+    todayEvents: [],
+    todayMail: [],
+    maringo: {
+      enabled: true,
+      tickets: {
+        configured: true,
+        employeeNumber: "M1010",
+        lastPollAt: null,
+        countsByStatus: [],
+        total: 0,
+        recentChanges: [],
+      },
+    },
+    weather: null,
+  };
+  const merged = mergeHomeMaringoTickets(overview, {
+    configured: true,
+    employeeNumber: "M1010",
+    lastPollAt: "2026-08-23T16:00:00.000Z",
+    countsByStatus: [{ statusId: 11, label: "Offen", count: 4 }],
+    total: 4,
+    recentChanges: [],
+  });
+  assert.equal(merged.maringo?.tickets.total, 4);
+  assert.equal(merged.maringo?.tickets.countsByStatus[0]?.count, 4);
+  assert.equal(merged.modules[0], "maringo");
+});
+
+test("mergeHomeKpis fills unread zeros and keeps weather if live weather missing", () => {
+  const overview: HomeOverviewPayload = {
+    greetingName: "Rolf",
+    today: "2026-08-23",
+    modules: ["microsoft", "google"],
+    microsoft: {
+      enabled: true,
+      connected: true,
+      events: [],
+      mailInbox: [],
+      unreadCount: 9,
+      mailDay: null,
+      tasks: emptyTasks(),
+    },
+    google: {
+      enabled: true,
+      connected: true,
+      events: [],
+      mailInbox: [],
+      unreadCount: null,
+      mailDay: null,
+      tasks: emptyTasks(),
+    },
+    todayEvents: [],
+    todayMail: [],
+    maringo: null,
+    weather: {
+      placeLabel: "Altdorf",
+      temperatureC: 18,
+      temperatureMaxC: 21,
+      temperatureMinC: 12,
+      weatherCode: 1,
+      weatherLabelDe: "Heiter",
+      icon: "sun",
+      windSpeedKmh: 8,
+      windDirectionDeg: 180,
+      humidityPct: 60,
+      week: [],
+    },
+  };
+  const merged = mergeHomeKpis(overview, {
+    microsoftUnread: 0,
+    googleUnread: 3,
+    weather: null,
+  });
+  assert.equal(merged.microsoft?.unreadCount, 0);
+  assert.equal(merged.google?.unreadCount, 3);
+  assert.equal(merged.weather?.placeLabel, "Altdorf");
 });

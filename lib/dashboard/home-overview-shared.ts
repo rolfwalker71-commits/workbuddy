@@ -97,3 +97,48 @@ export function mergeHomeOverviewDetails(
     todayMail: details.todayMail,
   };
 }
+
+export type HomeKpiLive = {
+  microsoftUnread: number | null;
+  googleUnread: number | null;
+  weather: HomeWeatherCard | null;
+};
+
+export function mergeHomeKpis(
+  overview: HomeOverviewPayload,
+  kpis: HomeKpiLive
+): HomeOverviewPayload {
+  return {
+    ...overview,
+    weather: kpis.weather ?? overview.weather,
+    microsoft: overview.microsoft
+      ? {
+          ...overview.microsoft,
+          unreadCount:
+            kpis.microsoftUnread != null
+              ? kpis.microsoftUnread
+              : overview.microsoft.unreadCount,
+        }
+      : overview.microsoft,
+    google: overview.google
+      ? {
+          ...overview.google,
+          unreadCount:
+            kpis.googleUnread != null
+              ? kpis.googleUnread
+              : overview.google.unreadCount,
+        }
+      : overview.google,
+  };
+}
+
+export function mergeHomeMaringoTickets(
+  overview: HomeOverviewPayload,
+  tickets: MariTicketsWatchState
+): HomeOverviewPayload {
+  if (!overview.maringo) return overview;
+  return {
+    ...overview,
+    maringo: { ...overview.maringo, tickets },
+  };
+}

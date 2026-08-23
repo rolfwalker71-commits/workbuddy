@@ -9,6 +9,11 @@ import {
   getInboxUnreadCount,
   getTodayMicrosoftMailExcerpt,
 } from "@/lib/microsoft/mail-inbox";
+import {
+  readHomeKpiCache,
+  writeHomeUnreadCache,
+  writeHomeWeatherCache,
+} from "./home-kpi-cache";
 import { getMsMailDayCached } from "@/lib/microsoft/mail-day-analysis-job";
 import { isGoogleMailConnected } from "@/lib/google/oauth";
 import {
@@ -17,10 +22,7 @@ import {
 } from "@/lib/google/mail-inbox";
 import { getGoogleMailDayCached } from "@/lib/google/mail-day-analysis-job";
 import { zurichYmd } from "@/lib/microsoft/time";
-import {
-  getMariTicketsWatchState,
-  loadMariHomeTicketWatch,
-} from "@/lib/mari/sync-tickets-if-due";
+import { getMariTicketsWatchState } from "@/lib/mari/sync-tickets-if-due";
 import type { MariTicketsWatchState } from "@/lib/mari/sync-tickets-if-due";
 import { loadHomeTasksBundle, type HomeTasksBundle } from "./home-tasks";
 import { fetchHomeWeatherCard } from "@/lib/weather/fetch";
@@ -32,6 +34,7 @@ import {
 import { HOME_PROVIDER_TIMEOUT_MS, withTimeout } from "./with-timeout";
 import type {
   HomeDetailsPayload,
+  HomeKpiLive,
   HomeMailDaySummary,
   HomeMailSample,
   HomeOverviewPayload,
@@ -108,8 +111,8 @@ function emptyTickets(): MariTicketsWatchState {
 }
 
 /**
- * Fast Home payload: greeting, weather, unread KPIs, tickets.
- * Does not wait on inbox dumps, calendar review, or task lists.
+ * Instant Home payload from local caches (unread, weather, Maringo).
+ * Live refresh happens after first paint via /api/home/kpis and /api/home/tickets.
  */
 export async function getHomeOverview(
   auth: AuthContext
@@ -126,47 +129,15 @@ export async function getHomeOverview(
     userId != null && showGoogle && isGoogleMailConnected(userId);
   const ownerKey =
     userId != null ? `user:${userId}` : ownerKeyFromAuth(auth);
+  const cached = readHomeKpiCache(userId);
 
-  const unreadMsPromise =
-    userId != null && msConnected && hasMicrosoftMailScope(userId)
-      ? withTimeout(
-          getInboxUnreadCount(userId),
-          HOME_PROVIDER_TIMEOUT_MS,
-          null
-        )
-      : Promise.resolve(null);
+  const tickets = showMari
+    ? getMariTicketsWatchState(ownerKey)
+    : null;
 
-  const unreadGooglePromise =
-    userId != null && googleConnected
-      ? withTimeout(
-          getGmailInboxUnreadCount(userId),
-          HOME_PROVIDER_TIMEOUT_MS,
-          null
-        )
-      : Promise.resolve(null);
-
-  const weatherPromise = withTimeout(
-    fetchHomeWeatherCard(userId),
-    HOME_PROVIDER_TIMEOUT_MS,
-    null
-  );
-
-  const ticketsPromise = showMari
-    ? withTimeout(
-        userId != null
-          ? loadMariHomeTicketWatch({ userId, ownerKey })
-          : Promise.resolve(emptyTickets()),
-        HOME_PROVIDER_TIMEOUT_MS,
-        getMariTicketsWatchState(ownerKey)
-      )
-    : Promise.resolve(null);
-
-  const [unreadCount, googleUnread, weather, tickets] = await Promise.all([
-    unreadMsPromise,
-    unreadGooglePromise,
-    weatherPromise,
-    ticketsPromise,
-  ]);
+  const unreadCount = msConnected ? cached.microsoftUnread : null;
+  const googleUnread = googleConnected ? cached.googleUnread : null;
+  const weather = cached.weather;
 
   const microsoft: HomeOverviewPayload["microsoft"] = showMs
     ? {
@@ -211,6 +182,38 @@ export async function getHomeOverview(
       : null,
     weather,
   };
+}
+
+export async function refreshHomeKpis(auth: AuthContext): Promise<HomeKpiLive> {
+  const userId = resolveAppUserId(auth);
+  const modules = auth.modules;
+  const showMs = modules.includes("microsoft");
+  const showGoogle = modules.includes("google");
+  const msConnected = userId != null && showMs && isMicrosoftConnected(userId);
+  const googleConnected =
+    userId != null && showGoogle && isGoogleMailConnected(userId);
+  const cached = readHomeKpiCache(userId);
+
+  const [msLive, googleLive, weatherLive] = await Promise.all([
+    userId != null && msConnected && hasMicrosoftMailScope(userId)
+      ? withTimeout(getInboxUnreadCount(userId), 8000, null)
+      : Promise.resolve(null),
+    userId != null && googleConnected
+      ? withTimeout(getGmailInboxUnreadCount(userId), 8000, null)
+      : Promise.resolve(null),
+    withTimeout(fetchHomeWeatherCard(userId), 8000, null),
+  ]);
+
+  const microsoftUnread = msLive ?? cached.microsoftUnread;
+  const googleUnread = googleLive ?? cached.googleUnread;
+  const weather = weatherLive ?? cached.weather;
+
+  if (userId != null) {
+    writeHomeUnreadCache(userId, { microsoftUnread, googleUnread });
+  }
+  if (weatherLive) writeHomeWeatherCache(userId, weatherLive);
+
+  return { microsoftUnread, googleUnread, weather };
 }
 
 /**
