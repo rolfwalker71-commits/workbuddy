@@ -4,7 +4,7 @@ import {
   mergeHomeOverviewDetails,
   type HomeDetailsPayload,
   type HomeOverviewPayload,
-} from "./home-overview.ts";
+} from "./home-overview-shared.ts";
 
 function emptyTasks() {
   return {

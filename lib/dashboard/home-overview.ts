@@ -1,12 +1,10 @@
 import type { AuthContext } from "@/lib/auth/current-user";
 import { ownerKeyFromAuth } from "@/lib/auth/owner-key";
 import { resolveAppUserId } from "@/lib/users/resolve-user";
-import type { AppModule } from "@/lib/users/modules";
 import {
   hasMicrosoftMailScope,
   isMicrosoftConnected,
 } from "@/lib/microsoft/oauth";
-import type { MsCalendarEvent } from "@/lib/microsoft/calendar-review";
 import {
   getInboxUnreadCount,
   getTodayMicrosoftMailExcerpt,
@@ -25,70 +23,29 @@ import {
 } from "@/lib/mari/sync-tickets-if-due";
 import type { MariTicketsWatchState } from "@/lib/mari/sync-tickets-if-due";
 import { loadHomeTasksBundle, type HomeTasksBundle } from "./home-tasks";
-import { fetchHomeWeatherCard, type HomeWeatherCard } from "@/lib/weather/fetch";
+import { fetchHomeWeatherCard } from "@/lib/weather/fetch";
 import { loadWorkspaceTodayEvents } from "@/lib/workspace/today-events";
 import {
   mergeWorkspaceMailSamples,
-  type WorkspaceMailSample,
   type WorkspaceTodayEvent,
 } from "@/lib/workspace/merge-today";
 import { HOME_PROVIDER_TIMEOUT_MS, withTimeout } from "./with-timeout";
+import type {
+  HomeDetailsPayload,
+  HomeMailDaySummary,
+  HomeMailSample,
+  HomeOverviewPayload,
+  HomeProviderBlock,
+} from "./home-overview-shared";
 
-export type HomeMailSample = {
-  id: string;
-  subject: string;
-  from: string;
-  receivedOrSentAt: string | null;
-  provider?: "microsoft" | "google";
-};
-
-export type HomeMailDaySummary = {
-  dayIso: string;
-  inboxCount: number;
-  sentCount: number;
-  finishedAt: string;
-  headline: string | null;
-};
-
-export type HomeProviderBlock = {
-  enabled: boolean;
-  connected: boolean;
-  events: MsCalendarEvent[] | Array<{
-    id: string;
-    subject: string;
-    startHm: string | null;
-    endHm: string | null;
-    location: string | null;
-    isAllDay: boolean;
-    done: boolean;
-  }>;
-  mailInbox: HomeMailSample[];
-  unreadCount: number | null;
-  mailDay: HomeMailDaySummary | null;
-  tasks: HomeTasksBundle;
-};
-
-export type HomeOverviewPayload = {
-  greetingName: string | null;
-  today: string;
-  modules: AppModule[];
-  microsoft: HomeProviderBlock | null;
-  google: HomeProviderBlock | null;
-  todayEvents: WorkspaceTodayEvent[];
-  todayMail: WorkspaceMailSample[];
-  maringo: {
-    enabled: boolean;
-    tickets: MariTicketsWatchState;
-  } | null;
-  weather: HomeWeatherCard | null;
-};
-
-export type HomeDetailsPayload = {
-  microsoft: Pick<HomeProviderBlock, "events" | "mailInbox" | "tasks"> | null;
-  google: Pick<HomeProviderBlock, "events" | "mailInbox" | "tasks"> | null;
-  todayEvents: WorkspaceTodayEvent[];
-  todayMail: WorkspaceMailSample[];
-};
+export type {
+  HomeDetailsPayload,
+  HomeMailDaySummary,
+  HomeMailSample,
+  HomeOverviewPayload,
+  HomeProviderBlock,
+} from "./home-overview-shared";
+export { mergeHomeOverviewDetails } from "./home-overview-shared";
 
 function emptyTasks(
   partial?: Partial<HomeTasksBundle>
@@ -372,34 +329,5 @@ export async function getHomeDetails(
       : null,
     todayEvents,
     todayMail,
-  };
-}
-
-export function mergeHomeOverviewDetails(
-  overview: HomeOverviewPayload,
-  details: HomeDetailsPayload
-): HomeOverviewPayload {
-  return {
-    ...overview,
-    microsoft:
-      overview.microsoft && details.microsoft
-        ? {
-            ...overview.microsoft,
-            events: details.microsoft.events,
-            mailInbox: details.microsoft.mailInbox,
-            tasks: details.microsoft.tasks,
-          }
-        : overview.microsoft,
-    google:
-      overview.google && details.google
-        ? {
-            ...overview.google,
-            events: details.google.events,
-            mailInbox: details.google.mailInbox,
-            tasks: details.google.tasks,
-          }
-        : overview.google,
-    todayEvents: details.todayEvents,
-    todayMail: details.todayMail,
   };
 }

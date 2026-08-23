@@ -28,7 +28,7 @@ import {
   mergeHomeOverviewDetails,
   type HomeDetailsPayload,
   type HomeOverviewPayload,
-} from "@/lib/dashboard/home-overview";
+} from "@/lib/dashboard/home-overview-shared";
 import type { HomeTaskItem } from "@/lib/dashboard/home-tasks";
 import { HomeWeatherWidget } from "./home-weather-widget";
 
