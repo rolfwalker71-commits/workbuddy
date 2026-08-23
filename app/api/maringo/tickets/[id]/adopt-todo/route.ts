@@ -6,10 +6,8 @@ import {
   resolveMicrosoftUserId,
 } from "@/lib/microsoft/oauth";
 import { createOutlookTodoTask } from "@/lib/microsoft/mail-day-actions";
-import {
-  formatSupportTodoTitle,
-  parseIsoDueHint,
-} from "@/lib/mari/analyze-ticket";
+import { formatSupportTodoTitle } from "@/lib/mari/analyze-ticket";
+import { parseIsoDueHint } from "@/lib/mari/analyze-ticket-shared";
 import { ensureInitialized } from "@/lib/db/migrations";
 
 export const runtime = "nodejs";

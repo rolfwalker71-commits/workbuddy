@@ -1,9 +1,9 @@
 import { MariApiError, mariJson } from "@/lib/mari/client";
+import { formatSupportTodoTitle } from "@/lib/mari/analyze-ticket";
 import {
   artifactKindLabel,
-  formatSupportTodoTitle,
   type MariTicketAnalysis,
-} from "@/lib/mari/analyze-ticket";
+} from "@/lib/mari/analyze-ticket-shared";
 
 function escapeHtml(raw: string): string {
   return raw

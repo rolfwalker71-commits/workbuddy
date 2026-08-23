@@ -72,11 +72,11 @@ import { toSwissDate } from "@/lib/utils/dates";
 import type {
   MariTicketAnalysis,
   MariSolutionArtifact,
-} from "@/lib/mari/analyze-ticket";
+} from "@/lib/mari/analyze-ticket-shared";
 import {
   artifactKindLabel,
   groupSolutionArtifacts,
-} from "@/lib/mari/analyze-ticket";
+} from "@/lib/mari/analyze-ticket-shared";
 import type { AiTokenUsage } from "@/lib/ai/usage-cost";
 import { formatTokenUsageBreakdownLines } from "@/lib/ai/usage-cost";
 import type {
