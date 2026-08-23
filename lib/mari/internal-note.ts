@@ -1,5 +1,9 @@
 import { MariApiError, mariJson } from "@/lib/mari/client";
-import type { MariTicketAnalysis } from "@/lib/mari/analyze-ticket";
+import {
+  artifactKindLabel,
+  formatSupportTodoTitle,
+  type MariTicketAnalysis,
+} from "@/lib/mari/analyze-ticket";
 
 function escapeHtml(raw: string): string {
   return raw
@@ -69,13 +73,16 @@ export function formatAnalysisAsInternalCommentHtml(
   }
 
   if (analysis.suggestedTasks.length > 0) {
-    parts.push(sectionTitle("Aufgaben"));
+    parts.push(sectionTitle("Support-To-Dos"));
     parts.push("<ul>");
     for (const t of analysis.suggestedTasks) {
       const reason = t.reason ? ` — ${escapeHtml(t.reason)}` : "";
       const due = t.dueHint ? ` <i>(fällig ${escapeHtml(t.dueHint)})</i>` : "";
+      const title = opts?.issueId
+        ? formatSupportTodoTitle(opts.issueId, t.title)
+        : t.title;
       parts.push(
-        `<li><b>${escapeHtml(t.title)}</b>${reason}${due}</li>`
+        `<li><b>${escapeHtml(title)}</b>${reason}${due}</li>`
       );
     }
     parts.push("</ul>");
@@ -126,7 +133,9 @@ export function formatAnalysisAsInternalCommentHtml(
     if (sketch.artifacts.length > 0) {
       parts.push(sectionTitle("Queries / Skripte / Code"));
       for (const a of sketch.artifacts) {
-        const meta = [a.kind, a.language].filter(Boolean).join(" · ");
+        const meta = [artifactKindLabel(a.kind), a.language]
+          .filter(Boolean)
+          .join(" · ");
         parts.push(
           `<div style="margin:10px 0 4px;"><b>${escapeHtml(a.title)}</b>${
             meta ? ` <span style="color:#64748b;">(${escapeHtml(meta)})</span>` : ""

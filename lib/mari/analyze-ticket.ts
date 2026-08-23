@@ -170,6 +170,7 @@ function normalizeSolutionSketch(raw: unknown): unknown {
       artifacts: [],
       caveats:
         "Vorschlag aus allgemeinem Herstellerwissen — mit help.sap.com / offizieller Doku abgleichen.",
+      confidence: "medium",
     };
   }
   if (typeof raw !== "object" || Array.isArray(raw)) return null;
@@ -195,7 +196,7 @@ function normalizeSolutionSketch(raw: unknown): unknown {
   const artifacts = artifactsRaw
     .map(normalizeSolutionArtifact)
     .filter((x): x is NonNullable<typeof x> => x != null)
-    .slice(0, 12);
+    .slice(0, 16);
 
   return {
     problemStillOpen: asBoolean(
@@ -207,6 +208,10 @@ function normalizeSolutionSketch(raw: unknown): unknown {
     steps,
     artifacts,
     caveats: asNullableString(o.caveats ?? o.hinweis, 1500),
+    confidence: (() => {
+      const c = asString(o.confidence ?? o.conf, 12).toLowerCase();
+      return c === "high" || c === "medium" || c === "low" ? c : "medium";
+    })(),
   };
 }
 
@@ -230,15 +235,25 @@ export function normalizeMariTicketAnalysisInput(raw: unknown): unknown {
       : {};
 
   const tasksRaw = Array.isArray(o.suggestedTasks) ? o.suggestedTasks : [];
-  const suggestedTasks = tasksRaw.slice(0, 8).map((item) => {
+  const suggestedTasks = tasksRaw.slice(0, 10).map((item) => {
     const t: Record<string, unknown> =
       item && typeof item === "object" && !Array.isArray(item)
         ? (item as Record<string, unknown>)
         : { title: item };
+    const confRaw = asString(t.confidence ?? t.conf, 12).toLowerCase();
+    const confidence =
+      confRaw === "high" || confRaw === "medium" || confRaw === "low"
+        ? confRaw
+        : "medium";
+    const kindRaw = asString(t.kind ?? t.type, 24).toLowerCase();
+    const kind = kindRaw === "other" ? "other" : "support_todo";
     return {
       title: asString(t.title, 200) || "Aufgabe",
       reason: asNullableString(t.reason, 500) ?? undefined,
       dueHint: asNullableString(t.dueHint, 40),
+      kind,
+      confidence,
+      ticketRef: asNullableString(t.ticketRef ?? t.ticket, 40),
     };
   });
 
@@ -323,8 +338,9 @@ export const MariSolutionSketchSchema = z.object({
   /** Step-by-step in Apps / Administration */
   steps: z.array(MariSolutionStepSchema).max(16).default([]),
   /** SQL/HANA, TN, Customize, SP, Scripts usw. */
-  artifacts: z.array(MariSolutionArtifactSchema).max(12).default([]),
+  artifacts: z.array(MariSolutionArtifactSchema).max(16).default([]),
   caveats: z.string().max(1500).nullable().optional(),
+  confidence: z.enum(["high", "medium", "low"]).optional(),
 });
 
 export const MariTicketAnalysisSchema = z.object({
@@ -340,9 +356,12 @@ export const MariTicketAnalysisSchema = z.object({
         title: z.string().min(1).max(200),
         reason: z.string().max(500).optional(),
         dueHint: z.string().max(40).nullable().optional(),
+        kind: z.enum(["support_todo", "other"]).default("support_todo"),
+        confidence: z.enum(["high", "medium", "low"]).default("medium"),
+        ticketRef: z.string().max(40).nullable().optional(),
       })
     )
-    .max(8),
+    .max(10),
   suggestions: z.array(z.string().max(300)).max(8),
   recommendedStatus: z
     .object({
@@ -358,6 +377,134 @@ export const MariTicketAnalysisSchema = z.object({
 
 export type MariTicketAnalysis = z.infer<typeof MariTicketAnalysisSchema>;
 export type MariSolutionSketch = z.infer<typeof MariSolutionSketchSchema>;
+export type MariSolutionArtifact = z.infer<typeof MariSolutionArtifactSchema>;
+
+export function artifactKindLabel(kind: string): string {
+  switch (kind) {
+    case "sql_hana":
+      return "HANA";
+    case "sql_sqlserver":
+      return "SQL Server";
+    case "sql":
+      return "SQL";
+    case "transaction_notification":
+      return "Transaction Notification";
+    case "formatted_search":
+      return "Formatted Search";
+    case "coresuite_customize":
+      return "coresuite Customize";
+    case "stored_procedure":
+      return "Stored Procedure";
+    case "di_api":
+      return "DI-API";
+    case "service_layer":
+      return "Service Layer";
+    case "powershell":
+      return "PowerShell";
+    case "bash":
+      return "Bash";
+    case "script":
+      return "Skript";
+    case "config":
+      return "Config";
+    default:
+      return kind || "Sonstiges";
+  }
+}
+
+function artifactPurposeKey(title: string): string {
+  return title
+    .replace(
+      /\s*[(\[{]?\s*(hana|sap\s*hana|sql\s*server|mssql|ms\s*sql|t-?sql)\s*[)\]}]?\s*$/i,
+      ""
+    )
+    .replace(
+      /\s*[-–—|:]\s*(hana|sap\s*hana|sql\s*server|mssql|ms\s*sql|t-?sql)\s*$/i,
+      ""
+    )
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+export type GroupedSolutionArtifact =
+  | {
+      type: "pair";
+      purpose: string;
+      hana: MariSolutionArtifact;
+      sqlserver: MariSolutionArtifact;
+    }
+  | { type: "single"; artifact: MariSolutionArtifact };
+
+/** Paart HANA- und SQL-Server-Varianten desselben Zwecks für die Anzeige. */
+export function groupSolutionArtifacts(
+  artifacts: MariSolutionArtifact[]
+): GroupedSolutionArtifact[] {
+  const used = new Set<number>();
+  const groups: GroupedSolutionArtifact[] = [];
+
+  for (let i = 0; i < artifacts.length; i++) {
+    if (used.has(i)) continue;
+    const a = artifacts[i];
+    if (a.kind !== "sql_hana" && a.kind !== "sql_sqlserver") {
+      used.add(i);
+      groups.push({ type: "single", artifact: a });
+      continue;
+    }
+
+    const want = a.kind === "sql_hana" ? "sql_sqlserver" : "sql_hana";
+    const key = artifactPurposeKey(a.title);
+    let match = -1;
+    for (let j = 0; j < artifacts.length; j++) {
+      if (j === i || used.has(j)) continue;
+      if (artifacts[j].kind !== want) continue;
+      if (artifactPurposeKey(artifacts[j].title) === key) {
+        match = j;
+        break;
+      }
+    }
+    if (match < 0) {
+      for (const j of [i - 1, i + 1]) {
+        if (j < 0 || j >= artifacts.length || used.has(j)) continue;
+        if (artifacts[j].kind === want) {
+          match = j;
+          break;
+        }
+      }
+    }
+    if (match >= 0) {
+      used.add(i);
+      used.add(match);
+      const other = artifacts[match];
+      const hana = a.kind === "sql_hana" ? a : other;
+      const sqlserver = a.kind === "sql_sqlserver" ? a : other;
+      const purpose =
+        a.title
+          .replace(
+            /\s*[(\[{]?\s*(hana|sap\s*hana|sql\s*server|mssql|ms\s*sql|t-?sql)\s*[)\]}]?\s*$/i,
+            ""
+          )
+          .replace(
+            /\s*[-–—|:]\s*(hana|sap\s*hana|sql\s*server|mssql|ms\s*sql|t-?sql)\s*$/i,
+            ""
+          )
+          .trim() || a.title;
+      groups.push({ type: "pair", purpose, hana, sqlserver });
+      continue;
+    }
+
+    used.add(i);
+    groups.push({ type: "single", artifact: a });
+  }
+
+  return groups;
+}
+
+export function parseIsoDueHint(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const t = raw.trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : null;
+}
 
 /** Heuristik: relevante Hersteller/Produkte aus Tickettext für den Prompt. */
 export function detectRelevantVendorsFromTicketText(text: string): string[] {
@@ -368,11 +515,18 @@ export function detectRelevantVendorsFromTicketText(text: string): string[] {
   };
   add("SAP Business One", /\b(sap\s*b1|business\s*one|sbo\b|ocrd|oinv|di-?api|service\s*layer|udf|udt|formatted\s*search|transaction\s*notification)\b/i);
   add("SAP HANA", /\b(hana|sqlscript|hdbsql|hdbdaemon|hdbindexserver)\b/i);
+  add(
+    "Microsoft SQL Server",
+    /\b(sql\s*server|mssql|ms\s*sql|t-sql|tsql)\b/i
+  );
   add("Linux / OS", /\b(linux|suse|rhel|redhat|ubuntu|systemd|ssh|bash|shell|df\s+-h|journalctl)\b/i);
   add("Coresystems coresuite", /\b(coresystems|coresuite|core\s*suite|customize)\b/i);
   add("Boyum IT", /\b(boyum|b1up|b1\s*usability|produmex|print\s*&\s*delivery|boyum\s*insight)\b/i);
   add("Produmex", /\bprodumex\b/i);
-  add("Microsoft 365", /\b(microsoft|m365|office\s*365|outlook|exchange|graph\s*api|entra|azure\s*ad|teams|power\s*automate)\b/i);
+  add(
+    "Microsoft 365",
+    /\b(microsoft\s*365|m365|office\s*365|outlook|exchange|graph\s*api|entra|azure\s*ad|teams|power\s*automate)\b/i
+  );
   add("Maringo MARI", /\b(maringo|mari\b|hotline)\b/i);
   // B1-Kontext ohne explizites SAP-Wort: Standardtabellen / Support-Stack
   if (
@@ -384,16 +538,44 @@ export function detectRelevantVendorsFromTicketText(text: string): string[] {
   return found.slice(0, 8);
 }
 
-const SYSTEM = `Du bist Buddy, Senior-Support-Assistent für Maringo/MARI Tickets (Schweiz, de-CH).
-Kontext: SAP Business One (B1) inkl. HANA/SQL Server, Transaction Notification (SBO_SP_TransactionNotification), Formatted Search, UDFs/UDT, DI-API, Service Layer, Add-ons (Coresystems/coresuite, Boyum IT), Microsoft 365/Outlook/Graph, Maringo/MARI u.ä.
+export function specialistRoleLine(vendorHints: string[]): string {
+  if (vendorHints.length === 0) {
+    return "Kein klares Produkt erkennbar — kein Produktspezialist vortäuschen. Allgemein bleiben und in completeness.notes schreiben, dass Stack/Produkt unklar ist.";
+  }
+  return `Für DIESES Ticket bist du Spezialist für: ${vendorHints.join(", ")}. Diagnose und Behebung nur in den üblichen Pfaden dieser Produkte. Keine fachfremden Module oder SAP-ECC/S/4-T-Codes.`;
+}
+
+export function formatSupportTodoTitle(
+  issueId: number,
+  title: string
+): string {
+  const clean = title
+    .replace(/^#\d+\s*/u, "")
+    .replace(/^\[\s*#?\d+\s*\]\s*/u, "")
+    .trim();
+  return `#${issueId} ${clean || "Support-Aufgabe"}`.slice(0, 200);
+}
+
+export function buildMariTicketAnalysisSystemPrompt(
+  vendorHints: string[]
+): string {
+  return `Du bist Buddy, Senior-Support-Assistent für Maringo/MARI Tickets (Schweiz, de-CH).
+${specialistRoleLine(vendorHints)}
+Kontext-Stack (nur nutzen wenn im Ticket erkennbar oder in der Heuristik oben genannt): SAP Business One (B1) inkl. HANA und Microsoft SQL Server, Transaction Notification (SBO_SP_TransactionNotification), Formatted Search, UDFs/UDT, DI-API, Service Layer, Add-ons (Coresystems/coresuite, Boyum IT), Microsoft 365/Outlook/Graph, Maringo/MARI.
 WICHTIG zu SAP: IMMER SAP Business One — NIEMALS R/3, ECC, S/4HANA, Fiori oder ECC-T-Codes.
 
+GROUNDING — drei Schichten, nichts erfinden:
+1) BELEG: nur Fakten aus Ticket, Verlauf oder Screenshot (Fehlertext wörtlich zitieren).
+2) STANDARDWISSEN: übliche Hersteller-Pfade (help.sap.com-Themen, B1-Menüs, OCRD/OINV, M_*-Views). KEINE erfundenen Note-/KB-Nummern, keine Fantasie-UI-Klicks oder Tabellenfelder.
+3) HYPOTHESE: 2–3 Alternativen mit Für/Wider + Unsicherheit — nie als Tatsache.
+Unbekanntes → completeness.missing (Frage), nicht als Lösungsschritt. confidence high|medium|low ehrlich setzen.
+
 REASONING (sichtbar in summary, outline, reasons — nicht intern verschlucken):
-- Reihenfolge: Lage klären → 2–3 Hypothesen mit Für/Wider → wahrscheinlichste Diagnose → Plan.
-- summary: 6–10 Sätze — Symptom, Kontext, wahrscheinlichste Ursache, Unsicherheit, nächster Schritt. Kein Telegrammstil.
-- outline: ausformulierte Argumentation (nicht Stichworte): Evidenz aus Verlauf und Screenshots, Alternativen, warum dieser Weg zuerst.
-- suggestedTasks[].reason und recommendedStatus.reason konkret begründen (was spricht dafür, was bleibt unsicher).
-- Keine Diagnose ohne Beleg; wenn Evidenz dünn ist, das in completeness.notes sagen.
+- Reihenfolge: Symptom zitieren → Produkt/Modul (erkannt/unklar) → 2–3 Hypothesen mit Für/Wider → wahrscheinlichste Diagnose → was zuerst PRÜFEN (lesen) → Behebung gemäss Produkt → Verifikation → was unsicher bleibt.
+- summary: 6–10 Sätze, kein Telegrammstil.
+- outline: ausformulierte Argumentation (nicht Stichworte).
+- suggestedTasks[].reason und recommendedStatus.reason konkret begründen.
+- Keine Diagnose ohne Beleg; dünne Evidenz in completeness.notes.
 
 VISION (wenn Bilder mitgeliefert):
 - Jedes Bild bewusst lesen: Fenster/UI-Pfad, exakter Fehlertext, Codes, rote Markierungen, Versionen, Firma, betroffene Belege/Felder.
@@ -449,7 +631,14 @@ Liefere JSON genau in diesem Schema:
 {
   "summary": "string, 6–10 Sätze, max ~1800 Zeichen",
   "completeness": { "score": 0-100, "missing": ["…"], "notes": "optional" },
-  "suggestedTasks": [{ "title": "…", "reason": "optional", "dueHint": "YYYY-MM-DD|null" }],
+  "suggestedTasks": [{
+    "title": "kurze Support-Aufgabe ohne Ticketpräfix",
+    "reason": "warum WIR das tun müssen (Beleg)",
+    "dueHint": "YYYY-MM-DD|null",
+    "kind": "support_todo",
+    "confidence": "high|medium|low",
+    "ticketRef": "#12345"
+  }],
   "suggestions": ["…"],
   "recommendedStatus": { "statusId": 11|1|3|6|7|14|2|null, "label": "optional", "reason": "optional" } | null,
   "nextReplyDraft": "Kundenantwort in der Sprache/Anrede des Verlaufs oder null",
@@ -473,7 +662,8 @@ Liefere JSON genau in diesem Schema:
         "note": "DB-Variante, Deploy-Hinweis, Test auf Testfirma, Doku-Themenpfad"
       }
     ],
-    "caveats": "Unsicherheiten + Doku-Pfade je Hersteller"
+    "caveats": "Unsicherheiten + Doku-Pfade je Hersteller",
+    "confidence": "high|medium|low"
   } | null
 }
 
@@ -482,16 +672,22 @@ solutionSketch — UMFANGREICH und PRAXISTAUGICH (Support-Qualität):
 - outline: nicht nur 2 Sätze — Ursache, Auswirkungen, Lösungsstrategie, Hersteller-Kontext, Screenshot-Befunde, was man zuerst prüft vs. ändert und warum.
 - vendors: alle aus Ticket erkennbaren relevanten Hersteller/Produkte (mind. SAP Business One wenn B1-Thema).
 - steps: 4–12 navigierbare Schritte wo sinnvoll (Diagnose → Fix → Verifikation), inkl. Addon-/Hersteller-UI wenn betroffen.
-- artifacts: LIEFERE substanzielle Skripte, sobald Daten/Regeln involviert sind:
+- artifacts: LIEFERE substanzielle Skripte, sobald Daten/Regeln involviert sind. Mehrere Skripte sind erwünscht, wenn sinnvoll (Diagnose + Fix + Verifikation, mehrere Objekte).
   1) Diagnose-SELECTs (Joins, Filter mit Platzhaltern).
-  2) SQL IMMER doppelt: je ein artifact kind sql_hana UND ein artifact kind sql_sqlserver mit gleichem Zweck (Titel z. B. «BP prüfen (HANA)» / «BP prüfen (SQL Server)»). Auch wenn nur HANA oder nur SQL Server im Ticket steht — Kundenumgebung oft unklar.
-  3) Transaction Notification: wenn relevant, möglichst HANA-SQLSCRIPT und SQL-Server-Variante als zwei artifacts; note = Ziel-DB.
-  4) Formatted Search: kind formatted_search — Query + Zuweisung im Formular (bei SQL-FS ebenfalls HANA + SQL Server wenn Query-basiert).
+  2) HANA und Microsoft SQL Server sind SYNTAXISCH SEHR UNTERSCHIEDLICH. Jedes B1-Firmen-DB-Skript IMMER als Paar: kind sql_hana UND kind sql_sqlserver, gleicher Zweck, korrekte Dialekt-Syntax (Titel z. B. «BP prüfen (HANA)» / «BP prüfen (SQL Server)»). Auch wenn das Ticket nur eine DB nennt — der Kunde kann die andere haben.
+  3) Transaction Notification: wenn relevant, HANA-SQLSCRIPT und SQL-Server-Variante als zwei artifacts; note = Ziel-DB.
+  4) Formatted Search: kind formatted_search — Query + Zuweisung im Formular (bei SQL-FS ebenfalls HANA + SQL Server).
   5) coresuite_customize wenn Coresystems/coresuite relevant.
   6) config/script für Boyum/B1UP/Produmex wenn erkennbar.
   7) DI-API / Service Layer / PowerShell / Graph wenn passend.
-  8) Bei Linux/HANA-Betrieb: bash (Shell-Diagnose/Fix) und ggf. HANA-Monitoring-SQL (M_*-Views / hdbsql) — siehe LINUX / HANA-BETRIEB.
-- VERBOTEN: nur sql_hana ohne sql_sqlserver (oder umgekehrt), sobald irgendein B1-Firmen-DB SQL-Diagnose-/Fix-Skript vorkommt (reine HANA-OS-Admin-Skripte ausgenommen).
+  8) Bei Linux/HANA-Betrieb: bash und ggf. HANA-Monitoring-SQL — siehe LINUX / HANA-BETRIEB.
+- VERBOTEN: nur sql_hana ohne sql_sqlserver (oder umgekehrt), sobald irgendein B1-Firmen-DB SQL vorkommt (reine HANA-OS-Admin-Skripte ausgenommen).
+
+SUPPORT-TO-DOS (suggestedTasks):
+- NUR Arbeit für UNS im Support (nachstellen, SQL auf Testfirma, Trace lesen, Hersteller-Ticket, interne Prüfung).
+- Kundenhomework (fehlende Belege, Screenshots, Repro) → completeness.missing und nextReplyDraft, NICHT suggestedTasks.
+- Jede Aufgabe: kind=support_todo, ticketRef=#<IssueID aus User-Prompt>, title OHNE #Präfix (UI setzt #IssueID), reason mit Beleg, confidence.
+- Leer lassen wenn keine interne Support-Arbeit nötig ist.
 - Skripte: kommentiert, idempotent wo möglich, keine destruktiven UPDATEs ohne klaren WHERE und Warnung in note.
 - Keine erfundenen SAP-Note-/KB-Nummern; Themenpfade statt Fantasie-IDs.
 - Klar als Vorschlag; kein Blind-Deploy auf Produktiv.
@@ -508,6 +704,7 @@ nextReplyDraft — ANREDE (hart):
 
 Status-IDs: 11 NEU, 1 Offen, 3 In Arbeit, 6 Warte auf Kunden, 7 Warte auf Hersteller, 14 Eskalation, 2 Gelöst.
 score als Zahl. Arrays nie weglassen (leer ok). NUR JSON-Objekt.`;
+}
 
 export type AnalyzeMariTicketResult = MariTicketAnalysis & {
   imagesAnalyzed: number;
@@ -600,7 +797,8 @@ ${
     ? vendorHints.map((v) => `- ${v}`).join("\n")
     : "- (keine klaren Treffer — aus Verlauf selbst ableiten; bei B1-Themen mind. SAP Business One)"
 }
-SQL-Artefakte: Bei B1-Firmen-DB-SQL IMMER beide Varianten (sql_hana + sql_sqlserver). HANA nur in korrekter HANA-Syntax.
+SQL-Artefakte: Bei B1-Firmen-DB-SQL IMMER beide Varianten (sql_hana + sql_sqlserver), weil die Syntax stark abweicht. Mehrere Skript-Paare sind ok, wenn Diagnose/Fix/Verifikation getrennt sinnvoll sind.
+Support-To-Dos: ticketRef = #${ticket.issueId}; title ohne diese Nummer.
 Bei Linux/HANA-Server-Problemen zusätzlich bash-Shell und ggf. HANA-Monitoring/hdbsql liefern.
 
 Anrede-Muster für nextReplyDraft: ${
@@ -643,7 +841,7 @@ ${timelineText.slice(0, 14000) || "(keine Positionen)"}${visionHint}`;
     max_tokens: 12_000,
     response_format: { type: "json_object" },
     messages: [
-      { role: "system", content: SYSTEM },
+      { role: "system", content: buildMariTicketAnalysisSystemPrompt(vendorHints) },
       { role: "user", content: userContent },
     ],
   });

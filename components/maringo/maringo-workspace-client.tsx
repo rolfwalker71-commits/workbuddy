@@ -15,12 +15,14 @@ import {
   ArrowDownAZ,
   ArrowUpAZ,
   Check,
+  Copy,
   Calendar,
   CalendarPlus,
   ChevronDown,
   Clock3,
   Flag,
   Inbox,
+  ListTodo,
   Lock,
   Mail,
   MessageSquare,
@@ -65,8 +67,16 @@ import {
   statusDetailHeaderClass,
 } from "@/lib/mari/status";
 import { cn } from "@/lib/utils";
+import { showActionFeedback } from "@/lib/ui/action-feedback";
 import { toSwissDate } from "@/lib/utils/dates";
-import type { MariTicketAnalysis } from "@/lib/mari/analyze-ticket";
+import type {
+  MariTicketAnalysis,
+  MariSolutionArtifact,
+} from "@/lib/mari/analyze-ticket";
+import {
+  artifactKindLabel,
+  groupSolutionArtifacts,
+} from "@/lib/mari/analyze-ticket";
 import type { AiTokenUsage } from "@/lib/ai/usage-cost";
 import { formatTokenUsageBreakdownLines } from "@/lib/ai/usage-cost";
 import type {
@@ -635,6 +645,72 @@ function TimelineRow({
   );
 }
 
+function copyArtifactCode(code: string, title: string) {
+  void navigator.clipboard.writeText(code).then(
+    () =>
+      showActionFeedback({
+        headline: "Skript kopiert",
+        detail: title,
+        tone: "success",
+      }),
+    () =>
+      showActionFeedback({
+        headline: "Kopieren fehlgeschlagen",
+        tone: "error",
+      })
+  );
+}
+
+function SolutionArtifactCard({
+  artifact,
+  dialectHint,
+}: {
+  artifact: MariSolutionArtifact;
+  dialectHint?: string;
+}) {
+  const dialect = dialectHint || artifactKindLabel(artifact.kind);
+  const unpairedSql =
+    !dialectHint &&
+    (artifact.kind === "sql_hana" || artifact.kind === "sql_sqlserver");
+  return (
+    <div className="overflow-hidden rounded-2xl bg-card shadow-sm ring-1 ring-foreground/10">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+        <div className="min-w-0">
+          <p className="text-sm font-medium leading-snug break-words">
+            {artifact.title}
+          </p>
+          <p className="mt-0.5 text-[0.6875rem] text-muted-foreground">
+            {dialect}
+            {artifact.language ? ` · ${artifact.language}` : ""}
+          </p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          onClick={() => copyArtifactCode(artifact.code, artifact.title)}
+        >
+          <Copy className="size-3.5" />
+          Kopieren
+        </Button>
+      </div>
+      {artifact.note ? (
+        <p className="px-3 pb-2 text-[0.6875rem] text-muted-foreground">
+          {artifact.note}
+        </p>
+      ) : null}
+      {unpairedSql ? (
+        <p className="px-3 pb-2 text-[0.6875rem] text-amber-800 dark:text-amber-200">
+          Gegenstück fehlt — HANA und SQL Server sollten beide da sein.
+        </p>
+      ) : null}
+      <pre className="max-h-[28rem] overflow-auto whitespace-pre-wrap border-t border-foreground/5 bg-muted/40 p-3 font-mono text-[0.6875rem] leading-snug">
+        {artifact.code}
+      </pre>
+    </div>
+  );
+}
+
 export function MaringoWorkspaceClient() {
   const searchParams = useSearchParams();
   const [workspaceTab, setWorkspaceTab] = useState<"tickets" | "hours">(
@@ -673,6 +749,10 @@ export function MaringoWorkspaceClient() {
   const [listLoading, setListLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [adoptingTodoKey, setAdoptingTodoKey] = useState<string | null>(null);
+  const [adoptedTodoKeys, setAdoptedTodoKeys] = useState<Record<string, true>>(
+    {}
+  );
   const [analyzePickerOpen, setAnalyzePickerOpen] = useState(false);
   const [postingInternalNote, setPostingInternalNote] = useState(false);
   const [translatingReplyDraft, setTranslatingReplyDraft] = useState(false);
@@ -989,6 +1069,7 @@ export function MaringoWorkspaceClient() {
       const storedData = await storedRes.json().catch(() => ({}));
       if (storedRes.ok && storedData.stored && storedData.analysis) {
         setAnalysis(storedData.analysis as MariTicketAnalysis);
+        setAdoptedTodoKeys({});
         setSavedAnalyzedAt(
           typeof storedData.analyzedAt === "string"
             ? storedData.analyzedAt
@@ -1406,6 +1487,7 @@ export function MaringoWorkspaceClient() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Analyse fehlgeschlagen");
       setAnalysis(data.analysis as MariTicketAnalysis);
+      setAdoptedTodoKeys({});
       setImagesAnalyzed(Number(data.imagesAnalyzed) || 0);
       setImageNames(
         Array.isArray(data.imageNames)
@@ -1436,6 +1518,48 @@ export function MaringoWorkspaceClient() {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setAnalyzing(false);
+    }
+  }
+
+  async function adoptSupportTodo(task: {
+    title: string;
+    reason?: string;
+    dueHint?: string | null;
+  }) {
+    if (!selectedId) return;
+    const key = task.title;
+    setAdoptingTodoKey(key);
+    try {
+      const res = await fetch(
+        `/api/maringo/tickets/${selectedId}/adopt-todo`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: task.title,
+            reason: task.reason,
+            dueHint: task.dueHint ?? null,
+          }),
+        }
+      );
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json.error || "To Do anlegen fehlgeschlagen");
+      }
+      setAdoptedTodoKeys((prev) => ({ ...prev, [key]: true }));
+      showActionFeedback({
+        headline: "Als To Do übernommen",
+        detail: typeof json.task?.title === "string" ? json.task.title : key,
+        tone: "success",
+      });
+    } catch (err) {
+      showActionFeedback({
+        headline: "To Do fehlgeschlagen",
+        detail: err instanceof Error ? err.message : String(err),
+        tone: "error",
+      });
+    } finally {
+      setAdoptingTodoKey(null);
     }
   }
 
@@ -2776,27 +2900,93 @@ export function MaringoWorkspaceClient() {
                                     Keine kritischen Lücken erkannt.
                                   </p>
                                 )}
+                                {analysis.completeness.notes ? (
+                                  <p className="mt-2 text-[0.6875rem] text-muted-foreground">
+                                    {analysis.completeness.notes}
+                                  </p>
+                                ) : null}
                               </div>
+                              {analysis.recommendedStatus ? (
+                                <div className="rounded-xl border border-border/50 bg-white/70 px-3 py-2 dark:bg-black/20">
+                                  <p className="font-semibold">
+                                    Empfohlener Status
+                                  </p>
+                                  <p className="mt-0.5 text-sm">
+                                    {analysis.recommendedStatus.label ||
+                                      (analysis.recommendedStatus.statusId
+                                        ? statusChipLabel(
+                                            analysis.recommendedStatus.statusId
+                                          )
+                                        : "—")}
+                                  </p>
+                                  {analysis.recommendedStatus.reason ? (
+                                    <p className="mt-1 text-[0.6875rem] text-muted-foreground">
+                                      {analysis.recommendedStatus.reason}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              ) : null}
                               {analysis.suggestedTasks.length > 0 ? (
                                 <div>
-                                  <p className="font-semibold">Aufgaben</p>
-                                  <ul className="mt-1 space-y-1">
-                                    {analysis.suggestedTasks.map((t) => (
+                                  <p className="font-semibold">
+                                    Support-To-Dos
+                                  </p>
+                                  <p className="mt-0.5 text-[0.6875rem] text-muted-foreground">
+                                    Interne Aufgaben für uns — mit einem Klick
+                                    nach Outlook To Do inkl. Ticket #{detail.issueId}.
+                                  </p>
+                                  <ul className="mt-2 space-y-2">
+                                    {analysis.suggestedTasks.map((t) => {
+                                      const adopted = Boolean(
+                                        adoptedTodoKeys[t.title]
+                                      );
+                                      const busy = adoptingTodoKey === t.title;
+                                      return (
                                       <li
                                         key={t.title}
-                                        className="rounded-lg border border-border/50 bg-white/60 px-2.5 py-1.5 dark:bg-black/20"
+                                        className="rounded-2xl bg-card p-3 shadow-sm ring-1 ring-foreground/10"
                                       >
-                                        <span className="font-medium">
-                                          {t.title}
-                                        </span>
-                                        {t.reason ? (
-                                          <span className="text-muted-foreground">
-                                            {" "}
-                                            — {t.reason}
-                                          </span>
-                                        ) : null}
+                                        <div className="flex flex-wrap items-start justify-between gap-2">
+                                          <div className="min-w-0">
+                                            <p className="text-sm font-medium leading-snug">
+                                              #{detail.issueId} {t.title}
+                                            </p>
+                                            {t.reason ? (
+                                              <p className="mt-0.5 text-[0.6875rem] text-muted-foreground">
+                                                {t.reason}
+                                              </p>
+                                            ) : null}
+                                            <p className="mt-1 text-[0.625rem] uppercase tracking-wide text-muted-foreground">
+                                              {t.confidence === "high"
+                                                ? "Sicherheit hoch"
+                                                : t.confidence === "low"
+                                                  ? "Sicherheit tief"
+                                                  : "Sicherheit mittel"}
+                                              {t.dueHint
+                                                ? ` · ${t.dueHint}`
+                                                : ""}
+                                            </p>
+                                          </div>
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            variant={
+                                              adopted ? "secondary" : "default"
+                                            }
+                                            disabled={busy || adopted}
+                                            onClick={() =>
+                                              void adoptSupportTodo(t)
+                                            }
+                                          >
+                                            <ListTodo className="size-3.5" />
+                                            {adopted
+                                              ? "Übernommen"
+                                              : "Als To Do übernehmen"}
+                                          </Button>
+                                        </div>
                                       </li>
-                                    ))}
+                                      );
+                                    })}
                                   </ul>
                                 </div>
                               ) : null}
@@ -2823,6 +3013,28 @@ export function MaringoWorkspaceClient() {
                                       {analysis.solutionSketch.vendors.join(
                                         " · "
                                       )}
+                                      {analysis.solutionSketch.confidence
+                                        ? ` · Sicherheit ${
+                                            analysis.solutionSketch
+                                              .confidence === "high"
+                                              ? "hoch"
+                                              : analysis.solutionSketch
+                                                    .confidence === "low"
+                                                ? "tief"
+                                                : "mittel"
+                                          }`
+                                        : ""}
+                                    </p>
+                                  ) : analysis.solutionSketch.confidence ? (
+                                    <p className="mt-1 text-[0.6875rem] text-sky-900/80 dark:text-sky-200/85">
+                                      Sicherheit{" "}
+                                      {analysis.solutionSketch.confidence ===
+                                      "high"
+                                        ? "hoch"
+                                        : analysis.solutionSketch.confidence ===
+                                            "low"
+                                          ? "tief"
+                                          : "mittel"}
                                     </p>
                                   ) : null}
                                   <pre className="mt-2 whitespace-pre-wrap font-sans text-xs leading-relaxed text-sky-950/95">
@@ -2855,38 +3067,45 @@ export function MaringoWorkspaceClient() {
                                   ) : null}
                                   {analysis.solutionSketch.artifacts.length >
                                   0 ? (
-                                    <div className="mt-3 space-y-2.5">
-                                      <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-sky-900/80">
-                                        Queries / Skripte / Code
-                                      </p>
-                                      {analysis.solutionSketch.artifacts.map(
-                                        (a, i) => (
+                                    <div className="mt-3 space-y-3">
+                                      <div>
+                                        <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-sky-900/80">
+                                          Queries / Skripte / Code
+                                        </p>
+                                        <p className="mt-0.5 text-[0.6875rem] text-sky-900/70">
+                                          HANA und SQL Server immer getrennt —
+                                          die Syntax weicht stark ab. Mehrere
+                                          Paare sind ok (Diagnose, Fix,
+                                          Verifikation).
+                                        </p>
+                                      </div>
+                                      {groupSolutionArtifacts(
+                                        analysis.solutionSketch.artifacts
+                                      ).map((group, i) =>
+                                        group.type === "pair" ? (
                                           <div
-                                            key={`${a.kind}-${a.title}-${i}`}
-                                            className="overflow-hidden rounded-lg border border-sky-200/70 bg-white/80 dark:border-sky-400/25 dark:bg-black/20"
+                                            key={`pair-${group.purpose}-${i}`}
+                                            className="space-y-2"
                                           >
-                                            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-sky-100 px-2.5 py-1.5 text-[0.6875rem]">
-                                              <span className="font-semibold text-sky-950 dark:text-sky-100">
-                                                {a.title}
-                                              </span>
-                                              <span className="rounded bg-sky-100/80 px-1.5 py-0.5 font-mono text-[0.625rem] text-sky-900 dark:bg-sky-500/20 dark:text-sky-100">
-                                                {a.kind}
-                                              </span>
-                                              {a.language ? (
-                                                <span className="text-sky-900/60">
-                                                  {a.language}
-                                                </span>
-                                              ) : null}
+                                            <p className="text-xs font-semibold text-sky-950 dark:text-sky-100">
+                                              {group.purpose}
+                                            </p>
+                                            <div className="grid gap-2 md:grid-cols-2">
+                                              <SolutionArtifactCard
+                                                artifact={group.hana}
+                                                dialectHint="HANA"
+                                              />
+                                              <SolutionArtifactCard
+                                                artifact={group.sqlserver}
+                                                dialectHint="SQL Server"
+                                              />
                                             </div>
-                                            {a.note ? (
-                                              <p className="border-b border-sky-100 px-2.5 py-1 text-[0.6875rem] text-sky-900/70">
-                                                {a.note}
-                                              </p>
-                                            ) : null}
-                                            <pre className="max-h-[28rem] overflow-auto whitespace-pre-wrap p-2.5 font-mono text-[0.6875rem] leading-snug text-sky-950">
-                                              {a.code}
-                                            </pre>
                                           </div>
+                                        ) : (
+                                          <SolutionArtifactCard
+                                            key={`single-${group.artifact.kind}-${group.artifact.title}-${i}`}
+                                            artifact={group.artifact}
+                                          />
                                         )
                                       )}
                                     </div>
