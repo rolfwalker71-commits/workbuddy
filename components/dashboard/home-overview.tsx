@@ -8,7 +8,6 @@ import {
   ChevronRight,
   ExternalLink,
   ListChecks,
-  Mail,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -25,7 +24,11 @@ import { ProviderBadge } from "@/components/workspace/provider-badge";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { weekdayLabel } from "@/lib/utils/weekday";
 import { cn } from "@/lib/utils";
-import type { HomeOverviewPayload } from "@/lib/dashboard/home-overview";
+import {
+  mergeHomeOverviewDetails,
+  type HomeDetailsPayload,
+  type HomeOverviewPayload,
+} from "@/lib/dashboard/home-overview";
 import type { HomeTaskItem } from "@/lib/dashboard/home-tasks";
 import { HomeWeatherWidget } from "./home-weather-widget";
 
@@ -91,6 +94,42 @@ const WAITING_ON_ME_STATUS = new Set([11, 1, 3, 13, 4, 14]);
 
 const HERO_KPI_CLASS =
   "flex min-h-11 items-center gap-3 rounded-2xl bg-card px-3 py-2.5 shadow-sm ring-1 ring-foreground/10 transition-shadow hover:bg-muted hover:shadow-md";
+
+function MailUnreadKpi({
+  href,
+  count,
+  logo,
+  caption,
+}: {
+  href: string;
+  count: number | null;
+  logo: ReactNode;
+  caption: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className={HERO_KPI_CLASS}
+      aria-label={
+        count == null
+          ? `Ungelesene ${caption}-Mails`
+          : `${count} ungelesene ${caption}-Mails`
+      }
+    >
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 dark:bg-sky-500/15">
+        {logo}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[1.35rem] font-black tabular-nums leading-none tracking-tight">
+          {count ?? "—"}
+        </span>
+        <span className="mt-1 block text-xs leading-snug text-muted-foreground">
+          {caption} · Ungelesene Mails
+        </span>
+      </span>
+    </Link>
+  );
+}
 
 function formatLongDeDate(d = new Date()): string {
   return new Intl.DateTimeFormat("de-CH", {
@@ -347,16 +386,44 @@ export function HomeOverview() {
   const [data, setData] = useState<HomeOverviewPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [detailsLoading, setDetailsLoading] = useState(false);
 
   useEffect(() => {
-    void fetch("/api/home/overview")
-      .then(async (res) => {
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error || "Übersicht laden fehlgeschlagen");
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/home/overview");
+        const json = (await res.json()) as HomeOverviewPayload & {
+          error?: string;
+        };
+        if (!res.ok) {
+          throw new Error(json.error || "Übersicht laden fehlgeschlagen");
+        }
+        if (cancelled) return;
         setData(json);
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : String(err)))
-      .finally(() => setLoading(false));
+        setLoading(false);
+        setDetailsLoading(true);
+        const detailsRes = await fetch("/api/home/details");
+        if (!detailsRes.ok || cancelled) return;
+        const details = (await detailsRes.json()) as HomeDetailsPayload;
+        if (cancelled) return;
+        setData((prev) =>
+          prev ? mergeHomeOverviewDetails(prev, details) : prev
+        );
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : String(err));
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+          setDetailsLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const nextEvent = useMemo(() => {
@@ -383,12 +450,11 @@ export function HomeOverview() {
     data?.google && !data.microsoft
       ? "/google?tab=mail&view=tagesanalysen"
       : "/microsoft?tab=mail&view=tagesanalysen";
-  const unreadTotal = [data?.microsoft, data?.google]
-    .filter(Boolean)
-    .reduce((sum, block) => sum + (block?.unreadCount ?? 0), 0);
   const anyMailConnected = Boolean(
     data?.microsoft?.connected || data?.google?.connected
   );
+  const showOutlookUnread = Boolean(data?.microsoft?.connected);
+  const showGoogleUnread = Boolean(data?.google?.connected);
   const taskItems = [
     ...(data?.microsoft?.tasks.items || []),
     ...(data?.google && !data.microsoft ? data.google.tasks.items : []),
@@ -446,24 +512,24 @@ export function HomeOverview() {
               </div>
             )}
           </div>
-          {data && (data.microsoft || data.google || data.maringo) ? (
-            <div className="grid gap-2 min-[22rem]:grid-cols-2">
-              {data.microsoft || data.google ? (
-                <Link href={mailHref} className={HERO_KPI_CLASS}>
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-800 dark:bg-sky-500/15 dark:text-sky-100">
-                    <Mail className="size-4" strokeWidth={APP_ICON_STROKE} />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[1.35rem] font-black tabular-nums leading-none tracking-tight">
-                      {anyMailConnected ? unreadTotal : "—"}
-                    </span>
-                    <span className="mt-1 block text-xs leading-snug text-muted-foreground">
-                      {anyMailConnected
-                        ? "Ungelesene Mails"
-                        : "Konto verbinden"}
-                    </span>
-                  </span>
-                </Link>
+          {data &&
+          (showOutlookUnread || showGoogleUnread || data.maringo) ? (
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))] gap-2">
+              {showOutlookUnread ? (
+                <MailUnreadKpi
+                  href="/microsoft?tab=mail"
+                  count={data.microsoft?.unreadCount ?? null}
+                  logo={<MicrosoftLogo className="size-5" title="Microsoft" />}
+                  caption="Outlook"
+                />
+              ) : null}
+              {showGoogleUnread ? (
+                <MailUnreadKpi
+                  href="/google?tab=mail"
+                  count={data.google?.unreadCount ?? null}
+                  logo={<GoogleLogo className="size-5" title="Google" />}
+                  caption="Gmail"
+                />
               ) : null}
               {data.maringo ? (
                 <Link href="/maringo" className={HERO_KPI_CLASS}>
@@ -523,7 +589,9 @@ export function HomeOverview() {
                   ? nextEvent.title
                   : nextEvent && "subject" in nextEvent
                     ? nextEvent.subject
-                    : "Keine Termine"
+                    : detailsLoading
+                      ? "Termine werden geladen…"
+                      : "Keine Termine"
               }
               detail={
                 nextEvent
@@ -537,9 +605,11 @@ export function HomeOverview() {
                     ]
                       .filter(Boolean)
                       .join(" · ") || "Heute"
-                  : anyMailConnected
-                    ? "Kalender öffnen"
-                    : "Konto verbinden"
+                  : detailsLoading
+                    ? "Kalender"
+                    : anyMailConnected
+                      ? "Kalender öffnen"
+                      : "Konto verbinden"
               }
             />
             <FocusTile
@@ -563,13 +633,18 @@ export function HomeOverview() {
                     ? "Gmail"
                     : "Outlook Mail"
               }
-              title={mailSample?.subject || "Posteingang"}
+              title={
+                mailSample?.subject ||
+                (detailsLoading ? "Mails werden geladen…" : "Posteingang")
+              }
               detail={
                 mailSample
                   ? mailSample.from
-                  : anyMailConnected
-                    ? `${data.todayMail.length} Mails heute`
-                    : "Konto verbinden"
+                  : detailsLoading
+                    ? "Posteingang"
+                    : anyMailConnected
+                      ? `${data.todayMail.length} Mails heute`
+                      : "Konto verbinden"
               }
             />
             <FocusTile

@@ -3,25 +3,26 @@ import { ownerKeyFromAuth } from "@/lib/auth/owner-key";
 import { resolveAppUserId } from "@/lib/users/resolve-user";
 import type { AppModule } from "@/lib/users/modules";
 import {
-  hasMicrosoftCalendarScope,
   hasMicrosoftMailScope,
   isMicrosoftConnected,
 } from "@/lib/microsoft/oauth";
-import { listMicrosoftEventsToday } from "@/lib/microsoft/calendar-review";
 import type { MsCalendarEvent } from "@/lib/microsoft/calendar-review";
-import { getInboxUnreadCount } from "@/lib/microsoft/mail-inbox";
-import { listMicrosoftMailToday } from "@/lib/microsoft/mail-day";
-import type { MsMailItem } from "@/lib/microsoft/mail-day";
-import { getMsMailDayCached } from "@/lib/microsoft/mail-day-analysis-job";
 import {
-  hasGoogleCalendarScope,
-  isGoogleMailConnected,
-} from "@/lib/google/oauth";
-import { listGoogleEventsToday } from "@/lib/google/calendar-review";
-import { listGoogleMailForRange } from "@/lib/google/mail-day";
+  getInboxUnreadCount,
+  getTodayMicrosoftMailExcerpt,
+} from "@/lib/microsoft/mail-inbox";
+import { getMsMailDayCached } from "@/lib/microsoft/mail-day-analysis-job";
+import { isGoogleMailConnected } from "@/lib/google/oauth";
+import {
+  getGmailInboxExcerpt,
+  getGmailInboxUnreadCount,
+} from "@/lib/google/mail-inbox";
 import { getGoogleMailDayCached } from "@/lib/google/mail-day-analysis-job";
 import { zurichYmd } from "@/lib/microsoft/time";
-import { loadMariHomeTicketWatch } from "@/lib/mari/sync-tickets-if-due";
+import {
+  getMariTicketsWatchState,
+  loadMariHomeTicketWatch,
+} from "@/lib/mari/sync-tickets-if-due";
 import type { MariTicketsWatchState } from "@/lib/mari/sync-tickets-if-due";
 import { loadHomeTasksBundle, type HomeTasksBundle } from "./home-tasks";
 import { fetchHomeWeatherCard, type HomeWeatherCard } from "@/lib/weather/fetch";
@@ -31,6 +32,7 @@ import {
   type WorkspaceMailSample,
   type WorkspaceTodayEvent,
 } from "@/lib/workspace/merge-today";
+import { HOME_PROVIDER_TIMEOUT_MS, withTimeout } from "./with-timeout";
 
 export type HomeMailSample = {
   id: string;
@@ -81,19 +83,77 @@ export type HomeOverviewPayload = {
   weather: HomeWeatherCard | null;
 };
 
-function mailSample(
-  item: MsMailItem,
-  provider: "microsoft" | "google"
-): HomeMailSample {
+export type HomeDetailsPayload = {
+  microsoft: Pick<HomeProviderBlock, "events" | "mailInbox" | "tasks"> | null;
+  google: Pick<HomeProviderBlock, "events" | "mailInbox" | "tasks"> | null;
+  todayEvents: WorkspaceTodayEvent[];
+  todayMail: WorkspaceMailSample[];
+};
+
+function emptyTasks(
+  partial?: Partial<HomeTasksBundle>
+): HomeTasksBundle {
   return {
-    id: item.id,
-    subject: item.subject || "(kein Betreff)",
-    from: item.from || (provider === "google" ? "Gmail" : "Outlook"),
-    receivedOrSentAt: item.receivedOrSentAt,
-    provider,
+    microsoftConnected: false,
+    hasMicrosoftScope: false,
+    googleConnected: false,
+    hasGoogleScope: false,
+    items: [],
+    ...partial,
   };
 }
 
+function cachedMailDay(
+  cached: {
+    dayIso: string;
+    inboxCount: number;
+    sentCount: number;
+    finishedAt: string;
+    analysis: { daySummary?: string | null };
+  } | null
+): HomeMailDaySummary | null {
+  if (!cached) return null;
+  return {
+    dayIso: cached.dayIso,
+    inboxCount: cached.inboxCount,
+    sentCount: cached.sentCount,
+    finishedAt: cached.finishedAt,
+    headline: cached.analysis.daySummary?.trim()?.slice(0, 220) || null,
+  };
+}
+
+function eventsFromToday(
+  events: WorkspaceTodayEvent[],
+  provider: "microsoft" | "google"
+): HomeProviderBlock["events"] {
+  return events
+    .filter((e) => e.provider === provider)
+    .map((e) => ({
+      id: e.id,
+      subject: e.title,
+      startHm: e.time,
+      endHm: e.endTime,
+      location: e.location,
+      isAllDay: e.isAllDay,
+      done: Boolean(e.done),
+    }));
+}
+
+function emptyTickets(): MariTicketsWatchState {
+  return {
+    configured: false,
+    employeeNumber: null,
+    lastPollAt: null,
+    countsByStatus: [],
+    total: 0,
+    recentChanges: [],
+  };
+}
+
+/**
+ * Fast Home payload: greeting, weather, unread KPIs, tickets.
+ * Does not wait on inbox dumps, calendar review, or task lists.
+ */
 export async function getHomeOverview(
   auth: AuthContext
 ): Promise<HomeOverviewPayload> {
@@ -104,165 +164,189 @@ export async function getHomeOverview(
   const showGoogle = modules.includes("google");
   const showMari = modules.includes("maringo");
 
-  let microsoft: HomeOverviewPayload["microsoft"] = null;
-  if (showMs) {
-    const connected = userId != null && isMicrosoftConnected(userId);
-    let events: MsCalendarEvent[] = [];
-    let mailInbox: HomeMailSample[] = [];
-    let unreadCount: number | null = null;
-    let mailDay: HomeMailDaySummary | null = null;
-    if (userId != null && connected && hasMicrosoftCalendarScope(userId)) {
-      try {
-        events = await listMicrosoftEventsToday(userId);
-      } catch {
-        events = [];
-      }
-    }
-    if (userId != null && connected && hasMicrosoftMailScope(userId)) {
-      const [mailResult, unread] = await Promise.all([
-        listMicrosoftMailToday(userId)
-          .then((mail) =>
-            (mail.inbox || []).slice(0, 4).map((m) => mailSample(m, "microsoft"))
-          )
-          .catch(() => [] as HomeMailSample[]),
-        getInboxUnreadCount(userId),
-      ]);
-      mailInbox = mailResult;
-      unreadCount = unread;
-      const cached = getMsMailDayCached(userId, today);
-      if (cached) {
-        mailDay = {
-          dayIso: cached.dayIso,
-          inboxCount: cached.inboxCount,
-          sentCount: cached.sentCount,
-          finishedAt: cached.finishedAt,
-          headline: cached.analysis.daySummary?.trim()?.slice(0, 220) || null,
-        };
-      }
-    }
-    microsoft = {
-      enabled: true,
-      connected,
-      events,
-      mailInbox,
-      unreadCount,
-      mailDay,
-      tasks: {
-        microsoftConnected: connected,
-        hasMicrosoftScope: false,
-        googleConnected: false,
-        hasGoogleScope: false,
-        items: [],
-      },
-    };
-  }
+  const msConnected = userId != null && showMs && isMicrosoftConnected(userId);
+  const googleConnected =
+    userId != null && showGoogle && isGoogleMailConnected(userId);
+  const ownerKey =
+    userId != null ? `user:${userId}` : ownerKeyFromAuth(auth);
 
-  let google: HomeOverviewPayload["google"] = null;
-  if (showGoogle) {
-    const connected = userId != null && isGoogleMailConnected(userId);
-    let events: HomeProviderBlock["events"] = [];
-    let mailInbox: HomeMailSample[] = [];
-    let unreadCount: number | null = null;
-    let mailDay: HomeMailDaySummary | null = null;
-    if (userId != null && connected && hasGoogleCalendarScope(userId)) {
-      try {
-        const todayEvents = await listGoogleEventsToday(userId);
-        events = todayEvents.map((e) => ({
-          id: e.id,
-          subject: e.subject,
-          startHm: e.startHm,
-          endHm: e.endHm,
-          location: e.location,
-          isAllDay: e.isAllDay,
-          done: e.done,
-        }));
-      } catch {
-        events = [];
-      }
-    }
-    if (userId != null && connected) {
-      try {
-        const mail = await listGoogleMailForRange(userId, today, today);
-        mailInbox = (mail.inbox || [])
-          .slice(0, 4)
-          .map((m) => mailSample(m, "google"));
-        unreadCount = (mail.inbox || []).filter((m) => !m.isRead).length;
-      } catch {
-        mailInbox = [];
-      }
-      const cached = getGoogleMailDayCached(userId, today);
-      if (cached) {
-        mailDay = {
-          dayIso: cached.dayIso,
-          inboxCount: cached.inboxCount,
-          sentCount: cached.sentCount,
-          finishedAt: cached.finishedAt,
-          headline: cached.analysis.daySummary?.trim()?.slice(0, 220) || null,
-        };
-      }
-    }
-    google = {
-      enabled: true,
-      connected,
-      events,
-      mailInbox,
-      unreadCount,
-      mailDay,
-      tasks: {
-        microsoftConnected: false,
-        hasMicrosoftScope: false,
-        googleConnected: connected,
-        hasGoogleScope: false,
-        items: [],
-      },
-    };
-  }
+  const unreadMsPromise =
+    userId != null && msConnected && hasMicrosoftMailScope(userId)
+      ? withTimeout(
+          getInboxUnreadCount(userId),
+          HOME_PROVIDER_TIMEOUT_MS,
+          null
+        )
+      : Promise.resolve(null);
 
-  if (showMs || showGoogle) {
-    const tasks = await loadHomeTasksBundle(userId);
-    if (microsoft) microsoft.tasks = tasks;
-    if (google) google.tasks = tasks;
-  }
+  const unreadGooglePromise =
+    userId != null && googleConnected
+      ? withTimeout(
+          getGmailInboxUnreadCount(userId),
+          HOME_PROVIDER_TIMEOUT_MS,
+          null
+        )
+      : Promise.resolve(null);
 
-  let maringo: HomeOverviewPayload["maringo"] = null;
-  if (showMari) {
-    const ownerKey =
-      userId != null ? `user:${userId}` : ownerKeyFromAuth(auth);
-    maringo = {
-      enabled: true,
-      tickets:
+  const weatherPromise = withTimeout(
+    fetchHomeWeatherCard(userId),
+    HOME_PROVIDER_TIMEOUT_MS,
+    null
+  );
+
+  const ticketsPromise = showMari
+    ? withTimeout(
         userId != null
-          ? await loadMariHomeTicketWatch({ userId, ownerKey })
-          : {
-              configured: false,
-              employeeNumber: null,
-              lastPollAt: null,
-              countsByStatus: [],
-              total: 0,
-              recentChanges: [],
-            },
+          ? loadMariHomeTicketWatch({ userId, ownerKey })
+          : Promise.resolve(emptyTickets()),
+        HOME_PROVIDER_TIMEOUT_MS,
+        getMariTicketsWatchState(ownerKey)
+      )
+    : Promise.resolve(null);
+
+  const [unreadCount, googleUnread, weather, tickets] = await Promise.all([
+    unreadMsPromise,
+    unreadGooglePromise,
+    weatherPromise,
+    ticketsPromise,
+  ]);
+
+  const microsoft: HomeOverviewPayload["microsoft"] = showMs
+    ? {
+        enabled: true,
+        connected: msConnected,
+        events: [],
+        mailInbox: [],
+        unreadCount,
+        mailDay:
+          userId != null && msConnected
+            ? cachedMailDay(getMsMailDayCached(userId, today))
+            : null,
+        tasks: emptyTasks({ microsoftConnected: msConnected }),
+      }
+    : null;
+
+  const google: HomeOverviewPayload["google"] = showGoogle
+    ? {
+        enabled: true,
+        connected: googleConnected,
+        events: [],
+        mailInbox: [],
+        unreadCount: googleUnread,
+        mailDay:
+          userId != null && googleConnected
+            ? cachedMailDay(getGoogleMailDayCached(userId, today))
+            : null,
+        tasks: emptyTasks({ googleConnected }),
+      }
+    : null;
+
+  return {
+    greetingName: auth.username,
+    today,
+    modules,
+    microsoft,
+    google,
+    todayEvents: [],
+    todayMail: [],
+    maringo: showMari
+      ? { enabled: true, tickets: tickets ?? emptyTickets() }
+      : null,
+    weather,
+  };
+}
+
+/**
+ * Heavier Home sections after first paint: calendar, mail samples, tasks.
+ * Each provider call is independently timed out.
+ */
+export async function getHomeDetails(
+  auth: AuthContext
+): Promise<HomeDetailsPayload> {
+  const modules = auth.modules;
+  const userId = resolveAppUserId(auth);
+  const showMs = modules.includes("microsoft");
+  const showGoogle = modules.includes("google");
+  const msConnected = userId != null && showMs && isMicrosoftConnected(userId);
+  const googleConnected =
+    userId != null && showGoogle && isGoogleMailConnected(userId);
+
+  if (userId == null || (!showMs && !showGoogle)) {
+    return {
+      microsoft: showMs
+        ? { events: [], mailInbox: [], tasks: emptyTasks() }
+        : null,
+      google: showGoogle
+        ? { events: [], mailInbox: [], tasks: emptyTasks() }
+        : null,
+      todayEvents: [],
+      todayMail: [],
     };
   }
 
-  const weather = await fetchHomeWeatherCard(userId);
-
-  let todayEvents: WorkspaceTodayEvent[] = [];
-  if (userId != null && (showMs || showGoogle)) {
-    todayEvents = await loadWorkspaceTodayEvents(userId, {
-      wantMicrosoft: showMs,
-      wantGoogle: showGoogle,
-    });
-  }
+  const [todayEvents, msMail, googleMail, tasks] = await Promise.all([
+    showMs || showGoogle
+      ? withTimeout(
+          loadWorkspaceTodayEvents(userId, {
+            wantMicrosoft: showMs,
+            wantGoogle: showGoogle,
+          }),
+          HOME_PROVIDER_TIMEOUT_MS,
+          [] as WorkspaceTodayEvent[]
+        )
+      : Promise.resolve([] as WorkspaceTodayEvent[]),
+    msConnected && hasMicrosoftMailScope(userId)
+      ? withTimeout(
+          getTodayMicrosoftMailExcerpt(userId, 4).then((items) =>
+            items.map(
+              (m): HomeMailSample => ({
+                id: m.id,
+                subject: m.subject || "(kein Betreff)",
+                from: m.fromName || m.from || "Outlook",
+                receivedOrSentAt: m.date,
+                provider: "microsoft",
+              })
+            )
+          ),
+          HOME_PROVIDER_TIMEOUT_MS,
+          [] as HomeMailSample[]
+        )
+      : Promise.resolve([] as HomeMailSample[]),
+    googleConnected
+      ? withTimeout(
+          getGmailInboxExcerpt(userId, 4).then((items) =>
+            items.map(
+              (m): HomeMailSample => ({
+                ...m,
+                provider: "google",
+              })
+            )
+          ),
+          HOME_PROVIDER_TIMEOUT_MS,
+          [] as HomeMailSample[]
+        )
+      : Promise.resolve([] as HomeMailSample[]),
+    showMs || showGoogle
+      ? withTimeout(
+          loadHomeTasksBundle(userId),
+          HOME_PROVIDER_TIMEOUT_MS,
+          emptyTasks({
+            microsoftConnected: msConnected,
+            googleConnected,
+          })
+        )
+      : Promise.resolve(emptyTasks()),
+  ]);
 
   const todayMail = mergeWorkspaceMailSamples(
-    (microsoft?.mailInbox || []).map((m) => ({
+    msMail.map((m) => ({
       id: m.id,
       subject: m.subject,
       from: m.from,
       receivedOrSentAt: m.receivedOrSentAt,
       provider: "microsoft" as const,
     })),
-    (google?.mailInbox || []).map((m) => ({
+    googleMail.map((m) => ({
       id: m.id,
       subject: m.subject,
       from: m.from,
@@ -272,14 +356,50 @@ export async function getHomeOverview(
   );
 
   return {
-    greetingName: auth.username,
-    today,
-    modules,
-    microsoft,
-    google,
+    microsoft: showMs
+      ? {
+          events: eventsFromToday(todayEvents, "microsoft"),
+          mailInbox: msMail,
+          tasks,
+        }
+      : null,
+    google: showGoogle
+      ? {
+          events: eventsFromToday(todayEvents, "google"),
+          mailInbox: googleMail,
+          tasks,
+        }
+      : null,
     todayEvents,
     todayMail,
-    maringo,
-    weather,
+  };
+}
+
+export function mergeHomeOverviewDetails(
+  overview: HomeOverviewPayload,
+  details: HomeDetailsPayload
+): HomeOverviewPayload {
+  return {
+    ...overview,
+    microsoft:
+      overview.microsoft && details.microsoft
+        ? {
+            ...overview.microsoft,
+            events: details.microsoft.events,
+            mailInbox: details.microsoft.mailInbox,
+            tasks: details.microsoft.tasks,
+          }
+        : overview.microsoft,
+    google:
+      overview.google && details.google
+        ? {
+            ...overview.google,
+            events: details.google.events,
+            mailInbox: details.google.mailInbox,
+            tasks: details.google.tasks,
+          }
+        : overview.google,
+    todayEvents: details.todayEvents,
+    todayMail: details.todayMail,
   };
 }
