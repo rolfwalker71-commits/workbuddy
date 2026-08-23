@@ -33,7 +33,6 @@ export function WorkspaceTasksPanel({
     <div className="space-y-8">
       {microsoft ? (
         <section className="space-y-3">
-          <h3 className="text-sm font-semibold">Microsoft</h3>
           <MicrosoftPlannerPanel />
         </section>
       ) : null}

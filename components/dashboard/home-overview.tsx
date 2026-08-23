@@ -30,6 +30,12 @@ import {
   type HomeOverviewPayload,
 } from "@/lib/dashboard/home-overview-shared";
 import type { HomeTaskItem } from "@/lib/dashboard/home-tasks";
+import {
+  MS_TASK_DISPLAY_KEY,
+  readMsTaskDisplayPrefs,
+  writeMsTaskDisplayPrefs,
+  type MsTaskDisplayPrefs,
+} from "@/lib/microsoft/task-display-prefs";
 import { HomeWeatherWidget } from "./home-weather-widget";
 
 const ASIDE_WIDGET_CLASS =
@@ -307,11 +313,17 @@ function TasksCard({
   items,
   showMicrosoft,
   showGoogle,
+  display,
+  onDisplayChange,
 }: {
   items: HomeTaskItem[];
   showMicrosoft: boolean;
   showGoogle: boolean;
+  display: MsTaskDisplayPrefs;
+  onDisplayChange: (next: MsTaskDisplayPrefs) => void;
 }) {
+  const showPlanner = showMicrosoft && display.planner;
+  const showTodo = showMicrosoft && display.todo;
   const planner = items.filter((t) => t.source === "planner").slice(0, 5);
   const todo = items.filter((t) => t.source === "todo").slice(0, 5);
   const google = items.filter((t) => t.source === "google").slice(0, 5);
@@ -319,6 +331,30 @@ function TasksCard({
     <Card className={ASIDE_WIDGET_CLASS}>
       <CardContent className="space-y-4 p-4 sm:p-5">
         {showMicrosoft ? (
+          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+            <label className="flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={display.todo}
+                onChange={(e) =>
+                  onDisplayChange({ ...display, todo: e.target.checked })
+                }
+              />
+              To Do
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={display.planner}
+                onChange={(e) =>
+                  onDisplayChange({ ...display, planner: e.target.checked })
+                }
+              />
+              Planner
+            </label>
+          </div>
+        ) : null}
+        {showPlanner ? (
           <>
             <section className="space-y-2.5">
               <div className="flex items-center justify-between gap-2">
@@ -336,7 +372,11 @@ function TasksCard({
               </div>
               <TaskGroupList items={planner} />
             </section>
-            <section className="space-y-2.5 border-t border-border/60 pt-4">
+          </>
+        ) : null}
+        {showTodo ? (
+          <>
+            <section className={cn("space-y-2.5", showPlanner && "border-t border-border/60 pt-4")}>
               <div className="flex items-center justify-between gap-2">
                 <h3 className="flex items-center gap-2 text-base font-bold">
                   <MicrosoftToDoLogo className="size-4" />
@@ -358,7 +398,7 @@ function TasksCard({
           <section
             className={cn(
               "space-y-2.5",
-              showMicrosoft && "border-t border-border/60 pt-4"
+              (showPlanner || showTodo) && "border-t border-border/60 pt-4"
             )}
           >
             <div className="flex items-center justify-between gap-2">
@@ -387,6 +427,21 @@ export function HomeOverview() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [detailsLoading, setDetailsLoading] = useState(false);
+  const [taskDisplay, setTaskDisplay] = useState<MsTaskDisplayPrefs>({
+    todo: true,
+    planner: true,
+  });
+
+  useEffect(() => {
+    const sync = () => setTaskDisplay(readMsTaskDisplayPrefs());
+    sync();
+    window.addEventListener("storage", sync);
+    window.addEventListener(MS_TASK_DISPLAY_KEY, sync as EventListener);
+    return () => {
+      window.removeEventListener("storage", sync);
+      window.removeEventListener(MS_TASK_DISPLAY_KEY, sync as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -706,6 +761,11 @@ export function HomeOverview() {
             items={uniqueTasks}
             showMicrosoft={Boolean(data.microsoft)}
             showGoogle={Boolean(data.google)}
+            display={taskDisplay}
+            onDisplayChange={(next) => {
+              setTaskDisplay(next);
+              writeMsTaskDisplayPrefs(next);
+            }}
           />
 
           <p className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">

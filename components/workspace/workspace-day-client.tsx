@@ -1748,7 +1748,7 @@ export function WorkspaceDayClient({
               <p className="text-sm text-muted-foreground">
                 {scope === "google"
                   ? "Google Tasks — erledigen, umbenennen oder Termin setzen."
-                  : "To Do und Planner — erledigen, umbenennen oder Termin setzen."}
+                  : "To Do und Planner getrennt — Anzeige oben ein- oder ausschalten."}
               </p>
               <WorkspaceTasksPanel
                 microsoft={Boolean(msConnected)}
