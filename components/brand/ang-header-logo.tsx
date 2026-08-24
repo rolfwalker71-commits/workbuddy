@@ -1,4 +1,7 @@
 import { cn } from "@/lib/utils";
+import angLogo from "./ang-logo.png";
+
+const angLogoSrc = typeof angLogo === "string" ? angLogo : angLogo.src;
 
 /** ANG wordmark — only for the app header (sidebar + mobile bar). */
 export function AngHeaderLogo({
@@ -26,7 +29,7 @@ export function AngHeaderLogo({
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/ang-logo.png"
+        src={angLogoSrc}
         width={300}
         height={110}
         alt="ANG"

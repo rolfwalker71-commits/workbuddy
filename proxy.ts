@@ -25,6 +25,7 @@ const PUBLIC_PATHS = new Set([
   "/icon-512.png",
   "/icon-maskable-512.png",
   "/workbuddy-logo.svg",
+  "/ang-logo.png",
 ]);
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -297,6 +298,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|robots.txt|sitemap.xml|.*\\.(?:svg|webp|jpg|jpeg|gif)$).*)",
+    "/((?!_next/static|_next/image|robots.txt|sitemap.xml|.*\\.(?:svg|png|webp|jpg|jpeg|gif)$).*)",
   ],
 };
