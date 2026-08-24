@@ -96,7 +96,9 @@ function isModulePathAllowed(
     ) {
       return true;
     }
-    if (pathname === "/api/calendar/adhoc") return true;
+    if (pathname === "/api/calendar/adhoc" || pathname === "/api/calendar/range") {
+      return true;
+    }
   }
   if (modules.includes("google")) {
     if (pathname === "/google" || pathname.startsWith("/google/")) {
@@ -105,7 +107,9 @@ function isModulePathAllowed(
     if (pathname.startsWith("/api/google/")) {
       return true;
     }
-    if (pathname === "/api/calendar/adhoc") return true;
+    if (pathname === "/api/calendar/adhoc" || pathname === "/api/calendar/range") {
+      return true;
+    }
   }
   if (modules.includes("maringo")) {
     if (pathname === "/maringo" || pathname.startsWith("/maringo/")) {

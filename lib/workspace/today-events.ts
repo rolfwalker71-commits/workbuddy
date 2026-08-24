@@ -1,24 +1,13 @@
-import { listGoogleAgendaInRange } from "@/lib/google/calendars";
-import {
-  hasGoogleCalendarScope,
-  isGoogleMailConnected,
-} from "@/lib/google/oauth";
-import { listMicrosoftAgendaInRange } from "@/lib/microsoft/calendars";
-import {
-  hasMicrosoftCalendarScope,
-  isMicrosoftConnected,
-} from "@/lib/microsoft/oauth";
 import { zurichHm, zurichYmd } from "@/lib/microsoft/time";
 import {
   isDayCloseRitualId,
   withDayCloseRitual,
 } from "@/lib/dashboard/day-close-ritual";
 import { resolveDayCloseRitualStatus } from "@/lib/dashboard/day-close-status";
+import { loadWorkspaceAgendaInRange } from "@/lib/workspace/agenda-range";
 import { filterTodayEventsAfterGrace } from "@/lib/workspace/event-grace";
 import {
-  mergeWorkspaceTodayEvents,
   ritualAsWorkspaceTodayEvent,
-  toWorkspaceTodayEvent,
   type WorkspaceTodayEvent,
 } from "@/lib/workspace/merge-today";
 
@@ -35,85 +24,8 @@ export async function loadWorkspaceTodayEvents(
   }
 ): Promise<WorkspaceTodayEvent[]> {
   const today = zurichYmd();
-  const wantMs = options?.wantMicrosoft !== false;
-  const wantGo = options?.wantGoogle !== false;
-
-  const [ms, google] = await Promise.all([
-    (async (): Promise<WorkspaceTodayEvent[]> => {
-      if (
-        !wantMs ||
-        !isMicrosoftConnected(userId) ||
-        !hasMicrosoftCalendarScope(userId)
-      ) {
-        return [];
-      }
-      try {
-        const { events } = await listMicrosoftAgendaInRange(
-          userId,
-          today,
-          today
-        );
-        return events.map((e) =>
-          toWorkspaceTodayEvent({
-            id: e.id,
-            summary: e.summary,
-            time: e.time,
-            endTime: e.endTime,
-            planningRelevant: e.planningRelevant,
-            provider: "microsoft",
-            calendarId: e.calendarId,
-            date: e.date,
-            location: e.location,
-            webLink: e.webLink,
-            description: e.description,
-            meetUrl: e.meetUrl,
-            calendarType: e.type,
-            calendarName: e.calendarName,
-          })
-        );
-      } catch {
-        return [];
-      }
-    })(),
-    (async (): Promise<WorkspaceTodayEvent[]> => {
-      if (
-        !wantGo ||
-        !isGoogleMailConnected(userId) ||
-        !hasGoogleCalendarScope(userId)
-      ) {
-        return [];
-      }
-      try {
-        const { events } = await listGoogleAgendaInRange(
-          userId,
-          today,
-          today,
-          options?.request
-        );
-        return events.map((e) =>
-          toWorkspaceTodayEvent({
-            id: e.id,
-            summary: e.summary,
-            time: e.time,
-            endTime: e.endTime,
-            planningRelevant: e.planningRelevant,
-            provider: "google",
-            calendarId: e.calendarId,
-            date: e.date,
-            location: e.location,
-            description: e.description,
-            meetUrl: e.meetUrl,
-            calendarType: e.type,
-            calendarName: e.calendarName,
-          })
-        );
-      } catch {
-        return [];
-      }
-    })(),
-  ]);
-
-  const merged = mergeWorkspaceTodayEvents(ms, google);
+  const loaded = await loadWorkspaceAgendaInRange(userId, today, today, options);
+  const merged = loaded.events;
   const status = await resolveDayCloseRitualStatus(
     userId,
     today,
