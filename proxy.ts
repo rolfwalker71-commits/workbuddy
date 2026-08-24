@@ -18,6 +18,7 @@ const PUBLIC_PATHS = new Set([
   "/login",
   "/api/auth/login",
   "/api/auth/logout",
+  "/api/auth/microsoft/start",
   "/manifest.webmanifest",
   "/favicon.ico",
   "/apple-touch-icon.png",

@@ -2,7 +2,10 @@ import { getSetting, setSetting } from "@/lib/db/migrations";
 import { absoluteOauthRedirectUrl } from "@/lib/app-url";
 import { outboundFetch } from "@/lib/net/outbound-fetch";
 import type { AuthContext } from "@/lib/auth/current-user";
+import { isAllowedCompanyEmail } from "@/lib/auth/allowed-email";
 import { resolveAppUserId } from "@/lib/users/resolve-user";
+import { findOrProvisionCompanyUser } from "@/lib/users/provision-company-user";
+import type { AppUserRow } from "@/lib/users/queries";
 
 export const MICROSOFT_OAUTH_CLIENT_ID_SETTING = "microsoft_oauth_client_id";
 export const MICROSOFT_OAUTH_CLIENT_SECRET_SETTING =
@@ -42,6 +45,10 @@ function tokensSettingKey(userId: number): string {
 
 function stateSettingKey(userId: number): string {
   return `microsoft_oauth_state_u${userId}`;
+}
+
+function loginStateSettingKey(nonce: string): string {
+  return `microsoft_oauth_state_login:${nonce}`;
 }
 
 export function getMicrosoftOauthClientId(): string | null {
@@ -211,7 +218,7 @@ export function beginMicrosoftOauth(
     JSON.stringify({ nonce, at: new Date().toISOString() })
   );
   const state = Buffer.from(
-    JSON.stringify({ u: userId, n: nonce }),
+    JSON.stringify({ u: userId, n: nonce, p: "connect" }),
     "utf8"
   ).toString("base64url");
 
@@ -228,15 +235,86 @@ export function beginMicrosoftOauth(
   return url.toString();
 }
 
+/** Sign-in (not «Konto verbinden»): no WorkBuddy session yet. */
+export function beginMicrosoftOauthLogin(
+  request?: Request | null,
+  nextPath?: string | null
+): string {
+  const clientId = getMicrosoftOauthClientId();
+  if (!clientId || !getMicrosoftOauthClientSecret()) {
+    throw new Error(
+      "Microsoft OAuth nicht konfiguriert (Client-ID und Secret)."
+    );
+  }
+  const nonce = `${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 12)}`;
+  const next =
+    nextPath && nextPath.startsWith("/") && !nextPath.startsWith("//")
+      ? nextPath
+      : "/";
+  setSetting(
+    loginStateSettingKey(nonce),
+    JSON.stringify({ at: new Date().toISOString(), next })
+  );
+  const state = Buffer.from(
+    JSON.stringify({ u: 0, n: nonce, p: "login" }),
+    "utf8"
+  ).toString("base64url");
+
+  const url = new URL(authorizeEndpoint());
+  url.searchParams.set("client_id", clientId);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("redirect_uri", getMicrosoftOauthRedirectUri(request));
+  url.searchParams.set("response_mode", "query");
+  url.searchParams.set("scope", MICROSOFT_OAUTH_SCOPES.join(" "));
+  url.searchParams.set("state", state);
+  url.searchParams.set("prompt", "select_account");
+  return url.toString();
+}
+
 export function parseMicrosoftOauthState(
   stateRaw: string | null
-): { userId: number; nonce: string } | null {
+): { userId: number; nonce: string; purpose: "login" | "connect" } | null {
   if (!stateRaw) return null;
   try {
     const json = Buffer.from(stateRaw, "base64url").toString("utf8");
-    const parsed = JSON.parse(json) as { u?: number; n?: string };
-    if (!parsed.u || !parsed.n) return null;
-    return { userId: Number(parsed.u), nonce: parsed.n };
+    const parsed = JSON.parse(json) as {
+      u?: number;
+      n?: string;
+      p?: string;
+    };
+    if (!parsed.n || typeof parsed.n !== "string") return null;
+    const purpose = parsed.p === "login" ? "login" : "connect";
+    const userId = Number(parsed.u);
+    if (purpose === "login") {
+      return { userId: 0, nonce: parsed.n, purpose };
+    }
+    if (!Number.isInteger(userId) || userId < 1) return null;
+    return { userId, nonce: parsed.n, purpose };
+  } catch {
+    return null;
+  }
+}
+
+export function consumeMicrosoftOauthLoginState(
+  nonce: string
+): { next: string } | null {
+  const key = loginStateSettingKey(nonce);
+  const raw = getSetting(key);
+  setSetting(key, null);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as { at?: string; next?: string };
+    if (parsed.at) {
+      const age = Date.now() - new Date(parsed.at).getTime();
+      if (age > 15 * 60 * 1000) return null;
+    }
+    const next =
+      parsed.next &&
+      parsed.next.startsWith("/") &&
+      !parsed.next.startsWith("//")
+        ? parsed.next
+        : "/";
+    return { next };
   } catch {
     return null;
   }
@@ -366,6 +444,54 @@ export async function finishMicrosoftOauth(
     /* Photo optional — login still succeeds */
   }
   return saved;
+}
+
+/** Login: exchange code, require @an-group.one, provision an isolated user, store Graph tokens. */
+export async function finishMicrosoftLogin(
+  code: string,
+  request?: Request | null
+): Promise<{ user: AppUserRow; tokens: MicrosoftUserTokens }> {
+  const json = await exchangeToken({
+    grant_type: "authorization_code",
+    code,
+    redirect_uri: getMicrosoftOauthRedirectUri(request),
+    scope: MICROSOFT_OAUTH_SCOPES.join(" "),
+  });
+  if (!json.access_token) {
+    throw new Error("Kein Access-Token erhalten.");
+  }
+  const profile = await fetchGraphProfile(json.access_token);
+  if (!profile.email || !isAllowedCompanyEmail(profile.email)) {
+    throw new Error(
+      "Nur Mitarbeitende mit einer @an-group.one-Adresse dürfen sich anmelden."
+    );
+  }
+  if (!json.refresh_token) {
+    throw new Error(
+      "Kein Refresh-Token erhalten. In Entra «offline_access» prüfen und erneut anmelden."
+    );
+  }
+  const user = await findOrProvisionCompanyUser({
+    email: profile.email,
+    displayName: profile.displayName,
+  });
+  const tokens: MicrosoftUserTokens = {
+    refreshToken: json.refresh_token,
+    accessToken: json.access_token,
+    expiryDate: Date.now() + (json.expires_in || 3600) * 1000,
+    email: profile.email,
+    displayName: profile.displayName,
+    scope: json.scope || MICROSOFT_OAUTH_SCOPES.join(" "),
+    updatedAt: new Date().toISOString(),
+  };
+  saveMicrosoftUserTokens(user.id, tokens);
+  try {
+    const { syncMicrosoftProfilePhoto } = await import("@/lib/microsoft/photo");
+    await syncMicrosoftProfilePhoto(user.id);
+  } catch {
+    /* Photo optional — login still succeeds */
+  }
+  return { user, tokens };
 }
 
 /** Valid access token for Graph calls (refreshes when needed). */

@@ -7,12 +7,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BuddyLogo } from "@/components/brand/buddy-logo";
+import { MicrosoftLogo } from "@/components/branding/provider-logos";
 import { BRAND, BRAND_TAGLINE } from "@/lib/branding";
 
-export function LoginForm({ nextPath }: { nextPath: string }) {
+export function LoginForm({
+  nextPath,
+  initialError = null,
+  microsoftLoginEnabled = false,
+}: {
+  nextPath: string;
+  initialError?: string | null;
+  microsoftLoginEnabled?: boolean;
+}) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError);
   const [loading, setLoading] = useState(false);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -62,9 +71,37 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
         </p>
       </CardHeader>
       <CardContent className="px-6 pb-7 pt-5 sm:px-8">
+        {microsoftLoginEnabled ? (
+          <div className="mb-6 space-y-3">
+            <Button
+              type="button"
+              size="lg"
+              className="h-11 w-full"
+              onClick={() => {
+                const qs = new URLSearchParams();
+                if (nextPath && nextPath !== "/") qs.set("next", nextPath);
+                window.location.assign(
+                  `/api/auth/microsoft/start${qs.size ? `?${qs}` : ""}`
+                );
+              }}
+            >
+              <MicrosoftLogo className="size-4" />
+              Mit Microsoft 365 anmelden
+            </Button>
+            <p className="text-center text-[0.8125rem] text-muted-foreground">
+              Für alle Konten mit @an-group.one — jeder bekommt seinen eigenen
+              Bereich.
+            </p>
+            <div className="flex items-center gap-3 text-[0.75rem] uppercase tracking-wide text-muted-foreground">
+              <span className="h-px flex-1 bg-border" />
+              oder mit Passwort
+              <span className="h-px flex-1 bg-border" />
+            </div>
+          </div>
+        ) : null}
         <form className="space-y-5" onSubmit={submit}>
           <div className="space-y-2">
-            <Label htmlFor="username">Benutzername</Label>
+            <Label htmlFor="username">E-Mail oder Benutzername</Label>
             <Input
               id="username"
               name="username"

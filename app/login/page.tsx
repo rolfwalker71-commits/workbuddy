@@ -1,4 +1,5 @@
 import { LoginForm } from "@/components/auth/login-form";
+import { isMicrosoftOauthConfigured } from "@/lib/microsoft/oauth";
 
 function safeNextPath(value: string | string[] | undefined): string {
   const candidate = Array.isArray(value) ? value[0] : value;
@@ -8,10 +9,18 @@ function safeNextPath(value: string | string[] | undefined): string {
   return candidate;
 }
 
+function firstString(value: string | string[] | undefined): string | null {
+  const candidate = Array.isArray(value) ? value[0] : value;
+  return candidate?.trim() || null;
+}
+
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string | string[] }>;
+  searchParams: Promise<{
+    next?: string | string[];
+    error?: string | string[];
+  }>;
 }) {
   const params = await searchParams;
   return (
@@ -26,7 +35,11 @@ export default async function LoginPage({
       />
       <div className="absolute left-1/2 top-1/2 size-[32rem] -translate-x-1/2 -translate-y-1/2 rounded-full border border-background/10" aria-hidden />
       <div className="relative z-10 w-full">
-        <LoginForm nextPath={safeNextPath(params.next)} />
+        <LoginForm
+          nextPath={safeNextPath(params.next)}
+          initialError={firstString(params.error)}
+          microsoftLoginEnabled={isMicrosoftOauthConfigured()}
+        />
       </div>
     </main>
   );

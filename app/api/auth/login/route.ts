@@ -18,6 +18,7 @@ import {
 import { ALL_APP_MODULES, homePathForModules } from "@/lib/users/modules";
 import {
   effectiveUserModules,
+  getAppUserByEmail,
   getAppUserByUsername,
 } from "@/lib/users/queries";
 
@@ -92,7 +93,9 @@ export async function POST(request: Request) {
     );
     home = homePathForModules(ALL_APP_MODULES);
   } else {
-    const user = getAppUserByUsername(parsed.data.username);
+    const user =
+      getAppUserByUsername(parsed.data.username) ||
+      getAppUserByEmail(parsed.data.username);
     if (
       user &&
       user.active &&

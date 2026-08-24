@@ -144,6 +144,14 @@ export function getAppUserByUsername(username: string): AppUserRow | null {
   return row ? coerceUserRow(row) : null;
 }
 
+export function getAppUserByEmail(email: string): AppUserRow | null {
+  const db = getDb();
+  const row = db
+    .prepare(`SELECT * FROM users WHERE email = ? COLLATE NOCASE`)
+    .get(email.trim()) as AppUserRow | undefined;
+  return row ? coerceUserRow(row) : null;
+}
+
 export function getAppUserPublic(id: number): AppUserPublic | null {
   const row = getAppUserById(id);
   if (!row) return null;

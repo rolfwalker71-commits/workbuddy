@@ -27,7 +27,20 @@ test("parseMicrosoftOauthState decodes base64url payload", () => {
     "utf8"
   ).toString("base64url");
   const parsed = parseMicrosoftOauthState(state);
-  assert.deepEqual(parsed, { userId: 42, nonce: "abc.nonce" });
+  assert.deepEqual(parsed, {
+    userId: 42,
+    nonce: "abc.nonce",
+    purpose: "connect",
+  });
+  const loginState = Buffer.from(
+    JSON.stringify({ u: 0, n: "login.nonce", p: "login" }),
+    "utf8"
+  ).toString("base64url");
+  assert.deepEqual(parseMicrosoftOauthState(loginState), {
+    userId: 0,
+    nonce: "login.nonce",
+    purpose: "login",
+  });
   assert.equal(parseMicrosoftOauthState(null), null);
   assert.equal(parseMicrosoftOauthState("not-valid"), null);
 });
