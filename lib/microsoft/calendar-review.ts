@@ -144,6 +144,10 @@ export function microsoftAgendaToReviewEvent(
   time: string | null;
   endTime: string | null;
   summary: string;
+  description: string | null;
+  meetUrl: string | null;
+  calendarType: string;
+  calendarName: string;
 } {
   const subject = (e.summary || "").trim() || "(ohne Titel)";
   const done =
@@ -171,6 +175,10 @@ export function microsoftAgendaToReviewEvent(
     webLink: e.webLink,
     organizer: null,
     calendarId: e.calendarId,
+    description: e.description,
+    meetUrl: e.meetUrl,
+    calendarType: e.type,
+    calendarName: e.calendarName,
   };
 }
 

@@ -32,6 +32,10 @@ export type GoogleReviewEvent = {
   isAllDay: boolean;
   done: boolean;
   htmlLink: string | null;
+  description?: string | null;
+  meetUrl?: string | null;
+  calendarType?: string | null;
+  calendarName?: string | null;
 };
 
 function isDoneTitle(summary: string): boolean {
@@ -70,6 +74,10 @@ export async function listGoogleEventsToday(
       isAllDay: !e.time,
       done: isDoneTitle(summary),
       htmlLink: null,
+      description: e.description,
+      meetUrl: e.meetUrl,
+      calendarType: e.type,
+      calendarName: e.calendarName,
     };
   });
 }

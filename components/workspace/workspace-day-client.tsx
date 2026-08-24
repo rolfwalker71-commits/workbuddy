@@ -49,9 +49,10 @@ import {
 import { weekdayLabel } from "@/lib/utils/weekday";
 import { useAuth } from "@/components/auth/auth-provider";
 import { AdhocEventDialog } from "@/components/calendar/adhoc-event-dialog";
+import { EventArtCard } from "@/components/calendar/event-art-card";
+import { EventDetailDialog } from "@/components/calendar/event-detail-dialog";
 import { MicrosoftMailComposeDialog } from "@/components/microsoft/microsoft-mail-compose-dialog";
 import { WorkspaceTasksPanel } from "@/components/workspace/workspace-tasks-panel";
-import { ProviderBadge } from "@/components/workspace/provider-badge";
 import {
   mergeWorkspaceTodayEvents,
   toWorkspaceTodayEvent,
@@ -174,6 +175,10 @@ type WorkspaceCalEvent = {
   title: string;
   time: string | null;
   planningRelevant: boolean;
+  description: string | null;
+  meetUrl: string | null;
+  calendarType: string | null;
+  calendarName: string | null;
 };
 
 function asCalEvent(e: {
@@ -189,6 +194,10 @@ function asCalEvent(e: {
   isAllDay: boolean;
   done?: boolean;
   webLink?: string | null;
+  description?: string | null;
+  meetUrl?: string | null;
+  calendarType?: string | null;
+  calendarName?: string | null;
 }): WorkspaceCalEvent {
   return {
     id: e.id,
@@ -206,6 +215,10 @@ function asCalEvent(e: {
     isAllDay: e.isAllDay,
     done: Boolean(e.done),
     webLink: e.webLink ?? null,
+    description: e.description ?? null,
+    meetUrl: e.meetUrl ?? null,
+    calendarType: e.calendarType ?? null,
+    calendarName: e.calendarName ?? null,
   };
 }
 
@@ -398,9 +411,127 @@ function mapTodayEvents(
           : typeof e.htmlLink === "string"
             ? e.htmlLink
             : null,
+      description: typeof e.description === "string" ? e.description : null,
+      meetUrl: typeof e.meetUrl === "string" ? e.meetUrl : null,
+      calendarType: typeof e.calendarType === "string" ? e.calendarType : null,
+      calendarName: typeof e.calendarName === "string" ? e.calendarName : null,
     });
     return asCalEvent(mapped);
   });
+}
+
+function EventDetailActions({
+  event,
+  busy,
+  slotDuration,
+  slots,
+  onPreset,
+  onDone,
+  onSuggest,
+  onReschedule,
+}: {
+  event: WorkspaceCalEvent;
+  busy: boolean;
+  slotDuration: number;
+  slots: FreeSlot[];
+  onPreset: (minutes: number) => void;
+  onDone: () => void;
+  onSuggest: () => void;
+  onReschedule: (slot: FreeSlot) => void;
+}) {
+  if (isDayCloseRitualId(event.id)) {
+    return (
+      <Button
+        type="button"
+        size="sm"
+        className="bg-orange-500 text-white hover:bg-orange-600"
+        onClick={() => window.dispatchEvent(new Event(CLOSEOUT_OPEN_EVENT))}
+      >
+        <Sparkles className="size-3.5" />
+        Assistent starten
+      </Button>
+    );
+  }
+  if (event.done) return null;
+  return (
+    <div className="space-y-2">
+      <p className="text-[0.6875rem] text-muted-foreground">
+        Dauer für Slot-Suche (kürzer = engere Lücken)
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {SLOT_DURATION_PRESETS.map((m) => (
+          <Button
+            key={m}
+            type="button"
+            size="sm"
+            variant={slotDuration === m ? "default" : "outline"}
+            className="h-7 tabular-nums"
+            disabled={busy}
+            onClick={() => onPreset(m)}
+          >
+            {m} Min
+          </Button>
+        ))}
+        {!isSlotDurationPreset(slotDuration) ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="default"
+            className="h-7 tabular-nums"
+            disabled={busy}
+          >
+            {slotDuration} Min
+          </Button>
+        ) : null}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" size="sm" disabled={busy} onClick={onDone}>
+          <Check className="size-3.5" />
+          Erledigt
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          onClick={onSuggest}
+        >
+          Freien Slot suchen
+        </Button>
+      </div>
+      {slots.length ? (
+        <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-2">
+          <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-muted-foreground">
+            Vorschläge à {slotDuration} Min (7 Tage, 08–18)
+          </p>
+          <div className="max-h-64 space-y-2.5 overflow-y-auto">
+            {groupFreeSlotsByDate(slots).map(({ date, slots: daySlots }) => (
+              <div key={date} className="space-y-1">
+                <p className="text-xs font-semibold">
+                  {weekdayLabel(date)} · {toSwissDate(date)}
+                </p>
+                <ul className="flex flex-wrap gap-1.5">
+                  {daySlots.map((s) => (
+                    <li key={`${s.date}-${s.startHm}`}>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => onReschedule(s)}
+                      >
+                        {s.startHm}–{s.endHm}
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export function WorkspaceDayClient({
@@ -440,6 +571,7 @@ export function WorkspaceDayClient({
   );
 
   const [events, setEvents] = useState<WorkspaceCalEvent[]>([]);
+  const [detailEvent, setDetailEvent] = useState<WorkspaceCalEvent | null>(null);
   const [zurichNow, setZurichNow] = useState(() => ({
     ymd: zurichYmd(),
     hm: zurichHm(),
@@ -745,6 +877,7 @@ export function WorkspaceDayClient({
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Markieren fehlgeschlagen");
       setStatus("Als erledigt markiert (Buddy/Erledigt).");
+      setDetailEvent(null);
       await loadCalendar();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -823,6 +956,7 @@ export function WorkspaceDayClient({
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Verschieben fehlgeschlagen");
+      setDetailEvent(null);
       setStatus(
         `Verschoben auf ${toSwissDate(slot.date)} ${slot.startHm}–${slot.endHm}`
       );
@@ -1578,6 +1712,16 @@ export function WorkspaceDayClient({
                 </div>
               </div>
 
+              <p className="text-sm font-semibold capitalize">
+                {new Intl.DateTimeFormat("de-CH", {
+                  timeZone: "Europe/Zurich",
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                }).format(new Date())}
+              </p>
+
               {calLoading && visibleEvents.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Lade Termine…</p>
               ) : visibleEvents.length === 0 ? (
@@ -1586,186 +1730,48 @@ export function WorkspaceDayClient({
                 </p>
               ) : (
                 <ul className="space-y-2">
-                  {visibleEvents.map((e) => {
-                    const eKey = workspaceEventKey(e);
-                    return (
-                    <li key={eKey}>
-                      <Card
-                        className={cn(
-                          "border-border/70",
-                          e.done && "opacity-70"
-                        )}
-                      >
-                        <CardContent className="space-y-2 p-4">
-                          <div className="flex flex-wrap items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <div className="mb-1">
-                                <ProviderBadge provider={e.provider} kind="calendar" />
-                              </div>
-                              <p className="text-sm font-semibold">
-                                {e.isAllDay
-                                  ? "Ganztägig"
-                                  : [e.startHm, e.endHm]
-                                      .filter(Boolean)
-                                      .join("–")}{" "}
-                                · {e.subject}
-                              </p>
-                              {e.location ? (
-                                <p className="text-xs text-muted-foreground">
-                                  {e.location}
-                                </p>
-                              ) : null}
-                            </div>
-                            {e.done ? (
-                              <Badge variant="secondary">Erledigt</Badge>
-                            ) : isDayCloseRitualId(e.id) ? (
-                              <Badge variant="secondary">Ritual</Badge>
-                            ) : null}
-                          </div>
-                          {isDayCloseRitualId(e.id) ? (
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="bg-orange-500 text-white hover:bg-orange-600"
-                              onClick={() =>
-                                window.dispatchEvent(
-                                  new Event(CLOSEOUT_OPEN_EVENT)
-                                )
-                              }
-                            >
-                              <Sparkles className="size-3.5" />
-                              Assistent starten
-                            </Button>
-                          ) : !e.done ? (
-                            <div className="space-y-2">
-                              <div className="space-y-1">
-                                <p className="text-[0.6875rem] text-muted-foreground">
-                                  Dauer für Slot-Suche (kürzer = engere Lücken)
-                                </p>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {SLOT_DURATION_PRESETS.map((m) => (
-                                    <Button
-                                      key={m}
-                                      type="button"
-                                      size="sm"
-                                      variant={
-                                        slotDurationFor(e) === m
-                                          ? "default"
-                                          : "outline"
-                                      }
-                                      className="h-7 tabular-nums"
-                                      disabled={busyId === eKey}
-                                      onClick={() => {
-                                        setSlotDurationByEvent((prev) => ({
-                                          ...prev,
-                                          [eKey]: m,
-                                        }));
-                                        setSlotsByEvent((prev) => {
-                                          const next = { ...prev };
-                                          delete next[eKey];
-                                          return next;
-                                        });
-                                      }}
-                                    >
-                                      {m} Min
-                                    </Button>
-                                  ))}
-                                  {!isSlotDurationPreset(slotDurationFor(e)) ? (
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="default"
-                                      className="h-7 tabular-nums"
-                                      disabled={busyId === eKey}
-                                    >
-                                      {slotDurationFor(e)} Min
-                                    </Button>
-                                  ) : null}
-                                </div>
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  disabled={busyId === eKey}
-                                  onClick={() => void markDone(e)}
-                                >
-                                  <Check className="size-3.5" />
-                                  Erledigt
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  disabled={busyId === eKey}
-                                  onClick={() => void suggestSlots(e)}
-                                >
-                                  Freien Slot suchen
-                                </Button>
-                                {e.webLink ? (
-                                  <a
-                                    href={e.webLink}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className={cn(
-                                      buttonVariants({
-                                        variant: "ghost",
-                                        size: "sm",
-                                      })
-                                    )}
-                                  >
-                                    {e.provider === "google"
-                                      ? "In Google Kalender"
-                                      : "In Outlook"}
-                                  </a>
-                                ) : null}
-                              </div>
-                            </div>
-                          ) : null}
-                          {slotsByEvent[eKey]?.length ? (
-                            <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-2">
-                              <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-muted-foreground">
-                                Vorschläge à {slotDurationFor(e)} Min (7 Tage,
-                                08–18)
-                              </p>
-                              <div className="max-h-64 space-y-2.5 overflow-y-auto">
-                                {groupFreeSlotsByDate(slotsByEvent[eKey]!).map(
-                                  ({ date, slots: daySlots }) => (
-                                    <div key={date} className="space-y-1">
-                                      <p className="text-xs font-semibold text-foreground">
-                                        {weekdayLabel(date)} ·{" "}
-                                        {toSwissDate(date)}
-                                      </p>
-                                      <ul className="flex flex-wrap gap-1.5">
-                                        {daySlots.map((s) => (
-                                          <li key={`${s.date}-${s.startHm}`}>
-                                            <Button
-                                              type="button"
-                                              size="sm"
-                                              variant="outline"
-                                              disabled={busyId === eKey}
-                                              onClick={() =>
-                                                void reschedule(e, s)
-                                              }
-                                            >
-                                              {s.startHm}–{s.endHm}
-                                            </Button>
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                  )
-                                )}
-                              </div>
-                            </div>
-                          ) : null}
-                        </CardContent>
-                      </Card>
+                  {visibleEvents.map((e) => (
+                    <li key={workspaceEventKey(e)}>
+                      <EventArtCard
+                        event={e}
+                        onOpen={() => setDetailEvent(e)}
+                      />
                     </li>
-                    );
-                  })}
+                  ))}
                 </ul>
               )}
+              <EventDetailDialog
+                event={detailEvent}
+                open={Boolean(detailEvent)}
+                onOpenChange={(next) => {
+                  if (!next) setDetailEvent(null);
+                }}
+                actions={
+                  detailEvent ? (
+                    <EventDetailActions
+                      event={detailEvent}
+                      busy={busyId === workspaceEventKey(detailEvent)}
+                      slotDuration={slotDurationFor(detailEvent)}
+                      slots={slotsByEvent[workspaceEventKey(detailEvent)] || []}
+                      onPreset={(m) => {
+                        const eKey = workspaceEventKey(detailEvent);
+                        setSlotDurationByEvent((prev) => ({
+                          ...prev,
+                          [eKey]: m,
+                        }));
+                        setSlotsByEvent((prev) => {
+                          const next = { ...prev };
+                          delete next[eKey];
+                          return next;
+                        });
+                      }}
+                      onDone={() => void markDone(detailEvent)}
+                      onSuggest={() => void suggestSlots(detailEvent)}
+                      onReschedule={(s) => void reschedule(detailEvent, s)}
+                    />
+                  ) : null
+                }
+              />
               <AdhocEventDialog
                 open={adhocOpen}
                 onOpenChange={setAdhocOpen}

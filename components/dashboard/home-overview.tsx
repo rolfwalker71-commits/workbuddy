@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   CalendarDays,
-  CheckCircle2,
   ChevronRight,
   ExternalLink,
   ListChecks,
@@ -20,7 +19,6 @@ import {
   MicrosoftToDoLogo,
   OutlookLogo,
 } from "@/components/branding/provider-logos";
-import { ProviderBadge } from "@/components/workspace/provider-badge";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { weekdayLabel } from "@/lib/utils/weekday";
 import { cn } from "@/lib/utils";
@@ -41,8 +39,11 @@ import {
   type MsTaskDisplayPrefs,
 } from "@/lib/microsoft/task-display-prefs";
 import { HomeWeatherWidget } from "./home-weather-widget";
+import { EventArtCard } from "@/components/calendar/event-art-card";
+import { EventDetailDialog } from "@/components/calendar/event-detail-dialog";
 import { filterTodayEventsAfterGrace } from "@/lib/workspace/event-grace";
 import { zurichHm, zurichYmd } from "@/lib/microsoft/time";
+import type { WorkspaceTodayEvent } from "@/lib/workspace/merge-today";
 
 const ASIDE_WIDGET_CLASS =
   "rounded-2xl border border-border/70 bg-card shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_3px_10px_rgba(15,23,42,0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_4px_14px_rgba(0,0,0,0.28)]";
@@ -441,6 +442,9 @@ export function HomeOverview() {
     ymd: zurichYmd(),
     hm: zurichHm(),
   }));
+  const [detailEvent, setDetailEvent] = useState<WorkspaceTodayEvent | null>(
+    null
+  );
 
   useEffect(() => {
     const sync = () => setTaskDisplay(readMsTaskDisplayPrefs());
@@ -783,28 +787,21 @@ export function HomeOverview() {
                   {todayEvents.slice(0, 8).map((ev) => (
                     <li
                       key={`${ev.provider}:${ev.calendarId || ""}:${ev.id}`}
-                      className="flex items-start justify-between gap-3 rounded-xl bg-muted/40 px-3 py-2"
                     >
-                      <span className="min-w-0">
-                        <span className="mb-0.5 block">
-                          <ProviderBadge provider={ev.provider} kind="calendar" />
-                        </span>
-                        <span className="block break-words text-sm font-medium leading-snug">
-                          {ev.title}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {ev.isAllDay
-                            ? "Ganztägig"
-                            : [ev.time, ev.endTime].filter(Boolean).join("–")}
-                          {ev.location ? ` · ${ev.location}` : ""}
-                        </span>
-                      </span>
-                      {ev.done ? (
-                        <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
-                      ) : null}
+                      <EventArtCard
+                        event={ev}
+                        onOpen={() => setDetailEvent(ev)}
+                      />
                     </li>
                   ))}
                 </ul>
+                <EventDetailDialog
+                  event={detailEvent}
+                  open={Boolean(detailEvent)}
+                  onOpenChange={(next) => {
+                    if (!next) setDetailEvent(null);
+                  }}
+                />
               </CardContent>
             </Card>
           ) : null}

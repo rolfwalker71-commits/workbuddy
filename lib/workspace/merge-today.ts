@@ -34,6 +34,10 @@ export type WorkspaceTodayEvent = {
   isAllDay: boolean;
   done?: boolean;
   webLink?: string | null;
+  description?: string | null;
+  meetUrl?: string | null;
+  calendarType?: string | null;
+  calendarName?: string | null;
 };
 
 export type WorkspaceMailSample = {
@@ -73,6 +77,10 @@ export function ritualAsWorkspaceTodayEvent(
     isAllDay: false,
     done: ritual.title.startsWith("✅"),
     webLink: null,
+    description: ritual.description || null,
+    meetUrl: null,
+    calendarType: "other",
+    calendarName: ritual.calendarName,
   };
 }
 
@@ -128,6 +136,10 @@ export function toWorkspaceTodayEvent(input: {
   isAllDay?: boolean;
   done?: boolean;
   webLink?: string | null;
+  description?: string | null;
+  meetUrl?: string | null;
+  calendarType?: string | null;
+  calendarName?: string | null;
 }): WorkspaceTodayEvent {
   const title =
     (input.title || input.subject || input.summary || "").trim() ||
@@ -151,5 +163,9 @@ export function toWorkspaceTodayEvent(input: {
       title.startsWith("✅") ||
       title.startsWith("✅ "),
     webLink: input.webLink ?? null,
+    description: input.description ?? null,
+    meetUrl: input.meetUrl ?? null,
+    calendarType: input.calendarType ?? null,
+    calendarName: input.calendarName ?? null,
   };
 }

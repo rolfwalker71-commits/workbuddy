@@ -217,6 +217,10 @@ export type DayCloseGoogleReviewEvent = {
   isAllDay: boolean;
   done: boolean;
   htmlLink: string | null;
+  description?: string | null;
+  meetUrl?: string | null;
+  calendarType?: string | null;
+  calendarName?: string | null;
 };
 
 export function ritualAsGoogleReviewEvent(
@@ -233,6 +237,10 @@ export function ritualAsGoogleReviewEvent(
     isAllDay: false,
     done: ritual.title.startsWith("✅"),
     htmlLink: null,
+    description: ritual.description,
+    meetUrl: null,
+    calendarType: "other",
+    calendarName: ritual.calendarName,
   };
 }
 

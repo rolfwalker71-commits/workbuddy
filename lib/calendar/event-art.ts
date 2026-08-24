@@ -41,71 +41,72 @@ export type EventArtSubject = {
 };
 
 const ART = "/calendar/art";
+const EXT = "webp";
 
 const ASSETS: Record<EventArtId, EventArtAsset> = {
   train: {
     id: "train",
-    src: `${ART}/train.png`,
+    src: `${ART}/train.${EXT}`,
     alt: "Zug",
     label: "Reise",
   },
   birthday: {
     id: "birthday",
-    src: `${ART}/birthday.png`,
+    src: `${ART}/birthday.${EXT}`,
     alt: "Geburtstag",
     label: "Geburtstag",
   },
   shift: {
     id: "shift",
-    src: `${ART}/shift.png`,
+    src: `${ART}/shift.${EXT}`,
     alt: "Schicht",
     label: "Schicht",
   },
   support: {
     id: "support",
-    src: `${ART}/support.png`,
+    src: `${ART}/support.${EXT}`,
     alt: "Support",
     label: "Support",
   },
   standup: {
     id: "standup",
-    src: `${ART}/standup.png`,
+    src: `${ART}/standup.${EXT}`,
     alt: "Standup",
     label: "Sync",
   },
   lunch: {
     id: "lunch",
-    src: `${ART}/lunch.png`,
+    src: `${ART}/lunch.${EXT}`,
     alt: "Mittagessen",
     label: "Essen",
   },
   "day-close": {
     id: "day-close",
-    src: `${ART}/day-close.png`,
+    src: `${ART}/day-close.${EXT}`,
     alt: "Tagesabschluss",
     label: "Ritual",
   },
   default: {
     id: "default",
-    src: `${ART}/default.png`,
+    src: `${ART}/default.${EXT}`,
     alt: "Termin",
     label: "Termin",
   },
   teams: {
     id: "teams",
-    src: `${ART}/left-teams.png`,
+    src: `${ART}/left-teams.${EXT}`,
     alt: "Microsoft Teams",
     label: "Teams",
   },
   meet: {
     id: "meet",
-    src: `${ART}/left-meet.png`,
+    src: `${ART}/left-meet.${EXT}`,
     alt: "Google Meet",
     label: "Meet",
   },
   meeting: {
     id: "meeting",
-    src: `${ART}/left-meeting.png`,
+    src: `${ART}/left-meeting.${EXT}`,
     alt: "Besprechung",
     label: "Meeting",
   },

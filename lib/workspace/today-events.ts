@@ -65,6 +65,10 @@ export async function loadWorkspaceTodayEvents(
             date: e.date,
             location: e.location,
             webLink: e.webLink,
+            description: e.description,
+            meetUrl: e.meetUrl,
+            calendarType: e.type,
+            calendarName: e.calendarName,
           })
         );
       } catch {
@@ -97,6 +101,10 @@ export async function loadWorkspaceTodayEvents(
             calendarId: e.calendarId,
             date: e.date,
             location: e.location,
+            description: e.description,
+            meetUrl: e.meetUrl,
+            calendarType: e.type,
+            calendarName: e.calendarName,
           })
         );
       } catch {
