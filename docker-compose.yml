@@ -11,6 +11,7 @@ services:
       HOSTNAME: "0.0.0.0"
       # Must match published container port. Never 3000 — that overrides .env and causes NPM 502.
       PORT: "3311"
+      NODE_OPTIONS: ${NODE_OPTIONS:---dns-result-order=ipv4first}
       DATABASE_PATH: ${DATABASE_PATH:-/app/data/supportdesk.sqlite}
       WORKBUDDY_USERNAME: ${WORKBUDDY_USERNAME:-admin}
       WORKBUDDY_PASSWORD: ${WORKBUDDY_PASSWORD:-}

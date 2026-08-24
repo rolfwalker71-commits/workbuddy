@@ -2,6 +2,7 @@ import {
   getMicrosoftAccessToken,
   isMicrosoftConnected,
 } from "@/lib/microsoft/oauth";
+import { outboundFetch } from "@/lib/net/outbound-fetch";
 
 export class MicrosoftGraphError extends Error {
   status: number;
@@ -27,7 +28,7 @@ export async function graphFetch(
   if (init?.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
-  return fetch(url, { ...init, headers });
+  return outboundFetch(url, { ...init, headers }, { label: "Microsoft Graph" });
 }
 
 export async function graphJson<T>(

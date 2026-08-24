@@ -1,5 +1,6 @@
 import { getSetting, setSetting } from "@/lib/db/migrations";
 import { absoluteOauthRedirectUrl } from "@/lib/app-url";
+import { outboundFetch } from "@/lib/net/outbound-fetch";
 import type { AuthContext } from "@/lib/auth/current-user";
 import { resolveAppUserId } from "@/lib/users/resolve-user";
 
@@ -283,11 +284,15 @@ async function exchangeToken(
     client_secret: clientSecret,
     ...body,
   });
-  const res = await fetch(tokenEndpoint(), {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: form.toString(),
-  });
+  const res = await outboundFetch(
+    tokenEndpoint(),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+    },
+    { label: "Microsoft-Anmeldung" }
+  );
   const json = (await res.json()) as TokenResponse;
   if (!res.ok || json.error) {
     throw new Error(
@@ -303,9 +308,11 @@ async function fetchGraphProfile(accessToken: string): Promise<{
   email: string | null;
   displayName: string | null;
 }> {
-  const res = await fetch("https://graph.microsoft.com/v1.0/me", {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+  const res = await outboundFetch(
+    "https://graph.microsoft.com/v1.0/me",
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+    { label: "Microsoft Graph" }
+  );
   if (!res.ok) return { email: null, displayName: null };
   const me = (await res.json()) as {
     mail?: string | null;

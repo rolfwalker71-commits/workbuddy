@@ -27,6 +27,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3311
 ENV HOSTNAME=0.0.0.0
 ENV DATABASE_PATH=/app/data/supportdesk.sqlite
+# Docker/WSL often has broken IPv6; Node 17+ would try AAAA first and Graph fails with "fetch failed".
+ENV NODE_OPTIONS="--dns-result-order=ipv4first"
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends libstdc++6 \

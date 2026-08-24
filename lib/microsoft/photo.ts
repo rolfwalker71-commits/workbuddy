@@ -4,6 +4,7 @@ import {
   getMicrosoftAccessToken,
   readMicrosoftUserTokens,
 } from "@/lib/microsoft/oauth";
+import { outboundFetch } from "@/lib/net/outbound-fetch";
 
 /** Fetch Graph profile photo and store as user avatar. No-op if none. */
 export async function syncMicrosoftProfilePhoto(
@@ -15,9 +16,10 @@ export async function syncMicrosoftProfilePhoto(
   } catch {
     return false;
   }
-  const res = await fetch(
+  const res = await outboundFetch(
     "https://graph.microsoft.com/v1.0/me/photo/$value",
-    { headers: { Authorization: `Bearer ${token}` } }
+    { headers: { Authorization: `Bearer ${token}` } },
+    { retries: 1, label: "Microsoft Graph" }
   );
   if (!res.ok) return false;
   const buf = Buffer.from(await res.arrayBuffer());
