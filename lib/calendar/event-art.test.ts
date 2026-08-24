@@ -73,3 +73,57 @@ test("resolveEventArt combines both sides", () => {
   assert.equal(art.right.id, "standup");
   assert.equal(art.left?.id, "teams");
 });
+
+test("90-day crawl topics: morgencall, cruise, hockey, flight", () => {
+  assert.equal(resolveEventArtRight({ title: "Morgencall" }).id, "morgencall");
+  assert.equal(
+    resolveEventArtRight({ title: "🚢 Kreuzfahrt: Seetag", location: "Atlantik" })
+      .id,
+    "cruise"
+  );
+  assert.equal(
+    resolveEventArtRight({
+      title: "HC Ambri-Piotta - ZSC Lions",
+      calendarName: "HC Ambri-Piotta",
+    }).id,
+    "hockey"
+  );
+  assert.equal(
+    resolveEventArtRight({ title: "✈️ Flug: Flug von Lissabon nach Zürich" }).id,
+    "flight"
+  );
+});
+
+test("90-day crawl topics: hotel, car, vacation, doctor, sport, education", () => {
+  assert.equal(
+    resolveEventArtRight({ title: "🏨 Hotel: Miami Marriott Biscayne Bay" }).id,
+    "hotel"
+  );
+  assert.equal(
+    resolveEventArtRight({ title: "🚗 Mietauto: Mietwagenreservierung" }).id,
+    "car"
+  );
+  assert.equal(resolveEventArtRight({ title: "Ferien" }).id, "vacation");
+  assert.equal(
+    resolveEventArtRight({ title: "Zahnarzt Valentyna 🪥" }).id,
+    "doctor"
+  );
+  assert.equal(resolveEventArtRight({ title: "Abendlauf 2. Abend 🏃" }).id, "sport");
+  assert.equal(
+    resolveEventArtRight({
+      title: 'ANG - Virtual Classroom - Deep-Dive',
+    }).id,
+    "education"
+  );
+});
+
+test("phone is a left format and ANG monthly sync uses standup", () => {
+  assert.equal(
+    resolveEventArtLeft({ title: "Gynäkologie Termin telefonisch" })?.id,
+    "phone"
+  );
+  assert.equal(
+    resolveEventArtRight({ title: "ANG Monatstreffen (GL Schweiz)" }).id,
+    "standup"
+  );
+});
