@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 import { isAuthError, requireModule } from "@/lib/auth/current-user";
 import { ensureInitialized } from "@/lib/db/migrations";
-import { listMicrosoftEventsToday } from "@/lib/microsoft/calendar-review";
+import { microsoftAgendaToReviewEvent } from "@/lib/microsoft/calendar-review";
+import { listMicrosoftAgendaInRange } from "@/lib/microsoft/calendars";
 import {
   isMicrosoftConnected,
   resolveMicrosoftUserId,
 } from "@/lib/microsoft/oauth";
 import { isDayCloseRitualId } from "@/lib/dashboard/day-close-ritual";
 import { attachDayCloseRitualMs } from "@/lib/dashboard/day-close-status";
-import { zurichYmd } from "@/lib/microsoft/time";
+import { zurichHm, zurichYmd } from "@/lib/microsoft/time";
+import { filterTodayEventsAfterGrace } from "@/lib/workspace/event-grace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,8 +27,15 @@ export async function GET() {
     );
   }
   try {
-    const raw = await listMicrosoftEventsToday(userId);
-    const events = await attachDayCloseRitualMs(userId, zurichYmd(), raw);
+    const today = zurichYmd();
+    const { events: agenda } = await listMicrosoftAgendaInRange(
+      userId,
+      today,
+      today
+    );
+    const raw = agenda.map(microsoftAgendaToReviewEvent);
+    const withRitual = await attachDayCloseRitualMs(userId, today, raw);
+    const events = filterTodayEventsAfterGrace(withRitual, today, zurichHm());
     const cloud = events.filter((e) => !isDayCloseRitualId(e.id));
     return NextResponse.json({
       events,

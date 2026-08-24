@@ -4,6 +4,8 @@
  * This module is client-safe (no db / OAuth imports).
  */
 
+import { isAgendaItemPastGrace } from "@/lib/workspace/event-grace";
+
 export const DAY_CLOSE_RITUAL_ID = "buddy-day-close";
 export const DAY_CLOSE_TIME = "18:30";
 export const DAY_CLOSE_END_TIME = "18:45";
@@ -36,6 +38,9 @@ export type DayCloseCalendarItem = {
   title: string;
   date: string;
   planningRelevant?: boolean | null;
+  time?: string | null;
+  endTime?: string | null;
+  isAllDay?: boolean;
 };
 
 export type DayCloseRitualItem = {
@@ -245,14 +250,16 @@ export function withDayCloseRitualGoogleEvents<
 
 export function countOpenPlanningEvents(
   todayIso: string,
-  todayCalendar: DayCloseCalendarItem[]
+  todayCalendar: DayCloseCalendarItem[],
+  nowHm?: string
 ): number {
-  return todayCalendar.filter(
-    (i) =>
-      i.date === todayIso &&
-      i.planningRelevant !== false &&
-      !isDayCloseRitualId(i.id) &&
-      !(i.title || "").trim().startsWith("✅")
-  ).length;
+  return todayCalendar.filter((i) => {
+    if (i.date !== todayIso) return false;
+    if (i.planningRelevant === false) return false;
+    if (isDayCloseRitualId(i.id)) return false;
+    if ((i.title || "").trim().startsWith("✅")) return false;
+    if (nowHm && isAgendaItemPastGrace(i, todayIso, nowHm)) return false;
+    return true;
+  }).length;
 }
 

@@ -91,6 +91,7 @@ function eventsFromToday(
     .map((e) => ({
       id: e.id,
       subject: e.title,
+      date: e.date,
       startHm: e.time,
       endHm: e.endTime,
       location: e.location,

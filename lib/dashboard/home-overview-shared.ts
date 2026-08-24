@@ -35,6 +35,7 @@ export type HomeProviderBlock = {
   events: MsCalendarEvent[] | Array<{
     id: string;
     subject: string;
+    date: string;
     startHm: string | null;
     endHm: string | null;
     location: string | null;

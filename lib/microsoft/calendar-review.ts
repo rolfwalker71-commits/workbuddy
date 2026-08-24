@@ -1,4 +1,5 @@
 import { graphJson } from "@/lib/microsoft/graph";
+import type { MicrosoftCalendarEvent } from "@/lib/microsoft/calendars";
 import {
   addDaysYmd,
   dayWindowLocal,
@@ -133,6 +134,44 @@ export async function listMicrosoftEventsToday(
 ): Promise<MsCalendarEvent[]> {
   const today = zurichYmd();
   return listMicrosoftEventsInRange(userId, today, today);
+}
+
+/** Hub/home today shape from a selected-calendar agenda row. */
+export function microsoftAgendaToReviewEvent(
+  e: MicrosoftCalendarEvent
+): MsCalendarEvent & {
+  calendarId: string;
+  time: string | null;
+  endTime: string | null;
+  summary: string;
+} {
+  const subject = (e.summary || "").trim() || "(ohne Titel)";
+  const done =
+    subject.startsWith(BUDDY_DONE_PREFIX) || subject.startsWith("✅");
+  return {
+    id: e.id,
+    subject,
+    summary: subject,
+    start: e.time ? `${e.date}T${e.time}:00` : `${e.date}T00:00:00`,
+    end: e.endTime
+      ? `${e.date}T${e.endTime}:00`
+      : e.time
+        ? `${e.date}T${e.time}:00`
+        : `${e.date}T23:59:59`,
+    startHm: e.time,
+    endHm: e.endTime,
+    time: e.time,
+    endTime: e.endTime,
+    date: e.date,
+    location: e.location,
+    isAllDay: !e.time,
+    categories: done ? [BUDDY_DONE_CATEGORY] : [],
+    done,
+    showAs: null,
+    webLink: e.webLink,
+    organizer: null,
+    calendarId: e.calendarId,
+  };
 }
 
 export async function markMicrosoftEventDone(

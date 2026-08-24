@@ -59,6 +59,8 @@ import {
   type WorkspaceProvider,
 } from "@/lib/workspace/merge-today";
 import { isDayCloseRitualId } from "@/lib/dashboard/day-close-ritual";
+import { filterTodayEventsAfterGrace } from "@/lib/workspace/event-grace";
+import { zurichHm, zurichYmd } from "@/lib/microsoft/time";
 import { CLOSEOUT_OPEN_EVENT } from "@/components/closeout/closeout-assistant";
 import { MailWorkspaceSubnav, type MailWorkspaceView, mailWorkspacePrimaryBtnClass, mailWorkspaceTabClass } from "@/components/mail/mail-workspace-subnav";
 import { segmentedTrackClass } from "@/components/layout/segmented-control";
@@ -70,6 +72,7 @@ import {
 } from "@/components/mail/mail-chronik-list";
 import { MailAnalysisThreadHint } from "@/components/mail/mail-analysis-thread-hint";
 import { MailTagesanalysenList } from "@/components/mail/mail-tagesanalysen-list";
+import { MailTriagePanel } from "@/components/mail/mail-triage-panel";
 import {
   AnalysisEventDraftCard,
   analysisEventsNeedSlot,
@@ -147,7 +150,8 @@ function parseTab(raw: string | null, _openId: string | null): Tab {
 }
 
 function parseMailView(raw: string | null, tabRaw: string | null): MailWorkspaceView {
-  if (raw === "chronik" || raw === "tagesanalysen") return raw;
+  if (raw === "chronik" || raw === "triage" || raw === "tagesanalysen") return raw;
+  if (tabRaw === "triage") return "triage";
   if (tabRaw === "day") return "tagesanalysen";
   return "chronik";
 }
@@ -436,6 +440,10 @@ export function WorkspaceDayClient({
   );
 
   const [events, setEvents] = useState<WorkspaceCalEvent[]>([]);
+  const [zurichNow, setZurichNow] = useState(() => ({
+    ymd: zurichYmd(),
+    hm: zurichHm(),
+  }));
   const [calLoading, setCalLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [slotsByEvent, setSlotsByEvent] = useState<Record<string, FreeSlot[]>>(
@@ -450,6 +458,7 @@ export function WorkspaceDayClient({
   const [mailFrom, setMailFrom] = useState(() => zurichYmdClient());
   const [mailTo, setMailTo] = useState(() => zurichYmdClient());
   const [mailLoading, setMailLoading] = useState(false);
+  const [triagePending, setTriagePending] = useState(0);
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeNotice, setAnalyzeNotice] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<DayAnalysis | null>(null);
@@ -520,8 +529,19 @@ export function WorkspaceDayClient({
   }, [wantMs, wantGoogle]);
 
   const loadTriagePending = useCallback(async () => {
-    /* Mail-Triage-Tab entfernt */
-  }, []);
+    const url =
+      scope === "google"
+        ? "/api/google/mail/triage?sync=0"
+        : "/api/microsoft/mail/triage?sync=0";
+    try {
+      const res = await fetch(url);
+      const json = await res.json();
+      if (!res.ok) return;
+      setTriagePending(Number(json.pendingCount) || 0);
+    } catch {
+      /* badge is optional */
+    }
+  }, [scope]);
 
   const loadCalendar = useCallback(async () => {
     setCalLoading(true);
@@ -665,9 +685,21 @@ export function WorkspaceDayClient({
     }
   }, [routeHint, msConnected, googleConnected]);
 
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setZurichNow({ ymd: zurichYmd(), hm: zurichHm() });
+    }, 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const visibleEvents = useMemo(
+    () => filterTodayEventsAfterGrace(events, zurichNow.ymd, zurichNow.hm),
+    [events, zurichNow]
+  );
+
   const openEvents = useMemo(
-    () => events.filter((e) => !e.done && !isDayCloseRitualId(e.id)),
-    [events]
+    () => visibleEvents.filter((e) => !e.done && !isDayCloseRitualId(e.id)),
+    [visibleEvents]
   );
 
   const mailThreadCoverage = useMemo(
@@ -1464,6 +1496,7 @@ export function WorkspaceDayClient({
               view={mailView}
               onChange={setMailView}
               accent={routeHint}
+              pendingTriage={triagePending}
             />
           ) : null}
 
@@ -1518,7 +1551,7 @@ export function WorkspaceDayClient({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-[0.9375rem] font-semibold">
                   Heute · {openEvents.length} offen /{" "}
-                  {events.filter((e) => e.done).length} erledigt
+                  {visibleEvents.filter((e) => e.done).length} erledigt
                 </h2>
                 <div className="flex flex-wrap gap-2">
                   <Button
@@ -1545,15 +1578,15 @@ export function WorkspaceDayClient({
                 </div>
               </div>
 
-              {calLoading && events.length === 0 ? (
+              {calLoading && visibleEvents.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Lade Termine…</p>
-              ) : events.length === 0 ? (
+              ) : visibleEvents.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   Keine Termine für heute.
                 </p>
               ) : (
                 <ul className="space-y-2">
-                  {events.map((e) => {
+                  {visibleEvents.map((e) => {
                     const eKey = workspaceEventKey(e);
                     return (
                     <li key={eKey}>
@@ -1755,6 +1788,11 @@ export function WorkspaceDayClient({
                 google={Boolean(googleConnected)}
               />
             </section>
+          ) : tab === "mail" && mailView === "triage" ? (
+            <MailTriagePanel
+              provider={scope}
+              onPendingChange={setTriagePending}
+            />
           ) : tab === "mail" && mailView === "chronik" ? (
             <section className="space-y-4">
               <div className="flex flex-wrap items-end justify-between gap-3 rounded-2xl border border-border/60 bg-card px-3.5 py-3 shadow-[0_4px_18px_rgba(15,23,42,0.05)]">

@@ -189,6 +189,27 @@ export function getEnabledMicrosoftCalendarSelections(
   return readSelections(userId).filter((s) => s.enabled);
 }
 
+/** Enabled selections, or the primary Graph calendar if none are saved. */
+export function resolveMicrosoftCalendarsToQuery(
+  userId: number,
+  listed: MicrosoftCalendarListItem[]
+): MicrosoftCalendarSelection[] {
+  const enabled = getEnabledMicrosoftCalendarSelections(userId);
+  if (enabled.length > 0) return enabled;
+  const primary = listed.find((c) => c.primary) ?? listed[0];
+  if (!primary) return [];
+  return [
+    {
+      id: primary.id,
+      enabled: true,
+      name: primary.name,
+      type: primary.type,
+      color: primary.color,
+      planningRelevant: primary.planningRelevant !== false,
+    },
+  ];
+}
+
 type GraphCalendar = {
   id?: string;
   name?: string | null;
@@ -304,12 +325,11 @@ export async function listMicrosoftCalendarEventsInRange(
   if (!isMicrosoftConnected(userId) || !hasMicrosoftCalendarScope(userId)) {
     return [];
   }
-  const enabled = getEnabledMicrosoftCalendarSelections(userId);
-  if (enabled.length === 0) return [];
-
   const listed =
     listedCalendars ??
     (await listMicrosoftCalendarsForUser(userId)).calendars;
+  const enabled = resolveMicrosoftCalendarsToQuery(userId, listed);
+  if (enabled.length === 0) return [];
   const metaById = new Map(listed.map((c) => [c.id, c]));
 
   const { start } = dayWindowLocal(startYmd.slice(0, 10));

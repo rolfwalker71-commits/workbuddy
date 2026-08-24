@@ -41,6 +41,8 @@ import {
   type MsTaskDisplayPrefs,
 } from "@/lib/microsoft/task-display-prefs";
 import { HomeWeatherWidget } from "./home-weather-widget";
+import { filterTodayEventsAfterGrace } from "@/lib/workspace/event-grace";
+import { zurichHm, zurichYmd } from "@/lib/microsoft/time";
 
 const ASIDE_WIDGET_CLASS =
   "rounded-2xl border border-border/70 bg-card shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_3px_10px_rgba(15,23,42,0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_4px_14px_rgba(0,0,0,0.28)]";
@@ -435,6 +437,10 @@ export function HomeOverview() {
     todo: true,
     planner: true,
   });
+  const [zurichNow, setZurichNow] = useState(() => ({
+    ymd: zurichYmd(),
+    hm: zurichHm(),
+  }));
 
   useEffect(() => {
     const sync = () => setTaskDisplay(readMsTaskDisplayPrefs());
@@ -445,6 +451,13 @@ export function HomeOverview() {
       window.removeEventListener("storage", sync);
       window.removeEventListener(MS_TASK_DISPLAY_KEY, sync as EventListener);
     };
+  }, []);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setZurichNow({ ymd: zurichYmd(), hm: zurichHm() });
+    }, 30_000);
+    return () => window.clearInterval(id);
   }, []);
 
   useEffect(() => {
@@ -507,14 +520,27 @@ export function HomeOverview() {
     };
   }, []);
 
+  const todayEvents = useMemo(
+    () =>
+      filterTodayEventsAfterGrace(
+        data?.todayEvents || [],
+        zurichNow.ymd,
+        zurichNow.hm
+      ),
+    [data?.todayEvents, zurichNow]
+  );
+
   const nextEvent = useMemo(() => {
-    const mixed = data?.todayEvents || [];
-    if (mixed.length > 0) {
-      return mixed.find((e) => !e.done) || mixed[0] || null;
+    if (todayEvents.length > 0) {
+      return todayEvents.find((e) => !e.done) || todayEvents[0] || null;
     }
-    const events = data?.microsoft?.events || data?.google?.events || [];
+    const events = filterTodayEventsAfterGrace(
+      data?.microsoft?.events || data?.google?.events || [],
+      zurichNow.ymd,
+      zurichNow.hm
+    );
     return events.find((e) => !e.done) || events[0] || null;
-  }, [data]);
+  }, [data, todayEvents, zurichNow]);
 
   const mailSample =
     data?.todayMail[0] ||
@@ -747,14 +773,14 @@ export function HomeOverview() {
             />
           </div>
 
-          {data.todayEvents.length > 0 ? (
+          {todayEvents.length > 0 ? (
             <Card className={ASIDE_WIDGET_CLASS}>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base font-bold">Heute im Kalender</CardTitle>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2">
-                  {data.todayEvents.slice(0, 8).map((ev) => (
+                  {todayEvents.slice(0, 8).map((ev) => (
                     <li
                       key={`${ev.provider}:${ev.calendarId || ""}:${ev.id}`}
                       className="flex items-start justify-between gap-3 rounded-xl bg-muted/40 px-3 py-2"

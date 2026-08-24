@@ -12,13 +12,18 @@ import {
   type DayCloseGoogleReviewEvent,
   type DayCloseRitualStatus,
 } from "@/lib/dashboard/day-close-ritual";
+import { zurichHm } from "@/lib/microsoft/time";
 
 export async function resolveDayCloseRitualStatus(
   userId: number | null | undefined,
   todayIso: string,
   todayCalendar: DayCloseCalendarItem[]
 ): Promise<DayCloseRitualStatus> {
-  const calendarOpen = countOpenPlanningEvents(todayIso, todayCalendar);
+  const calendarOpen = countOpenPlanningEvents(
+    todayIso,
+    todayCalendar,
+    zurichHm()
+  );
 
   let googleDayDone: boolean | null = null;
   let microsoftDayDone: boolean | null = null;
@@ -76,17 +81,24 @@ export async function loadTodayCalendarForRitual(
   try {
     const { isMicrosoftConnected } = await import("@/lib/microsoft/oauth");
     if (isMicrosoftConnected(userId)) {
-      const { listMicrosoftEventsToday } = await import(
-        "@/lib/microsoft/calendar-review"
+      const { listMicrosoftAgendaInRange } = await import(
+        "@/lib/microsoft/calendars"
       );
-      const events = await listMicrosoftEventsToday(userId);
+      const { events } = await listMicrosoftAgendaInRange(
+        userId,
+        todayIso,
+        todayIso
+      );
       for (const e of events) {
         if (isDayCloseRitualId(e.id)) continue;
         items.push({
           id: e.id,
-          title: e.subject,
+          title: e.summary,
           date: e.date,
-          planningRelevant: true,
+          planningRelevant: e.planningRelevant,
+          time: e.time,
+          endTime: e.endTime,
+          isAllDay: !e.time,
         });
       }
     }
@@ -113,6 +125,9 @@ export async function loadTodayCalendarForRitual(
           title: e.summary,
           date: e.date,
           planningRelevant: e.planningRelevant,
+          time: e.time,
+          endTime: e.endTime,
+          isAllDay: !e.time,
         });
       }
     }

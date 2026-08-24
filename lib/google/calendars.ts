@@ -182,6 +182,27 @@ export function getEnabledGoogleCalendarSelections(
   return readSelections(userId).filter((s) => s.enabled);
 }
 
+/** Enabled selections, or the primary Google calendar if none are saved. */
+export function resolveGoogleCalendarsToQuery(
+  userId: number,
+  listed: GoogleCalendarListItem[]
+): GoogleCalendarSelection[] {
+  const enabled = getEnabledGoogleCalendarSelections(userId);
+  if (enabled.length > 0) return enabled;
+  const primary = listed.find((c) => c.primary) ?? listed[0];
+  if (!primary) return [];
+  return [
+    {
+      id: primary.id,
+      enabled: true,
+      name: primary.name,
+      type: primary.type,
+      color: primary.color,
+      planningRelevant: primary.planningRelevant !== false,
+    },
+  ];
+}
+
 export async function listGoogleCalendarsForUser(
   userId: number,
   request?: Request | null
@@ -284,15 +305,14 @@ export async function listGoogleCalendarEventsInRange(
   if (!isGoogleMailConnected(userId) || !hasGoogleCalendarScope(userId)) {
     return [];
   }
-  const enabled = getEnabledGoogleCalendarSelections(userId);
+  const listed =
+    listedCalendars ??
+    (await listGoogleCalendarsForUser(userId, request)).calendars;
+  const enabled = resolveGoogleCalendarsToQuery(userId, listed);
   if (enabled.length === 0) return [];
 
   const auth = await getAuthedGoogleClient(userId, request);
   const calendar = google.calendar({ version: "v3", auth });
-
-  const listed =
-    listedCalendars ??
-    (await listGoogleCalendarsForUser(userId, request)).calendars;
   const metaById = new Map(listed.map((c) => [c.id, c]));
 
   const timeMin = `${startIso.slice(0, 10)}T00:00:00Z`;

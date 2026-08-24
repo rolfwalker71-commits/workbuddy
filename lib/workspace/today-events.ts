@@ -8,12 +8,13 @@ import {
   hasMicrosoftCalendarScope,
   isMicrosoftConnected,
 } from "@/lib/microsoft/oauth";
-import { zurichYmd } from "@/lib/microsoft/time";
+import { zurichHm, zurichYmd } from "@/lib/microsoft/time";
 import {
   isDayCloseRitualId,
   withDayCloseRitual,
 } from "@/lib/dashboard/day-close-ritual";
 import { resolveDayCloseRitualStatus } from "@/lib/dashboard/day-close-status";
+import { filterTodayEventsAfterGrace } from "@/lib/workspace/event-grace";
 import {
   mergeWorkspaceTodayEvents,
   ritualAsWorkspaceTodayEvent,
@@ -113,12 +114,16 @@ export async function loadWorkspaceTodayEvents(
       title: e.title,
       date: e.date,
       planningRelevant: e.planningRelevant,
+      time: e.time,
+      endTime: e.endTime,
+      isAllDay: e.isAllDay,
     }))
   );
-  return withDayCloseRitual(
+  const withRitual = withDayCloseRitual(
     merged.filter((e) => !isDayCloseRitualId(e.id)),
     today,
     status,
     ritualAsWorkspaceTodayEvent
   );
+  return filterTodayEventsAfterGrace(withRitual, today, zurichHm());
 }

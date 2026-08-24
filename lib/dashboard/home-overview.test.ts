@@ -52,6 +52,7 @@ test("mergeHomeOverviewDetails keeps unread KPIs and fills lists", () => {
         {
           id: "e1",
           subject: "Standup",
+          date: "2026-08-23",
           startHm: "09:00",
           endHm: "09:15",
           location: null,

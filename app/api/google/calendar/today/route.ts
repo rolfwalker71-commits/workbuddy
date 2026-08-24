@@ -8,7 +8,8 @@ import {
 } from "@/lib/google/oauth";
 import { isDayCloseRitualId } from "@/lib/dashboard/day-close-ritual";
 import { attachDayCloseRitualGoogle } from "@/lib/dashboard/day-close-status";
-import { zurichYmd } from "@/lib/microsoft/time";
+import { zurichHm, zurichYmd } from "@/lib/microsoft/time";
+import { filterTodayEventsAfterGrace } from "@/lib/workspace/event-grace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,8 +26,10 @@ export async function GET(request: Request) {
     );
   }
   try {
+    const today = zurichYmd();
     const raw = await listGoogleEventsToday(userId, request);
-    const events = await attachDayCloseRitualGoogle(userId, zurichYmd(), raw);
+    const withRitual = await attachDayCloseRitualGoogle(userId, today, raw);
+    const events = filterTodayEventsAfterGrace(withRitual, today, zurichHm());
     const cloud = events.filter((e) => !isDayCloseRitualId(e.id));
     return NextResponse.json({
       events,

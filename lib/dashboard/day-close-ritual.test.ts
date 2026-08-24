@@ -98,6 +98,29 @@ test("open-calendar count ignores ritual and non-planning / done titles", () => 
   assert.equal(open, 1);
 });
 
+test("open-calendar count skips timed events after end + 30 min", () => {
+  const items = [
+    {
+      id: "past",
+      title: "Standup",
+      date: "2026-08-24",
+      planningRelevant: true,
+      time: "09:00",
+      endTime: "09:30",
+    },
+    {
+      id: "live",
+      title: "Review",
+      date: "2026-08-24",
+      planningRelevant: true,
+      time: "16:00",
+      endTime: "17:00",
+    },
+  ];
+  assert.equal(countOpenPlanningEvents("2026-08-24", items, "10:00"), 1);
+  assert.equal(countOpenPlanningEvents("2026-08-24", items), 2);
+});
+
 test("completeness requires closed calendar, mail days, and Maringo stamps", () => {
   assert.equal(isDayCloseRitualComplete(null), false);
   assert.equal(
