@@ -11,10 +11,10 @@ export function WorkBuddyWordmark({
   return (
     <span
       className={cn(
-        "flex flex-col justify-center font-black tracking-tight",
+        "flex min-w-0 flex-col justify-center font-black tracking-tight",
         size === "sm"
-          ? "h-8 text-[1.05rem] leading-[0.9]"
-          : "h-14 text-[1.85rem] leading-[0.9]",
+          ? "text-[0.8125rem] leading-[0.95]"
+          : "text-[1.125rem] leading-[0.95]",
         className
       )}
     >

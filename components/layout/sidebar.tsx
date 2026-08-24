@@ -20,7 +20,7 @@ import {
 } from "@/components/branding/provider-logos";
 import { UserAvatar } from "@/components/users/user-avatar";
 import { APP_VERSION } from "@/lib/app-version";
-import { BuddyLogo } from "@/components/brand/buddy-logo";
+import { AngHeaderLogo } from "@/components/brand/ang-header-logo";
 import { WorkBuddyWordmark } from "@/components/brand/wordmark";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -163,18 +163,14 @@ export function Sidebar({
           variant="ghost"
           className={cn(
             "h-auto w-full whitespace-normal px-0 py-0 text-left hover:bg-transparent",
-            collapsed ? "justify-center" : "justify-start gap-3"
+            collapsed ? "justify-center" : "justify-start gap-2"
           )}
           onClick={() => {
             router.push("/");
             onNavigate?.();
           }}
         >
-          <BuddyLogo
-            size={collapsed ? 40 : 56}
-            className={collapsed ? "h-10 w-10" : "h-14 w-14"}
-            priority
-          />
+          <AngHeaderLogo collapsed={collapsed} priority />
           {!collapsed ? <WorkBuddyWordmark /> : null}
         </Button>
         {me ? (

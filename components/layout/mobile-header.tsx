@@ -11,7 +11,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { BRAND } from "@/lib/branding";
-import { BuddyLogo } from "@/components/brand/buddy-logo";
+import { AngHeaderLogo } from "@/components/brand/ang-header-logo";
 import { WorkBuddyWordmark } from "@/components/brand/wordmark";
 import { Sidebar } from "./sidebar";
 
@@ -35,7 +35,7 @@ export function MobileHeader() {
           <Sidebar onNavigate={() => setOpen(false)} />
         </SheetContent>
       </Sheet>
-      <BuddyLogo size={32} className="size-8" />
+      <AngHeaderLogo compact priority />
       <WorkBuddyWordmark size="sm" />
     </header>
   );
