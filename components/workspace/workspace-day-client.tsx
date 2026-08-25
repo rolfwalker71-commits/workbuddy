@@ -74,7 +74,6 @@ import {
 } from "@/components/mail/mail-chronik-list";
 import { MailAnalysisThreadHint } from "@/components/mail/mail-analysis-thread-hint";
 import { MailTagesanalysenList } from "@/components/mail/mail-tagesanalysen-list";
-import { MailTriagePanel } from "@/components/mail/mail-triage-panel";
 import {
   AnalysisEventDraftCard,
   analysisEventsNeedSlot,
@@ -152,8 +151,7 @@ function parseTab(raw: string | null, _openId: string | null): Tab {
 }
 
 function parseMailView(raw: string | null, tabRaw: string | null): MailWorkspaceView {
-  if (raw === "chronik" || raw === "triage" || raw === "tagesanalysen") return raw;
-  if (tabRaw === "triage") return "triage";
+  if (raw === "chronik" || raw === "tagesanalysen") return raw;
   if (tabRaw === "day") return "tagesanalysen";
   return "chronik";
 }
@@ -632,7 +630,6 @@ export function WorkspaceDayClient({
   const [mailFrom, setMailFrom] = useState(() => zurichYmdClient());
   const [mailTo, setMailTo] = useState(() => zurichYmdClient());
   const [mailLoading, setMailLoading] = useState(false);
-  const [triagePending, setTriagePending] = useState(0);
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeNotice, setAnalyzeNotice] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<DayAnalysis | null>(null);
@@ -701,21 +698,6 @@ export function WorkspaceDayClient({
       setError(err instanceof Error ? err.message : String(err));
     }
   }, [wantMs, wantGoogle]);
-
-  const loadTriagePending = useCallback(async () => {
-    const url =
-      scope === "google"
-        ? "/api/google/mail/triage?sync=0"
-        : "/api/microsoft/mail/triage?sync=0";
-    try {
-      const res = await fetch(url);
-      const json = await res.json();
-      if (!res.ok) return;
-      setTriagePending(Number(json.pendingCount) || 0);
-    } catch {
-      /* badge is optional */
-    }
-  }, [scope]);
 
   const loadCalendar = useCallback(async () => {
     setCalLoading(true);
@@ -873,7 +855,6 @@ export function WorkspaceDayClient({
     if (anyConnected) {
       void loadCalendar();
       void loadMail(mailFrom, mailTo);
-      void loadTriagePending();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- initial load when connected
   }, [anyConnected]);
@@ -1789,7 +1770,6 @@ export function WorkspaceDayClient({
               view={mailView}
               onChange={goMailView}
               accent={routeHint}
-              pendingTriage={triagePending}
             />
           ) : null}
 
@@ -2011,11 +1991,6 @@ export function WorkspaceDayClient({
                 google={Boolean(googleConnected)}
               />
             </section>
-          ) : tab === "mail" && mailView === "triage" ? (
-            <MailTriagePanel
-              provider={scope}
-              onPendingChange={setTriagePending}
-            />
           ) : tab === "mail" && mailView === "chronik" ? (
             <section className="space-y-4">
               <div className="flex flex-wrap items-end justify-between gap-3 rounded-2xl border border-border/60 bg-card px-3.5 py-3 shadow-[0_4px_18px_rgba(15,23,42,0.05)]">

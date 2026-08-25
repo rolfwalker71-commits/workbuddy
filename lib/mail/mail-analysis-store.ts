@@ -170,36 +170,6 @@ export function updateMailAnalysisStatus(
     .run(status, new Date().toISOString(), userId, messageId, provider);
 }
 
-export function listPendingMailTriage(
-  userId: number,
-  limit = 30,
-  provider?: MailProvider
-): Array<StoredMailAnalysis & { provider: MailProvider }> {
-  if (provider) {
-    const rows = getDb()
-      .prepare(
-        `SELECT * FROM mail_analyses
-         WHERE user_id = ?
-           AND COALESCE(provider, 'google') = ?
-           AND status = 'pending_triage'
-           AND suggestion_count > 0
-         ORDER BY analyzed_at DESC
-         LIMIT ?`
-      )
-      .all(userId, provider, limit) as Row[];
-    return rows.map(mapRow);
-  }
-  const rows = getDb()
-    .prepare(
-      `SELECT * FROM mail_analyses
-       WHERE user_id = ? AND status = 'pending_triage' AND suggestion_count > 0
-       ORDER BY analyzed_at DESC
-       LIMIT ?`
-    )
-    .all(userId, limit) as Row[];
-  return rows.map(mapRow);
-}
-
 export function listMailAnalysesByThread(
   userId: number,
   threadId: string,
@@ -221,39 +191,13 @@ export function listMailAnalysesByThread(
   return rows.map(mapRow);
 }
 
-export function countPendingMailTriage(
-  userId: number,
-  provider?: MailProvider
-): number {
-  if (provider) {
-    const row = getDb()
-      .prepare(
-        `SELECT COUNT(*) as c FROM mail_analyses
-         WHERE user_id = ?
-           AND COALESCE(provider, 'google') = ?
-           AND status = 'pending_triage'
-           AND suggestion_count > 0`
-      )
-      .get(userId, provider) as { c: number };
-    return row?.c || 0;
-  }
-  const row = getDb()
-    .prepare(
-      `SELECT COUNT(*) as c FROM mail_analyses
-       WHERE user_id = ? AND status = 'pending_triage' AND suggestion_count > 0`
-    )
-    .get(userId) as { c: number };
-  return row?.c || 0;
-}
-
 export type MailOverviewStats = {
   analyzedToday: number;
-  pendingTriage: number;
   /** Latest analyzed_at ISO for this provider (any day), if any */
   lastAnalyzedAt: string | null;
 };
 
-/** Counts for overview KPI: AI-processed today + open triage suggestions. */
+/** Counts for overview KPI: AI-processed today. */
 export function countMailOverviewStats(
   userId: number,
   todayIso: string,
@@ -281,7 +225,6 @@ export function countMailOverviewStats(
       .get(userId, provider) as { at: string | null };
     return {
       analyzedToday: analyzed?.c || 0,
-      pendingTriage: countPendingMailTriage(userId, provider),
       lastAnalyzedAt: last?.at?.trim() || null,
     };
   }
@@ -303,7 +246,6 @@ export function countMailOverviewStats(
     .get(userId) as { at: string | null };
   return {
     analyzedToday: analyzed?.c || 0,
-    pendingTriage: countPendingMailTriage(userId),
     lastAnalyzedAt: last?.at?.trim() || null,
   };
 }

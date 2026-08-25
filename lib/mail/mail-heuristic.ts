@@ -91,7 +91,7 @@ export function chipForStatus(
 }
 
 export function chipLabelDe(chip: MailAnalysisChip | null | undefined): string {
-  if (chip === "suggestion") return "Zur Triage";
+  if (chip === "suggestion") return "Vorschlag";
   if (chip === "none") return "Kein Extrakt";
   if (chip === "analyzed") return "Analysiert";
   if (chip === "skipped") return "Übersprungen";

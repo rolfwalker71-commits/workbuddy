@@ -1,5 +1,6 @@
 import { graphJson } from "@/lib/microsoft/graph";
 import { hasMicrosoftCalendarScope } from "@/lib/microsoft/oauth";
+import { outlookTeamsMeetingFields } from "@/lib/microsoft/teams-meeting";
 
 type GraphBody = {
   contentType?: string | null;
@@ -93,7 +94,8 @@ export async function patchMicrosoftEventNotes(
       ? textToHtmlParagraphs(input.notesText)
       : input.notesText;
 
-  await graphJson(userId, `/me/events/${encodeURIComponent(eventId)}`, {
+  const path = `/me/events/${encodeURIComponent(eventId)}`;
+  await graphJson(userId, path, {
     method: "PATCH",
     body: JSON.stringify({
       body: {
@@ -101,5 +103,10 @@ export async function patchMicrosoftEventNotes(
         content,
       },
     }),
+  });
+  // Replacing body strips Outlook's Teams blob — re-enable the meeting.
+  await graphJson(userId, path, {
+    method: "PATCH",
+    body: JSON.stringify(outlookTeamsMeetingFields(false)),
   });
 }

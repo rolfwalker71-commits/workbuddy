@@ -66,8 +66,6 @@ export function AdhocEventDialog({
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [providerLabel, setProviderLabel] = useState<string | null>(null);
-  /** Outlook/Teams only — ignored for Google. */
-  const [teamsMeeting, setTeamsMeeting] = useState(false);
   const [targets, setTargets] = useState<
     Array<{
       provider: "microsoft" | "google";
@@ -82,6 +80,7 @@ export function AdhocEventDialog({
   const selectedTarget = targets.find(
     (t) => `${t.provider}:${t.id}` === targetKey
   );
+  const teamsMeeting = selectedTarget?.provider !== "google" && !allDay;
 
   function reset() {
     setTitle("");
@@ -97,7 +96,6 @@ export function AdhocEventDialog({
     setMsg(null);
     setBusy(false);
     setProviderLabel(null);
-    setTeamsMeeting(false);
     setTargetKey("");
   }
 
@@ -123,7 +121,6 @@ export function AdhocEventDialog({
     setMsg(null);
     setBusy(false);
     setProviderLabel(null);
-    setTeamsMeeting(Boolean(isMari));
     const qs = providerScope
       ? `?provider=${encodeURIComponent(providerScope)}`
       : "";
@@ -495,24 +492,14 @@ export function AdhocEventDialog({
             </div>
           </div>
 
-          {selectedTarget?.provider !== "google" ? (
-            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
-              <input
-                type="checkbox"
-                className="mt-0.5 size-4 accent-teal-700"
-                checked={teamsMeeting}
-                disabled={busy}
-                onChange={(e) => setTeamsMeeting(e.target.checked)}
-              />
-              <span className="min-w-0">
-                <span className="block text-[0.8125rem] font-semibold">
-                  Teams-Meeting
-                </span>
-                <span className="block text-[0.6875rem] text-muted-foreground">
-                  Online-Meeting in Outlook anlegen.
-                </span>
-              </span>
-            </label>
+          {selectedTarget?.provider !== "google" && !allDay ? (
+            <p className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5 text-[0.6875rem] leading-snug text-muted-foreground">
+              Outlook legt den Termin als{" "}
+              <span className="font-semibold text-foreground">
+                Teams-Meeting
+              </span>{" "}
+              an (Link + Schalter aktiv).
+            </p>
           ) : null}
 
           <Button

@@ -4,7 +4,6 @@ export type CloseoutProvider = "google" | "microsoft";
 
 export type CloseoutStepId =
   | "calendar"
-  | "triage"
   | "day-analysis"
   | "ticket-hours"
   | "done";
@@ -28,8 +27,6 @@ export type CloseoutStatusPayload = {
     mariHoursPending: number | null;
   };
   ritualComplete: boolean;
-  mailTriageGoogle: number;
-  mailTriageMicrosoft: number;
   ticketHourSuggestions: number;
   googleConnected: boolean;
   microsoftConnected: boolean;
@@ -52,14 +49,6 @@ export function closeoutStepsFor(
       href: `${base}?tab=calendar&review=1`,
       cta: "Termine prüfen",
       visualLabel: "Kalender",
-    },
-    {
-      id: "triage",
-      title: "Mail-Triage",
-      hint: "Offene Vorschläge prüfen oder überspringen.",
-      href: `${base}?tab=mail&view=triage`,
-      cta: `Zu ${label}-Triage`,
-      visualLabel: "Triage",
     },
     {
       id: "day-analysis",
@@ -99,10 +88,6 @@ export function stepDone(
   switch (stepId) {
     case "calendar":
       return status.ritual.calendarOpen <= 0;
-    case "triage":
-      return provider === "google"
-        ? status.mailTriageGoogle <= 0
-        : status.mailTriageMicrosoft <= 0;
     case "day-analysis": {
       const flag =
         provider === "google"
@@ -134,13 +119,6 @@ export function stepDetail(
       return status.ritual.calendarOpen > 0
         ? `${status.ritual.calendarOpen} offen`
         : "Keine offen";
-    case "triage": {
-      const n =
-        provider === "google"
-          ? status.mailTriageGoogle
-          : status.mailTriageMicrosoft;
-      return n > 0 ? `${n} offen` : "Keine offen";
-    }
     case "day-analysis": {
       const flag =
         provider === "google"
@@ -189,12 +167,6 @@ export function microChecksFor(stepId: CloseoutStepId): string[] {
         "Offene Termine ansehen",
         "Erledigen / verschieben / bestätigen",
         "Count auf 0",
-      ];
-    case "triage":
-      return [
-        "Offene Vorschläge prüfen",
-        "Anwenden oder überspringen",
-        "Triage leer",
       ];
     case "day-analysis":
       return [

@@ -272,7 +272,7 @@ export async function POST(request: Request) {
       location: body.location,
       notes,
       categories: mariIssueId ? mariOutlookCategories(mariIssueId) : null,
-      teamsMeeting: Boolean(body.teamsMeeting) && !allDay,
+      teamsMeeting: !allDay,
       calendarId: body.calendarId || null,
     });
     if (mariIssueId) {
@@ -292,7 +292,7 @@ export async function POST(request: Request) {
       ok: true,
       provider: "microsoft",
       event: created,
-      teamsMeeting: Boolean(body.teamsMeeting),
+      teamsMeeting: !allDay,
       mariIssueId,
     });
   } catch (error) {

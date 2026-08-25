@@ -10,10 +10,7 @@ import {
 } from "@/lib/microsoft/oauth";
 import { listMicrosoftInboxMessages } from "@/lib/microsoft/mail-inbox";
 import { syncMicrosoftMailAnalysesForItems } from "@/lib/microsoft/sync-mail-analysis";
-import {
-  countPendingMailTriage,
-  getMailAnalysesForMessages,
-} from "@/lib/mail/mail-analysis-store";
+import { getMailAnalysesForMessages } from "@/lib/mail/mail-analysis-store";
 import { chipForStatus, chipLabelDe } from "@/lib/mail/mail-heuristic";
 import type { MailListFilter } from "@/lib/mail/gmail";
 
@@ -42,7 +39,6 @@ export async function GET(request: Request) {
       items: [],
       filter,
       connectedEmail: null,
-      pendingTriage: 0,
       sync: null,
     });
   }
@@ -57,7 +53,6 @@ export async function GET(request: Request) {
       items: [],
       filter,
       connectedEmail: getConnectedMicrosoftEmail(userId),
-      pendingTriage: 0,
       sync: null,
     });
   }
@@ -99,7 +94,6 @@ export async function GET(request: Request) {
       items: enriched,
       filter,
       connectedEmail: getConnectedMicrosoftEmail(userId),
-      pendingTriage: countPendingMailTriage(userId, "microsoft"),
       sync: syncResult,
     });
   } catch (error) {

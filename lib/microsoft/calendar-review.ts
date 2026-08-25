@@ -1,4 +1,5 @@
 import { graphJson } from "@/lib/microsoft/graph";
+import { outlookTeamsMeetingFields } from "@/lib/microsoft/teams-meeting";
 import type { MicrosoftCalendarEvent } from "@/lib/microsoft/calendars";
 import {
   addDaysYmd,
@@ -574,6 +575,7 @@ export async function rescheduleMicrosoftEvent(
         isAllDay: false,
         subject: nextSubject,
         categories,
+        ...outlookTeamsMeetingFields(false),
       }),
       headers: { Prefer: 'outlook.timezone="Europe/Zurich"' },
     }

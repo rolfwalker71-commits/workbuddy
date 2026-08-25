@@ -10,7 +10,6 @@ import {
   loadTodayCalendarForRitual,
   resolveDayCloseRitualStatus,
 } from "@/lib/dashboard/day-close-status";
-import { countPendingMailTriage } from "@/lib/mail/mail-analysis-store";
 import { resolveAppUserId } from "@/lib/users/resolve-user";
 import { getDayCloseSchedule } from "@/lib/dashboard/day-close-prefs";
 import { DEFAULT_DAY_CLOSE_START_HM } from "@/lib/dashboard/day-close-prefs-parse";
@@ -46,21 +45,6 @@ export async function GET() {
     todayCalendar
   );
 
-  let mailTriageGoogle = 0;
-  let mailTriageMicrosoft = 0;
-  if (userId != null) {
-    try {
-      mailTriageGoogle = countPendingMailTriage(userId, "google");
-    } catch {
-      /* optional */
-    }
-    try {
-      mailTriageMicrosoft = countPendingMailTriage(userId, "microsoft");
-    } catch {
-      /* optional */
-    }
-  }
-
   const maringoModule = auth.isAdmin || auth.modules.includes("maringo");
   const ticketHourSuggestions =
     ritual.mariHoursPending != null ? ritual.mariHoursPending : 0;
@@ -77,8 +61,6 @@ export async function GET() {
     endHm: schedule.endHm,
     ritual,
     ritualComplete: isDayCloseRitualComplete(ritual),
-    mailTriageGoogle,
-    mailTriageMicrosoft,
     ticketHourSuggestions,
     googleConnected: ritual.googleDayDone !== null,
     microsoftConnected: ritual.microsoftDayDone !== null,

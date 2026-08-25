@@ -9,7 +9,6 @@ import {
   ChevronDown,
   ChevronUp,
   ClipboardList,
-  ListChecks,
   Minimize2,
   Sparkles,
   X,
@@ -98,13 +97,11 @@ function StepVisual({
   const Icon =
     stepId === "calendar"
       ? CalendarDays
-      : stepId === "triage"
-        ? ListChecks
-        : stepId === "day-analysis"
-          ? Sparkles
-          : stepId === "ticket-hours"
-            ? ClipboardList
-            : Check;
+      : stepId === "day-analysis"
+        ? Sparkles
+        : stepId === "ticket-hours"
+          ? ClipboardList
+          : Check;
   const micros = microChecksFor(stepId);
   return (
     <div className="space-y-2 rounded-2xl bg-muted px-3 py-2.5 ring-1 ring-foreground/10">
@@ -113,10 +110,6 @@ function StepVisual({
           {stepId === "day-analysis" && provider === "google" ? (
             <GoogleLogo className="size-5" />
           ) : stepId === "day-analysis" && provider === "microsoft" ? (
-            <MicrosoftLogo className="size-5" />
-          ) : stepId === "triage" && provider === "google" ? (
-            <GoogleLogo className="size-5" />
-          ) : stepId === "triage" && provider === "microsoft" ? (
             <MicrosoftLogo className="size-5" />
           ) : (
             <Icon
@@ -150,13 +143,11 @@ function StepVisual({
           <p className="text-[0.8125rem] font-semibold leading-snug text-foreground">
             {stepId === "calendar"
               ? "Kalender öffnen und offene Termine abarbeiten"
-              : stepId === "triage"
-                ? "Triage-Liste prüfen — Vorschläge anwenden oder skippen"
-                : stepId === "day-analysis"
-                  ? "Tagesanalyse starten und Resultate übernehmen"
-                  : stepId === "ticket-hours"
-                    ? "Stunden-Vorschläge aus Ticket-Terminen buchen"
-                    : "Alle Schritte erledigt — guter Feierabend"}
+              : stepId === "day-analysis"
+                ? "Tagesanalyse starten und Resultate übernehmen"
+                : stepId === "ticket-hours"
+                  ? "Stunden-Vorschläge aus Ticket-Terminen buchen"
+                  : "Alle Schritte erledigt — guter Feierabend"}
           </p>
         </div>
       </div>

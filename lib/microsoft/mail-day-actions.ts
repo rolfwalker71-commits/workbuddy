@@ -1,4 +1,5 @@
 import { graphFetch, graphJson } from "@/lib/microsoft/graph";
+import { outlookTeamsMeetingFields } from "@/lib/microsoft/teams-meeting";
 
 export type CreateOutlookEventInput = {
   title: string;
@@ -10,7 +11,7 @@ export type CreateOutlookEventInput = {
   notes?: string | null;
   /** Outlook categories (e.g. Buddy/Maringo). */
   categories?: string[] | null;
-  /** Graph: Teams online meeting (Outlook only). */
+  /** Ignored for timed events — WorkBuddy always creates a Teams meeting. */
   teamsMeeting?: boolean;
   /** Optional target calendar (default: /me/events). */
   calendarId?: string | null;
@@ -30,7 +31,6 @@ export async function createOutlookCalendarEvent(
   const allDay = input.allDay || !input.startTime;
   const categories =
     input.categories?.map((c) => c.trim()).filter(Boolean) || undefined;
-  const teamsMeeting = Boolean(input.teamsMeeting) && !allDay;
   let body: Record<string, unknown>;
   if (allDay) {
     const endDate = (() => {
@@ -74,12 +74,7 @@ export async function createOutlookCalendarEvent(
         ? { contentType: "Text", content: input.notes }
         : undefined,
       categories,
-      ...(teamsMeeting
-        ? {
-            isOnlineMeeting: true,
-            onlineMeetingProvider: "teamsForBusiness",
-          }
-        : {}),
+      ...outlookTeamsMeetingFields(false),
     };
   }
 
@@ -110,14 +105,15 @@ export async function createOutlookCalendarEvent(
 }
 
 function outlookEventWriteBody(
-  input: CreateOutlookEventInput,
-  options?: { includeTeams?: boolean }
+  input: CreateOutlookEventInput
 ): Record<string, unknown> {
   const allDay = input.allDay || !input.startTime;
   const categories =
     input.categories?.map((c) => c.trim()).filter(Boolean) || undefined;
-  const teamsMeeting =
-    Boolean(options?.includeTeams) && Boolean(input.teamsMeeting) && !allDay;
+  const notes =
+    input.notes === undefined || input.notes === null
+      ? undefined
+      : input.notes;
   if (allDay) {
     const endDate = (() => {
       const d = new Date(`${input.date}T12:00:00Z`);
@@ -130,9 +126,9 @@ function outlookEventWriteBody(
       start: { dateTime: `${input.date}T00:00:00`, timeZone: "Europe/Zurich" },
       end: { dateTime: `${endDate}T00:00:00`, timeZone: "Europe/Zurich" },
       location: input.location ? { displayName: input.location } : { displayName: "" },
-      body: input.notes
-        ? { contentType: "Text", content: input.notes }
-        : { contentType: "Text", content: "" },
+      ...(notes !== undefined
+        ? { body: { contentType: "Text", content: notes } }
+        : {}),
       categories,
     };
   }
@@ -156,17 +152,31 @@ function outlookEventWriteBody(
       timeZone: "Europe/Zurich",
     },
     location: input.location ? { displayName: input.location } : { displayName: "" },
-    body: input.notes
-      ? { contentType: "Text", content: input.notes }
-      : { contentType: "Text", content: "" },
-    categories,
-    ...(teamsMeeting
-      ? {
-          isOnlineMeeting: true,
-          onlineMeetingProvider: "teamsForBusiness",
-        }
+    ...(notes !== undefined
+      ? { body: { contentType: "Text", content: notes } }
       : {}),
+    categories,
+    ...outlookTeamsMeetingFields(false),
   };
+}
+
+type OutlookEventWriteResult = {
+  id?: string;
+  subject?: string;
+  webLink?: string | null;
+  onlineMeeting?: { joinUrl?: string | null } | null;
+  onlineMeetingUrl?: string | null;
+};
+
+async function ensureOutlookTeamsMeeting(
+  userId: number,
+  path: string
+): Promise<OutlookEventWriteResult> {
+  return graphJson<OutlookEventWriteResult>(userId, path, {
+    method: "PATCH",
+    body: JSON.stringify(outlookTeamsMeetingFields(false)),
+    headers: { Prefer: 'outlook.timezone="Europe/Zurich"' },
+  });
 }
 
 export async function updateOutlookCalendarEvent(
@@ -178,17 +188,16 @@ export async function updateOutlookCalendarEvent(
   const path = input.calendarId?.trim()
     ? `/me/calendars/${encodeURIComponent(input.calendarId.trim())}/events/${encodeURIComponent(eventId)}`
     : `/me/events/${encodeURIComponent(eventId)}`;
-  const updated = await graphJson<{
-    id?: string;
-    subject?: string;
-    webLink?: string | null;
-    onlineMeeting?: { joinUrl?: string | null } | null;
-    onlineMeetingUrl?: string | null;
-  }>(userId, path, {
+  const payload = outlookEventWriteBody(input);
+  let updated = await graphJson<OutlookEventWriteResult>(userId, path, {
     method: "PATCH",
-    body: JSON.stringify(outlookEventWriteBody(input)),
+    body: JSON.stringify(payload),
     headers: { Prefer: 'outlook.timezone="Europe/Zurich"' },
   });
+  const allDay = input.allDay || !input.startTime;
+  if (!allDay) {
+    updated = await ensureOutlookTeamsMeeting(userId, path);
+  }
   return {
     id: updated.id || eventId,
     subject: updated.subject || input.title,

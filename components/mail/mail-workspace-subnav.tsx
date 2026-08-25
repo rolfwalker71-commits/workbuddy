@@ -1,7 +1,6 @@
 "use client";
 
-import { History, ListChecks, Sparkles } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { History, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   segmentedTrackClass,
@@ -10,7 +9,7 @@ import {
 import { cn } from "@/lib/utils";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 
-export type MailWorkspaceView = "chronik" | "triage" | "tagesanalysen";
+export type MailWorkspaceView = "chronik" | "tagesanalysen";
 export type MailWorkspaceAccent = "google" | "microsoft";
 
 /** Soft pill tabs — muted track + elevated active pill. */
@@ -26,13 +25,11 @@ export function MailWorkspaceSubnav({
   onChange,
   accent = "microsoft",
   className,
-  pendingTriage = 0,
 }: {
   view: MailWorkspaceView;
   onChange: (view: MailWorkspaceView) => void;
   accent?: MailWorkspaceAccent;
   className?: string;
-  pendingTriage?: number;
 }) {
   return (
     <div
@@ -63,23 +60,6 @@ export function MailWorkspaceSubnav({
           variant="ghost"
           role="tab"
           data-segment="true"
-          aria-selected={view === "triage"}
-          className={mailWorkspaceTabClass(view === "triage", accent)}
-          onClick={() => onChange("triage")}
-        >
-          <ListChecks className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} aria-hidden />
-          Triage
-          {pendingTriage > 0 ? (
-            <Badge variant="secondary" className="text-[0.625rem]">
-              {pendingTriage}
-            </Badge>
-          ) : null}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          role="tab"
-          data-segment="true"
           aria-selected={view === "tagesanalysen"}
           className={mailWorkspaceTabClass(view === "tagesanalysen", accent)}
           onClick={() => onChange("tagesanalysen")}
@@ -91,10 +71,6 @@ export function MailWorkspaceSubnav({
       {view === "chronik" ? (
         <p className="px-1 text-xs leading-relaxed text-muted-foreground">
           Eingang und Gesendet gemischt, chronologisch
-        </p>
-      ) : view === "triage" ? (
-        <p className="px-1 text-xs leading-relaxed text-muted-foreground">
-          Offene Vorschläge aus der Einzelmail-Analyse
         </p>
       ) : (
         <p className="px-1 text-xs leading-relaxed text-muted-foreground">

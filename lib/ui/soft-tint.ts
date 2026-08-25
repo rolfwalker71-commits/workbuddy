@@ -85,7 +85,7 @@ export const softTint = {
 
 export type SoftTint = keyof typeof softTint;
 
-/** Mail analysis / triage status chips */
+/** Mail analysis status chips */
 export function mailAnalysisChipClass(
   chip:
     | "suggestion"
