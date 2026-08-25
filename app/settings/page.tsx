@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/layout/page-primitives";
 import { pageVisuals } from "@/components/layout/icon-circle";
 import { SettingsUsersPanel } from "@/components/settings/settings-users-panel";
 import { SettingsTtvDutyPanel } from "@/components/settings/settings-ttv-duty-panel";
+import { SettingsCompanyAiPanel } from "@/components/settings/settings-company-ai-panel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -64,6 +65,7 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      <SettingsCompanyAiPanel />
       <SettingsTtvDutyPanel />
       <SettingsUsersPanel />
     </div>

@@ -22,6 +22,8 @@ npm run auth:secrets -- 'dein-sicheres-passwort'
    - `MICROSOFT_OAUTH_CLIENT_ID` / `CLIENT_SECRET` / `TENANT` (default `organizations`) in `.env`
 
 4. `MARI_REST_BASE_URL` setzen (oder Default belassen). **Kein** `OPENAI_API_KEY` in `.env`.
+   Firmen-KI (z.B. `gpt-4o-mini`) legt der Admin unter **Einstellungen → Firmen-KI** ab.
+   Optionaler Docker-Override: `COMPANY_AI_API_KEY` / `COMPANY_AI_MODEL` / `COMPANY_AI_EMAIL`.
 
 5. Stack starten:
 
@@ -44,12 +46,13 @@ Image: `ghcr.io/rolfwalker71-commits/workbuddy` (öffentlich, Tag `latest`).
 
 1. Als Admin unter **Einstellungen** den User anlegen und Module `microsoft` / `maringo` setzen.
 2. User loggt sich ein → **Übersicht** (`/`). Secrets und OAuth unter **Konto**.
-3. Eigenen **OpenAI-Key** hinterlegen (Pflicht für KI; Ticket-Vision nur mit offiziellem OpenAI-Key).
+3. Eigenen **OpenAI-Key** hinterlegen — oder die Admin-**Firmen-KI** nutzen.
+   Ticket-Vision mit Bildern bleibt am zuverlässigsten mit einem persönlichen OpenAI-Key.
 4. **Maringo**: REST-Benutzer, Passwort, Personalnummer speichern.
 5. **Microsoft 365** verbinden (OAuth) — jeder verbindet sein eigenes Work/School-Konto.
 6. Kalenderauswahl, Mail-Signatur und Notification-Prefs nach Bedarf.
 
-Ohne OpenAI-Key zeigt die UI: «Hinterlege deinen OpenAI-Key unter Konto». Es gibt keinen Server-Fallback.
+Ohne persönlichen Key gilt die Firmen-KI, falls der Admin sie gesetzt hat. `OPENAI_API_KEY` in der `.env` wird weiterhin ignoriert.
 
 ## Betrieb
 

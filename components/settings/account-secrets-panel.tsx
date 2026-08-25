@@ -26,6 +26,9 @@ type AccountPayload = {
   };
   openai: {
     hasOpenaiKey: boolean;
+    hasPersonalOpenaiKey?: boolean;
+    usingCompanyAi?: boolean;
+    companyModel?: string | null;
     openaiModel: string;
     chatProvider: string;
     hasChatKey: boolean;
@@ -122,9 +125,11 @@ export function AccountSecretsPanel() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            {data?.openai.hasOpenaiKey
-              ? "Ein OpenAI-Key ist gesetzt (nicht sichtbar)."
-              : "Kein Key hinterlegt — KI-Funktionen sind deaktiviert."}
+            {data?.openai.usingCompanyAi
+              ? `Firmen-KI ist aktiv (${data.openai.companyModel || "gpt-4o-mini"}). Eigenen Key kannst du trotzdem hinterlegen.`
+              : data?.openai.hasOpenaiKey
+                ? "Ein OpenAI-Key ist gesetzt (nicht sichtbar)."
+                : "Kein Key hinterlegt — KI-Funktionen sind deaktiviert, ausser der Admin hinterlegt eine Firmen-KI."}
           </p>
           <div className="space-y-2">
             <Label htmlFor="openai-key">Neuer OpenAI-Key</Label>

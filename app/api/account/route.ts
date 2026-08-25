@@ -8,7 +8,25 @@ import {
   getAppUserById,
   getAppUserPublic,
   updateAppUser,
+  type AppUserRow,
 } from "@/lib/users/queries";
+import { getCompanyAiPublic } from "@/lib/ai/company-provider";
+
+function openaiAccountPayload(row: AppUserRow | null) {
+  const company = getCompanyAiPublic();
+  const hasPersonalOpenaiKey = Boolean(row?.openai_api_key_enc);
+  return {
+    hasOpenaiKey: hasPersonalOpenaiKey || company.enabled,
+    hasPersonalOpenaiKey,
+    usingCompanyAi: !hasPersonalOpenaiKey && company.enabled,
+    companyModel: company.enabled ? company.model : null,
+    openaiModel: row?.openai_model || company.model || "gpt-4o-mini",
+    chatProvider: row?.chat_provider || "openai",
+    hasChatKey: Boolean(row?.chat_api_key_enc) || company.enabled,
+    chatBaseUrl: row?.chat_base_url || "",
+    chatModel: row?.chat_model || "",
+  };
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,14 +65,7 @@ export async function GET() {
   return NextResponse.json({
     user,
     mari: getMariSettingsPublic(userId),
-    openai: {
-      hasOpenaiKey: Boolean(row?.openai_api_key_enc),
-      openaiModel: row?.openai_model || "gpt-4o-mini",
-      chatProvider: row?.chat_provider || "openai",
-      hasChatKey: Boolean(row?.chat_api_key_enc),
-      chatBaseUrl: row?.chat_base_url || "",
-      chatModel: row?.chat_model || "",
-    },
+    openai: openaiAccountPayload(row),
     google: {
       clientId: row?.google_oauth_client_id || "",
       hasGoogleOauthClient: Boolean(row?.google_oauth_client_secret_enc),
@@ -84,14 +95,7 @@ export async function PUT(request: Request) {
       return {
         user: getAppUserPublic(userId),
         mari: getMariSettingsPublic(userId),
-        openai: {
-          hasOpenaiKey: Boolean(row?.openai_api_key_enc),
-          openaiModel: row?.openai_model || "gpt-4o-mini",
-          chatProvider: row?.chat_provider || "openai",
-          hasChatKey: Boolean(row?.chat_api_key_enc),
-          chatBaseUrl: row?.chat_base_url || "",
-          chatModel: row?.chat_model || "",
-        },
+        openai: openaiAccountPayload(row),
         google: {
           clientId: row?.google_oauth_client_id || "",
           hasGoogleOauthClient: Boolean(row?.google_oauth_client_secret_enc),

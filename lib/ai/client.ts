@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { getAiRequestUserId } from "@/lib/ai/request-context";
+import { getCompanyAiConfig } from "@/lib/ai/company-provider";
 import {
   getAppUserById,
   getUserChatApiKey,
@@ -16,10 +17,13 @@ export type UserAiConfig = {
   userId: number;
   openaiApiKey: string | null;
   openaiModel: string;
+  openaiBaseUrl: string | null;
   chatProvider: ChatProviderId;
   chatApiKey: string | null;
   chatBaseUrl: string | null;
   chatModel: string;
+  usingCompanyAi: boolean;
+  requestEmail: string | null;
 };
 
 function normalizeBaseUrl(url: string | null | undefined): string | null {
@@ -39,27 +43,59 @@ export function resolveUserAiConfig(
   if (userId == null || userId <= 0) return null;
   const user = getAppUserById(userId);
   if (!user) return null;
-  const openaiApiKey = getUserOpenAiApiKey(user);
+  const personalOpenai = getUserOpenAiApiKey(user);
+  const company = getCompanyAiConfig();
+  const usingCompanyAi = !personalOpenai && Boolean(company.enabled && company.apiKey);
+  const openaiApiKey = personalOpenai || (usingCompanyAi ? company.apiKey : null);
   const chatProvider = asChatProvider(user.chat_provider);
   const storedChatKey = getUserChatApiKey(user);
+  const openaiModel =
+    user.openai_model?.trim() ||
+    (usingCompanyAi ? company.model : null) ||
+    "gpt-4o-mini";
+  const openaiBaseUrl = usingCompanyAi ? company.baseUrl : null;
   const chatBaseUrl =
     chatProvider === "deepseek"
       ? normalizeBaseUrl(user.chat_base_url) || DEEPSEEK_BASE_URL
-      : normalizeBaseUrl(user.chat_base_url);
-  const openaiModel = user.openai_model?.trim() || "gpt-4o-mini";
+      : normalizeBaseUrl(user.chat_base_url) ||
+        (usingCompanyAi ? company.baseUrl : null);
   const chatModel =
     user.chat_model?.trim() ||
-    (chatProvider === "deepseek" ? "deepseek-v4-flash" : openaiModel);
+    (chatProvider === "deepseek"
+      ? "deepseek-v4-flash"
+      : usingCompanyAi
+        ? company.model
+        : openaiModel);
   const chatApiKey =
-    storedChatKey || (chatProvider === "openai" ? openaiApiKey : null);
+    storedChatKey ||
+    (chatProvider === "openai" || usingCompanyAi ? openaiApiKey : null);
   return {
     userId,
     openaiApiKey,
     openaiModel,
-    chatProvider,
+    openaiBaseUrl,
+    chatProvider: usingCompanyAi && chatProvider === "openai" ? "custom" : chatProvider,
     chatApiKey,
     chatBaseUrl,
     chatModel,
+    usingCompanyAi,
+    requestEmail: usingCompanyAi ? company.email : null,
+  };
+}
+
+function clientOptions(
+  apiKey: string,
+  baseURL: string | null | undefined,
+  email: string | null | undefined
+): ConstructorParameters<typeof OpenAI>[0] {
+  return {
+    apiKey,
+    ...(baseURL ? { baseURL } : {}),
+    ...(email
+      ? { defaultHeaders: { "X-User-Email": email } }
+      : {}),
+    timeout: 120_000,
+    maxRetries: 2,
   };
 }
 
@@ -72,15 +108,14 @@ export function getOpenAIApiKey(): string | null {
 }
 
 export function getOpenAIClient(): OpenAI {
-  const apiKey = getOpenAIApiKey();
+  const cfg = currentAiConfig();
+  const apiKey = cfg?.openaiApiKey || null;
   if (!apiKey) {
     throw new Error(MISSING_OPENAI_KEY_MESSAGE);
   }
-  return new OpenAI({
-    apiKey,
-    timeout: 120_000,
-    maxRetries: 2,
-  });
+  return new OpenAI(
+    clientOptions(apiKey, cfg?.openaiBaseUrl, cfg?.requestEmail)
+  );
 }
 
 export function getOpenAIModel(): string {
@@ -110,17 +145,14 @@ export function getChatModel(): string {
 }
 
 export function getChatClient(): OpenAI {
-  const apiKey = getChatApiKey();
+  const cfg = currentAiConfig();
+  const apiKey = cfg?.chatApiKey || null;
   if (!apiKey) {
     throw new Error(MISSING_OPENAI_KEY_MESSAGE);
   }
-  const baseURL = getChatBaseUrl() || undefined;
-  return new OpenAI({
-    apiKey,
-    ...(baseURL ? { baseURL } : {}),
-    timeout: 120_000,
-    maxRetries: 2,
-  });
+  return new OpenAI(
+    clientOptions(apiKey, cfg?.chatBaseUrl, cfg?.requestEmail)
+  );
 }
 
 export function hasChatKey(): boolean {
@@ -147,20 +179,15 @@ export function getDeepSeekMailModel(): string {
 }
 
 export function getDeepSeekMailClient(): OpenAI {
+  const cfg = currentAiConfig();
   const apiKey = getDeepSeekMailApiKey();
   if (!apiKey) {
     throw new Error(
       "Optionalen Chat-Key (DeepSeek/Custom) unter Konto hinterlegen — oder den OpenAI-Key für Compose nutzen."
     );
   }
-  const baseURL =
-    currentAiConfig()?.chatBaseUrl || DEEPSEEK_BASE_URL;
-  return new OpenAI({
-    apiKey,
-    baseURL,
-    timeout: 120_000,
-    maxRetries: 2,
-  });
+  const baseURL = cfg?.chatBaseUrl || DEEPSEEK_BASE_URL;
+  return new OpenAI(clientOptions(apiKey, baseURL, cfg?.requestEmail));
 }
 
 export function getDeepSeekMailJsonExtras(): Record<string, unknown> {
