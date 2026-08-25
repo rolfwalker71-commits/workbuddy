@@ -58,6 +58,12 @@ test("withDayCloseRitual injects weekday item at 18:30 and sorts", () => {
   const ritual = buildDayCloseRitualItem("2026-08-24");
   assert.equal(ritual.time, "18:30");
   assert.equal(ritual.endTime, "18:45");
+  const late = buildDayCloseRitualItem("2026-08-24", null, {
+    startHm: "17:00",
+    endHm: "17:15",
+  });
+  assert.equal(late.time, "17:00");
+  assert.equal(late.endTime, "17:15");
   assert.equal(ritual.calendarId, "buddy-ritual");
   assert.equal(ritual.title, "Tagesabschluss");
 });

@@ -1,3 +1,4 @@
+import { getDayCloseSchedule } from "@/lib/dashboard/day-close-prefs";
 import { zurichHm, zurichYmd } from "@/lib/microsoft/time";
 import {
   isDayCloseRitualId,
@@ -43,7 +44,8 @@ export async function loadWorkspaceTodayEvents(
     merged.filter((e) => !isDayCloseRitualId(e.id)),
     today,
     status,
-    ritualAsWorkspaceTodayEvent
+    ritualAsWorkspaceTodayEvent,
+    getDayCloseSchedule(userId)
   );
   return filterTodayEventsAfterGrace(withRitual, today, zurichHm());
 }

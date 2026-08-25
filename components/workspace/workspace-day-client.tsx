@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Check,
   CalendarClock,
@@ -50,7 +50,10 @@ import { weekdayLabel } from "@/lib/utils/weekday";
 import { useAuth } from "@/components/auth/auth-provider";
 import { AdhocEventDialog } from "@/components/calendar/adhoc-event-dialog";
 import { EventArtCard } from "@/components/calendar/event-art-card";
-import { EventDetailDialog } from "@/components/calendar/event-detail-dialog";
+import {
+  EventDetailDialog,
+  type EventEditValues,
+} from "@/components/calendar/event-detail-dialog";
 import { MicrosoftMailComposeDialog } from "@/components/microsoft/microsoft-mail-compose-dialog";
 import { WorkspaceTasksPanel } from "@/components/workspace/workspace-tasks-panel";
 import {
@@ -60,8 +63,6 @@ import {
   type WorkspaceProvider,
 } from "@/lib/workspace/merge-today";
 import { isDayCloseRitualId } from "@/lib/dashboard/day-close-ritual";
-import { filterTodayEventsAfterGrace } from "@/lib/workspace/event-grace";
-import { zurichHm, zurichYmd } from "@/lib/microsoft/time";
 import { CLOSEOUT_OPEN_EVENT } from "@/components/closeout/closeout-assistant";
 import { MailWorkspaceSubnav, type MailWorkspaceView, mailWorkspacePrimaryBtnClass, mailWorkspaceTabClass } from "@/components/mail/mail-workspace-subnav";
 import { segmentedTrackClass } from "@/components/layout/segmented-control";
@@ -271,6 +272,8 @@ type DayEventSug = {
   fromTaskTwin?: boolean;
 };
 
+type DayReplyTranslation = { subject: string; body: string };
+
 type DayReply = {
   to: string;
   subject: string;
@@ -280,11 +283,47 @@ type DayReply = {
   company?: string | null;
   theme?: string | null;
   reason?: string;
+  /** Cached DE/EN variants so the toggle can switch without a second API call. */
+  translations?: Partial<Record<ReplyLang, DayReplyTranslation>>;
 };
 
 function currentReplyLang(r: DayReply): ReplyLang {
   if (r.language === "en" || r.language === "de") return r.language;
   return detectReplyLanguage(`${r.subject}\n${r.body}`);
+}
+
+function replyAtFlatIndex(
+  analysis: DayAnalysis,
+  flatIndex: number
+): DayReply | undefined {
+  const fromFlat = analysis.replies[flatIndex];
+  if (fromFlat) return fromFlat;
+  let n = 0;
+  for (const cluster of analysis.clusters) {
+    for (const reply of cluster.replies) {
+      if (n === flatIndex) return reply;
+      n += 1;
+    }
+  }
+  return undefined;
+}
+
+function withReplyTranslation(
+  reply: DayReply,
+  next: DayReply,
+  sourceLang: ReplyLang,
+  targetLang: ReplyLang
+): DayReply {
+  return {
+    ...reply,
+    ...next,
+    language: targetLang,
+    translations: {
+      ...reply.translations,
+      [sourceLang]: { subject: reply.subject, body: reply.body },
+      [targetLang]: { subject: next.subject, body: next.body },
+    },
+  };
 }
 
 function ReplyLangToggle({
@@ -298,8 +337,13 @@ function ReplyLangToggle({
 }) {
   return (
     <div
+      role="group"
+      aria-label="Antwortsprache"
       className="inline-flex items-center gap-0.5 rounded-md border border-border/60 p-0.5"
-      onClick={(e) => e.preventDefault()}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
       onKeyDown={(e) => e.stopPropagation()}
     >
       {(["de", "en"] as const).map((code) => (
@@ -309,6 +353,7 @@ function ReplyLangToggle({
           variant="ghost"
           size="xs"
           disabled={busy}
+          aria-pressed={lang === code}
           className={cn(
             "rounded px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase",
             lang === code
@@ -541,6 +586,7 @@ export function WorkspaceDayClient({
 } = {}) {
   const searchParams = useSearchParams();
   const pathname = usePathname() || "";
+  const router = useRouter();
   const { me, loading: authLoading } = useAuth();
   const modules = me?.modules ?? [];
   const scope: CloudProvider =
@@ -572,10 +618,6 @@ export function WorkspaceDayClient({
 
   const [events, setEvents] = useState<WorkspaceCalEvent[]>([]);
   const [detailEvent, setDetailEvent] = useState<WorkspaceCalEvent | null>(null);
-  const [zurichNow, setZurichNow] = useState(() => ({
-    ymd: zurichYmd(),
-    hm: zurichHm(),
-  }));
   const [calLoading, setCalLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [slotsByEvent, setSlotsByEvent] = useState<Record<string, FreeSlot[]>>(
@@ -796,6 +838,37 @@ export function WorkspaceDayClient({
     setMailView(parseMailView(searchParams.get("view"), t));
   }, [searchParams]);
 
+  const replaceQuery = useCallback(
+    (patch: Record<string, string | null>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      for (const [k, v] of Object.entries(patch)) {
+        if (v == null || v === "") params.delete(k);
+        else params.set(k, v);
+      }
+      const q = params.toString();
+      router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+    },
+    [searchParams, pathname, router]
+  );
+
+  function goTab(next: Tab) {
+    setTab(next);
+    if (next === "mail") {
+      replaceQuery({ tab: "mail", review: null });
+      return;
+    }
+    replaceQuery({
+      tab: next,
+      view: null,
+      review: next === "calendar" ? searchParams.get("review") : null,
+    });
+  }
+
+  function goMailView(next: MailWorkspaceView) {
+    setMailView(next);
+    replaceQuery({ tab: "mail", view: next, review: null });
+  }
+
   useEffect(() => {
     if (anyConnected) {
       void loadCalendar();
@@ -817,22 +890,22 @@ export function WorkspaceDayClient({
     }
   }, [routeHint, msConnected, googleConnected]);
 
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      setZurichNow({ ymd: zurichYmd(), hm: zurichHm() });
-    }, 30_000);
-    return () => window.clearInterval(id);
-  }, []);
-
-  const visibleEvents = useMemo(
-    () => filterTodayEventsAfterGrace(events, zurichNow.ymd, zurichNow.hm),
-    [events, zurichNow]
-  );
+  const visibleEvents = events;
 
   const openEvents = useMemo(
     () => visibleEvents.filter((e) => !e.done && !isDayCloseRitualId(e.id)),
     [visibleEvents]
   );
+  const reviewMode = searchParams.get("review") === "1";
+  const firstOpenKey = openEvents[0]
+    ? workspaceEventKey(openEvents[0])
+    : null;
+
+  useEffect(() => {
+    if (!reviewMode || tab !== "calendar" || !firstOpenKey) return;
+    const el = document.getElementById(`cal-review-${firstOpenKey}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [reviewMode, tab, firstOpenKey]);
 
   const mailThreadCoverage = useMemo(
     () => summarizeMailThreadCoverage(inbox, sent),
@@ -973,6 +1046,48 @@ export function WorkspaceDayClient({
     }
   }
 
+  async function saveEvent(event: WorkspaceCalEvent, values: EventEditValues) {
+    if (isDayCloseRitualId(event.id)) return;
+    const key = workspaceEventKey(event);
+    setBusyId(key);
+    setError(null);
+    try {
+      const cloud = cloudProviderOf(event);
+      if (!cloud) return;
+      if (!values.title.trim() || !values.date) {
+        throw new Error("Titel und Datum sind nötig.");
+      }
+      if (cloud === "google" && !event.calendarId) {
+        throw new Error("Kalender-ID fehlt — Termin kann nicht gespeichert werden.");
+      }
+      const res = await fetch(eventActionUrl(cloud), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update",
+          eventId: event.id,
+          calendarId: event.calendarId || undefined,
+          title: values.title.trim(),
+          date: values.date,
+          startHm: values.isAllDay ? null : values.time,
+          endHm: values.isAllDay ? null : values.endTime,
+          allDay: values.isAllDay,
+          location: values.location || null,
+          notes: values.description || null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Speichern fehlgeschlagen");
+      setStatus("Termin gespeichert.");
+      setDetailEvent(null);
+      await loadCalendar();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   function mailApi(provider: CloudProvider, path: string): string {
     return provider === "google" ? `/api/google/mail/${path}` : `/api/microsoft/mail/${path}`;
   }
@@ -984,12 +1099,17 @@ export function WorkspaceDayClient({
       finishedAt?: string | null,
       opts?: { fromCache?: boolean }
     ) => {
+      const clusters = a.clusters || [];
+      const replies =
+        a.replies?.length > 0
+          ? a.replies
+          : clusters.flatMap((c) => c.replies);
       setAnalysis({
         daySummary: a.daySummary || "",
-        clusters: a.clusters || [],
+        clusters,
         tasks: a.tasks || [],
         events: a.events || [],
-        replies: a.replies || [],
+        replies,
         usage: a.usage || null,
       });
       setShowAllThreads(false);
@@ -1001,7 +1121,7 @@ export function WorkspaceDayClient({
       (a.events || []).forEach((_, i) => {
         next.events[i] = true;
       });
-      (a.replies || []).forEach((_, i) => {
+      replies.forEach((_, i) => {
         next.replies[i] = true;
       });
       setPicks(next);
@@ -1023,8 +1143,9 @@ export function WorkspaceDayClient({
       );
       setTab("mail");
       setMailView("tagesanalysen");
+      replaceQuery({ tab: "mail", view: "tagesanalysen", review: null });
     },
-    []
+    [replaceQuery]
   );
 
   const stopPoll = useCallback(() => {
@@ -1454,34 +1575,52 @@ export function WorkspaceDayClient({
     };
   }
 
+  function patchAnalysisReply(flatIndex: number, next: DayReply) {
+    setAnalysis((prev) => {
+      if (!prev) return prev;
+      let n = 0;
+      const clusters = prev.clusters.map((c) => ({
+        ...c,
+        replies: c.replies.map((r) => {
+          const idx = n++;
+          return idx === flatIndex ? next : r;
+        }),
+      }));
+      const replies = (prev.replies.length
+        ? prev.replies
+        : clusters.flatMap((c) => c.replies)
+      ).map((r, i) => (i === flatIndex ? next : r));
+      return { ...prev, clusters, replies };
+    });
+  }
+
   async function changeAnalysisReplyLanguage(
     flatIndex: number,
     targetLang: ReplyLang
   ) {
     if (!analysis) return;
-    const reply = analysis.replies[flatIndex];
+    const reply = replyAtFlatIndex(analysis, flatIndex);
     if (!reply) return;
     if (currentReplyLang(reply) === targetLang) return;
+    const cached = reply.translations?.[targetLang];
+    if (cached) {
+      patchAnalysisReply(flatIndex, {
+        ...reply,
+        subject: cached.subject,
+        body: cached.body,
+        language: targetLang,
+      });
+      return;
+    }
     const key = `a-${flatIndex}`;
     setTranslatingReply(key);
     setError(null);
     try {
       const next = await translateReplyFields(reply, targetLang);
-      setAnalysis((prev) => {
-        if (!prev) return prev;
-        let n = 0;
-        const clusters = prev.clusters.map((c) => ({
-          ...c,
-          replies: c.replies.map((r) => {
-            const idx = n++;
-            return idx === flatIndex ? { ...r, ...next } : r;
-          }),
-        }));
-        const replies = prev.replies.map((r, i) =>
-          i === flatIndex ? { ...r, ...next } : r
-        );
-        return { ...prev, clusters, replies };
-      });
+      patchAnalysisReply(
+        flatIndex,
+        withReplyTranslation(reply, next, currentReplyLang(reply), targetLang)
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -1496,13 +1635,33 @@ export function WorkspaceDayClient({
     const reply = draftReplies[draftIndex];
     if (!reply) return;
     if (currentReplyLang(reply) === targetLang) return;
+    const cached = reply.translations?.[targetLang];
+    if (cached) {
+      setDraftReplies((prev) =>
+        prev.map((r, i) =>
+          i === draftIndex
+            ? {
+                ...r,
+                subject: cached.subject,
+                body: cached.body,
+                language: targetLang,
+              }
+            : r
+        )
+      );
+      return;
+    }
     const key = `d-${draftIndex}`;
     setTranslatingReply(key);
     setError(null);
     try {
       const next = await translateReplyFields(reply, targetLang);
       setDraftReplies((prev) =>
-        prev.map((r, i) => (i === draftIndex ? { ...r, ...next } : r))
+        prev.map((r, i) =>
+          i === draftIndex
+            ? withReplyTranslation(reply, next, currentReplyLang(reply), targetLang)
+            : r
+        )
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -1584,7 +1743,7 @@ export function WorkspaceDayClient({
                 variant="ghost"
                 data-segment="true"
                 className={mailWorkspaceTabClass(tab === "mail", routeHint)}
-                onClick={() => setTab("mail")}
+                onClick={() => goTab("mail")}
               >
                 {scope === "google" ? (
                   <GmailLogo className="size-4 shrink-0" />
@@ -1598,7 +1757,7 @@ export function WorkspaceDayClient({
                 variant="ghost"
                 data-segment="true"
                 className={mailWorkspaceTabClass(tab === "calendar", routeHint)}
-                onClick={() => setTab("calendar")}
+                onClick={() => goTab("calendar")}
               >
                 <CalendarClock className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
                 Kalender
@@ -1608,7 +1767,7 @@ export function WorkspaceDayClient({
                 variant="ghost"
                 data-segment="true"
                 className={mailWorkspaceTabClass(tab === "planner", routeHint)}
-                onClick={() => setTab("planner")}
+                onClick={() => goTab("planner")}
               >
                 <span className="inline-flex items-center gap-0.5">
                   {scope === "microsoft" ? (
@@ -1628,7 +1787,7 @@ export function WorkspaceDayClient({
           {tab === "mail" ? (
             <MailWorkspaceSubnav
               view={mailView}
-              onChange={setMailView}
+              onChange={goMailView}
               accent={routeHint}
               pendingTriage={triagePending}
             />
@@ -1691,7 +1850,6 @@ export function WorkspaceDayClient({
                   <Button
                     type="button"
                     size="sm"
-                    variant="outline"
                     onClick={() => setAdhocOpen(true)}
                   >
                     <CalendarPlus className="size-3.5" strokeWidth={APP_ICON_STROKE} />
@@ -1722,6 +1880,13 @@ export function WorkspaceDayClient({
                 }).format(new Date())}
               </p>
 
+              {reviewMode ? (
+                <p className="rounded-2xl bg-orange-50 px-3 py-2 text-sm text-orange-950 ring-1 ring-orange-200 dark:bg-orange-500/15 dark:text-orange-100 dark:ring-orange-400/30">
+                  Tagesabschluss: jeden offenen Termin als erledigt markieren
+                  oder auf einen freien Slot verschieben.
+                </p>
+              ) : null}
+
               {calLoading && visibleEvents.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Lade Termine…</p>
               ) : visibleEvents.length === 0 ? (
@@ -1729,15 +1894,54 @@ export function WorkspaceDayClient({
                   Keine Termine für heute.
                 </p>
               ) : (
-                <ul className="space-y-2">
-                  {visibleEvents.map((e) => (
-                    <li key={workspaceEventKey(e)}>
+                <ul className="space-y-3">
+                  {visibleEvents.map((e) => {
+                    const key = workspaceEventKey(e);
+                    const showActions =
+                      !e.done || isDayCloseRitualId(e.id);
+                    const isFocus = reviewMode && key === firstOpenKey;
+                    return (
+                    <li
+                      key={key}
+                      id={`cal-review-${key}`}
+                      className="space-y-1.5"
+                    >
                       <EventArtCard
                         event={e}
                         onOpen={() => setDetailEvent(e)}
+                        className={
+                          isFocus
+                            ? "ring-2 ring-orange-400/80"
+                            : undefined
+                        }
                       />
+                      {showActions ? (
+                        <div className="rounded-2xl bg-card px-3 py-2.5 shadow-[0_2px_10px_rgba(15,23,42,0.06)] ring-1 ring-border/50">
+                          <EventDetailActions
+                            event={e}
+                            busy={busyId === key}
+                            slotDuration={slotDurationFor(e)}
+                            slots={slotsByEvent[key] || []}
+                            onPreset={(m) => {
+                              setSlotDurationByEvent((prev) => ({
+                                ...prev,
+                                [key]: m,
+                              }));
+                              setSlotsByEvent((prev) => {
+                                const next = { ...prev };
+                                delete next[key];
+                                return next;
+                              });
+                            }}
+                            onDone={() => void markDone(e)}
+                            onSuggest={() => void suggestSlots(e)}
+                            onReschedule={(s) => void reschedule(e, s)}
+                          />
+                        </div>
+                      ) : null}
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               )}
               <EventDetailDialog
@@ -1746,6 +1950,20 @@ export function WorkspaceDayClient({
                 onOpenChange={(next) => {
                   if (!next) setDetailEvent(null);
                 }}
+                canEdit={Boolean(
+                  detailEvent &&
+                    !detailEvent.done &&
+                    !isDayCloseRitualId(detailEvent.id) &&
+                    cloudProviderOf(detailEvent)
+                )}
+                saving={
+                  detailEvent
+                    ? busyId === workspaceEventKey(detailEvent)
+                    : false
+                }
+                onSave={(values) =>
+                  detailEvent ? saveEvent(detailEvent, values) : undefined
+                }
                 actions={
                   detailEvent ? (
                     <EventDetailActions
@@ -1786,8 +2004,8 @@ export function WorkspaceDayClient({
               </h2>
               <p className="text-sm text-muted-foreground">
                 {scope === "google"
-                  ? "Google Tasks — erledigen, umbenennen oder Termin setzen."
-                  : "To Do und Planner getrennt — Anzeige oben ein- oder ausschalten."}
+                  ? "Google Tasks — anlegen, erledigen oder Termin setzen."
+                  : "To Do anlegen, erledigen oder umbenennen. Planner bleibt die zugewiesenen Aufgaben."}
               </p>
               <WorkspaceTasksPanel
                 microsoft={Boolean(msConnected)}
@@ -2302,13 +2520,14 @@ export function WorkspaceDayClient({
                                   const lang = currentReplyLang(r);
                                   const busy = translatingReply === `a-${i}`;
                                   return (
-                                    <label
+                                    <div
                                       key={`r-${ci}-${li}`}
                                       className="flex items-start gap-2 rounded-md border border-border/40 bg-background px-2 py-1.5"
                                     >
                                       <input
                                         type="checkbox"
                                         className="mt-1"
+                                        aria-label={`Antwort ${r.subject}`}
                                         checked={Boolean(picks.replies[i])}
                                         onChange={(e) =>
                                           setPicks((prev) => ({
@@ -2345,7 +2564,7 @@ export function WorkspaceDayClient({
                                           {r.body}
                                         </span>
                                       </span>
-                                    </label>
+                                    </div>
                                   );
                                 })}
                               </div>

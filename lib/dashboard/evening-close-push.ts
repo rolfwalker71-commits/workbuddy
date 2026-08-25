@@ -1,5 +1,11 @@
 import { getSetting, setSetting } from "@/lib/db/migrations";
 import { isZurichWeekday } from "@/lib/dashboard/day-close-ritual";
+import { getDayCloseSchedule } from "@/lib/dashboard/day-close-prefs";
+import {
+  DEFAULT_DAY_CLOSE_START_HM,
+  hmToMinutes,
+  parseDayCloseStartHm,
+} from "@/lib/dashboard/day-close-prefs-parse";
 import {
   loadTodayCalendarForRitual,
   resolveDayCloseRitualStatus,
@@ -33,10 +39,15 @@ export function zurichNowClock(d = new Date()): {
   };
 }
 
-/** Weekday evening window 18:30–19:30 Europe/Zurich. */
-export function inEveningCloseWindow(hour: number, minute: number): boolean {
+/** One-hour window starting at the user's Tagesabschluss (default 18:30). */
+export function inEveningCloseWindow(
+  hour: number,
+  minute: number,
+  startHm = DEFAULT_DAY_CLOSE_START_HM
+): boolean {
+  const start = hmToMinutes(parseDayCloseStartHm(startHm));
   const mins = hour * 60 + minute;
-  return mins >= 18 * 60 + 30 && mins < 19 * 60 + 30;
+  return mins >= start && mins < start + 60;
 }
 
 export function listEveningCloseUsers(): Array<{ id: number }> {
@@ -94,7 +105,7 @@ export async function dispatchEveningCloseForUser(
     domain: "app",
     reason: EVENING_DIGEST_REASON,
     headline: "Tagesabschluss",
-    detail: `Tagesabschluss 18:30: ${ritualBits.join(" · ")}`,
+    detail: `Tagesabschluss ${getDayCloseSchedule(userId).startHm}: ${ritualBits.join(" · ")}`,
     title: "Tagesabschluss",
     href: calendarHref(userId),
     source: "workbuddy",
@@ -109,7 +120,7 @@ export async function dispatchEveningCloseForUser(
 }
 
 /**
- * Once per weekday in the 18:30–19:30 Zurich window, per user.
+ * Once per weekday in each user's 60-min Tagesabschluss window.
  * No morning briefing, no weekend digest.
  */
 export async function maybeDispatchEveningClose(d = new Date()): Promise<{
@@ -120,12 +131,10 @@ export async function maybeDispatchEveningClose(d = new Date()): Promise<{
   if (!isZurichWeekday(todayIso)) {
     return { sent: 0, skipped: "weekend" };
   }
-  if (!inEveningCloseWindow(hour, minute)) {
-    return { sent: 0, skipped: "window" };
-  }
-
   let sent = 0;
   for (const user of listEveningCloseUsers()) {
+    const startHm = getDayCloseSchedule(user.id).startHm;
+    if (!inEveningCloseWindow(hour, minute, startHm)) continue;
     if (getSetting(lastSentKey(user.id)) === todayIso) continue;
     try {
       await dispatchEveningCloseForUser(user.id, todayIso);

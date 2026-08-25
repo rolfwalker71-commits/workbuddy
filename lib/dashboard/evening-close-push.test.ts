@@ -10,3 +10,10 @@ test("evening close window is 18:30–19:30 Zurich", () => {
   assert.equal(inEveningCloseWindow(19, 30), false);
   assert.equal(inEveningCloseWindow(7, 30), false);
 });
+
+test("evening close window follows a custom start", () => {
+  assert.equal(inEveningCloseWindow(16, 59, "17:00"), false);
+  assert.equal(inEveningCloseWindow(17, 0, "17:00"), true);
+  assert.equal(inEveningCloseWindow(17, 59, "17:00"), true);
+  assert.equal(inEveningCloseWindow(18, 0, "17:00"), false);
+});

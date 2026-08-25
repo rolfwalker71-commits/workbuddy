@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/auth/auth-provider";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import {
+  closeoutLeadHref,
   closeoutStepsFor,
   firstOpenStepIndex,
   microChecksFor,
@@ -199,6 +200,7 @@ export function CloseoutAssistant() {
   const [status, setStatus] = useState<CloseoutStatusPayload | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [leadPending, setLeadPending] = useState(false);
 
   const modules = me?.modules || [];
   const hasCalendar = userHasCalendarModule(modules, Boolean(me?.isAdmin));
@@ -222,6 +224,7 @@ export function CloseoutAssistant() {
       };
       writeStored(next);
       setStored(next);
+      setLeadPending(true);
     }
     window.addEventListener(CLOSEOUT_OPEN_EVENT, onOpen);
     return () => window.removeEventListener(CLOSEOUT_OPEN_EVENT, onOpen);
@@ -265,10 +268,15 @@ export function CloseoutAssistant() {
     const parts = new Intl.DateTimeFormat("en-GB", {
       timeZone: "Europe/Zurich",
       hour: "2-digit",
+      minute: "2-digit",
       hour12: false,
     }).formatToParts(new Date());
     const hour = Number(parts.find((p) => p.type === "hour")?.value || "0");
-    if (hour >= 18) {
+    const minute = Number(parts.find((p) => p.type === "minute")?.value || "0");
+    const start = status.startHm || "18:30";
+    const [sh, sm] = start.split(":").map((n) => Number(n));
+    const startMins = (sh || 18) * 60 + (sm || 0);
+    if (hour * 60 + minute >= startMins) {
       persist({ open: true, minimized: false });
     }
   }, [hydrated, status, me, stored.dismissedDate, stored.open, persist]);
@@ -300,11 +308,29 @@ export function CloseoutAssistant() {
     ? pathMatchesStep(pathname || "/", search, active)
     : false;
 
+  function leadToStep(idx: number, opts?: { minimize?: boolean }) {
+    const step = steps[idx];
+    persist({
+      stepIndex: idx,
+      ...(opts?.minimize === false ? {} : { minimized: true }),
+    });
+    if (step) router.push(closeoutLeadHref(step));
+  }
+
   function isStepComplete(stepId: CloseoutStepId): boolean {
     if (!status) return false;
     if (stored.skipped.includes(stepId) && stepId !== "done") return true;
     return stepDone(stepId, provider, status);
   }
+
+  useEffect(() => {
+    if (!leadPending || !status || !hydrated) return;
+    const idx = firstOpenStepIndex(provider, status);
+    leadToStep(idx);
+    setLeadPending(false);
+    // leadToStep is recreated each render — only react to the pending flag + status
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leadPending, status, hydrated, provider]);
 
   useEffect(() => {
     if (!status || !stored.autoAdvance || !stored.open || stored.minimized) {
@@ -315,7 +341,7 @@ export function CloseoutAssistant() {
         (s) => s.id === "done" || !isStepComplete(s.id)
       );
       const idx = next < 0 ? steps.length - 1 : next;
-      if (idx !== activeIndex) persist({ stepIndex: idx });
+      if (idx !== activeIndex) leadToStep(idx, { minimize: false });
     }
     // status ticks drive auto-advance
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -350,7 +376,10 @@ export function CloseoutAssistant() {
       <Button
         type="button"
         variant="outline"
-        onClick={() => persist({ open: true, minimized: false })}
+        onClick={() => {
+          persist({ open: true, minimized: false });
+          setLeadPending(true);
+        }}
         className={cn(
           "fixed z-40 h-auto min-h-11 gap-2 rounded-2xl border-border/70 bg-card px-3 py-2 text-xs font-semibold shadow-[0_8px_28px_rgba(15,23,42,0.14)] ring-1 ring-foreground/10 hover:bg-muted",
           FLOAT_POS
@@ -539,7 +568,7 @@ export function CloseoutAssistant() {
                         ? "border-emerald-200/70 bg-emerald-50/40 hover:bg-emerald-50/40"
                         : "border-border/50 bg-card hover:bg-muted"
                   )}
-                  onClick={() => persist({ stepIndex: idx })}
+                  onClick={() => leadToStep(idx, { minimize: false })}
                 >
                   <span
                     className={cn(
@@ -588,10 +617,7 @@ export function CloseoutAssistant() {
             <Button
               type="button"
               className="min-h-11 min-w-0 flex-1 gap-1.5 bg-orange-500 text-white hover:bg-orange-600"
-              onClick={() => {
-                router.push(active.href);
-                persist({ minimized: true });
-              }}
+              onClick={() => leadToStep(activeIndex)}
             >
               {active.cta} →
             </Button>
@@ -605,7 +631,8 @@ export function CloseoutAssistant() {
                   new Set([...stored.skipped, active.id])
                 );
                 const nextIdx = Math.min(activeIndex + 1, steps.length - 1);
-                persist({ skipped, stepIndex: nextIdx });
+                persist({ skipped });
+                leadToStep(nextIdx, { minimize: false });
               }}
             >
               Skip
@@ -621,7 +648,7 @@ export function CloseoutAssistant() {
           variant="outline"
           className="h-8"
           disabled={activeIndex <= 0}
-          onClick={() => persist({ stepIndex: Math.max(0, activeIndex - 1) })}
+          onClick={() => leadToStep(Math.max(0, activeIndex - 1), { minimize: false })}
         >
           Zurück
         </Button>
@@ -662,7 +689,7 @@ export function CloseoutAssistant() {
               });
               return;
             }
-            persist({ stepIndex: activeIndex + 1 });
+            leadToStep(activeIndex + 1, { minimize: false });
           }}
         >
           {activeIndex >= steps.length - 1 || allClear ? "Fertig" : "Weiter"}

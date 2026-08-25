@@ -34,6 +34,8 @@ export type CloseoutStatusPayload = {
   googleConnected: boolean;
   microsoftConnected: boolean;
   maringoModule: boolean;
+  /** User's virtual Tagesabschluss start (Europe/Zurich). */
+  startHm?: string;
 };
 
 export function closeoutStepsFor(
@@ -46,16 +48,16 @@ export function closeoutStepsFor(
     {
       id: "calendar",
       title: "Offene Termine prüfen",
-      hint: "Erledigen, verschieben oder bestätigen.",
-      href: `${base}?tab=calendar`,
-      cta: `Zu ${provider === "google" ? "Google" : "Outlook"}-Kalender`,
+      hint: "Jeden Termin erledigen oder auf einen freien Slot verschieben.",
+      href: `${base}?tab=calendar&review=1`,
+      cta: "Termine prüfen",
       visualLabel: "Kalender",
     },
     {
       id: "triage",
       title: "Mail-Triage",
       hint: "Offene Vorschläge prüfen oder überspringen.",
-      href: `${base}?tab=triage`,
+      href: `${base}?tab=mail&view=triage`,
       cta: `Zu ${label}-Triage`,
       visualLabel: "Triage",
     },
@@ -213,6 +215,13 @@ export function microChecksFor(stepId: CloseoutStepId): string[] {
   }
 }
 
+/** Deep link the assistant should open for a step (calendar enters review mode). */
+export function closeoutLeadHref(step: CloseoutStepDef): string {
+  if (step.id !== "calendar") return step.href;
+  if (/(?:^|[?&])review=/.test(step.href)) return step.href;
+  return `${step.href}${step.href.includes("?") ? "&" : "?"}review=1`;
+}
+
 export function pathMatchesStep(
   pathname: string,
   search: string,
@@ -226,6 +235,7 @@ export function pathMatchesStep(
       search.startsWith("?") ? search : `?${search}`
     );
     for (const [k, v] of want.entries()) {
+      if (k === "review") continue;
       if (have.get(k) !== v) return false;
     }
     return true;

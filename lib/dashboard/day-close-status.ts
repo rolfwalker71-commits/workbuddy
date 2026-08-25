@@ -12,6 +12,7 @@ import {
   type DayCloseGoogleReviewEvent,
   type DayCloseRitualStatus,
 } from "@/lib/dashboard/day-close-ritual";
+import { getDayCloseSchedule } from "@/lib/dashboard/day-close-prefs";
 import { zurichHm } from "@/lib/microsoft/time";
 
 export async function resolveDayCloseRitualStatus(
@@ -159,7 +160,14 @@ export async function attachDayCloseRitualMs(
           planningRelevant: true as const,
         }));
   const status = await resolveDayCloseRitualStatus(userId, todayIso, calendar);
-  return withDayCloseRitualMsEvents(events, todayIso, status) as MsCalendarEvent[];
+  const schedule =
+    userId != null ? getDayCloseSchedule(userId) : undefined;
+  return withDayCloseRitualMsEvents(
+    events,
+    todayIso,
+    status,
+    schedule
+  ) as MsCalendarEvent[];
 }
 
 export async function attachDayCloseRitualGoogle<
@@ -186,5 +194,7 @@ export async function attachDayCloseRitualGoogle<
           planningRelevant: true as const,
         }));
   const status = await resolveDayCloseRitualStatus(userId, todayIso, calendar);
-  return withDayCloseRitualGoogleEvents(events, todayIso, status);
+  const schedule =
+    userId != null ? getDayCloseSchedule(userId) : undefined;
+  return withDayCloseRitualGoogleEvents(events, todayIso, status, schedule);
 }

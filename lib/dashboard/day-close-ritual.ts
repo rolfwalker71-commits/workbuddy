@@ -1,15 +1,21 @@
 /**
- * Virtual weekday ritual «Tagesabschluss» 18:30–18:45 Europe/Zurich.
- * Buddy-only — never written to Google or Outlook.
+ * Virtual weekday ritual «Tagesabschluss» (default 18:30–18:45 Europe/Zurich).
+ * Start time is per-user (Konto). Buddy-only — never written to Google or Outlook.
  * This module is client-safe (no db / OAuth imports).
  */
 
 import { isAgendaItemPastGrace } from "@/lib/workspace/event-grace";
+import {
+  DEFAULT_DAY_CLOSE_START_HM,
+  dayCloseScheduleFromStart,
+  type DayCloseSchedule,
+} from "@/lib/dashboard/day-close-prefs-parse";
 
 export const DAY_CLOSE_RITUAL_ID = "buddy-day-close";
-export const DAY_CLOSE_TIME = "18:30";
+export const DAY_CLOSE_TIME = DEFAULT_DAY_CLOSE_START_HM;
 export const DAY_CLOSE_END_TIME = "18:45";
 export const DAY_CLOSE_CALENDAR_ID = "buddy-ritual";
+export type { DayCloseSchedule };
 
 export function isDayCloseRitualId(id: string | null | undefined): boolean {
   return Boolean(id && id.startsWith(DAY_CLOSE_RITUAL_ID));
@@ -101,17 +107,19 @@ export function isDayCloseRitualComplete(
 
 export function buildDayCloseRitualItem(
   todayIso: string,
-  status?: DayCloseRitualStatus | null
+  status?: DayCloseRitualStatus | null,
+  schedule?: DayCloseSchedule | null
 ): DayCloseRitualItem {
   const done = isDayCloseRitualComplete(status);
+  const clock = dayCloseScheduleFromStart(schedule?.startHm);
   return {
     id: DAY_CLOSE_RITUAL_ID,
     kind: "deadline",
     date: todayIso,
     title: done ? "✅ Tagesabschluss" : "Tagesabschluss",
     subtitle: ritualSubtitle(status),
-    time: DAY_CLOSE_TIME,
-    endTime: DAY_CLOSE_END_TIME,
+    time: clock.startHm,
+    endTime: clock.endHm,
     href: "/",
     badge: "Ritual",
     accentColor: "#0f766e",
@@ -137,11 +145,12 @@ export function withDayCloseRitual<
   items: T[],
   todayIso: string,
   status?: DayCloseRitualStatus | null,
-  mapRitual?: (ritual: DayCloseRitualItem) => T
+  mapRitual?: (ritual: DayCloseRitualItem) => T,
+  schedule?: DayCloseSchedule | null
 ): T[] {
   const without = items.filter((i) => !isDayCloseRitualId(i.id));
   if (!isZurichWeekday(todayIso)) return without;
-  const ritual = buildDayCloseRitualItem(todayIso, status);
+  const ritual = buildDayCloseRitualItem(todayIso, status, schedule);
   const mapped = mapRitual
     ? mapRitual(ritual)
     : ({
@@ -196,13 +205,15 @@ export function withDayCloseRitualMsEvents<
 >(
   events: T[],
   todayIso: string,
-  status?: DayCloseRitualStatus | null
+  status?: DayCloseRitualStatus | null,
+  schedule?: DayCloseSchedule | null
 ): T[] {
   return withDayCloseRitual(
     events,
     todayIso,
     status,
-    ritualAsMsCalendarEvent as unknown as (ritual: DayCloseRitualItem) => T
+    ritualAsMsCalendarEvent as unknown as (ritual: DayCloseRitualItem) => T,
+    schedule
   );
 }
 
@@ -249,10 +260,15 @@ export function withDayCloseRitualGoogleEvents<
 >(
   events: T[],
   todayIso: string,
-  status?: DayCloseRitualStatus | null
+  status?: DayCloseRitualStatus | null,
+  schedule?: DayCloseSchedule | null
 ): T[] {
-  return withDayCloseRitual(events, todayIso, status, (ritual) =>
-    ritualAsGoogleReviewEvent(ritual)
+  return withDayCloseRitual(
+    events,
+    todayIso,
+    status,
+    (ritual) => ritualAsGoogleReviewEvent(ritual),
+    schedule
   ) as T[];
 }
 

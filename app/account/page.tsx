@@ -6,6 +6,7 @@ import { SettingsMicrosoftConnectPanel } from "@/components/settings/settings-mi
 import { NotificationPrefsPanel } from "@/components/settings/notification-prefs-panel";
 import { AccountSecretsPanel } from "@/components/settings/account-secrets-panel";
 import { AccountWeatherPanel } from "@/components/settings/account-weather-panel";
+import { AccountDayClosePanel } from "@/components/settings/account-day-close-panel";
 import { AccountGoogleSection } from "@/components/settings/account-google-section";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +16,7 @@ export default function AccountPage() {
     <div className="space-y-8 pb-28 md:pb-0">
       <PageHeader
         title="Konto"
-        description="Dein Wetter, OpenAI-Key, Maringo-Login, Microsoft 365 und Google Workspace — nur für dich."
+        description="Dein Wetter, Tagesabschluss, OpenAI-Key, Maringo-Login, Microsoft 365 und Google Workspace — nur für dich."
         icon={pageVisuals.account.icon}
         tone={pageVisuals.account.tone}
       />
@@ -26,6 +27,14 @@ export default function AccountPage() {
           Standort für das Widget auf der Startseite — gilt nur für dich.
         </p>
         <AccountWeatherPanel />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold tracking-tight">Tagesabschluss</h2>
+        <p className="text-xs text-muted-foreground">
+          Uhrzeit des virtuellen Rituals — gilt nur für dich, wie der Wetter-Standort.
+        </p>
+        <AccountDayClosePanel />
       </section>
 
       <section className="space-y-3">

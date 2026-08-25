@@ -12,6 +12,8 @@ import {
 } from "@/lib/dashboard/day-close-status";
 import { countPendingMailTriage } from "@/lib/mail/mail-analysis-store";
 import { resolveAppUserId } from "@/lib/users/resolve-user";
+import { getDayCloseSchedule } from "@/lib/dashboard/day-close-prefs";
+import { DEFAULT_DAY_CLOSE_START_HM } from "@/lib/dashboard/day-close-prefs-parse";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -62,11 +64,17 @@ export async function GET() {
   const maringoModule = auth.isAdmin || auth.modules.includes("maringo");
   const ticketHourSuggestions =
     ritual.mariHoursPending != null ? ritual.mariHoursPending : 0;
+  const schedule =
+    userId != null
+      ? getDayCloseSchedule(userId)
+      : { startHm: DEFAULT_DAY_CLOSE_START_HM, endHm: "18:45" };
 
   return NextResponse.json({
     ok: true,
     todayIso,
     weekday,
+    startHm: schedule.startHm,
+    endHm: schedule.endHm,
     ritual,
     ritualComplete: isDayCloseRitualComplete(ritual),
     mailTriageGoogle,
