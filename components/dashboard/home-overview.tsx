@@ -39,6 +39,7 @@ import {
   type MsTaskDisplayPrefs,
 } from "@/lib/microsoft/task-display-prefs";
 import { HomeWeatherWidget } from "./home-weather-widget";
+import { BagelHoleLabel } from "@/components/ui/bagel-hole-label";
 import { EventArtCard } from "@/components/calendar/event-art-card";
 import { EventDetailDialog } from "@/components/calendar/event-detail-dialog";
 import { filterTodayEventsAfterGrace } from "@/lib/workspace/event-grace";
@@ -213,7 +214,13 @@ function MariStatusDonut({
   const r = size >= 80 ? size / 2 - 10 : size / 2 - stroke / 2 - 1;
   if (total <= 0) {
     return (
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        className="block"
+        aria-hidden
+      >
         <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--border)" strokeWidth={stroke} />
       </svg>
     );
@@ -239,6 +246,7 @@ function MariStatusDonut({
       width={size}
       height={size}
       viewBox={`0 0 ${size} ${size}`}
+      className="block"
       role="img"
       aria-label="Ticket-Status"
     >
@@ -649,9 +657,9 @@ export function HomeOverview() {
                       segments={positiveCounts}
                       size={56}
                     />
-                    <span className="absolute inset-0 flex items-center justify-center text-sm font-black tabular-nums">
+                    <BagelHoleLabel className="text-sm font-black tabular-nums">
                       {tickets?.configured ? tickets.total : "—"}
-                    </span>
+                    </BagelHoleLabel>
                   </span>
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold leading-snug">

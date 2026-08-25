@@ -2,6 +2,10 @@ import { getSetting, setSetting } from "@/lib/db/migrations";
 import { ALL_STATUS_IDS, WORK_STATUS_IDS } from "@/lib/mari/status";
 import { normalizeMariCardCode } from "@/lib/mari/customers";
 import {
+  DEFAULT_TTV_LOOKBACK_DAYS,
+  sanitizeTtvLookbackDays,
+} from "@/lib/mari/ttv";
+import {
   DEFAULT_MARI_LIST_META_FIELDS,
   MARI_LIST_META_FIELD_OPTIONS,
   isMariTicketFilterMode,
@@ -111,6 +115,7 @@ export function defaultMariTicketFilterPrefs(): MariTicketFilterPrefs {
     /** Neueste Tickets oben — typisch für Support-Inbox. */
     listSort: "newest",
     listMetaFields: [...DEFAULT_MARI_LIST_META_FIELDS],
+    ttvLookbackDays: DEFAULT_TTV_LOOKBACK_DAYS,
   };
 }
 
@@ -130,6 +135,7 @@ export function getMariTicketFilterPrefs(
       timelineSort?: unknown;
       listSort?: unknown;
       listMetaFields?: unknown;
+      ttvLookbackDays?: unknown;
     };
     const statuses = sanitizeStatuses(parsed.statuses) || defaults.statuses;
     let customers = sanitizeCustomers(parsed.customers);
@@ -151,6 +157,9 @@ export function getMariTicketFilterPrefs(
       listMetaFields:
         sanitizeListMetaFields(parsed.listMetaFields) ??
         defaults.listMetaFields,
+      ttvLookbackDays:
+        sanitizeTtvLookbackDays(parsed.ttvLookbackDays) ??
+        defaults.ttvLookbackDays,
     };
   } catch {
     return defaults;
@@ -167,6 +176,7 @@ export function saveMariTicketFilterPrefs(
     timelineSort?: unknown;
     listSort?: unknown;
     listMetaFields?: unknown;
+    ttvLookbackDays?: unknown;
   }
 ): MariTicketFilterPrefs {
   const current = getMariTicketFilterPrefs(ownerKey);
@@ -198,6 +208,11 @@ export function saveMariTicketFilterPrefs(
     input.listMetaFields !== undefined
       ? sanitizeListMetaFields(input.listMetaFields) ?? current.listMetaFields
       : current.listMetaFields;
+  const ttvLookbackDays =
+    input.ttvLookbackDays !== undefined
+      ? sanitizeTtvLookbackDays(input.ttvLookbackDays) ??
+        current.ttvLookbackDays
+      : current.ttvLookbackDays;
   const next: MariTicketFilterPrefs = {
     statuses,
     overdueOnly,
@@ -206,6 +221,7 @@ export function saveMariTicketFilterPrefs(
     timelineSort,
     listSort,
     listMetaFields,
+    ttvLookbackDays,
   };
   setSetting(settingKey(ownerKey), JSON.stringify(next));
   return next;

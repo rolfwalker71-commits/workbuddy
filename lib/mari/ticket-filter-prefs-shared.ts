@@ -1,5 +1,7 @@
 /** Client-safe Maringo ticket filter / list-meta types (no Node/SQLite). */
 
+import { sanitizeTtvLookbackDays } from "@/lib/mari/ttv";
+
 export const MARI_TICKET_FILTER_MODES = ["handler", "customer", "ttv"] as const;
 
 export type MariTicketFilterMode = (typeof MARI_TICKET_FILTER_MODES)[number];
@@ -83,6 +85,8 @@ export type MariTicketFilterPrefs = {
   /** Ticketliste alt→neu / neu→alt (Anfragedatum). */
   listSort: MariListSort;
   listMetaFields: MariListMetaField[];
+  /** TTV: Kalendertage inkl. heute (1–14). */
+  ttvLookbackDays: number;
 };
 
 /** Browser mirror so Status-Filter survive flaky API / remounts. */
@@ -114,6 +118,10 @@ export function parseMariTicketFilterPrefsPatch(
   if (typeof o.overdueOnly === "boolean") out.overdueOnly = o.overdueOnly;
   if (isMariTicketFilterMode(o.filterMode)) {
     out.filterMode = o.filterMode;
+  }
+  const ttvLookbackDays = sanitizeTtvLookbackDays(o.ttvLookbackDays);
+  if (ttvLookbackDays != null) {
+    out.ttvLookbackDays = ttvLookbackDays;
   }
   if (o.timelineSort === "newest" || o.timelineSort === "oldest") {
     out.timelineSort = o.timelineSort;

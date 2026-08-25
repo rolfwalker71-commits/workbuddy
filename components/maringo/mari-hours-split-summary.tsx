@@ -1,6 +1,7 @@
 "use client";
 
 import { useId } from "react";
+import { BagelHoleLabel } from "@/components/ui/bagel-hole-label";
 import { cn } from "@/lib/utils";
 
 const BILLABLE_COLOR = "#047857";
@@ -62,6 +63,7 @@ function Donut({
         width={size}
         height={size}
         viewBox={`0 0 ${size} ${size}`}
+        className="block"
         aria-hidden
       >
         <circle
@@ -83,6 +85,7 @@ function Donut({
         width={size}
         height={size}
         viewBox={`0 0 ${size} ${size}`}
+        className="block"
         role="img"
         aria-label={
           billable > 0
@@ -121,6 +124,7 @@ function Donut({
       width={size}
       height={size}
       viewBox={`0 0 ${size} ${size}`}
+      className="block"
       role="img"
       aria-label={`Verrechenbar ${formatHours(billable)} h, nicht verrechenbar ${formatHours(nonBillable)} h`}
     >
@@ -189,14 +193,14 @@ export function MariHoursSplitSummary({
     >
       <div className="relative shrink-0">
         <Donut billable={billableHours} nonBillable={nonBillableHours} />
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-[0.625rem] font-black tabular-nums leading-none tracking-tight">
+        <BagelHoleLabel>
+          <span className="text-[0.625rem] font-black tabular-nums tracking-tight">
             {formatHours(totalHours)}
           </span>
-          <span className="mt-px text-[0.5rem] font-medium text-muted-foreground">
+          <span className="text-[0.5rem] font-medium text-muted-foreground">
             h
           </span>
-        </div>
+        </BagelHoleLabel>
       </div>
 
       <div className="min-w-0 flex-1 space-y-1">

@@ -103,6 +103,13 @@ import {
   type MariTicketFilterPrefsPatch,
 } from "@/lib/mari/ticket-filter-prefs-shared";
 import { buildMariTicketListMetaItems } from "@/lib/mari/ticket-list-meta";
+import {
+  DEFAULT_TTV_LOOKBACK_DAYS,
+  TTV_LOOKBACK_DAYS_MAX,
+  TTV_LOOKBACK_DAYS_MIN,
+  sanitizeTtvLookbackDays,
+  ttvLookbackLabel,
+} from "@/lib/mari/ttv";
 import { MariCustomerChip } from "@/components/maringo/mari-customer-chip";
 import {
   MariMainFlyoutShell,
@@ -725,6 +732,9 @@ export function MaringoWorkspaceClient() {
   const [timelineSort, setTimelineSort] =
     useState<MariTimelineSort>("oldest");
   const [listSort, setListSort] = useState<MariListSort>("newest");
+  const [ttvLookbackDays, setTtvLookbackDays] = useState(
+    DEFAULT_TTV_LOOKBACK_DAYS
+  );
   const [listMetaFields, setListMetaFields] = useState<MariListMetaField[]>([
     ...DEFAULT_MARI_LIST_META_FIELDS,
   ]);
@@ -936,7 +946,11 @@ export function MaringoWorkspaceClient() {
     };
     try {
       if (filterMode === "ttv") {
-        const res = await fetch("/api/maringo/tickets?filterMode=ttv");
+        const q = new URLSearchParams({
+          filterMode: "ttv",
+          ttvDays: String(ttvLookbackDays),
+        });
+        const res = await fetch(`/api/maringo/tickets?${q}`);
         const data = await res.json().catch(() => ({}));
         if (res.status === 503) {
           setConfigured(false);
@@ -1021,6 +1035,7 @@ export function MaringoWorkspaceClient() {
     listHandledBy,
     filterMode,
     selectedCardCodesKey,
+    ttvLookbackDays,
   ]);
 
   useEffect(() => {
@@ -1146,6 +1161,10 @@ export function MaringoWorkspaceClient() {
       if (isMariTicketFilterMode(patch.filterMode)) {
         setFilterMode(patch.filterMode);
       }
+      const lookback = sanitizeTtvLookbackDays(patch.ttvLookbackDays);
+      if (lookback != null) {
+        setTtvLookbackDays(lookback);
+      }
       if (patch.timelineSort === "newest" || patch.timelineSort === "oldest") {
         setTimelineSort(patch.timelineSort);
       }
@@ -1213,6 +1232,7 @@ export function MaringoWorkspaceClient() {
       timelineSort,
       listSort,
       listMetaFields,
+      ttvLookbackDays,
     };
     writeMariTicketFilterPrefsLocal(payload);
     const t = window.setTimeout(() => {
@@ -1233,6 +1253,7 @@ export function MaringoWorkspaceClient() {
     timelineSort,
     listSort,
     listMetaFields,
+    ttvLookbackDays,
     filterReady,
   ]);
 
@@ -2002,7 +2023,7 @@ export function MaringoWorkspaceClient() {
               <p className="text-[0.8125rem] font-black tracking-tight">Tickets</p>
               <p className="text-[0.6875rem] text-muted-foreground">
                 {filterMode === "ttv"
-                  ? `${tickets.length} neu (heute + gestern)`
+                  ? `${tickets.length} neu (${ttvLookbackLabel(ttvLookbackDays)})`
                   : `${tickets.length} Ticket${tickets.length === 1 ? "" : "s"}`}
               </p>
             </div>
@@ -2128,7 +2149,8 @@ export function MaringoWorkspaceClient() {
             </div>
             {filterMode === "ttv" ? (
               <p className="truncate text-[0.6875rem] leading-snug text-muted-foreground">
-                Status NEU · heute + gestern · alle Bearbeiter
+                Status NEU · {ttvLookbackLabel(ttvLookbackDays)} · alle
+                Bearbeiter
               </p>
             ) : statuses.length > 0 ? (
               <p
@@ -2176,7 +2198,7 @@ export function MaringoWorkspaceClient() {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  title="Ticket-Tagesverantwortlicher — neue Tickets von heute und gestern"
+                  title="Ticket-Tagesverantwortlicher — neue, noch nicht klassifizierte Tickets"
                   onClick={() => {
                     setFilterMode("ttv");
                     setListSort("newest");
@@ -2193,10 +2215,38 @@ export function MaringoWorkspaceClient() {
               </div>
 
               {filterMode === "ttv" ? (
-                <p className="text-[0.625rem] text-muted-foreground">
-                  Alle neuen Tickets (Status NEU) der letzten zwei Tage,
-                  unabhängig vom Bearbeiter. Neueste oben.
-                </p>
+                <div className="space-y-1.5">
+                  <Label htmlFor="mari-ttv-days" className="sr-only">
+                    TTV-Zeitraum
+                  </Label>
+                  <select
+                    id="mari-ttv-days"
+                    className="h-8 w-full rounded-lg border border-border/70 bg-background px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+                    value={ttvLookbackDays}
+                    onChange={(e) => {
+                      const next = sanitizeTtvLookbackDays(e.target.value);
+                      if (next != null) setTtvLookbackDays(next);
+                    }}
+                    disabled={!configured}
+                  >
+                    {Array.from(
+                      { length: TTV_LOOKBACK_DAYS_MAX - TTV_LOOKBACK_DAYS_MIN + 1 },
+                      (_, i) => TTV_LOOKBACK_DAYS_MIN + i
+                    ).map((days) => (
+                      <option key={days} value={days}>
+                        {days === 1
+                          ? "1 Tag (nur heute)"
+                          : days === 4
+                            ? "4 Tage (Mo nach Wochenende)"
+                            : `${days} Tage`}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[0.625rem] text-muted-foreground">
+                    Status NEU, unabhängig vom Bearbeiter. Zeitraum wird
+                    gespeichert. Neueste oben.
+                  </p>
+                </div>
               ) : filterMode === "handler" ? (
                 <div>
                   <Label htmlFor="mari-handler" className="sr-only">
@@ -2425,7 +2475,7 @@ export function MaringoWorkspaceClient() {
             {!listLoading && tickets.length === 0 ? (
               <li className="px-3 py-8 text-center text-sm text-muted-foreground">
                 {filterMode === "ttv"
-                  ? "Keine neuen Tickets von heute oder gestern."
+                  ? `Keine neuen Tickets (${ttvLookbackLabel(ttvLookbackDays)}).`
                   : filterMode === "customer" && selectedCustomers.length === 0
                     ? "Kunde wählen, um Tickets zu laden."
                     : "Keine Tickets für die gewählten Filter."}

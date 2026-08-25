@@ -12,7 +12,12 @@ import {
   normalizeMariEmployeeNumber,
   type MariTicketListItem,
 } from "@/lib/mari/tickets";
-import { TTV_INBOX_STATUS_ID, ttvInboxDateWindow } from "@/lib/mari/ttv";
+import {
+  TTV_INBOX_STATUS_ID,
+  sanitizeTtvLookbackDays,
+  ttvInboxDateWindow,
+} from "@/lib/mari/ttv";
+import { getMariTicketFilterPrefs } from "@/lib/mari/ticket-filter-prefs";
 import { getAppUserById } from "@/lib/users/queries";
 import { ownerKeyFromAuth } from "@/lib/auth/owner-key";
 import { attachMariTicketAnalysisFlags } from "@/lib/mari/ticket-analysis-store";
@@ -55,9 +60,13 @@ export async function GET(request: Request) {
       cfg.employeeNumber.trim().toUpperCase();
 
     if (url.searchParams.get("filterMode") === "ttv") {
-      const window = ttvInboxDateWindow();
+      const ownerKey = ownerKeyFromAuth(auth);
+      const lookbackDays =
+        sanitizeTtvLookbackDays(url.searchParams.get("ttvDays")) ??
+        getMariTicketFilterPrefs(ownerKey).ttvLookbackDays;
+      const window = ttvInboxDateWindow(undefined, lookbackDays);
       const tickets = attachMariTicketAnalysisFlags(
-        ownerKeyFromAuth(auth),
+        ownerKey,
         await listMyTickets({
           ttvInbox: true,
           requestDateFrom: window.fromYmd,
@@ -70,6 +79,7 @@ export async function GET(request: Request) {
         statuses: [TTV_INBOX_STATUS_ID],
         overdueOnly: false,
         filterMode: "ttv" as const,
+        ttvLookbackDays: window.lookbackDays,
         requestDateFrom: window.fromYmd,
         requestDateTo: window.toYmd,
         defaultHandledBy,

@@ -15,3 +15,12 @@ test("parseMariTicketFilterPrefsPatch keeps ttv mode", () => {
   const patch = parseMariTicketFilterPrefsPatch({ filterMode: "ttv" });
   assert.equal(patch?.filterMode, "ttv");
 });
+
+test("parseMariTicketFilterPrefsPatch keeps ttv lookback days", () => {
+  const patch = parseMariTicketFilterPrefsPatch({ ttvLookbackDays: 4 });
+  assert.equal(patch?.ttvLookbackDays, 4);
+  assert.equal(
+    parseMariTicketFilterPrefsPatch({ ttvLookbackDays: 99 })?.ttvLookbackDays,
+    undefined
+  );
+});

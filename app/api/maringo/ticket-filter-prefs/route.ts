@@ -37,6 +37,7 @@ const PutSchema = z.object({
       ])
     )
     .optional(),
+  ttvLookbackDays: z.number().int().min(1).max(14).optional(),
 });
 
 export async function GET() {
