@@ -91,3 +91,70 @@ test("COMPANY_AI_API_KEY env overrides stored key", async () => {
   delete process.env.COMPANY_AI_MODEL;
   delete process.env.COMPANY_AI_BASE_URL;
 });
+
+test("Konto PUT ignores personal AI fields while company AI is on", async () => {
+  process.env.WORKBUDDY_SESSION_SECRET =
+    "a-secure-test-secret-with-more-than-32-characters";
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "wb-co-ai-put-"));
+  process.env.DATABASE_PATH = path.join(tmp, "put.sqlite");
+  delete process.env.COMPANY_AI_API_KEY;
+  delete process.env.COMPANY_AI_DISABLED;
+
+  const { resetDbForTests } = await import("../db/client.ts");
+  resetDbForTests();
+  const { createAppUser, updateAppUser, getUserOpenAiApiKey, getAppUserById } =
+    await import("../users/queries.ts");
+  const { omitPersonalAiAccountPut, saveCompanyAiSettings } = await import(
+    "./company-provider.ts"
+  );
+
+  saveCompanyAiSettings({
+    enabled: true,
+    kind: "openai",
+    apiKey: "sk-company",
+    model: "gpt-4o-mini",
+  });
+  const user = createAppUser({
+    username: "eva",
+    email: "eva@example.com",
+    displayName: "Eva",
+    passwordHash: "hash",
+  });
+  updateAppUser(user.id, { openaiApiKey: "sk-personal-keep", openaiModel: "gpt-4o" });
+
+  const put = omitPersonalAiAccountPut(
+    {
+      openaiApiKey: "sk-should-ignore",
+      clearOpenaiApiKey: true,
+      openaiModel: "gpt-4.1",
+      chatProvider: "deepseek" as const,
+      chatApiKey: "sk-chat-ignore",
+      clearChatApiKey: true,
+      chatBaseUrl: "https://ignored.example",
+      chatModel: "ignored",
+      mariEmployeeNumber: "M1010",
+    },
+    true
+  );
+  assert.equal("openaiApiKey" in put, false);
+  assert.equal("clearOpenaiApiKey" in put, false);
+  assert.equal("openaiModel" in put, false);
+  assert.equal("chatProvider" in put, false);
+  assert.equal("chatApiKey" in put, false);
+  assert.equal("clearChatApiKey" in put, false);
+  assert.equal("chatBaseUrl" in put, false);
+  assert.equal("chatModel" in put, false);
+  assert.equal(put.mariEmployeeNumber, "M1010");
+
+  updateAppUser(user.id, put);
+  const row = getAppUserById(user.id);
+  assert.equal(getUserOpenAiApiKey(row!), "sk-personal-keep");
+  assert.equal(row?.openai_model, "gpt-4o");
+  assert.equal(row?.mari_employee_number, "M1010");
+
+  const kept = omitPersonalAiAccountPut(
+    { openaiApiKey: "sk-new", mariEmployeeNumber: "M2020" },
+    false
+  );
+  assert.equal(kept.openaiApiKey, "sk-new");
+});

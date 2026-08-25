@@ -77,6 +77,8 @@ export function AccountSecretsPanel() {
     );
   }, []);
 
+  const usingCompanyAi = Boolean(data?.openai.usingCompanyAi);
+
   async function save() {
     setBusy(true);
     setError(null);
@@ -86,14 +88,18 @@ export function AccountSecretsPanel() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          openaiApiKey: openaiKey || undefined,
-          clearOpenaiApiKey: clearOpenai,
-          openaiModel,
-          chatProvider,
-          chatApiKey: chatKey || undefined,
-          clearChatApiKey: clearChat,
-          chatBaseUrl: chatBaseUrl || null,
-          chatModel: chatModel || null,
+          ...(usingCompanyAi
+            ? {}
+            : {
+                openaiApiKey: openaiKey || undefined,
+                clearOpenaiApiKey: clearOpenai,
+                openaiModel,
+                chatProvider,
+                chatApiKey: chatKey || undefined,
+                clearChatApiKey: clearChat,
+                chatBaseUrl: chatBaseUrl || null,
+                chatModel: chatModel || null,
+              }),
           mariRestUsername: mariUser || null,
           mariRestPassword: mariPassword || undefined,
           clearMariRestPassword: clearMari,
@@ -119,105 +125,111 @@ export function AccountSecretsPanel() {
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">OpenAI (Pflicht für KI)</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            {data?.openai.usingCompanyAi
-              ? `Firmen-KI gilt für alle (${data.openai.companyModel || "gpt-4o-mini"}). Ein eigener Key hier wird erst genutzt, wenn die Firmen-KI aus ist.`
-              : data?.openai.hasOpenaiKey
+      {data && usingCompanyAi ? (
+        <p className="text-sm text-muted-foreground">
+          Firmen-KI gilt für alle
+          {data.openai.companyModel ? ` (${data.openai.companyModel})` : ""}.
+          Persönliche Keys werden nicht genutzt.
+        </p>
+      ) : data ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">OpenAI (Pflicht für KI)</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {data.openai.hasOpenaiKey
                 ? "Ein OpenAI-Key ist gesetzt (nicht sichtbar)."
                 : "Kein Key hinterlegt — KI-Funktionen sind deaktiviert, ausser der Admin hinterlegt eine Firmen-KI."}
-          </p>
-          <div className="space-y-2">
-            <Label htmlFor="openai-key">Neuer OpenAI-Key</Label>
-            <Input
-              id="openai-key"
-              type="password"
-              autoComplete="off"
-              value={openaiKey}
-              onChange={(e) => setOpenaiKey(e.target.value)}
-              placeholder="sk-…"
-            />
-          </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={clearOpenai}
-              onChange={(e) => setClearOpenai(e.target.checked)}
-            />
-            Key entfernen
-          </label>
-          <div className="space-y-2">
-            <Label>Modell</Label>
-            <Select
-              value={openaiModel}
-              onValueChange={(v) => {
-                if (v) setOpenaiModel(v);
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {OPENAI_MODELS.map((m) => (
-                  <SelectItem key={m} value={m}>
-                    {m}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Optional: Chat-Provider (Compose)</Label>
-            <Select
-              value={chatProvider}
-              onValueChange={(v) => {
-                if (v) setChatProvider(v);
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="openai">OpenAI</SelectItem>
-                <SelectItem value="deepseek">DeepSeek</SelectItem>
-                <SelectItem value="custom">Custom</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {chatProvider !== "openai" ? (
-            <>
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="openai-key">Neuer OpenAI-Key</Label>
               <Input
+                id="openai-key"
                 type="password"
-                placeholder="Chat-API-Key"
-                value={chatKey}
-                onChange={(e) => setChatKey(e.target.value)}
+                autoComplete="off"
+                value={openaiKey}
+                onChange={(e) => setOpenaiKey(e.target.value)}
+                placeholder="sk-…"
               />
-              <Input
-                placeholder="Base-URL"
-                value={chatBaseUrl}
-                onChange={(e) => setChatBaseUrl(e.target.value)}
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={clearOpenai}
+                onChange={(e) => setClearOpenai(e.target.checked)}
               />
-              <Input
-                placeholder="Chat-Modell"
-                value={chatModel}
-                onChange={(e) => setChatModel(e.target.value)}
-              />
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={clearChat}
-                  onChange={(e) => setClearChat(e.target.checked)}
+              Key entfernen
+            </label>
+            <div className="space-y-2">
+              <Label>Modell</Label>
+              <Select
+                value={openaiModel}
+                onValueChange={(v) => {
+                  if (v) setOpenaiModel(v);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {OPENAI_MODELS.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Optional: Chat-Provider (Compose)</Label>
+              <Select
+                value={chatProvider}
+                onValueChange={(v) => {
+                  if (v) setChatProvider(v);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="openai">OpenAI</SelectItem>
+                  <SelectItem value="deepseek">DeepSeek</SelectItem>
+                  <SelectItem value="custom">Custom</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {chatProvider !== "openai" ? (
+              <>
+                <Input
+                  type="password"
+                  placeholder="Chat-API-Key"
+                  value={chatKey}
+                  onChange={(e) => setChatKey(e.target.value)}
                 />
-                Chat-Key entfernen
-              </label>
-            </>
-          ) : null}
-        </CardContent>
-      </Card>
+                <Input
+                  placeholder="Base-URL"
+                  value={chatBaseUrl}
+                  onChange={(e) => setChatBaseUrl(e.target.value)}
+                />
+                <Input
+                  placeholder="Chat-Modell"
+                  value={chatModel}
+                  onChange={(e) => setChatModel(e.target.value)}
+                />
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={clearChat}
+                    onChange={(e) => setClearChat(e.target.checked)}
+                  />
+                  Chat-Key entfernen
+                </label>
+              </>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>

@@ -17,6 +17,11 @@ import type {
   MariSettingOption,
   MariSupportGroupOption,
 } from "@/lib/mari/ticket-meta";
+import { MariSupportStaffPicker } from "@/components/maringo/mari-support-staff-picker";
+import {
+  employeeInSupportGroup,
+  parseMariSupportGroupId,
+} from "@/lib/mari/support-group-staff";
 
 export type TicketKopfDefaults = {
   projectNumber?: string | null;
@@ -400,38 +405,41 @@ export function MaringoTicketKopfForm({
             Wird mit dem Namen als «Name; E-Mail» in ContactPerson gespeichert.
           </p>
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="tk-kopf-group">Supportgruppe</Label>
-          <select
-            id="tk-kopf-group"
-            className="flex h-9 w-full rounded-md border border-input bg-background px-2.5 text-[0.8125rem]"
-            value={supportGroupId}
-            onChange={(e) => setSupportGroupId(e.target.value)}
-          >
-            <option value="">— keine —</option>
-            {groups.map((g) => (
-              <option key={g.groupId} value={g.groupId}>
-                {g.description}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="tk-kopf-handled">Zuständig</Label>
-          <select
-            id="tk-kopf-handled"
-            className="flex h-9 w-full rounded-md border border-input bg-background px-2.5 text-[0.8125rem]"
-            value={handledBy}
-            onChange={(e) => setHandledBy(e.target.value)}
-          >
-            <option value="">— wählen —</option>
-            {employees.map((e) => (
-              <option key={e.employeeNumber} value={e.employeeNumber}>
-                {e.matchcode} ({e.employeeNumber})
-              </option>
-            ))}
-          </select>
-        </div>
+        <MariSupportStaffPicker
+          groups={groups}
+          employees={employees}
+          groupId={supportGroupId}
+          employeeNumber={handledBy}
+          onGroupChange={(next) => {
+            setSupportGroupId(next);
+            const gid = parseMariSupportGroupId(next);
+            const current = employees.find(
+              (e) => e.employeeNumber === handledBy
+            );
+            if (!current || !employeeInSupportGroup(current, gid)) {
+              setHandledBy("");
+            }
+          }}
+          onEmployeeChange={setHandledBy}
+          groupLabel="Supportgruppe"
+          employeeLabel="Zuständig"
+          groupSelectId="tk-kopf-group"
+          employeeSelectId="tk-kopf-handled"
+          emptyGroupLabel="— keine —"
+          extraEmployeeOptions={
+            handledBy &&
+            !employees.some(
+              (e) =>
+                e.employeeNumber === handledBy &&
+                employeeInSupportGroup(
+                  e,
+                  parseMariSupportGroupId(supportGroupId)
+                )
+            )
+              ? [{ value: handledBy, label: handledBy }]
+              : undefined
+          }
+        />
         <div className="grid gap-2 sm:grid-cols-2">
           <div className="space-y-1">
             <Label htmlFor="tk-kopf-prio">Priorität</Label>

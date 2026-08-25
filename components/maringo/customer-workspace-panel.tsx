@@ -6,10 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { MaringoLogo } from "@/components/branding/provider-logos";
+import { cn } from "@/lib/utils";
 import type { MariTicketListItem } from "@/lib/mari/tickets";
 import type { MariCustomerOption } from "@/lib/mari/customers";
 import type { MariCalendarStamp } from "@/lib/mari/calendar-stamp";
 import { STATUS_LABELS } from "@/lib/mari/status";
+
+export type AkteFilterCustomer = MariCustomerOption & {
+  ticketCount: number;
+};
 
 type Workspace = {
   cardCode: string;
@@ -27,18 +32,28 @@ type Workspace = {
   upcomingStamps: MariCalendarStamp[];
 };
 
+const customerCardClass =
+  "flex w-full items-center justify-between gap-3 rounded-2xl bg-card px-3.5 py-3 text-left shadow-sm ring-1 ring-foreground/10 transition-shadow hover:bg-muted hover:shadow-md";
+
 export function CustomerWorkspacePanel({
   cardCode,
+  filterCustomers,
+  ticketsLoading,
   onOpenTicket,
   onBook,
   onAdhoc,
   onPickCustomer,
 }: {
   cardCode: string | null;
+  filterCustomers: AkteFilterCustomer[];
+  ticketsLoading: boolean;
   onOpenTicket: (issueId: number) => void;
   onBook: (ticket: MariTicketListItem) => void;
   onAdhoc: (ticket: MariTicketListItem | null) => void;
-  onPickCustomer: (customer: MariCustomerOption) => void;
+  onPickCustomer: (
+    customer: MariCustomerOption,
+    source: "filter" | "search"
+  ) => void;
 }) {
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<MariCustomerOption[]>([]);
@@ -93,6 +108,12 @@ export function CustomerWorkspacePanel({
   const firstOpen = data?.tickets.find((t) => t.status !== 2 && t.status !== 5) ||
     data?.tickets[0] ||
     null;
+  const selectedInFilter = Boolean(
+    cardCode && filterCustomers.some((c) => c.cardCode === cardCode)
+  );
+  const showFilterList =
+    filterCustomers.length >= 2 ||
+    (filterCustomers.length === 1 && !selectedInFilter);
 
   return (
     <div className="space-y-4">
@@ -107,20 +128,24 @@ export function CustomerWorkspacePanel({
           placeholder="Kunde suchen (Name oder CardCode)"
         />
         {hits.length > 0 ? (
-          <ul className="overflow-hidden rounded-xl ring-1 ring-border/70">
+          <ul className="space-y-2">
             {hits.slice(0, 8).map((c) => (
               <li key={c.cardCode}>
                 <button
                   type="button"
-                  className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-muted/50"
+                  className={customerCardClass}
                   onClick={() => {
-                    onPickCustomer(c);
+                    onPickCustomer(c, "search");
                     setQuery("");
                     setHits([]);
                   }}
                 >
-                  <span className="font-semibold">{c.name}</span>
-                  <span className="text-xs text-muted-foreground">{c.cardCode}</span>
+                  <span className="min-w-0 font-semibold wrap-break-word">
+                    {c.name}
+                  </span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {c.cardCode}
+                  </span>
                 </button>
               </li>
             ))}
@@ -128,11 +153,79 @@ export function CustomerWorkspacePanel({
         ) : null}
       </div>
 
-      {!cardCode ? (
+      {ticketsLoading && filterCustomers.length === 0 && !cardCode ? (
+        <p className="text-sm text-muted-foreground">
+          Lade Kunden aus dem Ticketfilter…
+        </p>
+      ) : filterCustomers.length === 0 && !cardCode ? (
+        <div className="rounded-2xl bg-card px-4 py-8 text-center shadow-sm ring-1 ring-foreground/10">
+          <p className="text-sm font-semibold">Keine Akten im Filter</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Im aktuellen Ticketfilter gibt es keine Tickets mit Kundenakte.
+            Filter auf Tickets anpassen oder einen Kunden suchen.
+          </p>
+        </div>
+      ) : null}
+
+      {filterCustomers.length === 0 && cardCode ? (
+        <p className="text-sm text-muted-foreground">
+          Keine Kunden im aktuellen Ticketfilter — gewählte Akte bleibt offen.
+        </p>
+      ) : filterCustomers.length === 1 ? (
+        <p className="text-xs text-muted-foreground">
+          1 Kunde mit Tickets im aktuellen Filter
+        </p>
+      ) : null}
+
+      {showFilterList ? (
+        <section className="space-y-2">
+          <div>
+            <h3 className="text-sm font-bold">Kunden im Ticketfilter</h3>
+            <p className="text-xs text-muted-foreground">
+              {filterCustomers.length}{" "}
+              {filterCustomers.length === 1 ? "Kunde" : "Kunden"} mit Tickets
+              im aktuellen Filter
+            </p>
+          </div>
+          <ul className="max-h-[min(16rem,40vh)] space-y-2 overflow-y-auto">
+            {filterCustomers.map((c) => {
+              const selected = c.cardCode === cardCode;
+              return (
+                <li key={c.cardCode}>
+                  <button
+                    type="button"
+                    aria-current={selected ? "true" : undefined}
+                    className={cn(
+                      customerCardClass,
+                      selected && "bg-muted ring-2 ring-primary"
+                    )}
+                    onClick={() => onPickCustomer(c, "filter")}
+                  >
+                    <span className="min-w-0">
+                      <span className="block font-semibold wrap-break-word">
+                        {c.name}
+                      </span>
+                      <span className="block text-xs text-muted-foreground">
+                        {c.cardCode}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                      {c.ticketCount}{" "}
+                      {c.ticketCount === 1 ? "Ticket" : "Tickets"}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
+
+      {!cardCode && !ticketsLoading && filterCustomers.length > 0 ? (
         <p className="text-sm text-muted-foreground">
           Kunde wählen, um Tickets, Stunden und Termine in einer Akte zu sehen.
         </p>
-      ) : loading ? (
+      ) : !cardCode ? null : loading ? (
         <p className="text-sm text-muted-foreground">Lade Akte…</p>
       ) : error ? (
         <p className="text-sm text-destructive">{error}</p>
@@ -197,20 +290,18 @@ export function CustomerWorkspacePanel({
             {data.tickets.length === 0 ? (
               <p className="text-sm text-muted-foreground">Keine Tickets.</p>
             ) : (
-              <ul className="space-y-1.5">
+              <ul className="space-y-2">
                 {data.tickets.slice(0, 20).map((t) => (
                   <li key={t.issueId}>
                     <button
                       type="button"
                       onClick={() => onOpenTicket(t.issueId)}
-                      className="flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left ring-1 ring-border/60 hover:bg-muted/40"
+                      className={customerCardClass}
                     >
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-semibold">
-                          #{t.issueId} {t.briefDescription}
-                        </span>
+                      <span className="min-w-0 font-semibold wrap-break-word">
+                        #{t.issueId} {t.briefDescription}
                       </span>
-                      <span className="shrink-0 text-[0.6875rem] text-muted-foreground">
+                      <span className="shrink-0 text-xs text-muted-foreground">
                         {t.statusName || STATUS_LABELS[t.status] || t.status}
                       </span>
                     </button>

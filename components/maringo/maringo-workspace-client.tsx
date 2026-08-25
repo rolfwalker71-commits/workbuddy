@@ -18,6 +18,7 @@ import {
   Copy,
   Calendar,
   CalendarPlus,
+  CalendarRange,
   Clock3,
   Flag,
   FolderOpen,
@@ -87,6 +88,14 @@ import type {
   MariTimelineAttachment,
   MariTimelineItem,
 } from "@/lib/mari/tickets";
+import type { MariSupportGroupOption } from "@/lib/mari/ticket-meta";
+import {
+  employeeInSupportGroup,
+  filterEmployeesBySupportGroup,
+  firstSupportGroupIdForEmployee,
+  parseMariSupportGroupId,
+} from "@/lib/mari/support-group-staff";
+import { MariSupportStaffPicker } from "@/components/maringo/mari-support-staff-picker";
 import type { MariCustomerOption } from "@/lib/mari/customers";
 import type {
   MariListMetaField,
@@ -147,6 +156,7 @@ import {
 } from "@/components/maringo/maringo-time-suggestions-panel";
 import { TicketAnalyzeAttachmentPicker } from "@/components/maringo/ticket-analyze-attachment-picker";
 import { TtvDutyChip } from "@/components/maringo/ttv-duty-chip";
+import { TtvDutyPanel } from "@/components/maringo/ttv-duty-panel";
 import { CustomerWorkspacePanel } from "@/components/maringo/customer-workspace-panel";
 
 function ReplyLangToggle({
@@ -725,9 +735,11 @@ function SolutionArtifactCard({
 export function MaringoWorkspaceClient() {
   const searchParams = useSearchParams();
   const [workspaceTab, setWorkspaceTab] = useState<
-    "tickets" | "hours" | "kunde"
+    "tickets" | "hours" | "kunde" | "ttv"
   >("tickets");
   const [akteCard, setAkteCard] = useState<MariCustomerOption | null>(null);
+  /** URL / ticket / search pick stays even if that customer is outside the filter set. */
+  const akteExplicitRef = useRef(false);
   const [statuses, setStatuses] = useState<number[]>([...WORK_STATUS_IDS]);
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [filterReady, setFilterReady] = useState(false);
@@ -790,6 +802,10 @@ export function MaringoWorkspaceClient() {
   const [passwordUnreadable, setPasswordUnreadable] = useState(false);
   const [dueDraft, setDueDraft] = useState("");
   const [employees, setEmployees] = useState<MariEmployeeOption[]>([]);
+  const [supportGroups, setSupportGroups] = useState<MariSupportGroupOption[]>(
+    []
+  );
+  const [filterSupportGroupId, setFilterSupportGroupId] = useState("");
   const [defaultHandledBy, setDefaultHandledBy] = useState("");
   const [handledBy, setHandledBy] = useState("");
   const [manualHandledBy, setManualHandledBy] = useState("");
@@ -874,6 +890,31 @@ export function MaringoWorkspaceClient() {
     return items;
   }, [tickets, listSort]);
 
+  const akteFilterCustomers = useMemo(() => {
+    const seen = new Map<
+      string,
+      { cardCode: string; name: string; ticketCount: number }
+    >();
+    for (const t of sortedTickets) {
+      const code = (t.cardCode || "").trim();
+      if (!code) continue;
+      const existing = seen.get(code);
+      if (existing) {
+        existing.ticketCount += 1;
+        if (t.addressMatchcode && existing.name === existing.cardCode) {
+          existing.name = t.addressMatchcode.trim();
+        }
+      } else {
+        seen.set(code, {
+          cardCode: code,
+          name: (t.addressMatchcode || code).trim() || code,
+          ticketCount: 1,
+        });
+      }
+    }
+    return [...seen.values()];
+  }, [sortedTickets]);
+
   const ticketTimeHoursTotal = useMemo(() => {
     return (
       Math.round(
@@ -903,13 +944,20 @@ export function MaringoWorkspaceClient() {
 
   const loadEmployees = useCallback(async () => {
     try {
-      const res = await fetch("/api/maringo/employees");
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) return;
+      const [empRes, grpRes] = await Promise.all([
+        fetch("/api/maringo/employees"),
+        fetch("/api/maringo/support-groups"),
+      ]);
+      const data = await empRes.json().catch(() => ({}));
+      const grpData = await grpRes.json().catch(() => ({}));
+      if (!empRes.ok) return;
       const list = Array.isArray(data.employees)
         ? (data.employees as MariEmployeeOption[])
         : [];
       setEmployees(list);
+      if (grpRes.ok && Array.isArray(grpData.groups)) {
+        setSupportGroups(grpData.groups as MariSupportGroupOption[]);
+      }
       const def = String(data.defaultEmployeeNumber || "")
         .trim()
         .toUpperCase();
@@ -917,6 +965,12 @@ export function MaringoWorkspaceClient() {
         setDefaultHandledBy(def);
         setHandledBy((prev) => prev || def);
       }
+      setFilterSupportGroupId((prev) => {
+        if (prev) return prev;
+        const emp = (def || "").trim().toUpperCase();
+        const gid = firstSupportGroupIdForEmployee(list, emp);
+        return gid != null ? String(gid) : "";
+      });
     } catch {
       /* optional — manuelle Eingabe bleibt möglich */
     }
@@ -1380,7 +1434,15 @@ export function MaringoWorkspaceClient() {
     const card = (searchParams.get("card") || "").trim();
     if (view === "kunde") {
       setWorkspaceTab("kunde");
-      if (card) setAkteCard((prev) => prev?.cardCode === card ? prev : { cardCode: card, name: card });
+      if (card) {
+        akteExplicitRef.current = true;
+        setAkteCard((prev) =>
+          prev?.cardCode === card ? prev : { cardCode: card, name: card }
+        );
+      }
+    }
+    if (view === "ttv") {
+      setWorkspaceTab("ttv");
     }
     const filter = searchParams.get("filter");
     if (filter === "ttv") {
@@ -1401,6 +1463,24 @@ export function MaringoWorkspaceClient() {
       }
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    setAkteCard((prev) => {
+      if (prev) {
+        const match = akteFilterCustomers.find(
+          (c) => c.cardCode === prev.cardCode
+        );
+        if (match) {
+          return prev.name === match.name
+            ? prev
+            : { cardCode: match.cardCode, name: match.name };
+        }
+        if (akteExplicitRef.current) return prev;
+      }
+      const first = akteFilterCustomers[0];
+      return first ? { cardCode: first.cardCode, name: first.name } : null;
+    });
+  }, [akteFilterCustomers]);
 
   useEffect(() => {
     setSecondaryFlyouts([]);
@@ -1446,6 +1526,7 @@ export function MaringoWorkspaceClient() {
     addressMatchcode: string | null;
   }) {
     if (!ticket.cardCode) return;
+    akteExplicitRef.current = true;
     setAkteCard({
       cardCode: ticket.cardCode,
       name: ticket.addressMatchcode || ticket.cardCode,
@@ -1520,7 +1601,11 @@ export function MaringoWorkspaceClient() {
     setStatuses([...WORK_STATUS_IDS]);
     setOverdueOnly(false);
     setHandlerMode("list");
-    if (defaultHandledBy) setHandledBy(defaultHandledBy);
+    if (defaultHandledBy) {
+      setHandledBy(defaultHandledBy);
+      const gid = firstSupportGroupIdForEmployee(employees, defaultHandledBy);
+      if (gid != null) setFilterSupportGroupId(String(gid));
+    }
     setManualHandledBy("");
   }
 
@@ -1537,6 +1622,22 @@ export function MaringoWorkspaceClient() {
     }
     setHandlerMode("list");
     setHandledBy(value);
+  }
+
+  function onFilterSupportGroupChange(next: string) {
+    setFilterSupportGroupId(next);
+    if (handlerMode === "manual") return;
+    const gid = parseMariSupportGroupId(next);
+    const inGroup = filterEmployeesBySupportGroup(employees, gid);
+    const current = (handledBy || defaultHandledBy).trim().toUpperCase();
+    if (inGroup.some((e) => e.employeeNumber === current)) {
+      if (!handledBy && defaultHandledBy) setHandledBy(defaultHandledBy);
+      return;
+    }
+    const fallback =
+      inGroup.find((e) => e.employeeNumber === defaultHandledBy) ||
+      inGroup[0];
+    setHandledBy(fallback?.employeeNumber || "");
   }
 
   async function runAnalyze(options?: {
@@ -2028,6 +2129,20 @@ export function MaringoWorkspaceClient() {
           <FolderOpen className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
           Akte
         </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          data-segment="true"
+          onClick={() => {
+            setTicketFlyoutOpen(false);
+            setSecondaryFlyouts([]);
+            setWorkspaceTab("ttv");
+          }}
+          className={segmentedTriggerClass(workspaceTab === "ttv")}
+        >
+          <CalendarRange className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
+          TTV
+        </Button>
       </nav>
 
       {!configured ? (
@@ -2065,9 +2180,13 @@ export function MaringoWorkspaceClient() {
           />
           <MaringoTimekeepingPanel />
         </div>
+      ) : workspaceTab === "ttv" ? (
+        <TtvDutyPanel />
       ) : workspaceTab === "kunde" ? (
         <CustomerWorkspacePanel
           cardCode={akteCard?.cardCode || null}
+          filterCustomers={akteFilterCustomers}
+          ticketsLoading={listLoading}
           onOpenTicket={(id) => openTicket(id)}
           onBook={(ticket) => {
             setSelectedId(ticket.issueId);
@@ -2077,7 +2196,10 @@ export function MaringoWorkspaceClient() {
             if (ticket) setSelectedId(ticket.issueId);
             setTicketCalendarOpen(true);
           }}
-          onPickCustomer={(c) => setAkteCard(c)}
+          onPickCustomer={(c, source) => {
+            akteExplicitRef.current = source === "search";
+            setAkteCard(c);
+          }}
         />
       ) : (
       <div className="min-h-[70vh] overflow-hidden rounded-2xl border border-border/60 bg-card shadow-[0_4px_18px_rgba(15,23,42,0.05)]">
@@ -2323,60 +2445,71 @@ export function MaringoWorkspaceClient() {
                   </p>
                 </div>
               ) : filterMode === "handler" ? (
-                <div>
-                  <Label htmlFor="mari-handler" className="sr-only">
-                    Bearbeiter
-                  </Label>
-                  <select
-                    id="mari-handler"
-                    className="h-8 w-full rounded-lg border border-border/70 bg-background px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
-                    value={
-                      handlerMode === "manual"
-                        ? "__manual__"
-                        : handledBy || defaultHandledBy || ""
-                    }
-                    onChange={(e) => onHandlerSelectChange(e.target.value)}
-                    disabled={!configured}
-                  >
-                    {!handledBy && !defaultHandledBy ? (
-                      <option value="">Laden…</option>
-                    ) : null}
-                    {employees.map((e) => (
-                      <option key={e.employeeNumber} value={e.employeeNumber}>
-                        {e.matchcode} ({e.employeeNumber})
-                        {defaultHandledBy &&
-                        e.employeeNumber === defaultHandledBy
-                          ? " · ich"
-                          : ""}
-                      </option>
-                    ))}
-                    {handledBy &&
-                    !employees.some((e) => e.employeeNumber === handledBy) ? (
-                      <option value={handledBy}>{handledBy}</option>
-                    ) : null}
-                    <option value="__manual__">Andere Nummer…</option>
-                  </select>
-                  {handlerMode === "manual" ? (
-                    <Input
-                      value={manualHandledBy}
-                      onChange={(e) =>
-                        setManualHandledBy(e.target.value.toUpperCase())
-                      }
-                      placeholder="z.B. M2055"
-                      className="mt-1.5 h-8 text-xs"
-                      spellCheck={false}
-                      autoComplete="off"
-                    />
-                  ) : null}
-                  {effectiveHandledBy &&
-                  defaultHandledBy &&
-                  effectiveHandledBy !== defaultHandledBy ? (
-                    <p className="mt-1 text-[0.625rem] text-muted-foreground">
-                      Ansicht: {effectiveHandledBy} (nicht deine Nummer{" "}
-                      {defaultHandledBy})
-                    </p>
-                  ) : null}
-                </div>
+                <MariSupportStaffPicker
+                  variant="filter"
+                  groups={supportGroups}
+                  employees={employees}
+                  groupId={filterSupportGroupId}
+                  employeeNumber={
+                    handlerMode === "manual"
+                      ? "__manual__"
+                      : handledBy || defaultHandledBy || ""
+                  }
+                  onGroupChange={onFilterSupportGroupChange}
+                  onEmployeeChange={onHandlerSelectChange}
+                  groupLabel="Supportgruppe"
+                  employeeLabel="Bearbeiter"
+                  groupSelectId="mari-filter-group"
+                  employeeSelectId="mari-handler"
+                  hideGroupLabel
+                  hideEmployeeLabel
+                  disabled={!configured}
+                  formatEmployeeOption={(e) =>
+                    `${e.matchcode} (${e.employeeNumber})${
+                      defaultHandledBy && e.employeeNumber === defaultHandledBy
+                        ? " · ich"
+                        : ""
+                    }`
+                  }
+                  extraEmployeeOptions={[
+                    ...(handledBy &&
+                    !employees.some(
+                      (e) =>
+                        e.employeeNumber === handledBy &&
+                        employeeInSupportGroup(
+                          e,
+                          parseMariSupportGroupId(filterSupportGroupId)
+                        )
+                    )
+                      ? [{ value: handledBy, label: handledBy }]
+                      : []),
+                    { value: "__manual__", label: "Andere Nummer…" },
+                  ]}
+                  footer={
+                    <>
+                      {handlerMode === "manual" ? (
+                        <Input
+                          value={manualHandledBy}
+                          onChange={(e) =>
+                            setManualHandledBy(e.target.value.toUpperCase())
+                          }
+                          placeholder="z.B. M2055"
+                          className="h-8 text-xs"
+                          spellCheck={false}
+                          autoComplete="off"
+                        />
+                      ) : null}
+                      {effectiveHandledBy &&
+                      defaultHandledBy &&
+                      effectiveHandledBy !== defaultHandledBy ? (
+                        <p className="text-[0.625rem] text-muted-foreground">
+                          Ansicht: {effectiveHandledBy} (nicht deine Nummer{" "}
+                          {defaultHandledBy})
+                        </p>
+                      ) : null}
+                    </>
+                  }
+                />
               ) : (
                 <div className="space-y-1.5">
                   {selectedCustomers.length > 0 ? (

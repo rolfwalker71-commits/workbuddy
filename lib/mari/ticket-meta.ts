@@ -1,11 +1,14 @@
 import { requireMariConfig } from "@/lib/mari/client";
 import { mariSql } from "@/lib/mari/client";
 import { PRIORITY_LABELS } from "@/lib/mari/status";
+import type { MariSupportGroupMember } from "@/lib/mari/support-group-staff";
 
 export type MariSupportGroupOption = {
   groupId: number;
   description: string;
 };
+
+export type { MariSupportGroupMember };
 
 export type MariSettingOption = {
   id: number;
@@ -36,6 +39,35 @@ ORDER BY g."Description", g."GroupId"`
       return { groupId, description };
     })
     .filter((x): x is MariSupportGroupOption => x != null);
+}
+
+/** Mitarbeiter-Zuordnung zu Supportgruppen (MARISupportGroupEmployee). */
+export async function listMariSupportGroupMemberships(): Promise<
+  MariSupportGroupMember[]
+> {
+  requireMariConfig();
+  const rows = await mariSql<{
+    SupportGroupID: number;
+    EmployeeNumber: string;
+  }>(
+    `SELECT TOP 2000
+  m."SupportGroupID",
+  m."EmployeeNumber"
+FROM "MARISupportGroupEmployee" m
+WHERE m."SupportGroupID" IS NOT NULL
+  AND m."EmployeeNumber" IS NOT NULL`
+  );
+  return rows
+    .map((r) => {
+      const groupId = Number(r.SupportGroupID);
+      const employeeNumber = String(r.EmployeeNumber || "")
+        .trim()
+        .toUpperCase();
+      if (!Number.isInteger(groupId) || groupId <= 0) return null;
+      if (!/^[A-Z0-9]{2,20}$/.test(employeeNumber)) return null;
+      return { groupId, employeeNumber };
+    })
+    .filter((x): x is MariSupportGroupMember => x != null);
 }
 
 /** MPHOTLINESETTINGS Lookup (SETTING: 3=Prio, 5=Medium/Kanal). */

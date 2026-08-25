@@ -10,7 +10,10 @@ import {
   updateAppUser,
   type AppUserRow,
 } from "@/lib/users/queries";
-import { getCompanyAiPublic } from "@/lib/ai/company-provider";
+import {
+  getCompanyAiPublic,
+  omitPersonalAiAccountPut,
+} from "@/lib/ai/company-provider";
 
 function openaiAccountPayload(row: AppUserRow | null) {
   const company = getCompanyAiPublic();
@@ -89,7 +92,11 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Ungültige Eingabe" }, { status: 400 });
   }
   try {
-    updateAppUser(userId, parsed.data);
+    const company = getCompanyAiPublic();
+    updateAppUser(
+      userId,
+      omitPersonalAiAccountPut(parsed.data, company.enabled)
+    );
     return NextResponse.json({ ok: true, ...(await (async () => {
       const row = getAppUserById(userId);
       return {

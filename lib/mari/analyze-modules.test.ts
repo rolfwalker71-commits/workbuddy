@@ -8,6 +8,7 @@ import {
 import {
   buildVendorDocSearchQuery,
   formatVendorDocHitsForPrompt,
+  htmlToPlain,
 } from "./analyze-vendor-docs.ts";
 
 test("parseAnalyzeModuleIds keeps catalog order and drops unknown", () => {
@@ -82,4 +83,27 @@ test("vendor doc hits stay empty without results", () => {
     ]),
     /Enable Transaction Notification/
   );
+});
+
+test("vendor doc prompt prefers the full section over the snippet", () => {
+  const text = formatVendorDocHitsForPrompt([
+    {
+      source: "SAP Business One (SQL)",
+      title: "Transaction Notification",
+      url: "https://help.sap.com/docs/SAP_BUSINESS_ONE/x",
+      snippet: "kurz",
+      section: "To enable the stored procedure, select the checkbox.",
+    },
+  ]);
+  assert.match(text, /To enable the stored procedure/);
+  assert.doesNotMatch(text, /\n  kurz\n/);
+});
+
+test("htmlToPlain keeps readable article text", () => {
+  const plain = htmlToPlain(
+    "<h1>Backup</h1><p>Stop the <b>server</b>.</p><script>x()</script>"
+  );
+  assert.match(plain, /Backup/);
+  assert.match(plain, /Stop the server/);
+  assert.doesNotMatch(plain, /script|x\(\)/);
 });

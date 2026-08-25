@@ -105,6 +105,30 @@ export function getCompanyAiConfig(): CompanyAiConfig {
   };
 }
 
+const PERSONAL_AI_ACCOUNT_PUT_KEYS = [
+  "openaiApiKey",
+  "clearOpenaiApiKey",
+  "openaiModel",
+  "chatProvider",
+  "chatApiKey",
+  "clearChatApiKey",
+  "chatBaseUrl",
+  "chatModel",
+] as const;
+
+/** Ignore personal OpenAI/chat fields on Konto PUT while Firmen-KI is on. */
+export function omitPersonalAiAccountPut<T extends object>(
+  input: T,
+  companyAiEnabled: boolean
+): T {
+  if (!companyAiEnabled) return input;
+  const next = { ...input } as T & Record<string, unknown>;
+  for (const key of PERSONAL_AI_ACCOUNT_PUT_KEYS) {
+    delete next[key];
+  }
+  return next;
+}
+
 export function getCompanyAiPublic(): CompanyAiPublic {
   const cfg = getCompanyAiConfig();
   return {

@@ -23,6 +23,8 @@ import {
   WORK_STATUS_IDS,
   statusChipLabel,
 } from "@/lib/mari/status";
+import { listMariSupportGroupMemberships } from "@/lib/mari/ticket-meta";
+import { supportGroupIdsByEmployee } from "@/lib/mari/support-group-staff";
 import {
   TTV_INBOX_STATUS_ID,
   sanitizeYmd,
@@ -184,6 +186,8 @@ export type MariEmployeeOption = {
   matchcode: string;
   employeeName: string | null;
   nameInitials: string | null;
+  /** MARI-Supportgruppen, denen der Mitarbeiter zugeordnet ist. */
+  supportGroupIds: number[];
 };
 
 /** Personalnummer wie in MARI (z.B. M1010). */
@@ -198,13 +202,14 @@ export function normalizeMariEmployeeNumber(
 
 export async function listMariEmployees(): Promise<MariEmployeeOption[]> {
   requireMariConfig();
-  const rows = await mariSql<{
-    EmployeeNumber: string;
-    Matchcode: string | null;
-    EmployeeName: string | null;
-    NameInitials: string | null;
-  }>(
-    `SELECT TOP 300
+  const [rows, memberships] = await Promise.all([
+    mariSql<{
+      EmployeeNumber: string;
+      Matchcode: string | null;
+      EmployeeName: string | null;
+      NameInitials: string | null;
+    }>(
+      `SELECT TOP 300
   e."EmployeeNumber",
   e."Matchcode",
   e."EmployeeName",
@@ -213,7 +218,10 @@ FROM "MARIEmployeeMaster" e
 WHERE (e."Inactive" = 0 OR e."Inactive" IS NULL)
   AND e."EmployeeNumber" LIKE 'M%'
 ORDER BY e."Matchcode", e."EmployeeNumber"`
-  );
+    ),
+    listMariSupportGroupMemberships(),
+  ]);
+  const groupsByEmployee = supportGroupIdsByEmployee(memberships);
   return rows
     .map((r) => {
       const employeeNumber = normalizeMariEmployeeNumber(r.EmployeeNumber);
@@ -223,6 +231,7 @@ ORDER BY e."Matchcode", e."EmployeeNumber"`
         matchcode: (r.Matchcode || "").trim() || employeeNumber,
         employeeName: (r.EmployeeName || "").trim() || null,
         nameInitials: (r.NameInitials || "").trim() || null,
+        supportGroupIds: groupsByEmployee.get(employeeNumber) ?? [],
       };
     })
     .filter((x): x is MariEmployeeOption => x != null);
