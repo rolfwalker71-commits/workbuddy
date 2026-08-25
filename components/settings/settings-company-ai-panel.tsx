@@ -11,7 +11,6 @@ type CompanyAiPublic = {
   hasKey: boolean;
   model: string;
   baseUrl: string;
-  email: string;
   source: "env" | "settings" | "none";
   error?: string;
 };
@@ -23,7 +22,6 @@ export function SettingsCompanyAiPanel() {
   const [clearKey, setClearKey] = useState(false);
   const [model, setModel] = useState("gpt-4o-mini");
   const [baseUrl, setBaseUrl] = useState("");
-  const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -36,7 +34,6 @@ export function SettingsCompanyAiPanel() {
     setEnabled(json.enabled);
     setModel(json.model || "gpt-4o-mini");
     setBaseUrl(json.baseUrl || "");
-    setEmail(json.email || "");
   }
 
   useEffect(() => {
@@ -58,8 +55,7 @@ export function SettingsCompanyAiPanel() {
           apiKey: apiKey.trim() || undefined,
           clearApiKey: clearKey,
           model,
-          baseUrl: baseUrl || null,
-          email: email || null,
+          baseUrl: baseUrl.trim() || null,
         }),
       });
       const json = (await res.json()) as CompanyAiPublic;
@@ -70,7 +66,6 @@ export function SettingsCompanyAiPanel() {
       setEnabled(json.enabled);
       setModel(json.model || "gpt-4o-mini");
       setBaseUrl(json.baseUrl || "");
-      setEmail(json.email || "");
       setStatus("Firmen-KI gespeichert.");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -88,17 +83,16 @@ export function SettingsCompanyAiPanel() {
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <p className="text-muted-foreground">
-          Führender Custom-Provider für alle Konten, typisch{" "}
-          <code>gpt-4o-mini</code>. Solange das aktiv ist, gelten Key, Modell
-          und Base-URL hier — persönliche Keys unter Konto werden nicht
+          Führender Custom-Provider für alle Konten. Trage genau die drei
+          Angaben vom Provider ein: API-Key, Modell und URL. Solange das aktiv
+          ist, gelten diese Werte — persönliche Keys unter Konto werden nicht
           verwendet. Der Key liegt verschlüsselt in der Datenbank, nicht in der
-          .env, ausser du setzt bewusst <code>COMPANY_AI_API_KEY</code> für
-          Docker.
+          .env, ausser du setzt bewusst <code>COMPANY_AI_*</code> für Docker.
         </p>
         {fromEnv ? (
-          <p className="rounded-xl bg-muted/50 px-3 py-2 text-xs">
-            Aktiv aus der Umgebung (.env). Felder hier sind dann nur Ergänzung;
-            der Key kommt aus <code>COMPANY_AI_API_KEY</code>.
+          <p className="rounded-xl bg-muted px-3 py-2 text-xs">
+            Aktiv aus der Umgebung (.env). Der Key kommt aus{" "}
+            <code>COMPANY_AI_API_KEY</code>.
           </p>
         ) : null}
         <label className="flex items-center gap-2">
@@ -145,27 +139,13 @@ export function SettingsCompanyAiPanel() {
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="company-ai-url">Base-URL (optional)</Label>
+          <Label htmlFor="company-ai-url">URL</Label>
           <Input
             id="company-ai-url"
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder="https://…/v1 — leer = api.openai.com"
+            placeholder="https://…/v1"
           />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="company-ai-email">Freigabe-E-Mail</Label>
-          <Input
-            id="company-ai-email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="die Adresse, die der Provider kennt"
-          />
-          <p className="text-[0.6875rem] text-muted-foreground">
-            Wird als Header <code>X-User-Email</code> mitgeschickt, falls der
-            Gateway die Identität prüft.
-          </p>
         </div>
         {error ? <p className="text-destructive">{error}</p> : null}
         {status ? <p className="text-muted-foreground">{status}</p> : null}

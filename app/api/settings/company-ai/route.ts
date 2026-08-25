@@ -16,7 +16,6 @@ const PutSchema = z.object({
   clearApiKey: z.boolean().optional(),
   model: z.string().optional().nullable(),
   baseUrl: z.string().optional().nullable(),
-  email: z.string().optional().nullable(),
 });
 
 export async function GET() {

@@ -23,7 +23,6 @@ export type UserAiConfig = {
   chatBaseUrl: string | null;
   chatModel: string;
   usingCompanyAi: boolean;
-  requestEmail: string | null;
 };
 
 function normalizeBaseUrl(url: string | null | undefined): string | null {
@@ -45,7 +44,9 @@ export function resolveUserAiConfig(
   if (!user) return null;
   const personalOpenai = getUserOpenAiApiKey(user);
   const company = getCompanyAiConfig();
-  const usingCompanyAi = Boolean(company.enabled && company.apiKey);
+  const usingCompanyAi = Boolean(
+    company.enabled && company.apiKey && company.baseUrl
+  );
   const openaiApiKey = usingCompanyAi ? company.apiKey : personalOpenai;
   const openaiModel = usingCompanyAi
     ? company.model
@@ -62,7 +63,6 @@ export function resolveUserAiConfig(
       chatBaseUrl: company.baseUrl,
       chatModel: company.model,
       usingCompanyAi: true,
-      requestEmail: company.email,
     };
   }
   const chatProvider = asChatProvider(user.chat_provider);
@@ -86,21 +86,16 @@ export function resolveUserAiConfig(
     chatBaseUrl,
     chatModel,
     usingCompanyAi: false,
-    requestEmail: null,
   };
 }
 
 function clientOptions(
   apiKey: string,
-  baseURL: string | null | undefined,
-  email: string | null | undefined
+  baseURL: string | null | undefined
 ): ConstructorParameters<typeof OpenAI>[0] {
   return {
     apiKey,
     ...(baseURL ? { baseURL } : {}),
-    ...(email
-      ? { defaultHeaders: { "X-User-Email": email } }
-      : {}),
     timeout: 120_000,
     maxRetries: 2,
   };
@@ -120,9 +115,7 @@ export function getOpenAIClient(): OpenAI {
   if (!apiKey) {
     throw new Error(MISSING_OPENAI_KEY_MESSAGE);
   }
-  return new OpenAI(
-    clientOptions(apiKey, cfg?.openaiBaseUrl, cfg?.requestEmail)
-  );
+  return new OpenAI(clientOptions(apiKey, cfg?.openaiBaseUrl));
 }
 
 export function getOpenAIModel(): string {
@@ -157,9 +150,7 @@ export function getChatClient(): OpenAI {
   if (!apiKey) {
     throw new Error(MISSING_OPENAI_KEY_MESSAGE);
   }
-  return new OpenAI(
-    clientOptions(apiKey, cfg?.chatBaseUrl, cfg?.requestEmail)
-  );
+  return new OpenAI(clientOptions(apiKey, cfg?.chatBaseUrl));
 }
 
 export function hasChatKey(): boolean {
@@ -194,7 +185,7 @@ export function getDeepSeekMailClient(): OpenAI {
     );
   }
   const baseURL = cfg?.chatBaseUrl || DEEPSEEK_BASE_URL;
-  return new OpenAI(clientOptions(apiKey, baseURL, cfg?.requestEmail));
+  return new OpenAI(clientOptions(apiKey, baseURL));
 }
 
 export function getDeepSeekMailJsonExtras(): Record<string, unknown> {

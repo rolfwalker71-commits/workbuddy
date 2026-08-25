@@ -64,7 +64,7 @@ test("company AI leads for every user, even with a personal key", async () => {
     enabled: true,
     apiKey: "sk-company-mini",
     model: "gpt-4o-mini",
-    email: "ki@example.com",
+    baseUrl: "https://ai.example.com/v1",
   });
   const user = createAppUser({
     username: "cara",
@@ -77,7 +77,10 @@ test("company AI leads for every user, even with a personal key", async () => {
   assert.equal(getOpenAIApiKey(), "sk-company-mini");
   assert.notEqual(getOpenAIApiKey(), process.env.OPENAI_API_KEY);
   assert.equal(resolveUserAiConfig(user.id)?.usingCompanyAi, true);
-  assert.equal(resolveUserAiConfig(user.id)?.requestEmail, "ki@example.com");
+  assert.equal(
+    resolveUserAiConfig(user.id)?.openaiBaseUrl,
+    "https://ai.example.com/v1"
+  );
 
   updateAppUser(user.id, { openaiApiKey: "sk-user-cara" });
   enterAiRequestUser(user.id);

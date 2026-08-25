@@ -1,5 +1,5 @@
 /**
- * Company-wide OpenAI-compatible provider (key + model + optional base URL).
+ * Company-wide OpenAI-compatible provider: API key, model, and base URL.
  * Leading for every user when enabled. Personal Konto keys apply only if this is off.
  * Stored encrypted in SQLite (Admin). Optional .env override for Docker.
  * Never reads OPENAI_API_KEY.
@@ -11,7 +11,6 @@ export const COMPANY_AI_ENABLED_KEY = "company_ai_enabled";
 export const COMPANY_AI_KEY_SETTING = "company_ai_api_key_enc";
 export const COMPANY_AI_MODEL_KEY = "company_ai_model";
 export const COMPANY_AI_BASE_URL_KEY = "company_ai_base_url";
-export const COMPANY_AI_EMAIL_KEY = "company_ai_email";
 
 export const DEFAULT_COMPANY_AI_MODEL = "gpt-4o-mini";
 
@@ -20,7 +19,6 @@ export type CompanyAiConfig = {
   apiKey: string | null;
   model: string;
   baseUrl: string | null;
-  email: string | null;
   source: "env" | "settings" | "none";
 };
 
@@ -29,7 +27,6 @@ export type CompanyAiPublic = {
   hasKey: boolean;
   model: string;
   baseUrl: string;
-  email: string;
   source: CompanyAiConfig["source"];
 };
 
@@ -41,12 +38,6 @@ function envTrim(name: string): string | null {
 function normalizeBaseUrl(url: string | null | undefined): string | null {
   const trimmed = url?.trim().replace(/\/$/, "") || null;
   return trimmed;
-}
-
-function normalizeEmail(raw: string | null | undefined): string | null {
-  const v = (raw || "").trim().toLowerCase();
-  if (!v || !v.includes("@") || v.length > 200) return null;
-  return v;
 }
 
 function settingsKey(): string | null {
@@ -64,7 +55,6 @@ export function getCompanyAiConfig(): CompanyAiConfig {
       : "none";
   const envDisabled = envTrim("COMPANY_AI_DISABLED") === "1";
   const storedEnabled = getSetting(COMPANY_AI_ENABLED_KEY) !== "0";
-  const enabled = Boolean(apiKey) && !envDisabled && (source === "env" || storedEnabled);
   const model =
     envTrim("COMPANY_AI_MODEL") ||
     getSetting(COMPANY_AI_MODEL_KEY)?.trim() ||
@@ -72,15 +62,15 @@ export function getCompanyAiConfig(): CompanyAiConfig {
   const baseUrl =
     normalizeBaseUrl(envTrim("COMPANY_AI_BASE_URL")) ||
     normalizeBaseUrl(getSetting(COMPANY_AI_BASE_URL_KEY));
-  const email =
-    normalizeEmail(envTrim("COMPANY_AI_EMAIL")) ||
-    normalizeEmail(getSetting(COMPANY_AI_EMAIL_KEY));
+  const enabled =
+    Boolean(apiKey && model && baseUrl) &&
+    !envDisabled &&
+    (source === "env" || storedEnabled);
   return {
     enabled,
     apiKey: enabled ? apiKey : null,
     model,
     baseUrl,
-    email,
     source,
   };
 }
@@ -92,7 +82,6 @@ export function getCompanyAiPublic(): CompanyAiPublic {
     hasKey: Boolean(cfg.apiKey) || secretIsSet(getSetting(COMPANY_AI_KEY_SETTING)),
     model: cfg.model,
     baseUrl: cfg.baseUrl || "",
-    email: cfg.email || "",
     source: cfg.source,
   };
 }
@@ -103,7 +92,6 @@ export function saveCompanyAiSettings(input: {
   clearApiKey?: boolean;
   model?: string | null;
   baseUrl?: string | null;
-  email?: string | null;
 }): CompanyAiPublic {
   if (input.enabled !== undefined) {
     setSetting(COMPANY_AI_ENABLED_KEY, input.enabled ? "1" : "0");
@@ -118,9 +106,6 @@ export function saveCompanyAiSettings(input: {
   }
   if (input.baseUrl !== undefined) {
     setSetting(COMPANY_AI_BASE_URL_KEY, normalizeBaseUrl(input.baseUrl));
-  }
-  if (input.email !== undefined) {
-    setSetting(COMPANY_AI_EMAIL_KEY, normalizeEmail(input.email));
   }
   return getCompanyAiPublic();
 }

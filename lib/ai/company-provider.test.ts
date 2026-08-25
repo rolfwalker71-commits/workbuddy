@@ -26,14 +26,14 @@ test("company AI uses settings key, never OPENAI_API_KEY", async () => {
     enabled: true,
     apiKey: "sk-company-mini",
     model: "gpt-4o-mini",
-    email: "ki@an-group.one",
+    baseUrl: "https://ai.example.com/v1",
   });
   const cfg = getCompanyAiConfig();
   assert.equal(cfg.enabled, true);
   assert.equal(cfg.apiKey, "sk-company-mini");
   assert.notEqual(cfg.apiKey, process.env.OPENAI_API_KEY);
   assert.equal(cfg.model, "gpt-4o-mini");
-  assert.equal(cfg.email, "ki@an-group.one");
+  assert.equal(cfg.baseUrl, "https://ai.example.com/v1");
   assert.equal(cfg.source, "settings");
 });
 
@@ -44,6 +44,7 @@ test("COMPANY_AI_API_KEY env overrides stored key", async () => {
   process.env.DATABASE_PATH = path.join(tmp, "env.sqlite");
   process.env.COMPANY_AI_API_KEY = "sk-from-env";
   process.env.COMPANY_AI_MODEL = "gpt-4o-mini";
+  process.env.COMPANY_AI_BASE_URL = "https://ai.example.com/v1";
   delete process.env.COMPANY_AI_DISABLED;
 
   const { resetDbForTests } = await import("../db/client.ts");
@@ -53,6 +54,8 @@ test("COMPANY_AI_API_KEY env overrides stored key", async () => {
   assert.equal(cfg.source, "env");
   assert.equal(cfg.apiKey, "sk-from-env");
   assert.equal(cfg.model, "gpt-4o-mini");
+  assert.equal(cfg.baseUrl, "https://ai.example.com/v1");
   delete process.env.COMPANY_AI_API_KEY;
   delete process.env.COMPANY_AI_MODEL;
+  delete process.env.COMPANY_AI_BASE_URL;
 });
