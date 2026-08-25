@@ -39,7 +39,11 @@ import { cn } from "@/lib/utils";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { formatTokenUsageLine } from "@/lib/ai/usage-cost";
 import type { AiTokenUsage } from "@/lib/ai/usage-cost";
-import { toSwissDate } from "@/lib/utils/dates";
+import {
+  formatSwissDateRange,
+  formatSwissDateTime,
+  toSwissDate,
+} from "@/lib/utils/dates";
 import {
   durationMinutesFromHm,
   groupFreeSlotsByDate,
@@ -97,20 +101,8 @@ function zurichYmdClient(d = new Date()): string {
   }).format(d);
 }
 
-/** ISO → `TT.MM.JJJJ, HH:MM` in Europe/Zurich. */
 function toSwissDateTime(iso: string | null | undefined): string {
-  if (!iso) return "–";
-  const d = new Date(iso);
-  if (!Number.isFinite(d.getTime())) return toSwissDate(iso);
-  return new Intl.DateTimeFormat("de-CH", {
-    timeZone: "Europe/Zurich",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(d);
+  return formatSwissDateTime(iso);
 }
 
 function addDaysYmdClient(ymd: string, days: number): string {
@@ -124,8 +116,7 @@ function mailRangeKey(from: string, to: string): string {
 }
 
 function formatMailRangeLabel(from: string, to: string): string {
-  if (from === to) return toSwissDate(from);
-  return `${toSwissDate(from)} – ${toSwissDate(to)}`;
+  return formatSwissDateRange(from, to);
 }
 
 /** Inclusive max 7 days; clamp Bis ≥ Von and ≤ today. */

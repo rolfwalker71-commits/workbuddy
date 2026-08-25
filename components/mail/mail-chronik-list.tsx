@@ -21,6 +21,7 @@ import {
   buildMailChronikThreads,
   chronikDateTimeLabel,
 } from "@/lib/mail/mail-threads";
+import { formatSwissDateTime } from "@/lib/utils/dates";
 import { ProviderBadge } from "@/components/workspace/provider-badge";
 
 export type MailChronikProvider = "microsoft" | "google";
@@ -29,17 +30,10 @@ function formatDetailWhen(detail: MailMessageDetail): string {
   if (detail.internalDate) {
     const d = new Date(Number(detail.internalDate));
     if (Number.isFinite(d.getTime())) {
-      return d.toLocaleString("de-CH", {
-        timeZone: "Europe/Zurich",
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+      return formatSwissDateTime(d.toISOString());
     }
   }
-  return detail.date || "";
+  return formatSwissDateTime(detail.date);
 }
 
 export function mergeMailChronik(

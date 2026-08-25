@@ -3,7 +3,9 @@ import test from "node:test";
 import {
   employeeInSupportGroup,
   filterEmployeesBySupportGroup,
+  filterVisibleSupportGroups,
   firstSupportGroupIdForEmployee,
+  isHiddenSupportGroupName,
   parseMariSupportGroupId,
   supportGroupIdsByEmployee,
   supportGroupStaffHint,
@@ -40,11 +42,62 @@ test("employeeInSupportGroup is false without a group", () => {
   assert.equal(employeeInSupportGroup(staff[0]!, 100025), true);
 });
 
+test("isHiddenSupportGroupName matches trimmed leading *", () => {
+  assert.equal(isHiddenSupportGroupName("*"), true);
+  assert.equal(isHiddenSupportGroupName("** ANG DE"), true);
+  assert.equal(isHiddenSupportGroupName("** Support Eingang"), true);
+  assert.equal(isHiddenSupportGroupName("* Foo"), true);
+  assert.equal(isHiddenSupportGroupName("  * intern"), true);
+  assert.equal(isHiddenSupportGroupName("Applikation CH"), false);
+  assert.equal(isHiddenSupportGroupName("ANG * DE"), false);
+  assert.equal(isHiddenSupportGroupName(""), false);
+  assert.equal(isHiddenSupportGroupName(null), false);
+  assert.equal(isHiddenSupportGroupName(undefined), false);
+});
+
+test("filterVisibleSupportGroups hides * names and can keep current", () => {
+  const groups = [
+    { groupId: 1, description: "Applikation CH" },
+    { groupId: 2, description: "** ANG DE" },
+    { groupId: 3, description: "* Support Eingang" },
+    { groupId: 4, description: "  ** Support NeoDelta Ticketeingang" },
+  ];
+  assert.deepEqual(
+    filterVisibleSupportGroups(groups).map((g) => g.groupId),
+    [1]
+  );
+  assert.deepEqual(
+    filterVisibleSupportGroups(groups, 2).map((g) => g.groupId),
+    [1, 2]
+  );
+});
+
 test("firstSupportGroupIdForEmployee uses membership", () => {
   assert.equal(firstSupportGroupIdForEmployee(staff, "m1010"), 100025);
   assert.equal(firstSupportGroupIdForEmployee(staff, "M5020"), 100020);
   assert.equal(firstSupportGroupIdForEmployee(staff, "M9999"), null);
   assert.equal(firstSupportGroupIdForEmployee(staff, ""), null);
+});
+
+test("firstSupportGroupIdForEmployee skips hidden groups when listed", () => {
+  const mixed = [
+    { employeeNumber: "M1010", supportGroupIds: [9, 100025] },
+  ];
+  assert.equal(
+    firstSupportGroupIdForEmployee(mixed, "M1010", {
+      groups: [
+        { groupId: 9, description: "** ANG DE" },
+        { groupId: 100025, description: "Applikation CH" },
+      ],
+    }),
+    100025
+  );
+  assert.equal(
+    firstSupportGroupIdForEmployee(mixed, "M1010", {
+      groups: [{ groupId: 9, description: "* intern" }],
+    }),
+    null
+  );
 });
 
 test("supportGroupStaffHint is German", () => {

@@ -1,7 +1,10 @@
 import { requireMariConfig } from "@/lib/mari/client";
 import { mariSql } from "@/lib/mari/client";
 import { PRIORITY_LABELS } from "@/lib/mari/status";
-import type { MariSupportGroupMember } from "@/lib/mari/support-group-staff";
+import {
+  isHiddenSupportGroupName,
+  type MariSupportGroupMember,
+} from "@/lib/mari/support-group-staff";
 
 export type MariSupportGroupOption = {
   groupId: number;
@@ -38,7 +41,8 @@ ORDER BY g."Description", g."GroupId"`
       const description = (r.Description || "").trim() || `Gruppe ${groupId}`;
       return { groupId, description };
     })
-    .filter((x): x is MariSupportGroupOption => x != null);
+    .filter((x): x is MariSupportGroupOption => x != null)
+    .filter((x) => !isHiddenSupportGroupName(x.description));
 }
 
 /** Mitarbeiter-Zuordnung zu Supportgruppen (MARISupportGroupEmployee). */

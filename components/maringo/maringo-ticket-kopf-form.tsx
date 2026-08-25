@@ -33,6 +33,7 @@ export type TicketKopfDefaults = {
   stdFreigabe?: string | number | null;
   contactPerson?: string | null;
   supportGroupId?: number | null;
+  supportGroupName?: string | null;
   handledBy?: string | null;
   priority?: number | null;
   medium?: number | null;
@@ -426,6 +427,7 @@ export function MaringoTicketKopfForm({
           groupSelectId="tk-kopf-group"
           employeeSelectId="tk-kopf-handled"
           emptyGroupLabel="— keine —"
+          currentGroupLabel={defaults.supportGroupName}
           extraEmployeeOptions={
             handledBy &&
             !employees.some(

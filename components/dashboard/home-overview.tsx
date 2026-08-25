@@ -20,7 +20,7 @@ import {
   OutlookLogo,
 } from "@/components/branding/provider-logos";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
-import { weekdayLabel } from "@/lib/utils/weekday";
+import { formatSwissDate, formatSwissDateTime } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils";
 import {
   mergeHomeKpis,
@@ -100,17 +100,8 @@ function donutArcPath(
 
 function formatPollAt(iso: string | null | undefined): string | null {
   if (!iso) return null;
-  const d = new Date(iso);
-  if (!Number.isFinite(d.getTime())) return null;
-  return new Intl.DateTimeFormat("de-CH", {
-    timeZone: "Europe/Zurich",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(d);
+  const swiss = formatSwissDateTime(iso);
+  return swiss === "–" ? null : swiss;
 }
 
 const WAITING_ON_ME_STATUS = new Set([11, 1, 3, 13, 4, 14]);
@@ -323,7 +314,7 @@ function TaskGroupList({ items }: { items: HomeTaskItem[] }) {
               {task.overdue
                 ? "Überfällig"
                 : task.dueDate
-                  ? weekdayLabel(task.dueDate)
+                  ? formatSwissDate(task.dueDate)
                   : ""}
             </span>
           </Link>

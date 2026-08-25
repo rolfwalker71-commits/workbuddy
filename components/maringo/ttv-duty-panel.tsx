@@ -10,8 +10,10 @@ import {
 } from "@/components/layout/segmented-control";
 import { addDaysYmd } from "@/lib/microsoft/time";
 import { weekRangeFrom } from "@/lib/mari/ttv-duty-shared";
+import { formatSwissDate, formatSwissDateRange } from "@/lib/utils/dates";
 import type { MariSupportGroupOption } from "@/lib/mari/ticket-meta";
 import {
+  filterVisibleSupportGroups,
   parseMariSupportGroupId,
   supportGroupStaffHint,
 } from "@/lib/mari/support-group-staff";
@@ -55,12 +57,17 @@ export function TtvDutyPanel() {
     setTo(json.to);
     setDays(json.days || []);
     setUsers((json.users || []) as DutyUser[]);
-    setGroups((json.groups || []) as MariSupportGroupOption[]);
+    const nextGroups = (json.groups || []) as MariSupportGroupOption[];
+    setGroups(nextGroups);
     setSupportGroupId((prev) => {
-      if (prev) return prev;
-      return json.defaultSupportGroupId
-        ? String(json.defaultSupportGroupId)
-        : "";
+      const candidate = prev
+        || (json.defaultSupportGroupId
+          ? String(json.defaultSupportGroupId)
+          : "");
+      if (!candidate) return "";
+      const id = Number(candidate);
+      const visible = filterVisibleSupportGroups(nextGroups);
+      return visible.some((g) => g.groupId === id) ? candidate : "";
     });
   }
 
@@ -75,14 +82,18 @@ export function TtvDutyPanel() {
     return map;
   }, [days]);
 
+  const visibleGroups = useMemo(
+    () => filterVisibleSupportGroups(groups),
+    [groups]
+  );
   const parsedGroupId = parseMariSupportGroupId(supportGroupId);
   const staffInGroup = useMemo(() => {
-    if (groups.length === 0) return users;
+    if (visibleGroups.length === 0) return users;
     if (parsedGroupId == null) return [];
     return users.filter((u) =>
       (u.supportGroupIds || []).includes(parsedGroupId)
     );
-  }, [groups.length, parsedGroupId, users]);
+  }, [visibleGroups.length, parsedGroupId, users]);
 
   async function assign(ymd: string, userId: number | null) {
     setBusy(true);
@@ -109,7 +120,8 @@ export function TtvDutyPanel() {
     );
   }
 
-  const peopleDisabled = busy || (groups.length > 0 && parsedGroupId == null);
+  const peopleDisabled =
+    busy || (visibleGroups.length > 0 && parsedGroupId == null);
 
   return (
     <Card>
@@ -164,9 +176,9 @@ export function TtvDutyPanel() {
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          {from} – {to}
+          {formatSwissDateRange(from, to)}
         </p>
-        {groups.length > 0 ? (
+        {visibleGroups.length > 0 ? (
           <div className="space-y-1">
             <Label htmlFor="ttv-duty-group">Supportgruppe</Label>
             <select
@@ -177,7 +189,7 @@ export function TtvDutyPanel() {
               onChange={(e) => setSupportGroupId(e.target.value)}
             >
               <option value="">— Supportgruppe —</option>
-              {groups.map((g) => (
+              {visibleGroups.map((g) => (
                 <option key={g.groupId} value={g.groupId}>
                   {g.description}
                 </option>
@@ -212,7 +224,7 @@ export function TtvDutyPanel() {
                 className="flex flex-wrap items-center gap-2 rounded-2xl bg-card px-3 py-2 ring-1 ring-border/60 shadow-[0_2px_10px_rgba(15,23,42,0.04)]"
               >
                 <span className="w-32 shrink-0 font-semibold tabular-nums">
-                  {ymd}
+                  {formatSwissDate(ymd)}
                   {ymd === today ? (
                     <span className="mt-0.5 block text-[0.6875rem] font-medium text-muted-foreground">
                       heute
@@ -223,7 +235,7 @@ export function TtvDutyPanel() {
                   className="h-10 min-h-10 min-w-[10rem] flex-1 rounded-xl border-0 bg-muted px-3 text-sm disabled:opacity-70"
                   value={entry?.userId ?? ""}
                   disabled={peopleDisabled}
-                  aria-label={`TTV ${ymd}`}
+                  aria-label={`TTV ${formatSwissDate(ymd)}`}
                   onChange={(e) => {
                     const v = e.target.value;
                     void assign(ymd, v ? Number(v) : null);

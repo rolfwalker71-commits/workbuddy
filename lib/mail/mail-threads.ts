@@ -1,4 +1,5 @@
 import type { MsMailItem } from "@/lib/microsoft/mail-day";
+import { formatSwissDateTime } from "@/lib/utils/dates";
 
 /** Zurich calendar date YYYY-MM-DD from an ISO timestamp. */
 export function zurichYmdFromIso(iso: string | null | undefined): string | null {
@@ -50,24 +51,9 @@ export function isExcludedFromMailAnalysis(mail: {
   );
 }
 
-/** Always date + time (Europe/Zurich), e.g. «10.08.2026 · 12:19». */
+/** Always date + time (Europe/Zurich), e.g. «10.08.2026 12:19». */
 export function chronikDateTimeLabel(iso: string | null | undefined): string {
-  if (!iso) return "–";
-  const d = new Date(iso);
-  if (!Number.isFinite(d.getTime())) return iso.slice(0, 16);
-  const date = new Intl.DateTimeFormat("de-CH", {
-    timeZone: "Europe/Zurich",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(d);
-  const time = new Intl.DateTimeFormat("de-CH", {
-    timeZone: "Europe/Zurich",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(d);
-  return `${date} · ${time}`;
+  return formatSwissDateTime(iso);
 }
 
 export type MailChronikThread = {

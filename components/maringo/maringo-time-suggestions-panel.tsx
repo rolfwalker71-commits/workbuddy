@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { cn } from "@/lib/utils";
+import { formatSwissDate } from "@/lib/utils/dates";
 import type { TimeBookFormDefaults } from "@/components/maringo/maringo-time-book-form";
 
 export type MariTimeSuggestion = {
@@ -145,7 +146,7 @@ export function MaringoTimeSuggestionsPanel({
                       {s.title}
                     </p>
                     <p className="mt-0.5 text-[0.6875rem] text-muted-foreground">
-                      #{s.issueId} · {s.eventDate}
+                      #{s.issueId} · {formatSwissDate(s.eventDate)}
                       {s.startHm && s.endHm
                         ? ` · ${s.startHm}–${s.endHm}`
                         : ""}

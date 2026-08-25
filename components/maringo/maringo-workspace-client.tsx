@@ -14,6 +14,7 @@ import { useSearchParams } from "next/navigation";
 import {
   ArrowDownAZ,
   ArrowUpAZ,
+  Building2,
   Check,
   Copy,
   Calendar,
@@ -70,7 +71,7 @@ import {
 } from "@/lib/mari/status";
 import { cn } from "@/lib/utils";
 import { showActionFeedback } from "@/lib/ui/action-feedback";
-import { toSwissDate } from "@/lib/utils/dates";
+import { formatSwissDate, formatSwissDateTime } from "@/lib/utils/dates";
 import type {
   MariTicketAnalysis,
   MariSolutionArtifact,
@@ -410,40 +411,19 @@ function TimelineAttachments({
 }
 
 function formatTimelineAt(iso: string): string {
-  const d = new Date(iso);
-  if (!Number.isFinite(d.getTime())) return iso;
-  return new Intl.DateTimeFormat("de-CH", {
-    timeZone: "Europe/Zurich",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(d);
+  return formatSwissDateTime(iso);
 }
 
 function formatDateTimeShort(iso: string | null | undefined): string | null {
   if (!iso) return null;
-  const d = new Date(iso);
-  if (!Number.isFinite(d.getTime())) return null;
-  return formatTimelineAt(iso);
+  const swiss = formatSwissDateTime(iso);
+  return swiss === "–" ? null : swiss;
 }
 
 function formatDateShort(iso: string | null | undefined): string | null {
   if (!iso) return null;
-  const swiss = toSwissDate(iso);
+  const swiss = formatSwissDate(iso);
   return swiss === "–" ? null : swiss;
-}
-
-/** Nur Tag.Monat für kompakte Listenzeilen */
-function formatDayMonth(iso: string | null | undefined): string | null {
-  if (!iso) return null;
-  const swiss = toSwissDate(iso);
-  if (swiss === "–") return null;
-  const parts = swiss.split(".");
-  if (parts.length >= 2) return `${parts[0]}.${parts[1]}`;
-  return swiss;
 }
 
 function formatStampWhen(stamp: {
@@ -451,7 +431,6 @@ function formatStampWhen(stamp: {
   startHm: string | null;
 }): string {
   const day =
-    formatDayMonth(stamp.eventDate) ||
     formatDateShort(stamp.eventDate) ||
     stamp.eventDate;
   const hm = stamp.startHm?.slice(0, 5) || null;
@@ -955,8 +934,11 @@ export function MaringoWorkspaceClient() {
         ? (data.employees as MariEmployeeOption[])
         : [];
       setEmployees(list);
-      if (grpRes.ok && Array.isArray(grpData.groups)) {
-        setSupportGroups(grpData.groups as MariSupportGroupOption[]);
+      const loadedGroups = grpRes.ok && Array.isArray(grpData.groups)
+        ? (grpData.groups as MariSupportGroupOption[])
+        : undefined;
+      if (loadedGroups) {
+        setSupportGroups(loadedGroups);
       }
       const def = String(data.defaultEmployeeNumber || "")
         .trim()
@@ -968,7 +950,9 @@ export function MaringoWorkspaceClient() {
       setFilterSupportGroupId((prev) => {
         if (prev) return prev;
         const emp = (def || "").trim().toUpperCase();
-        const gid = firstSupportGroupIdForEmployee(list, emp);
+        const gid = firstSupportGroupIdForEmployee(list, emp, {
+          groups: loadedGroups,
+        });
         return gid != null ? String(gid) : "";
       });
     } catch {
@@ -1597,16 +1581,31 @@ export function MaringoWorkspaceClient() {
     });
   }
 
+  function applyDefaultHandlerAndGroup() {
+    setHandlerMode("list");
+    setManualHandledBy("");
+    if (defaultHandledBy) {
+      setHandledBy(defaultHandledBy);
+      const gid = firstSupportGroupIdForEmployee(
+        employees,
+        defaultHandledBy,
+        { groups: supportGroups }
+      );
+      setFilterSupportGroupId(gid != null ? String(gid) : "");
+      return;
+    }
+    setHandledBy("");
+    setFilterSupportGroupId("");
+  }
+
   function selectAllWorkStatuses() {
     setStatuses([...WORK_STATUS_IDS]);
     setOverdueOnly(false);
-    setHandlerMode("list");
-    if (defaultHandledBy) {
-      setHandledBy(defaultHandledBy);
-      const gid = firstSupportGroupIdForEmployee(employees, defaultHandledBy);
-      if (gid != null) setFilterSupportGroupId(String(gid));
-    }
-    setManualHandledBy("");
+    applyDefaultHandlerAndGroup();
+  }
+
+  function resetHandlerFilters() {
+    applyDefaultHandlerAndGroup();
   }
 
   function selectAllStatuses() {
@@ -1740,12 +1739,7 @@ export function MaringoWorkspaceClient() {
   }
 
   function formatAnalyzedAt(iso: string): string {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return iso;
-    return d.toLocaleString("de-CH", {
-      dateStyle: "short",
-      timeStyle: "short",
-    });
+    return formatSwissDateTime(iso);
   }
 
   async function changeNextReplyDraftLanguage(targetLang: ReplyLang) {
@@ -2362,51 +2356,55 @@ export function MaringoWorkspaceClient() {
               </p>
             ) : null}
             <div className="space-y-1.5 pt-0.5">
-              <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/20 p-0.5">
+              <div
+                className={segmentedTrackClass}
+                role="tablist"
+                aria-label="Ticket-Filter"
+              >
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
+                  role="tab"
+                  data-segment="true"
+                  aria-selected={filterMode === "handler"}
                   onClick={() => setFilterMode("handler")}
-                  className={cn(
-                    "h-auto flex-1 rounded-md px-2 py-1 text-[0.6875rem] font-semibold",
-                    filterMode === "handler"
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
+                  className={segmentedTriggerClass(filterMode === "handler")}
                 >
+                  <User className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
                   Bearbeiter
                 </Button>
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
+                  role="tab"
+                  data-segment="true"
+                  aria-selected={filterMode === "customer"}
                   onClick={() => setFilterMode("customer")}
-                  className={cn(
-                    "h-auto flex-1 rounded-md px-2 py-1 text-[0.6875rem] font-semibold",
-                    filterMode === "customer"
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
+                  className={segmentedTriggerClass(filterMode === "customer")}
                 >
+                  <Building2
+                    className="size-4 shrink-0"
+                    strokeWidth={APP_ICON_STROKE}
+                  />
                   Kunde
                 </Button>
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
+                  role="tab"
+                  data-segment="true"
+                  aria-selected={filterMode === "ttv"}
                   title="Ticket-Tagesverantwortlicher — neue, noch nicht klassifizierte Tickets"
                   onClick={() => {
                     setFilterMode("ttv");
                     setListSort("newest");
                   }}
-                  className={cn(
-                    "h-auto flex-1 rounded-md px-2 py-1 text-[0.6875rem] font-semibold",
-                    filterMode === "ttv"
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
+                  className={segmentedTriggerClass(filterMode === "ttv")}
                 >
+                  <CalendarRange
+                    className="size-4 shrink-0"
+                    strokeWidth={APP_ICON_STROKE}
+                  />
                   TTV
                 </Button>
               </div>
@@ -2463,6 +2461,7 @@ export function MaringoWorkspaceClient() {
                   employeeSelectId="mari-handler"
                   hideGroupLabel
                   hideEmployeeLabel
+                  onReset={resetHandlerFilters}
                   disabled={!configured}
                   formatEmployeeOption={(e) =>
                     `${e.matchcode} (${e.employeeNumber})${
@@ -2691,7 +2690,7 @@ export function MaringoWorkspaceClient() {
             ) : null}
             {sortedTickets.map((t) => {
               const active = t.issueId === selectedId;
-              const due = formatDayMonth(t.dueDate);
+              const due = formatDateShort(t.dueDate);
               const overdue = isOverdue(t.dueDate);
               const metaItems = buildMariTicketListMetaItems(
                 t,
@@ -3300,7 +3299,7 @@ export function MaringoWorkspaceClient() {
                                                   ? "Sicherheit tief"
                                                   : "Sicherheit mittel"}
                                               {t.dueHint
-                                                ? ` · ${t.dueHint}`
+                                                ? ` · ${formatSwissDate(t.dueHint)}`
                                                 : ""}
                                             </p>
                                           </div>
@@ -3831,6 +3830,7 @@ export function MaringoWorkspaceClient() {
                           stdFreigabe: detail.stdFreigabe,
                           contactPerson: detail.contactPerson,
                           supportGroupId: detail.supportGroupId,
+                          supportGroupName: detail.supportGroupName,
                           handledBy: detail.handledBy,
                           priority: detail.priority,
                           medium: detail.medium,

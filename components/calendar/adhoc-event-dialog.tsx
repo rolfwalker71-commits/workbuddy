@@ -20,6 +20,7 @@ import {
 } from "@/lib/calendar/slot-duration";
 import { cn } from "@/lib/utils";
 import { weekdayLabel } from "@/lib/utils/weekday";
+import { formatSwissDate } from "@/lib/utils/dates";
 
 type FreeSlot = {
   date: string;
@@ -238,7 +239,7 @@ export function AdhocEventDialog({
           ? " · Teams-Meeting"
           : "";
       setMsg(
-        `Eingetragen (${prov}${teamsHint}): ${trimmed} · ${slot.date} ${slot.startHm}–${slot.endHm}`
+        `Eingetragen (${prov}${teamsHint}): ${trimmed} · ${formatSwissDate(slot.date)} ${slot.startHm}–${slot.endHm}`
       );
       onCreated?.();
       onOpenChange(false);
@@ -525,7 +526,7 @@ export function AdhocEventDialog({
                 {groupFreeSlotsByDate(slots).map(({ date, slots: daySlots }) => (
                   <div key={date} className="space-y-1">
                     <p className="text-xs font-semibold text-foreground">
-                      {weekdayLabel(date)} · {date.slice(8)}.{date.slice(5, 7)}.
+                      {weekdayLabel(date)} · {formatSwissDate(date)}
                     </p>
                     <ul className="flex flex-col gap-1">
                       {daySlots.map((s) => (

@@ -45,11 +45,13 @@ async function dutyStaff(authUserId: number | null | undefined) {
   let memberships: Awaited<
     ReturnType<typeof listMariSupportGroupMemberships>
   > = [];
+  let groupsLoaded = false;
   try {
     [groups, memberships] = await Promise.all([
       listMariSupportGroups(),
       listMariSupportGroupMemberships(),
     ]);
+    groupsLoaded = true;
   } catch {
     /* TTV bleibt nutzbar — ohne Gruppenfilter */
   }
@@ -69,7 +71,8 @@ async function dutyStaff(authUserId: number | null | undefined) {
         employeeNumber: u.employeeNumber || "",
         supportGroupIds: u.supportGroupIds,
       })),
-      me?.employeeNumber
+      me?.employeeNumber,
+      groupsLoaded ? { groups } : undefined
     ),
   };
 }

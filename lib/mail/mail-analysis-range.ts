@@ -1,4 +1,5 @@
 import { addDaysYmd, zurichYmd } from "@/lib/microsoft/time";
+import { formatSwissDateRange } from "@/lib/utils/dates";
 
 /** Max inclusive calendar days for one mail analysis run. */
 export const MAIL_ANALYSIS_RANGE_MAX_DAYS = 7;
@@ -107,8 +108,7 @@ export function formatMailAnalysisRangeLabel(range: {
   fromYmd: string;
   toYmd: string;
 }): string {
-  if (range.fromYmd === range.toYmd) return range.fromYmd;
-  return `${range.fromYmd}–${range.toYmd}`;
+  return formatSwissDateRange(range.fromYmd, range.toYmd);
 }
 
 /** Exclusive upper bound YMD for Gmail `before:` / Graph `lt`. */

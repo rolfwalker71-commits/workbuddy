@@ -5,30 +5,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
-import { toSwissDate } from "@/lib/utils/dates";
+import { formatSwissDateRange, formatSwissDateTime } from "@/lib/utils/dates";
 import type { MailDayCachedSummary } from "@/lib/mail/mail-day-cache-summary";
 import type { MailWorkspaceAccent } from "@/components/mail/mail-workspace-subnav";
 import { ProviderBadge } from "@/components/workspace/provider-badge";
 
 function finishedLabel(iso: string): string {
-  try {
-    return new Intl.DateTimeFormat("de-CH", {
-      timeZone: "Europe/Zurich",
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(new Date(iso));
-  } catch {
-    return iso;
-  }
+  return formatSwissDateTime(iso);
 }
 
 function rangeLabel(fromYmd: string, toYmd: string): string {
-  if (fromYmd === toYmd) return toSwissDate(fromYmd);
-  return `${toSwissDate(fromYmd)} – ${toSwissDate(toYmd)}`;
+  return formatSwissDateRange(fromYmd, toYmd);
 }
 
 export function MailTagesanalysenList({

@@ -48,9 +48,44 @@ export function filterEmployeesBySupportGroup<T extends MariStaffWithGroups>(
   return employees.filter((e) => employeeInSupportGroup(e, groupId));
 }
 
+/** System/internal groups (`*`, `** ANG DE`, `* Foo`) — hide from pickers. */
+export function isHiddenSupportGroupName(
+  name: string | null | undefined
+): boolean {
+  return (name ?? "").trim().startsWith("*");
+}
+
+export type MariSupportGroupLabel = {
+  groupId: number;
+  description?: string | null;
+};
+
+/** Picker options: omit `*` names, optionally keep the currently assigned group. */
+export function filterVisibleSupportGroups<T extends MariSupportGroupLabel>(
+  groups: readonly T[],
+  keepGroupId?: number | null
+): T[] {
+  return groups.filter((g) => {
+    if (keepGroupId != null && g.groupId === keepGroupId) return true;
+    return !isHiddenSupportGroupName(g.description);
+  });
+}
+
+function visibleGroupIdSet(
+  groups: readonly MariSupportGroupLabel[] | undefined
+): Set<number> | null {
+  if (!groups) return null;
+  return new Set(
+    groups
+      .filter((g) => !isHiddenSupportGroupName(g.description))
+      .map((g) => g.groupId)
+  );
+}
+
 export function firstSupportGroupIdForEmployee(
   employees: readonly MariStaffWithGroups[],
-  employeeNumber: string | null | undefined
+  employeeNumber: string | null | undefined,
+  options?: { groups?: readonly MariSupportGroupLabel[] }
 ): number | null {
   const emp = (employeeNumber || "").trim().toUpperCase();
   if (!emp) return null;
@@ -58,7 +93,15 @@ export function firstSupportGroupIdForEmployee(
     (e) => e.employeeNumber.trim().toUpperCase() === emp
   );
   const ids = row?.supportGroupIds || [];
-  return ids.find((id) => Number.isInteger(id) && id > 0) ?? null;
+  const allowed = visibleGroupIdSet(options?.groups);
+  return (
+    ids.find(
+      (id) =>
+        Number.isInteger(id) &&
+        id > 0 &&
+        (allowed == null || allowed.has(id))
+    ) ?? null
+  );
 }
 
 export function supportGroupStaffHint(groupId: number | null): string {

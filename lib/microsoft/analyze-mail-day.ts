@@ -14,6 +14,7 @@ import {
   type ReplyLang,
 } from "@/lib/microsoft/reply-language-shared";
 import { addDaysYmd } from "@/lib/microsoft/time";
+import { formatSwissDateRange } from "@/lib/utils/dates";
 import type OpenAI from "openai";
 import { z } from "zod";
 
@@ -887,8 +888,7 @@ export async function analyzeMicrosoftMailDay(input: {
   const fromYmd = input.fromYmd || input.todayIso;
   const toYmd = input.toYmd || input.todayIso;
   const defaultDue = addDaysYmd(toYmd, 1);
-  const rangeLabel =
-    fromYmd === toYmd ? fromYmd : `${fromYmd}–${toYmd}`;
+  const rangeLabel = formatSwissDateRange(fromYmd, toYmd);
 
   const inbox = input.inbox.filter((m) => !isExcludedFromMailAnalysis(m));
   const sent = input.sent.filter((m) => !isExcludedFromMailAnalysis(m));

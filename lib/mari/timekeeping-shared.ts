@@ -1,5 +1,7 @@
 /** Client-sichere Typen & Pure Helpers für MARI-Zeiterfassung (kein Node/SQLite). */
 
+import { formatSwissDate, formatSwissDateRange } from "@/lib/utils/dates";
+
 export const TIMEKEEPING_SOURCE_SUPPORT_ISSUE = 2;
 
 export type MariKeyPair = {
@@ -223,19 +225,13 @@ export function resolveTimePeriodRange(
   return { fromDate, toDate, toExclusive: addDaysYmd(toDate, 1) };
 }
 
-function toSwissDateLocal(ymd: string): string {
-  const { y, m, d } = parseYmdParts(ymd);
-  return `${String(d).padStart(2, "0")}.${String(m).padStart(2, "0")}.${y}`;
-}
-
 export function formatPeriodLabel(
   period: MariTimePeriod,
   fromDate: string,
   toDate: string
 ): string {
-  if (period === "day") return toSwissDateLocal(fromDate);
-  if (fromDate === toDate) return toSwissDateLocal(fromDate);
-  return `${toSwissDateLocal(fromDate)} – ${toSwissDateLocal(toDate)}`;
+  if (period === "day") return formatSwissDate(fromDate);
+  return formatSwissDateRange(fromDate, toDate);
 }
 
 /** Ankerdatum um einen Zeitraum verschieben (Tag/Woche/Monat/Quartal). */

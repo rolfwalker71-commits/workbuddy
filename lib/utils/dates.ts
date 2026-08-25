@@ -45,6 +45,33 @@ function swissParts(day: number, month: number, year: number): string | null {
   return `${String(day).padStart(2, "0")}.${String(month).padStart(2, "0")}.${year}`;
 }
 
+const ZURICH = "Europe/Zurich";
+
+function zurichDateTimeParts(d: Date): { date: string; time: string } {
+  const parts = new Intl.DateTimeFormat("de-CH", {
+    timeZone: ZURICH,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(d);
+  const pick = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === type)?.value ?? "";
+  return {
+    date: `${pick("day")}.${pick("month")}.${pick("year")}`,
+    time: `${pick("hour").padStart(2, "0")}:${pick("minute").padStart(2, "0")}`,
+  };
+}
+
+function isDateOnlyToken(raw: string): boolean {
+  if (/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(raw)) return true;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return true;
+  // Midnight clock on a date field — do not print dummy 00:00.
+  return /^\d{4}-\d{2}-\d{2}T00:00:00(?:\.0+)?(?:Z|[+-]00:00)?$/.test(raw);
+}
+
 /** Display dates as EU/Swiss `TT.MM.JJJJ` (ISO, US slash, or English month names). */
 export function toSwissDate(isoDate: string | null | undefined): string {
   if (!isoDate) return "–";
@@ -93,6 +120,43 @@ export function toSwissDate(isoDate: string | null | undefined): string {
   }
 
   return raw;
+}
+
+/** Display helper: calendar day as `dd.mm.yyyy` (same as `toSwissDate`). */
+export function formatSwissDate(ymd: string | null | undefined): string {
+  return toSwissDate(ymd);
+}
+
+/**
+ * Display helper: instant as `dd.mm.yyyy HH:mm` in Europe/Zurich (24h).
+ * Date-only values stay `dd.mm.yyyy` — no dummy `00:00`.
+ */
+export function formatSwissDateTime(iso: string | null | undefined): string {
+  if (!iso) return "–";
+  const raw = iso.trim();
+  if (!raw) return "–";
+  if (isDateOnlyToken(raw)) return formatSwissDate(raw);
+
+  const d = new Date(raw);
+  if (!Number.isFinite(d.getTime())) return formatSwissDate(raw);
+
+  const { date, time } = zurichDateTimeParts(d);
+  if (!/^\d{2}\.\d{2}\.\d{4}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
+    return formatSwissDate(raw);
+  }
+  return `${date} ${time}`;
+}
+
+/** Inclusive range `24.08.2026 – 30.08.2026` (single day collapses). */
+export function formatSwissDateRange(
+  from: string | null | undefined,
+  to: string | null | undefined
+): string {
+  const a = formatSwissDate(from);
+  const b = formatSwissDate(to);
+  if (a === "–") return b;
+  if (b === "–" || !to || from === to || a === b) return a;
+  return `${a} – ${b}`;
 }
 
 /** German weekday for an ISO `YYYY-MM-DD` (or Swiss `TT.MM.JJJJ`) calendar day. */

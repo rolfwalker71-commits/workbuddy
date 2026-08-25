@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarPlus, Clock3, FolderOpen } from "lucide-react";
+import {
+  CalendarClock,
+  CalendarPlus,
+  Clock3,
+  FolderOpen,
+  Ticket,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
@@ -11,6 +17,7 @@ import type { MariTicketListItem } from "@/lib/mari/tickets";
 import type { MariCustomerOption } from "@/lib/mari/customers";
 import type { MariCalendarStamp } from "@/lib/mari/calendar-stamp";
 import { STATUS_LABELS } from "@/lib/mari/status";
+import { formatSwissDate, toSwissTime } from "@/lib/utils/dates";
 
 export type AkteFilterCustomer = MariCustomerOption & {
   ticketCount: number;
@@ -34,6 +41,201 @@ type Workspace = {
 
 const customerCardClass =
   "flex w-full items-center justify-between gap-3 rounded-2xl bg-card px-3.5 py-3 text-left shadow-sm ring-1 ring-foreground/10 transition-shadow hover:bg-muted hover:shadow-md";
+
+const panelCardClass =
+  "rounded-2xl bg-card p-4 shadow-sm ring-1 ring-foreground/10";
+
+const innerItemClass =
+  "flex w-full items-start justify-between gap-2 rounded-xl bg-muted px-3 py-2 text-left transition-shadow hover:shadow-sm";
+
+function formatStampWhen(stamp: {
+  eventDate: string;
+  startHm: string | null;
+}): string {
+  const day = formatSwissDate(stamp.eventDate);
+  const hm = stamp.startHm ? toSwissTime(stamp.startHm) : "";
+  return hm && hm !== "–" ? `${day} ${hm}` : day;
+}
+
+function AkteDetailGrid({
+  data,
+  showCustomerHeader,
+  onOpenTicket,
+  onBook,
+  onAdhoc,
+  firstOpen,
+}: {
+  data: Workspace;
+  showCustomerHeader: boolean;
+  onOpenTicket: (issueId: number) => void;
+  onBook: (ticket: MariTicketListItem) => void;
+  onAdhoc: (ticket: MariTicketListItem | null) => void;
+  firstOpen: MariTicketListItem | null;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <article className={panelCardClass}>
+        {showCustomerHeader ? (
+          <div className="flex items-start gap-2">
+            <MaringoLogo className="size-6 shrink-0" />
+            <div className="min-w-0">
+              <p className="flex items-start gap-1.5 text-sm font-bold leading-snug">
+                <FolderOpen
+                  className="mt-0.5 size-4 shrink-0"
+                  strokeWidth={APP_ICON_STROKE}
+                />
+                <span className="min-w-0 wrap-break-word">
+                  Überblick · {data.name}
+                </span>
+              </p>
+              <p className="text-xs text-muted-foreground">{data.cardCode}</p>
+            </div>
+          </div>
+        ) : (
+          <h4 className="flex items-center gap-1.5 text-sm font-bold">
+            <FolderOpen className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
+            Überblick
+          </h4>
+        )}
+        <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
+          <div className="rounded-xl bg-muted px-2 py-2">
+            <dt className="text-[0.625rem] uppercase tracking-wide text-muted-foreground">
+              Offen
+            </dt>
+            <dd className="text-lg font-black tabular-nums">{data.openCount}</dd>
+          </div>
+          <div className="rounded-xl bg-muted px-2 py-2">
+            <dt className="text-[0.625rem] uppercase tracking-wide text-muted-foreground">
+              Diese Woche
+            </dt>
+            <dd className="text-lg font-black tabular-nums">
+              {data.hoursThisWeek.toFixed(2)} h
+            </dd>
+          </div>
+          <div className="rounded-xl bg-muted px-2 py-2">
+            <dt className="text-[0.625rem] uppercase tracking-wide text-muted-foreground">
+              Gesamt
+            </dt>
+            <dd className="text-lg font-black tabular-nums">
+              {data.hoursTotal.toFixed(2)} h
+            </dd>
+          </div>
+        </dl>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => onAdhoc(firstOpen)}
+          >
+            <CalendarPlus className="size-3.5" strokeWidth={APP_ICON_STROKE} />
+            Termin
+          </Button>
+          {firstOpen ? (
+            <Button type="button" size="sm" onClick={() => onBook(firstOpen)}>
+              <Clock3 className="size-3.5" strokeWidth={APP_ICON_STROKE} />
+              Buchen
+            </Button>
+          ) : null}
+        </div>
+      </article>
+
+      <article className={panelCardClass}>
+        <h4 className="flex items-center gap-1.5 text-sm font-bold">
+          <Ticket className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
+          Offene Tickets
+        </h4>
+        {data.tickets.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">Keine Tickets.</p>
+        ) : (
+          <ul className="mt-3 max-h-[20rem] space-y-2 overflow-y-auto">
+            {data.tickets.slice(0, 20).map((t) => (
+              <li key={t.issueId}>
+                <button
+                  type="button"
+                  onClick={() => onOpenTicket(t.issueId)}
+                  className={innerItemClass}
+                >
+                  <span className="min-w-0 text-sm font-semibold leading-snug wrap-break-word line-clamp-2">
+                    #{t.issueId} {t.briefDescription}
+                  </span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {t.statusName || STATUS_LABELS[t.status] || t.status}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </article>
+
+      <article className={panelCardClass}>
+        <h4 className="flex items-center gap-1.5 text-sm font-bold">
+          <Clock3 className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
+          Stunden
+        </h4>
+        {data.lastLines.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            Keine Stundenbuchungen.
+          </p>
+        ) : (
+          <ul className="mt-3 max-h-[20rem] space-y-2 overflow-y-auto">
+            {data.lastLines.map((line, i) => (
+              <li
+                key={`${line.issueId}-${line.serviceDate}-${i}`}
+                className="rounded-xl bg-muted px-3 py-2"
+              >
+                <p className="flex items-baseline justify-between gap-2 text-sm">
+                  <span className="tabular-nums text-muted-foreground">
+                        {formatSwissDate(line.serviceDate)}
+                  </span>
+                  <span className="shrink-0 font-semibold tabular-nums">
+                    {line.hours.toFixed(2)} h
+                  </span>
+                </p>
+                <p className="mt-0.5 text-sm leading-snug wrap-break-word line-clamp-2">
+                  #{line.issueId}
+                  {line.activity ? ` · ${line.activity}` : ""}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </article>
+
+      <article className={panelCardClass}>
+        <h4 className="flex items-center gap-1.5 text-sm font-bold">
+          <CalendarClock
+            className="size-4 shrink-0"
+            strokeWidth={APP_ICON_STROKE}
+          />
+          Termine
+        </h4>
+        {data.upcomingStamps.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            Keine anstehenden Termine.
+          </p>
+        ) : (
+          <ul className="mt-3 max-h-[20rem] space-y-2 overflow-y-auto">
+            {data.upcomingStamps.map((s) => (
+              <li
+                key={`${s.eventId}-${s.issueId}`}
+                className="rounded-xl bg-muted px-3 py-2"
+              >
+                <p className="text-sm font-semibold tabular-nums">
+                  {formatStampWhen(s)}
+                </p>
+                <p className="mt-0.5 text-sm leading-snug wrap-break-word line-clamp-2 text-muted-foreground">
+                  #{s.issueId} {s.title}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </article>
+    </div>
+  );
+}
 
 export function CustomerWorkspacePanel({
   cardCode,
@@ -187,13 +389,19 @@ export function CustomerWorkspacePanel({
               im aktuellen Filter
             </p>
           </div>
-          <ul className="max-h-[min(16rem,40vh)] space-y-2 overflow-y-auto">
+          <ul
+            className={cn(
+              "space-y-2",
+              !cardCode && "max-h-[min(16rem,40vh)] overflow-y-auto"
+            )}
+          >
             {filterCustomers.map((c) => {
               const selected = c.cardCode === cardCode;
               return (
                 <li key={c.cardCode}>
                   <button
                     type="button"
+                    aria-expanded={selected}
                     aria-current={selected ? "true" : undefined}
                     className={cn(
                       customerCardClass,
@@ -202,7 +410,7 @@ export function CustomerWorkspacePanel({
                     onClick={() => onPickCustomer(c, "filter")}
                   >
                     <span className="min-w-0">
-                      <span className="block font-semibold wrap-break-word">
+                      <span className="block font-semibold leading-snug wrap-break-word">
                         {c.name}
                       </span>
                       <span className="block text-xs text-muted-foreground">
@@ -214,6 +422,26 @@ export function CustomerWorkspacePanel({
                       {c.ticketCount === 1 ? "Ticket" : "Tickets"}
                     </span>
                   </button>
+                  {selected ? (
+                    <div className="mt-2">
+                      {loading ? (
+                        <p className="text-sm text-muted-foreground">
+                          Lade Akte…
+                        </p>
+                      ) : error ? (
+                        <p className="text-sm text-destructive">{error}</p>
+                      ) : data ? (
+                        <AkteDetailGrid
+                          data={data}
+                          showCustomerHeader={false}
+                          onOpenTicket={onOpenTicket}
+                          onBook={onBook}
+                          onAdhoc={onAdhoc}
+                          firstOpen={firstOpen}
+                        />
+                      ) : null}
+                    </div>
+                  ) : null}
                 </li>
               );
             })}
@@ -225,106 +453,19 @@ export function CustomerWorkspacePanel({
         <p className="text-sm text-muted-foreground">
           Kunde wählen, um Tickets, Stunden und Termine in einer Akte zu sehen.
         </p>
-      ) : !cardCode ? null : loading ? (
+      ) : !cardCode ? null : showFilterList && selectedInFilter ? null : loading ? (
         <p className="text-sm text-muted-foreground">Lade Akte…</p>
       ) : error ? (
         <p className="text-sm text-destructive">{error}</p>
       ) : data ? (
-        <div className="space-y-4">
-          <div className="rounded-2xl bg-card p-4 shadow-sm ring-1 ring-foreground/10">
-            <div className="flex items-start gap-2">
-              <MaringoLogo className="size-6" />
-              <div className="min-w-0">
-                <p className="flex items-center gap-1.5 text-sm font-bold">
-                  <FolderOpen className="size-4" strokeWidth={APP_ICON_STROKE} />
-                  Kundenakte {data.name}
-                </p>
-                <p className="text-xs text-muted-foreground">{data.cardCode}</p>
-              </div>
-            </div>
-            <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
-              <div className="rounded-xl bg-muted/40 px-2 py-2">
-                <dt className="text-[0.625rem] uppercase tracking-wide text-muted-foreground">
-                  Offen
-                </dt>
-                <dd className="text-lg font-black tabular-nums">{data.openCount}</dd>
-              </div>
-              <div className="rounded-xl bg-muted/40 px-2 py-2">
-                <dt className="text-[0.625rem] uppercase tracking-wide text-muted-foreground">
-                  Diese Woche
-                </dt>
-                <dd className="text-lg font-black tabular-nums">
-                  {data.hoursThisWeek.toFixed(2)} h
-                </dd>
-              </div>
-              <div className="rounded-xl bg-muted/40 px-2 py-2">
-                <dt className="text-[0.625rem] uppercase tracking-wide text-muted-foreground">
-                  Gesamt
-                </dt>
-                <dd className="text-lg font-black tabular-nums">
-                  {data.hoursTotal.toFixed(2)} h
-                </dd>
-              </div>
-            </dl>
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => onAdhoc(firstOpen)}
-              >
-                <CalendarPlus className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-                Termin
-              </Button>
-              {firstOpen ? (
-                <Button type="button" size="sm" onClick={() => onBook(firstOpen)}>
-                  <Clock3 className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-                  Buchen
-                </Button>
-              ) : null}
-            </div>
-          </div>
-
-          <section className="space-y-2">
-            <h3 className="text-sm font-bold">Offene Tickets</h3>
-            {data.tickets.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Keine Tickets.</p>
-            ) : (
-              <ul className="space-y-2">
-                {data.tickets.slice(0, 20).map((t) => (
-                  <li key={t.issueId}>
-                    <button
-                      type="button"
-                      onClick={() => onOpenTicket(t.issueId)}
-                      className={customerCardClass}
-                    >
-                      <span className="min-w-0 font-semibold wrap-break-word">
-                        #{t.issueId} {t.briefDescription}
-                      </span>
-                      <span className="shrink-0 text-xs text-muted-foreground">
-                        {t.statusName || STATUS_LABELS[t.status] || t.status}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          {data.upcomingStamps.length > 0 ? (
-            <section className="space-y-2">
-              <h3 className="text-sm font-bold">Nächste Termine</h3>
-              <ul className="space-y-1 text-sm text-muted-foreground">
-                {data.upcomingStamps.map((s) => (
-                  <li key={`${s.eventId}-${s.issueId}`}>
-                    {s.eventDate}
-                    {s.startHm ? ` ${s.startHm}` : ""} · #{s.issueId} {s.title}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-        </div>
+        <AkteDetailGrid
+          data={data}
+          showCustomerHeader
+          onOpenTicket={onOpenTicket}
+          onBook={onBook}
+          onAdhoc={onAdhoc}
+          firstOpen={firstOpen}
+        />
       ) : null}
     </div>
   );

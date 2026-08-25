@@ -1,4 +1,5 @@
 import type { MariListMetaField } from "@/lib/mari/ticket-filter-prefs-shared";
+import { formatSwissDate, formatSwissDateTime } from "@/lib/utils/dates";
 
 /** Minimal ticket shape for list meta lines (list + detail). */
 export type MariTicketListMetaSource = {
@@ -18,11 +19,14 @@ export type MariTicketListMetaItem = {
   kind: "customer" | "text";
 };
 
-function formatDayMonth(iso: string | null | undefined): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit" });
+function formatMetaDate(iso: string | null | undefined): string | null {
+  const s = formatSwissDate(iso);
+  return s === "–" ? null : s;
+}
+
+function formatMetaDateTime(iso: string | null | undefined): string | null {
+  const s = formatSwissDateTime(iso);
+  return s === "–" ? null : s;
 }
 
 function contractLabel(t: MariTicketListMetaSource): string | null {
@@ -69,12 +73,12 @@ export function buildMariTicketListMetaItems(
         value = activityLabel(t);
         break;
       case "seit": {
-        const d = formatDayMonth(t.requestDate);
+        const d = formatMetaDate(t.requestDate);
         value = d ? `seit ${d}` : null;
         break;
       }
       case "geaendert": {
-        const d = formatDayMonth(t.changeAtDate);
+        const d = formatMetaDateTime(t.changeAtDate);
         value = d ? `änd. ${d}` : null;
         break;
       }
