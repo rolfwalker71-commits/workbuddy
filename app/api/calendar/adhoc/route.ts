@@ -42,8 +42,18 @@ const BodySchema = z.discriminatedUnion("action", [
     action: z.literal("create"),
     title: z.string().trim().min(1).max(200),
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    startHm: z.string().regex(/^\d{2}:\d{2}$/),
-    endHm: z.string().regex(/^\d{2}:\d{2}$/),
+    startHm: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/)
+      .optional()
+      .nullable(),
+    endHm: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/)
+      .optional()
+      .nullable(),
+    allDay: z.boolean().optional(),
+    location: z.string().trim().max(300).optional().nullable(),
     notes: z.string().trim().max(4000).optional().nullable(),
     mariIssueId: z.number().int().positive().optional().nullable(),
     teamsMeeting: z.boolean().optional(),
@@ -219,6 +229,14 @@ export async function POST(request: Request) {
       ? appendMariBodyMarker(rawNotes, mariIssueId)
       : rawNotes;
 
+    const allDay = Boolean(body.allDay) || !body.startHm;
+    if (!allDay && !body.startHm) {
+      return NextResponse.json(
+        { error: "Startzeit oder ganztägig wählen." },
+        { status: 400 }
+      );
+    }
+
     if (provider === "google") {
       const calendarId = body.calendarId?.trim() || "primary";
       const created = await createGoogleCalendarEvent(
@@ -227,9 +245,11 @@ export async function POST(request: Request) {
           calendarId,
           title: body.title,
           startDate: body.date,
-          startTime: body.startHm,
+          startTime: allDay ? null : body.startHm,
           endDate: body.date,
-          endTime: body.endHm,
+          endTime: allDay ? null : body.endHm,
+          allDay,
+          location: body.location,
           description: notes,
         },
         request
@@ -246,11 +266,13 @@ export async function POST(request: Request) {
     const created = await createOutlookCalendarEvent(userId, {
       title: body.title,
       date: body.date,
-      startTime: body.startHm,
-      endTime: body.endHm,
+      startTime: allDay ? null : body.startHm,
+      endTime: allDay ? null : body.endHm,
+      allDay,
+      location: body.location,
       notes,
       categories: mariIssueId ? mariOutlookCategories(mariIssueId) : null,
-      teamsMeeting: Boolean(body.teamsMeeting),
+      teamsMeeting: Boolean(body.teamsMeeting) && !allDay,
       calendarId: body.calendarId || null,
     });
     if (mariIssueId) {

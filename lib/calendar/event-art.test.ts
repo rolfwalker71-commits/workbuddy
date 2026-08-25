@@ -1,10 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
-  resolveEventArt,
-  resolveEventArtLeft,
-  resolveEventArtRight,
-} from "./event-art.ts";
+import { resolveEventArt, resolveEventArtRight } from "./event-art.ts";
 
 test("birthday and train win on title keywords", () => {
   assert.equal(
@@ -42,36 +38,12 @@ test("support and standup topics", () => {
   );
 });
 
-test("left art is Teams, Meet, or generic meeting", () => {
-  assert.equal(
-    resolveEventArtLeft({
-      title: "AI Wochencall",
-      location: "Microsoft Teams Besprechung",
-      meetUrl: "https://teams.microsoft.com/l/meetup-join/x",
-    })?.id,
-    "teams"
-  );
-  assert.equal(
-    resolveEventArtLeft({
-      title: "Review",
-      meetUrl: "https://meet.google.com/abc-defg-hij",
-    })?.id,
-    "meet"
-  );
-  assert.equal(
-    resolveEventArtLeft({ title: "Kunden-Besprechung" })?.id,
-    "meeting"
-  );
-  assert.equal(resolveEventArtLeft({ title: "F4 Früh" }), null);
-});
-
-test("resolveEventArt combines both sides", () => {
+test("resolveEventArt returns the topic graphic", () => {
   const art = resolveEventArt({
     title: "Weekly Sync",
     location: "Microsoft Teams",
   });
   assert.equal(art.right.id, "standup");
-  assert.equal(art.left?.id, "teams");
 });
 
 test("90-day crawl topics: morgencall, cruise, hockey, flight", () => {
@@ -117,11 +89,7 @@ test("90-day crawl topics: hotel, car, vacation, doctor, sport, education", () =
   );
 });
 
-test("phone is a left format and ANG monthly sync uses standup", () => {
-  assert.equal(
-    resolveEventArtLeft({ title: "Gynäkologie Termin telefonisch" })?.id,
-    "phone"
-  );
+test("ANG monthly sync uses standup", () => {
   assert.equal(
     resolveEventArtRight({ title: "ANG Monatstreffen (GL Schweiz)" }).id,
     "standup"

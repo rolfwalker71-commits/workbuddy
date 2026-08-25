@@ -55,6 +55,11 @@ export function AdhocEventDialog({
 }) {
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
+  const [location, setLocation] = useState("");
+  const [date, setDate] = useState("");
+  const [startHm, setStartHm] = useState("09:00");
+  const [endHm, setEndHm] = useState("10:00");
+  const [allDay, setAllDay] = useState(false);
   const [duration, setDuration] = useState(60);
   const [slots, setSlots] = useState<FreeSlot[]>([]);
   const [busy, setBusy] = useState(false);
@@ -81,6 +86,11 @@ export function AdhocEventDialog({
   function reset() {
     setTitle("");
     setNotes("");
+    setLocation("");
+    setDate("");
+    setStartHm("09:00");
+    setEndHm("10:00");
+    setAllDay(false);
     setDuration(defaultDurationMinutes);
     setSlots([]);
     setError(null);
@@ -95,6 +105,18 @@ export function AdhocEventDialog({
     if (!open) return;
     setTitle((initialTitle || "").trim());
     setNotes((initialNotes || "").trim());
+    setLocation("");
+    setDate(
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Europe/Zurich",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date())
+    );
+    setStartHm("09:00");
+    setEndHm("10:00");
+    setAllDay(false);
     setDuration(defaultDurationMinutes);
     setSlots([]);
     setError(null);
@@ -195,6 +217,8 @@ export function AdhocEventDialog({
           date: slot.date,
           startHm: slot.startHm,
           endHm: slot.endHm,
+          allDay: false,
+          location: location.trim() || null,
           notes: notes.trim() || null,
           mariIssueId: isMari ? mariIssueId : null,
           teamsMeeting,
@@ -219,6 +243,56 @@ export function AdhocEventDialog({
       setMsg(
         `Eingetragen (${prov}${teamsHint}): ${trimmed} · ${slot.date} ${slot.startHm}–${slot.endHm}`
       );
+      onCreated?.();
+      onOpenChange(false);
+      reset();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createManual() {
+    const trimmed = title.trim();
+    if (!trimmed) {
+      setError("Bitte einen Titel angeben.");
+      return;
+    }
+    if (!date) {
+      setError("Bitte ein Datum wählen.");
+      return;
+    }
+    if (!allDay && (!startHm || !endHm)) {
+      setError("Start- und Endzeit wählen oder ganztägig markieren.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/calendar/adhoc", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create",
+          title: trimmed,
+          date,
+          startHm: allDay ? null : startHm,
+          endHm: allDay ? null : endHm,
+          allDay,
+          location: location.trim() || null,
+          notes: notes.trim() || null,
+          mariIssueId: isMari ? mariIssueId : null,
+          teamsMeeting: allDay ? false : teamsMeeting,
+          provider: selectedTarget?.provider || "auto",
+          calendarId: selectedTarget?.id,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Termin anlegen fehlgeschlagen");
+      }
       onCreated?.();
       onOpenChange(false);
       reset();
@@ -254,8 +328,8 @@ export function AdhocEventDialog({
           <DialogDescription>
             {dialogDescription ||
               (isMari
-                ? "Freien Slot suchen und Termin anlegen — Stempel für Abend-Stundenbuchung."
-                : "Aufgabe als Kalender-Termin — Dauer wählen, freien Slot nehmen.")}
+                ? "Termin direkt eintragen oder freien Slot suchen — Stempel für Abend-Stundenbuchung."
+                : "Titel, Zeit und Ort setzen — oder einen freien Slot wählen.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -271,6 +345,79 @@ export function AdhocEventDialog({
               disabled={busy}
             />
           </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="adhoc-location">Ort (optional)</Label>
+            <Input
+              id="adhoc-location"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="z. B. Büro Regensdorf"
+              maxLength={300}
+              disabled={busy}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="adhoc-date">Datum</Label>
+              <Input
+                id="adhoc-date"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                disabled={busy}
+              />
+            </div>
+            <label className="flex items-end gap-2 pb-1 text-sm">
+              <input
+                type="checkbox"
+                className="size-4 accent-teal-700"
+                checked={allDay}
+                disabled={busy}
+                onChange={(e) => setAllDay(e.target.checked)}
+              />
+              Ganztägig
+            </label>
+          </div>
+
+          {!allDay ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="adhoc-start">Von</Label>
+                <Input
+                  id="adhoc-start"
+                  type="time"
+                  value={startHm}
+                  onChange={(e) => setStartHm(e.target.value)}
+                  disabled={busy}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="adhoc-end">Bis</Label>
+                <Input
+                  id="adhoc-end"
+                  type="time"
+                  value={endHm}
+                  onChange={(e) => setEndHm(e.target.value)}
+                  disabled={busy}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          <Button
+            type="button"
+            variant="default"
+            disabled={busy || !title.trim() || !date}
+            onClick={() => void createManual()}
+            className="w-full"
+          >
+            {busy ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+            ) : null}
+            Termin eintragen
+          </Button>
 
           <div className="space-y-1.5">
             <Label htmlFor="adhoc-notes">

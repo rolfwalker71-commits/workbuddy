@@ -2,6 +2,13 @@ import {
   getMicrosoftAccessToken,
   isMicrosoftConnected,
 } from "@/lib/microsoft/oauth";
+import {
+  GRAPH_THROTTLE_RETRIES,
+  isGraphThrottleStatus,
+  parseGraphRetryAfterMs,
+  sleepMs,
+  withMicrosoftGraphSlot,
+} from "@/lib/microsoft/graph-queue";
 import { outboundFetch } from "@/lib/net/outbound-fetch";
 
 export class MicrosoftGraphError extends Error {
@@ -28,7 +35,33 @@ export async function graphFetch(
   if (init?.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
-  return outboundFetch(url, { ...init, headers }, { label: "Microsoft Graph" });
+
+  return withMicrosoftGraphSlot(userId, async () => {
+    for (let attempt = 0; attempt <= GRAPH_THROTTLE_RETRIES; attempt++) {
+      const res = await outboundFetch(
+        url,
+        { ...init, headers },
+        { label: "Microsoft Graph" }
+      );
+      if (
+        !isGraphThrottleStatus(res.status) ||
+        attempt === GRAPH_THROTTLE_RETRIES
+      ) {
+        return res;
+      }
+      const waitMs = parseGraphRetryAfterMs(res.headers, attempt);
+      console.warn(
+        `[graph] throttled user=${userId} status=${res.status} retryIn=${waitMs}ms attempt=${attempt + 1}`
+      );
+      try {
+        await res.arrayBuffer();
+      } catch {
+        /* drain so the socket can close */
+      }
+      await sleepMs(waitMs);
+    }
+    throw new MicrosoftGraphError(429, "Graph throttle retries exhausted.");
+  });
 }
 
 export async function graphJson<T>(

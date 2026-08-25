@@ -111,7 +111,6 @@ async function main() {
   let total = 0;
   const unmatched: Row[] = [];
   const rightIds: string[] = [];
-  const leftIds: string[] = [];
 
   for (const user of users) {
     const loaded = await loadUserEvents(user.id);
@@ -131,7 +130,6 @@ async function main() {
         calendarName: event.calendarName,
       });
       rightIds.push(art.right.id);
-      leftIds.push(art.left?.id || "(keine)");
       if (art.right.id === "default") unmatched.push(event);
     }
   }
@@ -144,12 +142,8 @@ async function main() {
   }
 
   console.log(`\nTermine gesamt: ${total}`);
-  console.log("\nRechte Grafik:");
+  console.log("\nGrafik:");
   for (const row of countMap(rightIds)) {
-    console.log(`  ${row.count}\t${row.key}`);
-  }
-  console.log("\nLinke Grafik:");
-  for (const row of countMap(leftIds)) {
     console.log(`  ${row.count}\t${row.key}`);
   }
 

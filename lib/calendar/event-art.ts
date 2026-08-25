@@ -1,9 +1,7 @@
 /**
  * Static 3dclay illustrations for recurring WorkBuddy calendar patterns.
- * Right = topic. Left = meeting format (Teams / Meet / Telefon / Besprechung).
+ * One topic graphic per event, shown on the right of the list card.
  */
-
-export type EventArtSide = "left" | "right";
 
 export type EventArtId =
   | "train"
@@ -23,11 +21,7 @@ export type EventArtId =
   | "hockey"
   | "sport"
   | "education"
-  | "default"
-  | "teams"
-  | "meet"
-  | "phone"
-  | "meeting";
+  | "default";
 
 export type EventArtAsset = {
   id: EventArtId;
@@ -38,7 +32,6 @@ export type EventArtAsset = {
 
 export type EventArtMatch = {
   right: EventArtAsset;
-  left: EventArtAsset | null;
 };
 
 export type EventArtSubject = {
@@ -163,30 +156,6 @@ const ASSETS: Record<EventArtId, EventArtAsset> = {
     alt: "Termin",
     label: "Termin",
   },
-  teams: {
-    id: "teams",
-    src: `${ART}/left-teams.${EXT}`,
-    alt: "Microsoft Teams",
-    label: "Teams",
-  },
-  meet: {
-    id: "meet",
-    src: `${ART}/left-meet.${EXT}`,
-    alt: "Google Meet",
-    label: "Meet",
-  },
-  phone: {
-    id: "phone",
-    src: `${ART}/left-phone.${EXT}`,
-    alt: "Telefon",
-    label: "Telefon",
-  },
-  meeting: {
-    id: "meeting",
-    src: `${ART}/left-meeting.${EXT}`,
-    alt: "Besprechung",
-    label: "Meeting",
-  },
 };
 
 function haystack(input: EventArtSubject): string {
@@ -304,177 +273,107 @@ export function resolveEventArtRight(input: EventArtSubject): EventArtAsset {
   return ASSETS.default;
 }
 
-export function resolveEventArtLeft(input: EventArtSubject): EventArtAsset | null {
-  const text = haystack(input);
-  const title = titleOf(input);
-  if (/\bteams\b/.test(text) || /teams\.microsoft\.com/.test(text)) {
-    return ASSETS.teams;
-  }
-  if (
-    /\bgoogle\s*meet\b/.test(text) ||
-    /meet\.google\.com/.test(text)
-  ) {
-    return ASSETS.meet;
-  }
-  if (/\b(telefonisch|telefon|anruf|rückruf)\b|\btel\.\b/.test(title)) {
-    return ASSETS.phone;
-  }
-  if (
-    /\b(besprechung|meeting|workshop|review|call|videokonferenz)\b/.test(
-      title
-    ) ||
-    Boolean(input.meetUrl?.trim())
-  ) {
-    return ASSETS.meeting;
-  }
-  return null;
-}
-
 export function resolveEventArt(input: EventArtSubject): EventArtMatch {
   return {
     right: resolveEventArtRight(input),
-    left: resolveEventArtLeft(input),
   };
 }
 
 export function eventArtKeywords(): Array<{
   id: EventArtId;
-  side: EventArtSide;
   label: string;
   keywords: string[];
 }> {
   return [
     {
       id: "day-close",
-      side: "right",
       label: "Tagesabschluss",
       keywords: ["tagesabschluss", "buddy-day-close"],
     },
     {
       id: "birthday",
-      side: "right",
       label: "Geburtstag",
       keywords: ["geburtstag", "birthday", "Kalendertyp birthday"],
     },
     {
       id: "cruise",
-      side: "right",
       label: "Kreuzfahrt",
       keywords: ["kreuzfahrt", "seetag"],
     },
     {
       id: "flight",
-      side: "right",
       label: "Flug",
       keywords: ["flug", "flughafen", "airport"],
     },
     {
       id: "hotel",
-      side: "right",
       label: "Hotel",
       keywords: ["hotel"],
     },
     {
       id: "car",
-      side: "right",
       label: "Auto / Transfer",
       keywords: ["mietauto", "mietwagen", "transfer"],
     },
     {
       id: "train",
-      side: "right",
       label: "Zug / Bahnhof",
       keywords: ["bahnhof", "zug", "sbb", "gleis", "hb", "hbf", "train"],
     },
     {
       id: "vacation",
-      side: "right",
       label: "Ferien",
       keywords: ["ferien", "urlaub", "urlaubskalender"],
     },
     {
       id: "doctor",
-      side: "right",
       label: "Arzt",
       keywords: ["zahnarzt", "arzt", "gynäkologie", "spital"],
     },
     {
       id: "hockey",
-      side: "right",
       label: "Hockey",
       keywords: ["ambri", "hockey", "gottardo arena"],
     },
     {
       id: "sport",
-      side: "right",
       label: "Sport",
       keywords: ["abendlauf", "laufen", "lauf"],
     },
     {
       id: "shift",
-      side: "right",
       label: "Schicht / Arbeitsplan",
       keywords: ["f1–f9", "früh", "spät", "nacht", "schicht", "dienst", "arbeitsplan"],
     },
     {
       id: "education",
-      side: "right",
       label: "Schulung",
       keywords: ["virtual classroom", "schulung", "webinar"],
     },
     {
       id: "support",
-      side: "right",
       label: "Support / SAP / Maringo",
       keywords: ["sap", "maringo", "ticket", "hana", "support", "business one", "b1"],
     },
     {
       id: "morgencall",
-      side: "right",
       label: "Morgencall",
       keywords: ["morgencall"],
     },
     {
       id: "standup",
-      side: "right",
       label: "Standup / Weekly",
       keywords: ["standup", "daily", "jour fixe", "weekly", "wochencall", "sync", "monatstreffen"],
     },
     {
       id: "lunch",
-      side: "right",
       label: "Essen",
       keywords: ["mittag", "mittagessen", "lunch", "essen", "nachtessen"],
     },
     {
       id: "default",
-      side: "right",
       label: "Standard-Termin",
       keywords: ["(Fallback)"],
-    },
-    {
-      id: "teams",
-      side: "left",
-      label: "Microsoft Teams",
-      keywords: ["teams", "teams.microsoft.com"],
-    },
-    {
-      id: "meet",
-      side: "left",
-      label: "Google Meet",
-      keywords: ["google meet", "meet.google.com"],
-    },
-    {
-      id: "phone",
-      side: "left",
-      label: "Telefon",
-      keywords: ["telefonisch", "telefon", "anruf"],
-    },
-    {
-      id: "meeting",
-      side: "left",
-      label: "Besprechung",
-      keywords: ["besprechung", "meeting", "workshop", "review", "call", "meetUrl"],
     },
   ];
 }

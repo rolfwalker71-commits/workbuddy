@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, RefreshCw } from "lucide-react";
+import { Check, ListPlus, RefreshCw } from "lucide-react";
 import { GoogleTasksLogo } from "@/components/branding/provider-logos";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { MicrosoftPlannerPanel } from "@/components/microsoft/microsoft-planner-panel";
+import { TaskCreateDialog } from "@/components/workspace/task-create-dialog";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { toSwissDate } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,11 @@ type GoogleTask = {
   status: string;
   overdue: boolean;
   href: string;
+};
+
+type GoogleList = {
+  id: string;
+  title: string;
 };
 
 export function WorkspaceTasksPanel({
@@ -48,10 +54,12 @@ export function WorkspaceTasksPanel({
 
 function GoogleTasksSection() {
   const [tasks, setTasks] = useState<GoogleTask[]>([]);
+  const [lists, setLists] = useState<GoogleList[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [showDone, setShowDone] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -66,6 +74,7 @@ function GoogleTasksSection() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Google Tasks laden fehlgeschlagen");
       setTasks((json.tasks || []) as GoogleTask[]);
+      setLists((json.lists || []) as GoogleList[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -122,6 +131,10 @@ function GoogleTasksSection() {
           Google Tasks
         </h3>
         <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" size="sm" onClick={() => setCreateOpen(true)}>
+            <ListPlus className="size-3.5" strokeWidth={APP_ICON_STROKE} />
+            Neue Aufgabe
+          </Button>
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <input
               type="checkbox"
@@ -145,6 +158,13 @@ function GoogleTasksSection() {
           </Button>
         </div>
       </div>
+      <TaskCreateDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        provider="google"
+        lists={lists}
+        onCreated={() => void load()}
+      />
       {error ? (
         <p className="text-sm text-destructive" role="alert">
           {error}

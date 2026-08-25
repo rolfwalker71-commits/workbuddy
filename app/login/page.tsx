@@ -1,5 +1,4 @@
 import { LoginForm } from "@/components/auth/login-form";
-import { isMicrosoftOauthConfigured } from "@/lib/microsoft/oauth";
 
 function safeNextPath(value: string | string[] | undefined): string {
   const candidate = Array.isArray(value) ? value[0] : value;
@@ -38,7 +37,6 @@ export default async function LoginPage({
         <LoginForm
           nextPath={safeNextPath(params.next)}
           initialError={firstString(params.error)}
-          microsoftLoginEnabled={isMicrosoftOauthConfigured()}
         />
       </div>
     </main>

@@ -194,7 +194,7 @@ async function expandMicrosoftThreads(
 
   const sentFolderId = await getSentFolderId(userId);
   const extras: MsMailItem[] = [];
-  const concurrency = 4;
+  const concurrency = 2;
   for (let i = 0; i < convIds.length; i += concurrency) {
     const batch = convIds.slice(i, i + concurrency);
     const parts = await Promise.all(

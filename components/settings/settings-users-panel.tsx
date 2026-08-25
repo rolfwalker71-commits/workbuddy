@@ -32,6 +32,8 @@ export function SettingsUsersPanel() {
   const [editId, setEditId] = useState<number | null>(null);
   const [editModules, setEditModules] = useState<string[]>([]);
   const [editActive, setEditActive] = useState(true);
+  const [editDisplayName, setEditDisplayName] = useState("");
+  const [editPassword, setEditPassword] = useState("");
 
   async function load() {
     const res = await fetch("/api/users");
@@ -50,6 +52,12 @@ export function SettingsUsersPanel() {
     setBusy(true);
     setError(null);
     try {
+      if (!username.trim() || !email.trim() || !password.trim()) {
+        throw new Error("Benutzername, E-Mail und Passwort sind Pflicht.");
+      }
+      if (password.trim().length < 6) {
+        throw new Error("Passwort muss mindestens 6 Zeichen haben.");
+      }
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -75,6 +83,8 @@ export function SettingsUsersPanel() {
     setBusy(true);
     setError(null);
     try {
+      const name = editDisplayName.trim();
+      if (!name) throw new Error("Anzeigename darf nicht leer sein.");
       const res = await fetch(`/api/users/${editId}/access`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -82,13 +92,22 @@ export function SettingsUsersPanel() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Module speichern fehlgeschlagen");
-      await fetch(`/api/users/${editId}`, {
+      const patchRes = await fetch(`/api/users/${editId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ active: editActive }),
+        body: JSON.stringify({
+          displayName: name,
+          active: editActive,
+          ...(editPassword.trim() ? { password: editPassword } : {}),
+        }),
       });
-      setStatus("Zugriff gespeichert.");
+      const patchJson = await patchRes.json();
+      if (!patchRes.ok) {
+        throw new Error(patchJson.error || "Benutzer speichern fehlgeschlagen");
+      }
+      setStatus("Benutzer gespeichert.");
       setEditId(null);
+      setEditPassword("");
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -137,6 +156,11 @@ export function SettingsUsersPanel() {
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Benutzer</CardTitle>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          Nur Admins legen Konten an und vergeben Passwort sowie Anzeigename
+          (Seitenleiste). Microsoft 365 verbindet jede Person selbst unter
+          Konto — nach der Anmeldung mit Benutzername und Passwort.
+        </p>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid gap-3 sm:grid-cols-2">
@@ -149,12 +173,24 @@ export function SettingsUsersPanel() {
             <Input value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label>Anzeigename</Label>
-            <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+            <Label htmlFor="new-display-name">Anzeigename</Label>
+            <Input
+              id="new-display-name"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Wie in der Seitenleiste"
+            />
           </div>
           <div className="space-y-2">
-            <Label>Passwort</Label>
-            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <Label htmlFor="new-password">Passwort</Label>
+            <Input
+              id="new-password"
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Mindestens 6 Zeichen"
+            />
           </div>
         </div>
         <Button type="button" className="h-11" disabled={busy} onClick={() => void createUser()}>
@@ -192,9 +228,11 @@ export function SettingsUsersPanel() {
                       setEditId(user.id);
                       setEditModules(user.modules || []);
                       setEditActive(Boolean(user.active));
+                      setEditDisplayName(user.display_name);
+                      setEditPassword("");
                     }}
                   >
-                    Module
+                    Bearbeiten
                   </Button>
                   <Button type="button" variant="outline" onClick={() => void resetSecrets(user.id)}>
                     Secrets reset
@@ -205,7 +243,28 @@ export function SettingsUsersPanel() {
                 </div>
               </div>
               {editId === user.id ? (
-                <div className="mt-3 space-y-2 border-t border-border/60 pt-3">
+                <div className="mt-3 space-y-3 border-t border-border/60 pt-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor={`display-name-${user.id}`}>Anzeigename</Label>
+                      <Input
+                        id={`display-name-${user.id}`}
+                        value={editDisplayName}
+                        onChange={(e) => setEditDisplayName(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`password-${user.id}`}>Neues Passwort</Label>
+                      <Input
+                        id={`password-${user.id}`}
+                        type="password"
+                        autoComplete="new-password"
+                        value={editPassword}
+                        onChange={(e) => setEditPassword(e.target.value)}
+                        placeholder="Leer lassen, um behalten"
+                      />
+                    </div>
+                  </div>
                   <label className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"

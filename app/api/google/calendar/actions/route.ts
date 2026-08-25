@@ -8,6 +8,7 @@ import {
   rescheduleGoogleEvent,
   suggestGoogleFreeSlotsForEvent,
 } from "@/lib/google/calendar-review";
+import { updateGoogleCalendarEvent } from "@/lib/google/calendar-write";
 import {
   isGoogleMailConnected,
   resolveGoogleUserId,
@@ -38,6 +39,26 @@ const BodySchema = z.discriminatedUnion("action", [
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     startHm: z.string().regex(/^\d{2}:\d{2}$/),
     endHm: z.string().regex(/^\d{2}:\d{2}$/),
+  }),
+  z.object({
+    action: z.literal("update"),
+    eventId: z.string().min(1),
+    calendarId: z.string().min(1),
+    title: z.string().trim().min(1).max(200),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    startHm: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/)
+      .optional()
+      .nullable(),
+    endHm: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/)
+      .optional()
+      .nullable(),
+    allDay: z.boolean().optional(),
+    location: z.string().trim().max(300).optional().nullable(),
+    notes: z.string().trim().max(4000).optional().nullable(),
   }),
 ]);
 
@@ -99,6 +120,26 @@ export async function POST(request: Request) {
         request,
       });
       return NextResponse.json({ ok: true, event, slots });
+    }
+    if (body.action === "update") {
+      const allDay = Boolean(body.allDay) || !body.startHm;
+      const event = await updateGoogleCalendarEvent(
+        userId,
+        {
+          eventId: body.eventId,
+          calendarId: body.calendarId,
+          title: body.title,
+          startDate: body.date,
+          startTime: allDay ? null : body.startHm,
+          endDate: body.date,
+          endTime: allDay ? null : body.endHm,
+          allDay,
+          location: body.location,
+          description: body.notes,
+        },
+        request
+      );
+      return NextResponse.json({ ok: true, event });
     }
     const event = await rescheduleGoogleEvent(
       userId,

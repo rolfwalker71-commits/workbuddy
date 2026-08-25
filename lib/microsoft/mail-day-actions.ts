@@ -109,6 +109,97 @@ export async function createOutlookCalendarEvent(
   };
 }
 
+function outlookEventWriteBody(
+  input: CreateOutlookEventInput,
+  options?: { includeTeams?: boolean }
+): Record<string, unknown> {
+  const allDay = input.allDay || !input.startTime;
+  const categories =
+    input.categories?.map((c) => c.trim()).filter(Boolean) || undefined;
+  const teamsMeeting =
+    Boolean(options?.includeTeams) && Boolean(input.teamsMeeting) && !allDay;
+  if (allDay) {
+    const endDate = (() => {
+      const d = new Date(`${input.date}T12:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + 1);
+      return d.toISOString().slice(0, 10);
+    })();
+    return {
+      subject: input.title,
+      isAllDay: true,
+      start: { dateTime: `${input.date}T00:00:00`, timeZone: "Europe/Zurich" },
+      end: { dateTime: `${endDate}T00:00:00`, timeZone: "Europe/Zurich" },
+      location: input.location ? { displayName: input.location } : { displayName: "" },
+      body: input.notes
+        ? { contentType: "Text", content: input.notes }
+        : { contentType: "Text", content: "" },
+      categories,
+    };
+  }
+  const startHm = input.startTime || "09:00";
+  const endHm =
+    input.endTime ||
+    (() => {
+      const [h, m] = startHm.split(":").map(Number);
+      const endH = Math.min(23, (h || 9) + 1);
+      return `${String(endH).padStart(2, "0")}:${String(m || 0).padStart(2, "0")}`;
+    })();
+  return {
+    subject: input.title,
+    isAllDay: false,
+    start: {
+      dateTime: `${input.date}T${startHm}:00`,
+      timeZone: "Europe/Zurich",
+    },
+    end: {
+      dateTime: `${input.date}T${endHm}:00`,
+      timeZone: "Europe/Zurich",
+    },
+    location: input.location ? { displayName: input.location } : { displayName: "" },
+    body: input.notes
+      ? { contentType: "Text", content: input.notes }
+      : { contentType: "Text", content: "" },
+    categories,
+    ...(teamsMeeting
+      ? {
+          isOnlineMeeting: true,
+          onlineMeetingProvider: "teamsForBusiness",
+        }
+      : {}),
+  };
+}
+
+export async function updateOutlookCalendarEvent(
+  userId: number,
+  input: CreateOutlookEventInput & { eventId: string }
+): Promise<CreatedOutlookEvent> {
+  const eventId = input.eventId.trim();
+  if (!eventId) throw new Error("Termin-ID fehlt.");
+  const path = input.calendarId?.trim()
+    ? `/me/calendars/${encodeURIComponent(input.calendarId.trim())}/events/${encodeURIComponent(eventId)}`
+    : `/me/events/${encodeURIComponent(eventId)}`;
+  const updated = await graphJson<{
+    id?: string;
+    subject?: string;
+    webLink?: string | null;
+    onlineMeeting?: { joinUrl?: string | null } | null;
+    onlineMeetingUrl?: string | null;
+  }>(userId, path, {
+    method: "PATCH",
+    body: JSON.stringify(outlookEventWriteBody(input)),
+    headers: { Prefer: 'outlook.timezone="Europe/Zurich"' },
+  });
+  return {
+    id: updated.id || eventId,
+    subject: updated.subject || input.title,
+    webLink: updated.webLink || null,
+    joinUrl:
+      updated.onlineMeeting?.joinUrl ||
+      updated.onlineMeetingUrl ||
+      null,
+  };
+}
+
 export type CreateOutlookDraftInput = {
   to: string;
   subject: string;
@@ -188,6 +279,7 @@ export type CreateOutlookTodoInput = {
   title: string;
   notes?: string | null;
   dueDate?: string | null;
+  listId?: string | null;
 };
 
 export type CreatedOutlookTodo = {
@@ -648,7 +740,8 @@ export async function createOutlookTodoTask(
   userId: number,
   input: CreateOutlookTodoInput
 ): Promise<CreatedOutlookTodo> {
-  const listId = await resolveOutlookTodoListId(userId);
+  const listId =
+    input.listId?.trim() || (await resolveOutlookTodoListId(userId));
 
   const body: Record<string, unknown> = {
     title: input.title.trim(),

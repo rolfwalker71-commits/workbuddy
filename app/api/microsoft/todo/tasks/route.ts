@@ -7,6 +7,7 @@ import {
   resolveMicrosoftUserId,
 } from "@/lib/microsoft/oauth";
 import {
+  createOutlookTodoTask,
   listOutlookTodoLists,
   listOutlookTodoTasksUpcoming,
   updateOutlookTodoTask,
@@ -56,6 +57,57 @@ export async function GET() {
             : "To-Do-Aufgaben konnten nicht geladen werden.",
       },
       { status: 500 }
+    );
+  }
+}
+
+const CreateSchema = z.object({
+  title: z.string().trim().min(1).max(500),
+  notes: z.string().max(4000).nullable().optional(),
+  dueDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable()
+    .optional(),
+  listId: z.string().min(1).max(200).nullable().optional(),
+});
+
+export async function POST(request: Request) {
+  ensureInitialized();
+  const auth = await requireModule("microsoft");
+  if (isAuthError(auth)) return auth;
+  const userId = resolveMicrosoftUserId(auth);
+  if (userId == null || !isMicrosoftConnected(userId)) {
+    return NextResponse.json(
+      { error: "Microsoft 365 nicht verbunden." },
+      { status: 400 }
+    );
+  }
+
+  let body: z.infer<typeof CreateSchema>;
+  try {
+    body = CreateSchema.parse(await request.json());
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : "Ungültige Anfrage",
+      },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const task = await createOutlookTodoTask(userId, body);
+    return NextResponse.json({ ok: true, task });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "To-Do-Aufgabe konnte nicht angelegt werden.",
+      },
+      { status: 502 }
     );
   }
 }

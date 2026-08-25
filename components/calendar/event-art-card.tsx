@@ -40,18 +40,10 @@ export function EventArtCard({
         className
       )}
     >
-      {art.left ? (
-        <img
-          src={art.left.src}
-          alt=""
-          className="h-[4.75rem] w-[4.25rem] shrink-0 object-cover sm:h-[5.25rem] sm:w-[4.75rem]"
-        />
-      ) : (
-        <span
-          className="w-2 shrink-0 self-stretch bg-sky-400/80"
-          aria-hidden
-        />
-      )}
+      <span
+        className="w-2 shrink-0 self-stretch bg-sky-400/80"
+        aria-hidden
+      />
       <span className="min-w-0 flex-1 px-3 py-2.5">
         {event.provider ? (
           <span className="mb-0.5 block">

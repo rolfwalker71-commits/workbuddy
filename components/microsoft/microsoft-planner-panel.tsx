@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, ExternalLink, LayoutGrid, ListTodo, RefreshCw } from "lucide-react";
+import { Check, ExternalLink, LayoutGrid, ListPlus, ListTodo, RefreshCw } from "lucide-react";
 import {
   MicrosoftPlannerLogo,
   MicrosoftToDoLogo,
@@ -17,6 +17,7 @@ import {
   readMsTaskDisplayPrefs,
   writeMsTaskDisplayPrefs,
 } from "@/lib/microsoft/task-display-prefs";
+import { TaskCreateDialog } from "@/components/workspace/task-create-dialog";
 
 type PlannerTask = {
   id: string;
@@ -70,6 +71,7 @@ export function MicrosoftPlannerPanel() {
     Record<string, PlannerBucket[]>
   >({});
   const [titleDraft, setTitleDraft] = useState<Record<string, string>>({});
+  const [createOpen, setCreateOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -328,6 +330,14 @@ export function MicrosoftPlannerPanel() {
           </label>
           <Button
             type="button"
+            size="sm"
+            onClick={() => setCreateOpen(true)}
+          >
+            <ListPlus className="size-3.5" strokeWidth={APP_ICON_STROKE} />
+            Neue Aufgabe
+          </Button>
+          <Button
+            type="button"
             variant="outline"
             size="sm"
             disabled={loading}
@@ -341,6 +351,17 @@ export function MicrosoftPlannerPanel() {
           </Button>
         </div>
       </div>
+
+      <TaskCreateDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        provider="microsoft"
+        lists={todoLists.map((l) => ({ id: l.id, title: l.displayName }))}
+        onCreated={() => {
+          setNotice("Aufgabe angelegt.");
+          void load();
+        }}
+      />
 
       {notice ? (
         <p

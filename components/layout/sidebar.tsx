@@ -186,7 +186,7 @@ export function Sidebar({
                 <p className="text-[0.7rem] font-medium leading-none text-sidebar-foreground/65">
                   Angemeldet als
                 </p>
-                <p className="mt-1.5 truncate text-sm font-semibold tracking-tight">
+                <p className="mt-1.5 break-words text-sm font-semibold leading-snug tracking-tight">
                   {me.displayName}
                 </p>
               </div>

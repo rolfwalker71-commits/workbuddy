@@ -8,6 +8,7 @@ import {
   rescheduleMicrosoftEvent,
   suggestFreeSlotsForEvent,
 } from "@/lib/microsoft/calendar-review";
+import { updateOutlookCalendarEvent } from "@/lib/microsoft/mail-day-actions";
 import {
   isMicrosoftConnected,
   resolveMicrosoftUserId,
@@ -37,6 +38,26 @@ const BodySchema = z.discriminatedUnion("action", [
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     startHm: z.string().regex(/^\d{2}:\d{2}$/),
     endHm: z.string().regex(/^\d{2}:\d{2}$/),
+  }),
+  z.object({
+    action: z.literal("update"),
+    eventId: z.string().min(1),
+    calendarId: z.string().min(1).optional(),
+    title: z.string().trim().min(1).max(200),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    startHm: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/)
+      .optional()
+      .nullable(),
+    endHm: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/)
+      .optional()
+      .nullable(),
+    allDay: z.boolean().optional(),
+    location: z.string().trim().max(300).optional().nullable(),
+    notes: z.string().trim().max(4000).optional().nullable(),
   }),
 ]);
 
@@ -86,6 +107,21 @@ export async function POST(request: Request) {
         durationMinutes: body.durationMinutes,
       });
       return NextResponse.json({ ok: true, event, slots });
+    }
+    if (body.action === "update") {
+      const allDay = Boolean(body.allDay) || !body.startHm;
+      const event = await updateOutlookCalendarEvent(userId, {
+        eventId: body.eventId,
+        calendarId: body.calendarId || null,
+        title: body.title,
+        date: body.date,
+        startTime: allDay ? null : body.startHm,
+        endTime: allDay ? null : body.endHm,
+        allDay,
+        location: body.location,
+        notes: body.notes,
+      });
+      return NextResponse.json({ ok: true, event });
     }
     const event = await rescheduleMicrosoftEvent(userId, body.eventId, {
       date: body.date,

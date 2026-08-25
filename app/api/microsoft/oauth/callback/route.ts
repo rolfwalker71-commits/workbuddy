@@ -1,17 +1,8 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { ensureInitialized } from "@/lib/db/migrations";
-import { getAuthConfiguration } from "@/lib/auth/config";
-import {
-  createSessionToken,
-  sessionCookieOptions,
-} from "@/lib/auth/session";
-import { homePathForModules } from "@/lib/users/modules";
-import { effectiveUserModules } from "@/lib/users/queries";
 import {
   consumeMicrosoftOauthLoginState,
   consumeMicrosoftOauthState,
-  finishMicrosoftLogin,
   finishMicrosoftOauth,
   parseMicrosoftOauthState,
 } from "@/lib/microsoft/oauth";
@@ -57,37 +48,10 @@ export async function GET(request: Request) {
   }
 
   if (state.purpose === "login") {
-    const consumed = consumeMicrosoftOauthLoginState(state.nonce);
-    if (!consumed) {
-      return failRedirect("invalid_state");
-    }
-    const config = getAuthConfiguration();
-    if (!config.configured) {
-      return failRedirect("Die Anmeldung ist auf dem Server nicht konfiguriert.");
-    }
-    try {
-      const { user } = await finishMicrosoftLogin(code, request);
-      const token = await createSessionToken(
-        {
-          kind: "user",
-          username: user.username,
-          userId: user.id,
-        },
-        config.sessionSecret
-      );
-      const { name, ...options } = sessionCookieOptions();
-      const cookieStore = await cookies();
-      cookieStore.set(name, token, options);
-      const home = homePathForModules(
-        effectiveUserModules(user.id, Boolean(user.is_admin))
-      );
-      const target =
-        consumed.next && consumed.next !== "/login" ? consumed.next : home;
-      return NextResponse.redirect(absoluteAppUrl(target, request));
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return failRedirect(msg);
-    }
+    consumeMicrosoftOauthLoginState(state.nonce);
+    return failRedirect(
+      "Bitte mit Benutzername und Passwort anmelden. Microsoft 365 verbindest du danach unter Konto."
+    );
   }
 
   if (!consumeMicrosoftOauthState(state.userId, state.nonce)) {
