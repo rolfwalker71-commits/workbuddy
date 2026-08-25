@@ -44,6 +44,32 @@ export function statusChipLabel(statusId: number, fallback?: string): string {
   return STATUS_LABELS[statusId] || fallback || `Status ${statusId}`;
 }
 
+/** AI-Vorschlag → Maringo-Status-ID. Unbekannt/leer → null. */
+export function resolveRecommendedStatusId(input: {
+  statusId?: number | null;
+  label?: string;
+} | null | undefined): number | null {
+  if (!input) return null;
+  const id = input.statusId;
+  if (typeof id === "number" && Number.isInteger(id) && id > 0 && STATUS_LABELS[id]) {
+    return id;
+  }
+  const raw = (input.label || "").trim().toLowerCase();
+  if (!raw) return null;
+  for (const [key, name] of Object.entries(STATUS_LABELS)) {
+    if (name.toLowerCase() === raw) return Number(key);
+  }
+  if (/warte.*kunden/.test(raw)) return 6;
+  if (/warte.*hersteller/.test(raw)) return 7;
+  if (/in arbeit|bearbeitung/.test(raw)) return 3;
+  if (/^neu$/.test(raw)) return 11;
+  if (/^offen$/.test(raw)) return 1;
+  if (/eskala/.test(raw)) return 14;
+  if (/gelöst|geloest/.test(raw)) return 2;
+  if (/geschlossen/.test(raw)) return 5;
+  return null;
+}
+
 export function statusChipClass(statusId: number): string {
   switch (statusId) {
     case 11: // NEU

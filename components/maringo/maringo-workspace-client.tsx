@@ -61,6 +61,7 @@ import {
   ALL_STATUS_IDS,
   STATUS_LABELS,
   WORK_STATUS_IDS,
+  resolveRecommendedStatusId,
   statusChipClass,
   statusChipLabel,
   statusDetailHeaderClass,
@@ -817,6 +818,10 @@ export function MaringoWorkspaceClient() {
     const draft = analysis?.nextReplyDraft?.trim() || "";
     return detectReplyLanguage(draft);
   }, [analysis?.nextReplyDraft, replyDraftLang]);
+  const recommendedStatusId = useMemo(
+    () => resolveRecommendedStatusId(analysis?.recommendedStatus),
+    [analysis?.recommendedStatus]
+  );
 
   const sortedTimeline = useMemo(() => {
     if (!detail?.timeline?.length) return [];
@@ -1808,8 +1813,8 @@ export function MaringoWorkspaceClient() {
     contractPositionId?: number | null;
     activity?: string | null;
     stdFreigabe?: number | null;
-  }) {
-    if (!selectedId) return;
+  }): Promise<boolean> {
+    if (!selectedId) return false;
     setPatching(true);
     setError(null);
     try {
@@ -1822,11 +1827,31 @@ export function MaringoWorkspaceClient() {
       if (!res.ok) throw new Error(data.error || "Änderung fehlgeschlagen");
       setDetail(data.ticket as MariTicketDetail);
       await loadList();
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      return false;
     } finally {
       setPatching(false);
     }
+  }
+
+  async function applyRecommendedStatus(statusId: number) {
+    const label = statusChipLabel(statusId);
+    const ok = await patchTicket({ status: statusId });
+    if (ok) {
+      showActionFeedback({
+        headline: "Status in Maringo gesetzt",
+        detail: label,
+        tone: "success",
+      });
+      return;
+    }
+    showActionFeedback({
+      headline: "Status nicht gesetzt",
+      detail: "Maringo hat den Status nicht übernommen.",
+      tone: "error",
+    });
   }
 
   async function saveTicketKopf(values: {
@@ -2836,22 +2861,62 @@ export function MaringoWorkspaceClient() {
                               </div>
                               {analysis.recommendedStatus ? (
                                 <div className="rounded-xl border border-border/50 bg-white/70 px-3 py-2 dark:bg-black/20">
-                                  <p className="font-semibold">
-                                    Empfohlener Status
-                                  </p>
-                                  <p className="mt-0.5 text-sm">
-                                    {analysis.recommendedStatus.label ||
-                                      (analysis.recommendedStatus.statusId
-                                        ? statusChipLabel(
-                                            analysis.recommendedStatus.statusId
+                                  <div className="flex flex-wrap items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <p className="font-semibold">
+                                        Empfohlener Status
+                                      </p>
+                                      <p className="mt-0.5 text-sm">
+                                        {analysis.recommendedStatus.label ||
+                                          (analysis.recommendedStatus.statusId
+                                            ? statusChipLabel(
+                                                analysis.recommendedStatus
+                                                  .statusId
+                                              )
+                                            : "—")}
+                                      </p>
+                                      {analysis.recommendedStatus.reason ? (
+                                        <p className="mt-1 text-[0.6875rem] text-muted-foreground">
+                                          {analysis.recommendedStatus.reason}
+                                        </p>
+                                      ) : null}
+                                    </div>
+                                    {recommendedStatusId != null ? (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant={
+                                          detail.status === recommendedStatusId
+                                            ? "secondary"
+                                            : "default"
+                                        }
+                                        disabled={
+                                          patching ||
+                                          detail.status === recommendedStatusId
+                                        }
+                                        title={
+                                          detail.status === recommendedStatusId
+                                            ? "Ticket hat diesen Status bereits"
+                                            : `Status «${statusChipLabel(recommendedStatusId)}» nach Maringo schreiben`
+                                        }
+                                        onClick={() =>
+                                          void applyRecommendedStatus(
+                                            recommendedStatusId
                                           )
-                                        : "—")}
-                                  </p>
-                                  {analysis.recommendedStatus.reason ? (
-                                    <p className="mt-1 text-[0.6875rem] text-muted-foreground">
-                                      {analysis.recommendedStatus.reason}
-                                    </p>
-                                  ) : null}
+                                        }
+                                      >
+                                        {detail.status ===
+                                        recommendedStatusId ? (
+                                          <Check className="size-3.5" />
+                                        ) : (
+                                          <Flag className="size-3.5" />
+                                        )}
+                                        {detail.status === recommendedStatusId
+                                          ? "Gesetzt"
+                                          : "Nach Maringo schreiben"}
+                                      </Button>
+                                    ) : null}
+                                  </div>
                                 </div>
                               ) : null}
                               {analysis.suggestedTasks.length > 0 ? (

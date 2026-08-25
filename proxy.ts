@@ -46,10 +46,7 @@ function isAlwaysAllowedForLimitedUser(pathname: string): boolean {
     return true;
   }
   if (pathname.startsWith("/api/push/")) return true;
-  if (
-    pathname === "/api/me/notification-prefs" ||
-    pathname === "/api/me/weather"
-  ) {
+  if (pathname === "/api/me" || pathname.startsWith("/api/me/")) {
     return true;
   }
   if (pathname === "/account" || pathname.startsWith("/account/")) return true;

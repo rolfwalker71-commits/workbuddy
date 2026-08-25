@@ -1904,7 +1904,6 @@ export function WorkspaceDayClient({
                     <li
                       key={key}
                       id={`cal-review-${key}`}
-                      className="space-y-1.5"
                     >
                       <EventArtCard
                         event={e}
@@ -1914,31 +1913,31 @@ export function WorkspaceDayClient({
                             ? "ring-2 ring-orange-400/80"
                             : undefined
                         }
+                        footer={
+                          showActions ? (
+                            <EventDetailActions
+                              event={e}
+                              busy={busyId === key}
+                              slotDuration={slotDurationFor(e)}
+                              slots={slotsByEvent[key] || []}
+                              onPreset={(m) => {
+                                setSlotDurationByEvent((prev) => ({
+                                  ...prev,
+                                  [key]: m,
+                                }));
+                                setSlotsByEvent((prev) => {
+                                  const next = { ...prev };
+                                  delete next[key];
+                                  return next;
+                                });
+                              }}
+                              onDone={() => void markDone(e)}
+                              onSuggest={() => void suggestSlots(e)}
+                              onReschedule={(s) => void reschedule(e, s)}
+                            />
+                          ) : undefined
+                        }
                       />
-                      {showActions ? (
-                        <div className="rounded-2xl bg-card px-3 py-2.5 shadow-[0_2px_10px_rgba(15,23,42,0.06)] ring-1 ring-border/50">
-                          <EventDetailActions
-                            event={e}
-                            busy={busyId === key}
-                            slotDuration={slotDurationFor(e)}
-                            slots={slotsByEvent[key] || []}
-                            onPreset={(m) => {
-                              setSlotDurationByEvent((prev) => ({
-                                ...prev,
-                                [key]: m,
-                              }));
-                              setSlotsByEvent((prev) => {
-                                const next = { ...prev };
-                                delete next[key];
-                                return next;
-                              });
-                            }}
-                            onDone={() => void markDone(e)}
-                            onSuggest={() => void suggestSlots(e)}
-                            onReschedule={(s) => void reschedule(e, s)}
-                          />
-                        </div>
-                      ) : null}
                     </li>
                     );
                   })}
