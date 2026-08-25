@@ -1,5 +1,6 @@
 /**
- * Company-wide OpenAI-compatible fallback (key + model + optional base URL).
+ * Company-wide OpenAI-compatible provider (key + model + optional base URL).
+ * Leading for every user when enabled. Personal Konto keys apply only if this is off.
  * Stored encrypted in SQLite (Admin). Optional .env override for Docker.
  * Never reads OPENAI_API_KEY.
  */

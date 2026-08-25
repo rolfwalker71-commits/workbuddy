@@ -88,10 +88,12 @@ export function SettingsCompanyAiPanel() {
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <p className="text-muted-foreground">
-          Ein Custom-Provider für alle Konten, typisch <code>gpt-4o-mini</code>.
-          Persönliche Keys unter Konto haben Vorrang. Der Key liegt
-          verschlüsselt in der Datenbank — nicht in der .env, ausser du setzt
-          bewusst <code>COMPANY_AI_API_KEY</code> für Docker.
+          Führender Custom-Provider für alle Konten, typisch{" "}
+          <code>gpt-4o-mini</code>. Solange das aktiv ist, gelten Key, Modell
+          und Base-URL hier — persönliche Keys unter Konto werden nicht
+          verwendet. Der Key liegt verschlüsselt in der Datenbank, nicht in der
+          .env, ausser du setzt bewusst <code>COMPANY_AI_API_KEY</code> für
+          Docker.
         </p>
         {fromEnv ? (
           <p className="rounded-xl bg-muted/50 px-3 py-2 text-xs">

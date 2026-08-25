@@ -45,41 +45,48 @@ export function resolveUserAiConfig(
   if (!user) return null;
   const personalOpenai = getUserOpenAiApiKey(user);
   const company = getCompanyAiConfig();
-  const usingCompanyAi = !personalOpenai && Boolean(company.enabled && company.apiKey);
-  const openaiApiKey = personalOpenai || (usingCompanyAi ? company.apiKey : null);
+  const usingCompanyAi = Boolean(company.enabled && company.apiKey);
+  const openaiApiKey = usingCompanyAi ? company.apiKey : personalOpenai;
+  const openaiModel = usingCompanyAi
+    ? company.model
+    : user.openai_model?.trim() || "gpt-4o-mini";
+  const openaiBaseUrl = usingCompanyAi ? company.baseUrl : null;
+  if (usingCompanyAi) {
+    return {
+      userId,
+      openaiApiKey,
+      openaiModel,
+      openaiBaseUrl,
+      chatProvider: "custom",
+      chatApiKey: company.apiKey,
+      chatBaseUrl: company.baseUrl,
+      chatModel: company.model,
+      usingCompanyAi: true,
+      requestEmail: company.email,
+    };
+  }
   const chatProvider = asChatProvider(user.chat_provider);
   const storedChatKey = getUserChatApiKey(user);
-  const openaiModel =
-    user.openai_model?.trim() ||
-    (usingCompanyAi ? company.model : null) ||
-    "gpt-4o-mini";
-  const openaiBaseUrl = usingCompanyAi ? company.baseUrl : null;
   const chatBaseUrl =
     chatProvider === "deepseek"
       ? normalizeBaseUrl(user.chat_base_url) || DEEPSEEK_BASE_URL
-      : normalizeBaseUrl(user.chat_base_url) ||
-        (usingCompanyAi ? company.baseUrl : null);
+      : normalizeBaseUrl(user.chat_base_url);
   const chatModel =
     user.chat_model?.trim() ||
-    (chatProvider === "deepseek"
-      ? "deepseek-v4-flash"
-      : usingCompanyAi
-        ? company.model
-        : openaiModel);
+    (chatProvider === "deepseek" ? "deepseek-v4-flash" : openaiModel);
   const chatApiKey =
-    storedChatKey ||
-    (chatProvider === "openai" || usingCompanyAi ? openaiApiKey : null);
+    storedChatKey || (chatProvider === "openai" ? openaiApiKey : null);
   return {
     userId,
     openaiApiKey,
     openaiModel,
     openaiBaseUrl,
-    chatProvider: usingCompanyAi && chatProvider === "openai" ? "custom" : chatProvider,
+    chatProvider,
     chatApiKey,
     chatBaseUrl,
     chatModel,
-    usingCompanyAi,
-    requestEmail: usingCompanyAi ? company.email : null,
+    usingCompanyAi: false,
+    requestEmail: null,
   };
 }
 

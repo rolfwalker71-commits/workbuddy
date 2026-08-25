@@ -16,9 +16,9 @@ function openaiAccountPayload(row: AppUserRow | null) {
   const company = getCompanyAiPublic();
   const hasPersonalOpenaiKey = Boolean(row?.openai_api_key_enc);
   return {
-    hasOpenaiKey: hasPersonalOpenaiKey || company.enabled,
+    hasOpenaiKey: company.enabled || hasPersonalOpenaiKey,
     hasPersonalOpenaiKey,
-    usingCompanyAi: !hasPersonalOpenaiKey && company.enabled,
+    usingCompanyAi: company.enabled,
     companyModel: company.enabled ? company.model : null,
     openaiModel: row?.openai_model || company.model || "gpt-4o-mini",
     chatProvider: row?.chat_provider || "openai",

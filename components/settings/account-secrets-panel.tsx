@@ -126,7 +126,7 @@ export function AccountSecretsPanel() {
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
             {data?.openai.usingCompanyAi
-              ? `Firmen-KI ist aktiv (${data.openai.companyModel || "gpt-4o-mini"}). Eigenen Key kannst du trotzdem hinterlegen.`
+              ? `Firmen-KI gilt für alle (${data.openai.companyModel || "gpt-4o-mini"}). Ein eigener Key hier wird erst genutzt, wenn die Firmen-KI aus ist.`
               : data?.openai.hasOpenaiKey
                 ? "Ein OpenAI-Key ist gesetzt (nicht sichtbar)."
                 : "Kein Key hinterlegt — KI-Funktionen sind deaktiviert, ausser der Admin hinterlegt eine Firmen-KI."}

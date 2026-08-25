@@ -41,7 +41,7 @@ test("OpenAI resolves per user and never falls back to env", async () => {
   assert.equal(getOpenAIApiKey(), null);
 });
 
-test("company AI is a fallback when the user has no personal key", async () => {
+test("company AI leads for every user, even with a personal key", async () => {
   process.env.WORKBUDDY_SESSION_SECRET =
     "a-secure-test-secret-with-more-than-32-characters";
   process.env.WORKBUDDY_USERNAME = "admin";
@@ -81,8 +81,10 @@ test("company AI is a fallback when the user has no personal key", async () => {
 
   updateAppUser(user.id, { openaiApiKey: "sk-user-cara" });
   enterAiRequestUser(user.id);
-  assert.equal(getOpenAIApiKey(), "sk-user-cara");
-  assert.equal(resolveUserAiConfig(user.id)?.usingCompanyAi, false);
+  assert.equal(getOpenAIApiKey(), "sk-company-mini");
+  assert.equal(resolveUserAiConfig(user.id)?.usingCompanyAi, true);
+  assert.equal(resolveUserAiConfig(user.id)?.openaiModel, "gpt-4o-mini");
+  assert.equal(resolveUserAiConfig(user.id)?.chatProvider, "custom");
 });
 
 test("after-style work keeps the user key only inside runWithAiUser", async () => {
