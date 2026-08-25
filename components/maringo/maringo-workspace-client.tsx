@@ -21,6 +21,7 @@ import {
   CalendarPlus,
   CalendarRange,
   Clock3,
+  EyeOff,
   Flag,
   FolderOpen,
   Inbox,
@@ -127,7 +128,9 @@ import {
   MariSecondaryFlyoutShell,
   MariTicketFlyoutRail,
   MARI_FLYOUT_MS,
+  MARI_SECONDARY_FLYOUT_COMPACT_WIDTH_CLASS,
   MARI_SECONDARY_FLYOUT_META,
+  MARI_SECONDARY_FLYOUT_WIDTH_CLASS,
   toggleMariSecondaryFlyout,
   useFlyoutPresence,
   useFlyoutStackPresence,
@@ -711,6 +714,64 @@ function SolutionArtifactCard({
   );
 }
 
+const MARI_TICKET_REVIEW_SS_KEY = "mari-ticket-review";
+
+function readMariTicketReview(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.sessionStorage.getItem(MARI_TICKET_REVIEW_SS_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeMariTicketReview(on: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(MARI_TICKET_REVIEW_SS_KEY, on ? "1" : "0");
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
+function TicketReviewToggle({
+  active,
+  onToggle,
+  compact = false,
+}: {
+  active: boolean;
+  onToggle: () => void;
+  compact?: boolean;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      aria-pressed={active}
+      aria-label={active ? "Review aus" : "Ticket Review"}
+      title={
+        active
+          ? "Review aus — Analyse und Stundenbuchung wieder anzeigen"
+          : "Ticket Review — KI-Analyse und Stundenbuchung ausblenden"
+      }
+      onClick={onToggle}
+      className={cn(
+        "h-auto rounded-full font-semibold",
+        compact
+          ? "px-2 py-0.5 text-[0.625rem]"
+          : "px-2.5 py-1 text-[0.6875rem]",
+        active
+          ? "border-transparent bg-orange-500/90 text-white shadow-sm hover:bg-orange-600 hover:text-white dark:bg-orange-500/85 dark:text-orange-50 dark:hover:bg-orange-500"
+          : "border-border/70 bg-background text-muted-foreground hover:bg-muted/40"
+      )}
+    >
+      <EyeOff className="size-3.5" strokeWidth={APP_ICON_STROKE} />
+      {active ? "Review läuft" : "Ticket Review"}
+    </Button>
+  );
+}
+
 export function MaringoWorkspaceClient() {
   const searchParams = useSearchParams();
   const [workspaceTab, setWorkspaceTab] = useState<
@@ -817,6 +878,7 @@ export function MaringoWorkspaceClient() {
   const [busyTicketLineId, setBusyTicketLineId] = useState<number | null>(null);
   const [ticketTimeLines, setTicketTimeLines] = useState<MariTimeLine[]>([]);
   const [ticketTimeLoading, setTicketTimeLoading] = useState(false);
+  const [ticketReview, setTicketReview] = useState(false);
 
   const statusParam = useMemo(() => statuses.join(","), [statuses]);
   const analysisUsageLines = useMemo(
@@ -1412,6 +1474,20 @@ export function MaringoWorkspaceClient() {
   }, []);
 
   useEffect(() => {
+    setTicketReview(readMariTicketReview());
+  }, []);
+
+  useEffect(() => {
+    if (!ticketReview) return;
+    setAnalyzePickerOpen(false);
+    setAnalysisOpen(false);
+    setBookDialogOpen(false);
+    setSecondaryFlyouts((stack) =>
+      stack.filter((id) => id !== "buchen" && id !== "buchungen")
+    );
+  }, [ticketReview]);
+
+  useEffect(() => {
     const tab = searchParams.get("tab");
     if (tab === "hours") setWorkspaceTab("hours");
     const view = searchParams.get("view");
@@ -1441,7 +1517,7 @@ export function MaringoWorkspaceClient() {
         setSelectedId(id);
         setTicketFlyoutOpen(true);
         setWorkspaceTab("tickets");
-        if (searchParams.get("book") === "1") {
+        if (searchParams.get("book") === "1" && !readMariTicketReview()) {
           setBookDialogOpen(true);
         }
       }
@@ -1526,7 +1602,14 @@ export function MaringoWorkspaceClient() {
     setAnalyzePickerOpen(false);
   }
 
+  function toggleTicketReview() {
+    const next = !ticketReview;
+    writeMariTicketReview(next);
+    setTicketReview(next);
+  }
+
   function toggleSecondary(id: MariSecondaryFlyoutId) {
+    if (ticketReview && (id === "buchen" || id === "buchungen")) return;
     setSecondaryFlyouts((stack) => toggleMariSecondaryFlyout(stack, id));
   }
 
@@ -2075,7 +2158,11 @@ export function MaringoWorkspaceClient() {
     <div className="min-w-0 space-y-4 pb-10">
       <PageHeader
         title="Maringo Support"
-        description="Support-Tickets, Verlauf, AI-Analyse und Stundenbuchung."
+        description={
+          ticketReview
+            ? "Support-Tickets, Verlauf und Kundenakte."
+            : "Support-Tickets, Verlauf, AI-Analyse und Stundenbuchung."
+        }
         logo={<MaringoLogo className="size-8" />}
         tone={pageVisuals.maringo.tone}
       />
@@ -2219,20 +2306,26 @@ export function MaringoWorkspaceClient() {
                   : `${tickets.length} Ticket${tickets.length === 1 ? "" : "s"}`}
               </p>
             </div>
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="size-8"
-              onClick={() => void loadList()}
-              disabled={listLoading}
-              aria-label="Aktualisieren"
-            >
-              <RefreshCw
-                className={cn("size-4", listLoading && "animate-spin")}
-                strokeWidth={APP_ICON_STROKE}
+            <div className="flex shrink-0 items-center gap-1.5">
+              <TicketReviewToggle
+                active={ticketReview}
+                onToggle={toggleTicketReview}
               />
-            </Button>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="size-8"
+                onClick={() => void loadList()}
+                disabled={listLoading}
+                aria-label="Aktualisieren"
+              >
+                <RefreshCw
+                  className={cn("size-4", listLoading && "animate-spin")}
+                  strokeWidth={APP_ICON_STROKE}
+                />
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-1.5 border-b border-border/50 px-3 py-2">
@@ -2726,7 +2819,7 @@ export function MaringoWorkspaceClient() {
                         <span className="shrink-0 text-xs font-bold tabular-nums text-foreground">
                           #{t.issueId}
                         </span>
-                        {t.hasAnalysis ? (
+                        {!ticketReview && t.hasAnalysis ? (
                           <span
                             title="AI-Analyse vorhanden"
                             className="inline-flex shrink-0"
@@ -2848,6 +2941,9 @@ export function MaringoWorkspaceClient() {
                 <MariTicketFlyoutRail
                   openIds={secondaryFlyouts}
                   onToggle={toggleSecondary}
+                  hiddenIds={
+                    ticketReview ? ["buchen", "buchungen"] : undefined
+                  }
                 />
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                   {detailLoading && !detail ? (
@@ -2930,6 +3026,13 @@ export function MaringoWorkspaceClient() {
                             </DropdownMenuGroup>
                           </DropdownMenuContent>
                         </DropdownMenu>
+                        {ticketReview ? (
+                          <TicketReviewToggle
+                            active={ticketReview}
+                            onToggle={toggleTicketReview}
+                            compact
+                          />
+                        ) : null}
                         <Button
                           type="button"
                           size="icon"
@@ -3039,7 +3142,7 @@ export function MaringoWorkspaceClient() {
                                   : "–"}
                               </Button>
                             </DetailField>
-                            {detail.aiLabel ? (
+                            {!ticketReview && detail.aiLabel ? (
                               <DetailField label="AI">{detail.aiLabel}</DetailField>
                             ) : null}
                           </div>
@@ -3075,6 +3178,8 @@ export function MaringoWorkspaceClient() {
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2">
+                          {!ticketReview ? (
+                            <>
                           {savedAnalyzedAt ? (
                             <Badge className="bg-orange-100 text-orange-900 hover:bg-orange-100 dark:bg-orange-500/20 dark:text-orange-100 dark:hover:bg-orange-500/20">
                               Analyse vorhanden ·{" "}
@@ -3117,6 +3222,8 @@ export function MaringoWorkspaceClient() {
                                 ? "Neu analysieren"
                                 : "AI analysieren"}
                           </Button>
+                            </>
+                          ) : null}
                           <Button
                             type="button"
                             size="sm"
@@ -3137,6 +3244,7 @@ export function MaringoWorkspaceClient() {
                               ? `Termin eingeplant (${formatStampWhen(ticketCalendarStamp)})`
                               : "Termin"}
                           </Button>
+                          {!ticketReview ? (
                           <Button
                             type="button"
                             size="sm"
@@ -3152,11 +3260,12 @@ export function MaringoWorkspaceClient() {
                             <Clock3 className="size-3.5" />
                             Zeit buchen
                           </Button>
+                          ) : null}
                         </div>
                       </div>
 
                       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
-                        {analysis && analysisOpen ? (
+                        {!ticketReview && analysis && analysisOpen ? (
                           <Card className="border-orange-200/70 bg-orange-50/40 dark:border-orange-400/30 dark:bg-orange-500/10">
                             <CardContent className="space-y-3 p-4 text-[0.8125rem]">
                               <p className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-orange-900 dark:text-orange-100">
@@ -3544,6 +3653,7 @@ export function MaringoWorkspaceClient() {
                           </Card>
                         ) : null}
 
+                        {!ticketReview ? (
                         <Button
                           type="button"
                           variant="outline"
@@ -3569,6 +3679,7 @@ export function MaringoWorkspaceClient() {
                             </span>
                           </div>
                         </Button>
+                        ) : null}
 
                         <div>
                           <h3 className="mb-3 flex items-center gap-2 text-[0.8125rem] font-black tracking-tight">
@@ -3751,11 +3862,14 @@ export function MaringoWorkspaceClient() {
               </MariMainFlyoutShell>
 
               {secondaryPresence.rendered.map((id, i) => {
+                if (ticketReview && (id === "buchen" || id === "buchungen")) {
+                  return null;
+                }
                 const meta = MARI_SECONDARY_FLYOUT_META[id];
                 const widthClass =
                   id === "buchen" || id === "buchungen" || id === "kopf"
-                    ? "w-[min(100%,34rem)]"
-                    : "w-[min(100%,30rem)]";
+                    ? MARI_SECONDARY_FLYOUT_WIDTH_CLASS
+                    : MARI_SECONDARY_FLYOUT_COMPACT_WIDTH_CLASS;
                 const entered = secondaryPresence.isEntered(id);
                 const openIndex = secondaryFlyouts.indexOf(id);
                 const offsetBase =
@@ -3769,6 +3883,7 @@ export function MaringoWorkspaceClient() {
                     description={meta.description}
                     onClose={() => closeSecondary(id)}
                     widthClass={widthClass}
+                    stretchToRail={id === "verlauf"}
                     zIndex={1010 + i}
                     offsetPx={offsetBase * 12}
                     open={entered && ticketFlyoutPresence.entered}
@@ -3886,9 +4001,10 @@ export function MaringoWorkspaceClient() {
                     {id === "anzeige" ? (
                       <div className="space-y-3">
                         <p className="text-xs leading-relaxed text-muted-foreground">
-                          Felder in der Ticketliste (Meta-Zeile). Vorhandene
-                          Werte werden bei «Zeit buchen» vorbelegt und können
-                          dort überschrieben werden.
+                          Felder in der Ticketliste (Meta-Zeile).
+                          {ticketReview
+                            ? null
+                            : " Vorhandene Werte werden bei «Zeit buchen» vorbelegt und können dort überschrieben werden."}
                         </p>
                         <ul className="space-y-1.5">
                           {MARI_LIST_META_FIELD_OPTIONS.map((opt) => {
@@ -3945,7 +4061,7 @@ export function MaringoWorkspaceClient() {
         : null}
 
       <TicketAnalyzeAttachmentPicker
-        open={analyzePickerOpen}
+        open={analyzePickerOpen && !ticketReview}
         onOpenChange={setAnalyzePickerOpen}
         timeline={detail?.timeline ?? []}
         analyzing={analyzing}
@@ -3960,7 +4076,9 @@ export function MaringoWorkspaceClient() {
       />
 
       <MaringoTimeBookDialog
-        open={bookDialogOpen}
+        open={
+          bookDialogOpen && !(ticketReview && workspaceTab === "tickets")
+        }
         onOpenChange={(open) => {
           setBookDialogOpen(open);
           if (!open) {

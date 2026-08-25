@@ -34,6 +34,7 @@ import { MariHoursSplitSummary } from "@/components/maringo/mari-hours-split-sum
 import {
   MariSecondaryFlyoutShell,
   MARI_FLYOUT_MS,
+  MARI_SECONDARY_FLYOUT_WIDTH_CLASS,
   useFlyoutPresence,
 } from "@/components/maringo/maringo-flyout-chrome";
 
@@ -707,7 +708,7 @@ export function MaringoTimekeepingPanel({
                     : "Neue Zeit erfassen"
                 }
                 onClose={closeBookFlyout}
-                widthClass="w-[min(100%,34rem)]"
+                widthClass={MARI_SECONDARY_FLYOUT_WIDTH_CLASS}
                 zIndex={1010}
                 offsetPx={0}
                 open={bookFlyoutPresence.entered}

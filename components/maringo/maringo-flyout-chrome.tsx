@@ -59,6 +59,29 @@ export const MARI_SECONDARY_FLYOUT_META: Record<
 /** Slide-in / slide-out duration for main + secondary flyouts (ms). */
 export const MARI_FLYOUT_MS = 750;
 
+/** Ticket detail flyout max width (42rem × 1.2). */
+export const MARI_MAIN_FLYOUT_MAX_REM = 50.4;
+
+/** Ticket rail is `w-12` (3rem). */
+export const MARI_FLYOUT_RAIL_REM = 3;
+
+/** Gap between the icon rail and a rail-stretch secondary (Verlauf). */
+export const MARI_FLYOUT_RAIL_GAP_REM = 0.75;
+
+/** Forms / booking secondaries (34rem × 1.2). */
+export const MARI_SECONDARY_FLYOUT_WIDTH_CLASS = "w-[min(100%,40.8rem)]";
+
+/** Compact secondaries such as Listenfelder (30rem × 1.2). */
+export const MARI_SECONDARY_FLYOUT_COMPACT_WIDTH_CLASS = "w-[min(100%,36rem)]";
+
+const MARI_MAIN_FLYOUT_WIDTH_CLASS = "w-[min(100%,50.4rem)]";
+
+/** Left edge of a rail-stretch flyout: after rail + gap, never left of the ticket shell. */
+function mariRailStretchLeft(): string {
+  const inset = MARI_FLYOUT_RAIL_REM + MARI_FLYOUT_RAIL_GAP_REM;
+  return `max(${inset}rem, calc(100% - ${MARI_MAIN_FLYOUT_MAX_REM}rem + ${inset}rem))`;
+}
+
 /** @deprecated use MARI_FLYOUT_MS */
 export const MARI_FLYOUT_ENTER_MS = MARI_FLYOUT_MS;
 
@@ -135,21 +158,30 @@ export function useFlyoutStackPresence<T extends string>(
 export function MariTicketFlyoutRail({
   openIds,
   onToggle,
+  hiddenIds,
 }: {
   openIds: readonly MariSecondaryFlyoutId[];
   onToggle: (id: MariSecondaryFlyoutId) => void;
+  hiddenIds?: readonly MariSecondaryFlyoutId[];
 }) {
+  const hidden = new Set<MariSecondaryFlyoutId>(hiddenIds);
   const items: {
     id: MariSecondaryFlyoutId;
     icon: typeof MessageSquare;
     label: string;
-  }[] = [
-    { id: "verlauf", icon: MessageSquare, label: "Verlauf" },
-    { id: "kopf", icon: SquarePen, label: "Ticket-Kopf" },
-    { id: "buchen", icon: Clock3, label: "Buchungsmaske" },
-    { id: "buchungen", icon: ClipboardList, label: "Stundenübersicht" },
-    { id: "anzeige", icon: ListTree, label: "Listenfelder" },
-  ];
+  }[] = (
+    [
+      { id: "verlauf", icon: MessageSquare, label: "Verlauf" },
+      { id: "kopf", icon: SquarePen, label: "Ticket-Kopf" },
+      { id: "buchen", icon: Clock3, label: "Buchungsmaske" },
+      { id: "buchungen", icon: ClipboardList, label: "Stundenübersicht" },
+      { id: "anzeige", icon: ListTree, label: "Listenfelder" },
+    ] satisfies {
+      id: MariSecondaryFlyoutId;
+      icon: typeof MessageSquare;
+      label: string;
+    }[]
+  ).filter((item) => !hidden.has(item.id));
 
   return (
     <nav
@@ -211,7 +243,8 @@ export function MariMainFlyoutShell({
   return (
     <div
       className={cn(
-        "absolute inset-y-0 right-0 z-[1001] flex h-full w-[min(100%,42rem)] max-w-full overflow-hidden rounded-l-2xl border-l border-border/70 bg-background shadow-[-12px_0_32px_rgba(15,23,42,0.12)] transition-transform ease-in-out will-change-transform",
+        "absolute inset-y-0 right-0 z-[1001] flex h-full max-w-full overflow-hidden rounded-l-2xl border-l border-border/70 bg-background shadow-[-12px_0_32px_rgba(15,23,42,0.12)] transition-transform ease-in-out will-change-transform",
+        MARI_MAIN_FLYOUT_WIDTH_CLASS,
         open ? "translate-x-0" : "translate-x-full",
         className
       )}
@@ -227,6 +260,7 @@ export function MariSecondaryFlyoutShell({
   description,
   onClose,
   widthClass,
+  stretchToRail = false,
   zIndex,
   offsetPx,
   children,
@@ -236,6 +270,8 @@ export function MariSecondaryFlyoutShell({
   description?: string;
   onClose: () => void;
   widthClass: string;
+  /** Stretch left to just after the ticket icon rail (Verlauf). */
+  stretchToRail?: boolean;
   zIndex: number;
   offsetPx: number;
   children: ReactNode;
@@ -246,10 +282,11 @@ export function MariSecondaryFlyoutShell({
       className={cn(
         "pointer-events-auto absolute inset-y-0 flex flex-col overflow-hidden rounded-l-2xl border-l border-border/70 bg-background shadow-[-8px_0_24px_rgba(15,23,42,0.08)] transition-transform ease-in-out will-change-transform",
         open ? "translate-x-0" : "translate-x-full",
-        widthClass
+        !stretchToRail && widthClass
       )}
       style={{
         right: offsetPx,
+        left: stretchToRail ? mariRailStretchLeft() : undefined,
         zIndex,
         transitionDuration: `${MARI_FLYOUT_MS}ms`,
       }}
