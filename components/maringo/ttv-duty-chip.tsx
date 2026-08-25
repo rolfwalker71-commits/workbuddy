@@ -58,8 +58,11 @@ export function TtvDutyChip({
   if (!data) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-xl bg-orange-50/80 px-2.5 py-1.5 ring-1 ring-orange-200/70 dark:bg-orange-500/12 dark:ring-orange-400/25">
-      <p className="min-w-0 flex-1 text-[0.75rem] font-semibold text-orange-950 dark:text-orange-100">
+    <div
+      className="flex min-h-10 max-w-full flex-wrap items-center gap-1.5 rounded-full bg-orange-50 px-2.5 dark:bg-orange-950"
+      title="Dienst ist wer den Tag hat. Filter TTV bleibt der Fallback für NEU-Tickets, auch ohne Dienst."
+    >
+      <p className="min-w-0 text-[0.75rem] font-semibold leading-none text-orange-950 dark:text-orange-100">
         TTV heute: {data.todayDuty?.displayName || "noch niemand"}
       </p>
       {!data.isMe ? (
@@ -73,7 +76,7 @@ export function TtvDutyChip({
           Übernehmen
         </Button>
       ) : (
-        <span className="text-[0.625rem] font-semibold text-orange-800 dark:text-orange-200">
+        <span className="text-[0.625rem] font-semibold leading-none text-orange-800 dark:text-orange-200">
           Du
         </span>
       )}

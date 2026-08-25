@@ -2080,64 +2080,75 @@ export function MaringoWorkspaceClient() {
         tone={pageVisuals.maringo.tone}
       />
 
-      <nav className={segmentedTrackClass} aria-label="Maringo Bereiche">
-        <Button
-          type="button"
-          variant="ghost"
-          data-segment="true"
-          onClick={() => {
+      <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-2">
+        <nav className={segmentedTrackClass} aria-label="Maringo Bereiche">
+          <Button
+            type="button"
+            variant="ghost"
+            data-segment="true"
+            onClick={() => {
+              setTicketFlyoutOpen(false);
+              setSecondaryFlyouts([]);
+              setWorkspaceTab("tickets");
+            }}
+            className={segmentedTriggerClass(workspaceTab === "tickets")}
+          >
+            <Inbox className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
+            Tickets
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            data-segment="true"
+            onClick={() => {
+              setTicketFlyoutOpen(false);
+              setSecondaryFlyouts([]);
+              setWorkspaceTab("hours");
+            }}
+            className={segmentedTriggerClass(workspaceTab === "hours")}
+          >
+            <Clock3 className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
+            Stunden
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            data-segment="true"
+            onClick={() => {
+              setTicketFlyoutOpen(false);
+              setSecondaryFlyouts([]);
+              setWorkspaceTab("kunde");
+            }}
+            className={segmentedTriggerClass(workspaceTab === "kunde")}
+          >
+            <FolderOpen className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
+            Akte
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            data-segment="true"
+            onClick={() => {
+              setTicketFlyoutOpen(false);
+              setSecondaryFlyouts([]);
+              setWorkspaceTab("ttv");
+            }}
+            className={segmentedTriggerClass(workspaceTab === "ttv")}
+          >
+            <CalendarRange className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
+            TTV
+          </Button>
+        </nav>
+        <TtvDutyChip
+          onOpenInbox={() => {
             setTicketFlyoutOpen(false);
             setSecondaryFlyouts([]);
             setWorkspaceTab("tickets");
+            setFilterMode("ttv");
+            setListSort("newest");
           }}
-          className={segmentedTriggerClass(workspaceTab === "tickets")}
-        >
-          <Inbox className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
-          Tickets
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          data-segment="true"
-          onClick={() => {
-            setTicketFlyoutOpen(false);
-            setSecondaryFlyouts([]);
-            setWorkspaceTab("hours");
-          }}
-          className={segmentedTriggerClass(workspaceTab === "hours")}
-        >
-          <Clock3 className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
-          Stunden
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          data-segment="true"
-          onClick={() => {
-            setTicketFlyoutOpen(false);
-            setSecondaryFlyouts([]);
-            setWorkspaceTab("kunde");
-          }}
-          className={segmentedTriggerClass(workspaceTab === "kunde")}
-        >
-          <FolderOpen className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
-          Akte
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          data-segment="true"
-          onClick={() => {
-            setTicketFlyoutOpen(false);
-            setSecondaryFlyouts([]);
-            setWorkspaceTab("ttv");
-          }}
-          className={segmentedTriggerClass(workspaceTab === "ttv")}
-        >
-          <CalendarRange className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
-          TTV
-        </Button>
-      </nav>
+        />
+      </div>
 
       {!configured ? (
         <Card className="border-amber-200/80 bg-amber-50/50 dark:border-amber-400/30 dark:bg-amber-500/10">
@@ -2225,16 +2236,6 @@ export function MaringoWorkspaceClient() {
           </div>
 
           <div className="space-y-1.5 border-b border-border/50 px-3 py-2">
-            <TtvDutyChip
-              onOpenInbox={() => {
-                setFilterMode("ttv");
-                setListSort("newest");
-              }}
-            />
-            <p className="text-[0.625rem] text-muted-foreground">
-              Dienst ist wer den Tag hat. Filter TTV bleibt der Fallback für
-              NEU-Tickets, auch ohne Dienst.
-            </p>
             <div className="flex flex-wrap items-center gap-1.5">
               {filterMode !== "ttv" ? (
                 <>
@@ -2673,14 +2674,14 @@ export function MaringoWorkspaceClient() {
             </div>
           </div>
 
-          <ul className="min-h-0 flex-1 overflow-y-auto">
+          <ul className="min-h-0 flex-1 divide-y divide-border overflow-y-auto">
             {listLoading && tickets.length === 0 ? (
-              <li className="px-3 py-8 text-sm text-muted-foreground">
+              <li className="bg-card px-3 py-8 text-sm text-muted-foreground">
                 Lade Tickets…
               </li>
             ) : null}
             {!listLoading && tickets.length === 0 ? (
-              <li className="px-3 py-8 text-center text-sm text-muted-foreground">
+              <li className="bg-card px-3 py-8 text-center text-sm text-muted-foreground">
                 {filterMode === "ttv"
                   ? `Keine neuen Tickets (${ttvLookbackLabel(ttvLookbackDays)}).`
                   : filterMode === "customer" && selectedCustomers.length === 0
@@ -2688,8 +2689,9 @@ export function MaringoWorkspaceClient() {
                     : "Keine Tickets für die gewählten Filter."}
               </li>
             ) : null}
-            {sortedTickets.map((t) => {
+            {sortedTickets.map((t, index) => {
               const active = t.issueId === selectedId;
+              const zebra = index % 2 === 1;
               const due = formatDateShort(t.dueDate);
               const overdue = isOverdue(t.dueDate);
               const metaItems = buildMariTicketListMetaItems(
@@ -2697,17 +2699,26 @@ export function MaringoWorkspaceClient() {
                 listMetaFields
               );
               const stamp = listCalendarStamps[t.issueId] || null;
+              const rowFill = active
+                ? "bg-orange-50 dark:bg-orange-950"
+                : zebra
+                  ? "bg-muted"
+                  : "bg-card";
               return (
-                <li key={t.issueId} className="flex items-stretch border-b border-border/40 last:border-b-0">
+                <li
+                  key={t.issueId}
+                  className={cn("flex items-stretch", rowFill)}
+                >
                   <Button
                     type="button"
                     variant="ghost"
                     onClick={() => openTicket(t.issueId)}
                     className={cn(
-                      "relative h-auto min-w-0 flex-1 items-start justify-start gap-2 rounded-none border-l-2 px-2.5 py-2 text-left",
+                      "relative h-auto min-w-0 flex-1 items-start justify-start gap-2 rounded-none border-l-2 px-2.5 py-1.5 text-left",
+                      rowFill,
                       active
-                        ? "border-l-orange-400 bg-orange-50/70 hover:bg-orange-50/70 dark:bg-orange-500/15 dark:hover:bg-orange-500/15"
-                        : "border-l-transparent hover:bg-muted/40"
+                        ? "border-l-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950"
+                        : "border-l-transparent hover:bg-muted dark:hover:bg-muted"
                     )}
                   >
                     <div className="min-w-0 flex-1 pr-2">
@@ -2739,7 +2750,7 @@ export function MaringoWorkspaceClient() {
                         </p>
                       ) : null}
                       {metaItems.length > 0 ? (
-                        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[0.6875rem] text-muted-foreground">
+                        <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[0.6875rem] text-muted-foreground">
                           {metaItems.map((item, idx) => (
                             <span
                               key={`${item.id}-${idx}`}
@@ -2770,7 +2781,7 @@ export function MaringoWorkspaceClient() {
                         Termin ({formatStampWhen(stamp)})
                       </span>
                     ) : null}
-                    <div className="relative z-[2] flex shrink-0 flex-col items-end gap-1 pt-0.5">
+                    <div className="relative z-[2] flex shrink-0 flex-col items-end gap-0.5">
                       <StatusChip
                         status={t.status}
                         statusName={t.statusName}
@@ -2798,7 +2809,13 @@ export function MaringoWorkspaceClient() {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-auto self-center rounded-none px-2 text-[0.625rem] font-semibold"
+                      className={cn(
+                        "h-auto self-center rounded-none px-2 text-[0.625rem] font-semibold",
+                        rowFill,
+                        active
+                          ? "hover:bg-orange-50 dark:hover:bg-orange-950"
+                          : "hover:bg-muted dark:hover:bg-muted"
+                      )}
                       onClick={() => openAkte(t)}
                     >
                       Akte
