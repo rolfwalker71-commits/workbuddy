@@ -6,6 +6,7 @@ import { MariApiError } from "@/lib/mari/client";
 import { hasMariConfig } from "@/lib/mari/config";
 import { listMariImageAttachmentsForAi } from "@/lib/mari/attachments";
 import { analyzeMariTicket } from "@/lib/mari/analyze-ticket";
+import { parseAnalyzeModuleIds } from "@/lib/mari/analyze-modules";
 import { getTicketDetail } from "@/lib/mari/tickets";
 import {
   getMariTicketAnalysis,
@@ -70,6 +71,7 @@ export async function POST(_request: Request, context: Ctx) {
 
   let includeImages = false;
   let attachmentIds: number[] | undefined;
+  let products: string[] = [];
   try {
     const body = await _request.json();
     if (body && typeof body === "object") {
@@ -88,10 +90,16 @@ export async function POST(_request: Request, context: Ctx) {
           ),
         ].slice(0, 6);
       }
+      if ("products" in body) {
+        products = parseAnalyzeModuleIds(
+          (body as { products?: unknown }).products
+        );
+      }
     }
   } catch {
     includeImages = false;
     attachmentIds = undefined;
+    products = [];
   }
 
   if (!hasOpenAIKey()) {
@@ -120,6 +128,7 @@ export async function POST(_request: Request, context: Ctx) {
         orgFilename: img.orgFilename,
         mimeType: img.mimeType,
       })),
+      products,
     });
     const { imagesAnalyzed, imageNames, usage, ...payload } = analysis;
     const stored = upsertMariTicketAnalysis({

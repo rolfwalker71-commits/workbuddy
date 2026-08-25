@@ -19,6 +19,16 @@ import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { toSwissDate } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils";
 
+export type EventEditValues = {
+  title: string;
+  date: string;
+  time: string | null;
+  endTime: string | null;
+  isAllDay: boolean;
+  location: string;
+  description: string;
+};
+
 export type EventDetailModel = EventArtSubject & {
   title: string;
   time?: string | null;

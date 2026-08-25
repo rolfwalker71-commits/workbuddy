@@ -12,6 +12,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import {
+  MARI_ANALYZE_MODULES,
+  type MariAnalyzeModuleId,
+} from "@/lib/mari/analyze-modules";
 import type {
   MariTimelineAttachment,
   MariTimelineItem,
@@ -235,6 +239,11 @@ function PickerImageTile({
   );
 }
 
+export type TicketAnalyzeConfirmPayload = {
+  attachmentIds: number[];
+  products: MariAnalyzeModuleId[];
+};
+
 export function TicketAnalyzeAttachmentPicker({
   open,
   onOpenChange,
@@ -246,13 +255,14 @@ export function TicketAnalyzeAttachmentPicker({
   onOpenChange: (open: boolean) => void;
   timeline: MariTimelineItem[];
   analyzing: boolean;
-  onConfirm: (attachmentIds: number[]) => void;
+  onConfirm: (payload: TicketAnalyzeConfirmPayload) => void;
 }) {
   const { images, documents } = useMemo(
     () => collectTicketAnalyzeMedia(timeline),
     [timeline]
   );
   const [selected, setSelected] = useState<number[]>([]);
+  const [products, setProducts] = useState<MariAnalyzeModuleId[]>([]);
   const [touched, setTouched] = useState<Set<number>>(() => new Set());
   const [lightbox, setLightbox] = useState<{
     src: string;
@@ -265,12 +275,19 @@ export function TicketAnalyzeAttachmentPicker({
       return;
     }
     setTouched(new Set());
+    setProducts([]);
     setSelected(
       images
         .filter((item) => !filenameLooksLikeChrome(item.attachment.orgFilename))
         .map((item) => item.attachment.attachmentId)
     );
   }, [open, images]);
+
+  function toggleProduct(id: MariAnalyzeModuleId) {
+    setProducts((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
 
   function toggle(id: number) {
     setTouched((prev) => new Set(prev).add(id));
@@ -309,13 +326,51 @@ export function TicketAnalyzeAttachmentPicker({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-5xl">
         <DialogHeader>
-          <DialogTitle>Anhänge für die Analyse</DialogTitle>
+          <DialogTitle>AI-Analyse vorbereiten</DialogTitle>
           <DialogDescription>
-            Wähle die Grafiken, die OpenAI sehen soll. Signaturen und Logos
-            kannst du weglassen. Dokumente erscheinen zur Übersicht — sie
-            werden nicht als Bild gelesen.
+            Optional Module markieren, wenn aus dem Ticket nicht klar ist,
+            worum es geht. Mehrfachauswahl möglich. Ohne Auswahl sucht die
+            AI wie bisher. Grafiken kannst du dazunehmen oder weglassen.
           </DialogDescription>
         </DialogHeader>
+
+        <fieldset className="space-y-3">
+          <legend className="text-sm font-semibold">
+            Module für die Suche
+            {products.length > 0 ? ` (${products.length})` : ""}
+          </legend>
+          <p className="text-xs text-muted-foreground">
+            Gewählte Produkte gehen als Kontext an die AI (help.sap.com,
+            helpdesk.coresystems.ch und passende Herstellerportale).
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {MARI_ANALYZE_MODULES.map((mod) => {
+              const checked = products.includes(mod.id);
+              const inputId = `analyze-mod-${mod.id}`;
+              return (
+                <label
+                  key={mod.id}
+                  htmlFor={inputId}
+                  className={cn(
+                    "flex min-h-11 cursor-pointer items-start gap-2.5 rounded-2xl bg-card px-3 py-2.5 shadow-sm ring-1 ring-foreground/10",
+                    checked && "ring-2 ring-primary"
+                  )}
+                >
+                  <input
+                    id={inputId}
+                    type="checkbox"
+                    className="mt-1 size-4 accent-orange-500"
+                    checked={checked}
+                    onChange={() => toggleProduct(mod.id)}
+                  />
+                  <span className="min-w-0 break-words text-sm font-medium leading-snug">
+                    {mod.label}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
 
         {images.length > 0 ? (
           <div className="space-y-3">
@@ -379,11 +434,7 @@ export function TicketAnalyzeAttachmentPicker({
               })}
             </div>
           </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Keine Grafiken im Verlauf.
-          </p>
-        )}
+        ) : null}
 
         {documents.length > 0 ? (
           <div className="space-y-2">
@@ -428,7 +479,7 @@ export function TicketAnalyzeAttachmentPicker({
             type="button"
             className="bg-orange-500 text-white hover:bg-orange-600"
             disabled={analyzing}
-            onClick={() => onConfirm(selected)}
+            onClick={() => onConfirm({ attachmentIds: selected, products })}
           >
             {selected.length > 0
               ? `Mit ${selected.length} Grafik${selected.length === 1 ? "" : "en"} analysieren`

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildMariTicketAnalysisSystemPrompt,
   detectRelevantVendorsFromTicketText,
   formatSupportTodoTitle,
   groupSolutionArtifacts,
@@ -8,6 +9,10 @@ import {
   parseIsoDueHint,
   specialistRoleLine,
 } from "./analyze-ticket.ts";
+import {
+  analyzeModulesFromIds,
+  resolveAnalyzeVendorHints,
+} from "./analyze-modules.ts";
 
 test("specialist role names detected products", () => {
   assert.match(
@@ -15,6 +20,31 @@ test("specialist role names detected products", () => {
     /Spezialist für: SAP Business One, SAP HANA/
   );
   assert.match(specialistRoleLine([]), /kein Produktspezialist/i);
+});
+
+test("ticket analysis keeps heuristic when no module is selected", () => {
+  const heuristic = detectRelevantVendorsFromTicketText(
+    "Fehler in OCRD auf HANA"
+  );
+  const resolved = resolveAnalyzeVendorHints({
+    selectedIds: [],
+    heuristicVendors: heuristic,
+  });
+  assert.ok(resolved.vendorHints.includes("SAP Business One"));
+  assert.ok(resolved.vendorHints.includes("SAP HANA"));
+  const prompt = buildMariTicketAnalysisSystemPrompt(resolved.vendorHints, []);
+  assert.doesNotMatch(prompt, /AUSGEWÄHLTE PRODUKTE/);
+});
+
+test("selected modules add manufacturer portals to the system prompt", () => {
+  const modules = analyzeModulesFromIds(["sap-b1-sql", "coresuite"]);
+  const prompt = buildMariTicketAnalysisSystemPrompt(
+    modules.map((m) => m.vendorLabel),
+    modules
+  );
+  assert.match(prompt, /AUSGEWÄHLTE PRODUKTE/);
+  assert.match(prompt, /help\.sap\.com\/docs\/SAP_BUSINESS_ONE/);
+  assert.match(prompt, /helpdesk\.coresystems\.ch/);
 });
 
 test("support todo title gets ticket prefix once", () => {

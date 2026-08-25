@@ -3,6 +3,16 @@ import {
   buildAiTokenUsage,
   type AiTokenUsage,
 } from "@/lib/ai/usage-cost";
+import {
+  manufacturerSourcesPrompt,
+  resolveAnalyzeVendorHints,
+  type MariAnalyzeModule,
+} from "@/lib/mari/analyze-modules";
+import {
+  buildVendorDocSearchQuery,
+  fetchAnalyzeVendorDocs,
+  formatVendorDocHitsForPrompt,
+} from "@/lib/mari/analyze-vendor-docs";
 import type { MariTicketDetail } from "@/lib/mari/tickets";
 import { timelineSideLabel } from "@/lib/mari/timeline-side";
 import {
@@ -437,11 +447,13 @@ export function formatSupportTodoTitle(
 }
 
 export function buildMariTicketAnalysisSystemPrompt(
-  vendorHints: string[]
+  vendorHints: string[],
+  selectedModules: readonly MariAnalyzeModule[] = []
 ): string {
+  const selectedSources = manufacturerSourcesPrompt(selectedModules);
   return `Du bist Buddy, Senior-Support-Assistent für Maringo/MARI Tickets (Schweiz, de-CH).
 ${specialistRoleLine(vendorHints)}
-Kontext-Stack (nur nutzen wenn im Ticket erkennbar oder in der Heuristik oben genannt): SAP Business One (B1) inkl. HANA und Microsoft SQL Server, Transaction Notification (SBO_SP_TransactionNotification), Formatted Search, UDFs/UDT, DI-API, Service Layer, Add-ons (Coresystems/coresuite, Boyum IT), Microsoft 365/Outlook/Graph, Maringo/MARI.
+${selectedSources ? `${selectedSources}\n` : ""}Kontext-Stack (nur nutzen wenn im Ticket erkennbar, vom Support ausgewählt oder in der Heuristik oben genannt): SAP Business One (B1) inkl. HANA und Microsoft SQL Server, Transaction Notification (SBO_SP_TransactionNotification), Formatted Search, UDFs/UDT, DI-API, Service Layer, Add-ons (Coresystems/coresuite, Boyum IT / BEAS / B1UP, ANG), Microsoft 365/Outlook/Graph, Maringo/MARI.
 WICHTIG zu SAP: IMMER SAP Business One — NIEMALS R/3, ECC, S/4HANA, Fiori oder ECC-T-Codes.
 
 GROUNDING — drei Schichten, nichts erfinden:
@@ -464,15 +476,23 @@ VISION (wenn Bilder mitgeliefert):
 - Unscharf/unleserlich: in completeness.notes sagen, nicht raten.
 
 HERSTELLER / PRODUKTWISSEN (solutionSketch — Pflicht wenn relevant):
-Ermittle aus Ticket-Produkt, Betreff, Anfrage und Verlauf, welche Hersteller/Produkte betroffen sind, und nutze typisches Produktwissen in outline/steps/artifacts/caveats. vendors[] muss die relevanten Namen listen.
+${
+  selectedModules.length > 0
+    ? "Der Support hat die betroffenen Produkte explizit gewählt. vendors[] muss genau diese Namen enthalten (plus höchstens eng verwandte, z. B. SQL Server bei B1-SQL). Nicht in andere Produkte abschweifen."
+    : "Ermittle aus Ticket-Produkt, Betreff, Anfrage und Verlauf, welche Hersteller/Produkte betroffen sind, und nutze typisches Produktwissen in outline/steps/artifacts/caveats. vendors[] muss die relevanten Namen listen."
+}
 Typische Quellen (Themenpfade nennen — KEINE erfundenen Note-/KB-Nummern):
-- SAP Business One: https://help.sap.com → SAP Business One; Partner Edge / Support Launchpad; Standardtabellen OCRD/OINV/…, Autorisierung, Belegfluss, UDF/UDT, DI-API, Service Layer, TN, Formatted Search.
-- Coresystems / coresuite: öffentliche coresuite-Doku (Customize Events/Conditions/Actions, Mobile, Time); Designer-Schritte und C#-ähnliche Customize-Skizzen wenn Addon betroffen.
-- Boyum IT: B1 Usability Package (B1UP), Produmex WMS/Scan, Boyum Print & Delivery / Insight — nur wenn Ticket/Produkt darauf hindeutet; UI-Pfade und typische Config-Checks nennen.
-- Microsoft: Microsoft Learn (Graph, Outlook/Exchange, Entra ID, Teams, Power Automate) wenn M365/Mail/Auth betroffen.
+- SAP Business One (SQL): https://help.sap.com/docs/SAP_BUSINESS_ONE?locale=en-US — dort mit Suchbegriffen (Fehlertext, Objekt, Tabelle, Funktion) den passenden Bereich holen.
+- SAP Business One for HANA: https://help.sap.com/docs/SAP_BUSINESS_ONE_VERSION_FOR_SAP_HANA?locale=en-US — analog suchen, HANA-spezifische Themen bevorzugen.
+- Coresystems / coresuite: https://helpdesk.coresystems.ch — Customize, Designer, Service, Mobile; C#-ähnliche Customize-Skizzen wenn Addon betroffen.
+- Boyum BEAS: https://help.beascloud.com — Fertigung/Belegfluss/Script nur wenn BEAS gewählt oder klar im Ticket.
+- Boyum B1UP: https://help.boyum-it.com/B1UP/ — Functions, UI-Regeln, Formatted Search nur wenn B1UP gewählt oder klar im Ticket.
+- Microsoft SQL Server: Microsoft Learn (T-SQL, Agent, Backup) wenn SQL Server gewählt oder B1-SQL betroffen.
+- Linux / HANA-Betrieb: Distribution-Docs + SAP HANA Platform (https://help.sap.com/docs/SAP_HANA_PLATFORM?locale=en-US) wenn Linux/HANA gewählt.
+- ANG Produkte: nur wenn gewählt oder klar im Ticket; keine fremden Add-ons unterschieben.
+- Microsoft 365: Microsoft Learn (Graph, Outlook/Exchange, Entra ID) wenn Mail/Auth betroffen.
 - Maringo / MARI: Ticket-/Support-Prozess nur wenn Buddy/MARI selbst Thema ist.
-- Weitere (Produmex, Beas, Boyum-Module, lokale Add-ons): nur wenn im Ticket erkennbar; in vendors[] und caveats Doku-Hinweis.
-In outline: kurz sagen, welches Herstellerverhalten/Limit bekannt ist (z. B. Customize-Event-Reihenfolge, B1UP-Regel vs. TN, Graph-Throttling) — als Support-Hypothese, nicht als garantierte Spec.
+In outline: kurz sagen, welches Herstellerverhalten/Limit bekannt ist (z. B. Customize-Event-Reihenfolge, B1UP-Regel vs. TN) — als Support-Hypothese, nicht als garantierte Spec. Wenn Hersteller-Treffer im User-Prompt stehen, diese zuerst auswerten.
 
 HANA SQL (kind sql_hana / language sql-hana) — SYNTAX HART:
 - Nur SAP HANA SQL / SQLScript-Notation — KEINE SQL-Server-Syntax mischen.
@@ -494,11 +514,12 @@ LINUX / HANA-BETRIEB (wenn Ticket Linux, SUSE, RHEL, HANA-Server, Speicher, Dien
 - Keine destruktiven rm -rf / DROP ohne klare Warnung in note; kein Blind-Restart auf Produktiv ohne Hinweis.
 - steps: wo relevant Linux-Pfad und HANA Studio/Database Explorer nennen.
 
-Nachschlagewerke (in caveats/outline):
-- https://help.sap.com → SAP Business One
-- Microsoft Learn für Graph/Outlook/M365
-- Coresystems/coresuite öffentliche Doku
-- Boyum IT Help/Knowledge Base (wenn Boyum-Produkt betroffen)
+Nachschlagewerke (in caveats/outline die konkreten URLs/Themenpfade nennen):
+- https://help.sap.com/docs/SAP_BUSINESS_ONE?locale=en-US
+- https://help.sap.com/docs/SAP_BUSINESS_ONE_VERSION_FOR_SAP_HANA?locale=en-US
+- https://helpdesk.coresystems.ch
+- https://help.beascloud.com · https://help.boyum-it.com/B1UP/
+- Microsoft Learn für SQL Server / Graph / Outlook
 
 Verlauf-Legende ([Seite: …]):
 - «Support (wir)» = eure Antworten/Rückfragen/Notizen — keine Kundenfakten.
@@ -600,6 +621,8 @@ export async function analyzeMariTicket(
       orgFilename: string;
       mimeType: string;
     }>;
+    /** Optional Support-Auswahl; leer = bisherige Heuristik */
+    products?: string[];
   }
 ): Promise<AnalyzeMariTicketResult> {
   const images = (options?.images || []).slice(0, 6);
@@ -631,7 +654,22 @@ export async function analyzeMariTicket(
     requestBlob,
     ...recentTimeline.map((t) => `${t.subject || ""}\n${t.text || ""}`),
   ].join("\n");
-  const vendorHints = detectRelevantVendorsFromTicketText(vendorHintBlob);
+  const heuristicVendors = detectRelevantVendorsFromTicketText(vendorHintBlob);
+  const { selected: selectedModules, vendorHints } = resolveAnalyzeVendorHints({
+    selectedIds: options?.products || [],
+    heuristicVendors,
+  });
+  const vendorDocs =
+    selectedModules.length > 0
+      ? await fetchAnalyzeVendorDocs({
+          modules: selectedModules,
+          query: buildVendorDocSearchQuery({
+            briefDescription: ticket.briefDescription,
+            requestText: requestBlob,
+          }),
+        })
+      : [];
+  const vendorDocBlock = formatVendorDocHitsForPrompt(vendorDocs);
 
   const timelineText = recentTimeline
     .map((t) => {
@@ -671,12 +709,23 @@ Screenshots/Bilder: ${
       : "keine"
   }
 
-Relevante Hersteller/Produkte (Heuristik aus Ticket — in solutionSketch.vendors und outline/steps/artifacts berücksichtigen):
+${
+  selectedModules.length > 0
+    ? `Produkte (vom Support gewählt — verbindlich, nicht raten):
+${selectedModules
+  .map((m) => {
+    const url = m.helpUrl ? ` | Portal: ${m.helpUrl}` : "";
+    return `- ${m.vendorLabel}${url}`;
+  })
+  .join("\n")}`
+    : `Relevante Hersteller/Produkte (Heuristik aus Ticket — in solutionSketch.vendors und outline/steps/artifacts berücksichtigen):
 ${
   vendorHints.length
     ? vendorHints.map((v) => `- ${v}`).join("\n")
     : "- (keine klaren Treffer — aus Verlauf selbst ableiten; bei B1-Themen mind. SAP Business One)"
+}`
 }
+${vendorDocBlock ? `\n${vendorDocBlock}\n` : ""}
 SQL-Artefakte: Bei B1-Firmen-DB-SQL IMMER beide Varianten (sql_hana + sql_sqlserver), weil die Syntax stark abweicht. Mehrere Skript-Paare sind ok, wenn Diagnose/Fix/Verifikation getrennt sinnvoll sind.
 Support-To-Dos: ticketRef = #${ticket.issueId}; title ohne diese Nummer.
 Bei Linux/HANA-Server-Problemen zusätzlich bash-Shell und ggf. HANA-Monitoring/hdbsql liefern.
@@ -721,7 +770,13 @@ ${timelineText.slice(0, 14000) || "(keine Positionen)"}${visionHint}`;
     max_tokens: 12_000,
     response_format: { type: "json_object" },
     messages: [
-      { role: "system", content: buildMariTicketAnalysisSystemPrompt(vendorHints) },
+      {
+        role: "system",
+        content: buildMariTicketAnalysisSystemPrompt(
+          vendorHints,
+          selectedModules
+        ),
+      },
       { role: "user", content: userContent },
     ],
   });

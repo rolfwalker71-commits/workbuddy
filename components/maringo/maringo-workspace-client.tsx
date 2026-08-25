@@ -18,7 +18,6 @@ import {
   Copy,
   Calendar,
   CalendarPlus,
-  ChevronDown,
   Clock3,
   Flag,
   Inbox,
@@ -819,17 +818,6 @@ export function MaringoWorkspaceClient() {
     return detectReplyLanguage(draft);
   }, [analysis?.nextReplyDraft, replyDraftLang]);
 
-  const detailImageAttachmentCount = useMemo(() => {
-    if (!detail?.timeline) return 0;
-    let n = 0;
-    for (const item of detail.timeline) {
-      for (const a of item.attachments || []) {
-        if (a.isImage) n += 1;
-      }
-    }
-    return n;
-  }, [detail]);
-
   const sortedTimeline = useMemo(() => {
     if (!detail?.timeline?.length) return [];
     const items = [...detail.timeline];
@@ -1469,12 +1457,14 @@ export function MaringoWorkspaceClient() {
   async function runAnalyze(options?: {
     includeImages?: boolean;
     attachmentIds?: number[];
+    products?: string[];
   }) {
     if (!selectedId) return;
     const includeImages = Boolean(options?.includeImages);
     const attachmentIds = Array.isArray(options?.attachmentIds)
       ? options.attachmentIds
       : undefined;
+    const products = Array.isArray(options?.products) ? options.products : [];
     setAnalyzing(true);
     setError(null);
     setAnalysisUsage(null);
@@ -1482,7 +1472,7 @@ export function MaringoWorkspaceClient() {
       const res = await fetch(`/api/maringo/tickets/${selectedId}/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ includeImages, attachmentIds }),
+        body: JSON.stringify({ includeImages, attachmentIds, products }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Analyse fehlgeschlagen");
@@ -2728,82 +2718,20 @@ export function MaringoWorkspaceClient() {
                                 : "Analyse anzeigen"}
                             </Button>
                           ) : null}
-                          {detailImageAttachmentCount > 0 ? (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger
-                                disabled={analyzing}
-                                render={
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    className="bg-orange-500 text-white hover:bg-orange-600"
-                                    disabled={analyzing}
-                                  />
-                                }
-                              >
-                                <Sparkles className="size-3.5" />
-                                {analyzing
-                                  ? "Analysiert…"
-                                  : savedAnalyzedAt
-                                    ? "Neu analysieren"
-                                    : "AI analysieren"}
-                                <ChevronDown className="size-3.5 opacity-80" />
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent
-                                align="start"
-                                className="w-72"
-                              >
-                                <DropdownMenuLabel>
-                                  Analyse-Modus
-                                </DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  disabled={analyzing}
-                                  onClick={() =>
-                                    void runAnalyze({ includeImages: false })
-                                  }
-                                >
-                                  <span className="flex flex-col gap-0.5">
-                                    <span className="font-medium">Nur Text</span>
-                                    <span className="text-[0.6875rem] text-muted-foreground">
-                                      OpenAI — nur Text
-                                    </span>
-                                  </span>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  disabled={analyzing}
-                                  onClick={() => setAnalyzePickerOpen(true)}
-                                >
-                                  <span className="flex flex-col gap-0.5">
-                                    <span className="font-medium">
-                                      Grafiken auswählen (
-                                      {detailImageAttachmentCount})
-                                    </span>
-                                    <span className="text-[0.6875rem] text-muted-foreground">
-                                      Vorschau — Signaturen weglassen
-                                    </span>
-                                  </span>
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          ) : (
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="bg-orange-500 text-white hover:bg-orange-600"
-                              disabled={analyzing}
-                              onClick={() =>
-                                void runAnalyze({ includeImages: false })
-                              }
-                            >
-                              <Sparkles className="size-3.5" />
-                              {analyzing
-                                ? "Analysiert…"
-                                : savedAnalyzedAt
-                                  ? "Neu analysieren"
-                                  : "AI analysieren"}
-                            </Button>
-                          )}
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="bg-orange-500 text-white hover:bg-orange-600"
+                            disabled={analyzing}
+                            onClick={() => setAnalyzePickerOpen(true)}
+                          >
+                            <Sparkles className="size-3.5" />
+                            {analyzing
+                              ? "Analysiert…"
+                              : savedAnalyzedAt
+                                ? "Neu analysieren"
+                                : "AI analysieren"}
+                          </Button>
                           <Button
                             type="button"
                             size="sm"
@@ -3595,11 +3523,12 @@ export function MaringoWorkspaceClient() {
         onOpenChange={setAnalyzePickerOpen}
         timeline={detail?.timeline ?? []}
         analyzing={analyzing}
-        onConfirm={(attachmentIds) => {
+        onConfirm={({ attachmentIds, products }) => {
           setAnalyzePickerOpen(false);
           void runAnalyze({
             includeImages: attachmentIds.length > 0,
             attachmentIds,
+            products,
           });
         }}
       />
