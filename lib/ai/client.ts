@@ -44,23 +44,22 @@ export function resolveUserAiConfig(
   if (!user) return null;
   const personalOpenai = getUserOpenAiApiKey(user);
   const company = getCompanyAiConfig();
-  const usingCompanyAi = Boolean(
-    company.enabled && company.apiKey && company.baseUrl
-  );
+  const usingCompanyAi = Boolean(company.enabled && company.apiKey);
   const openaiApiKey = usingCompanyAi ? company.apiKey : personalOpenai;
   const openaiModel = usingCompanyAi
     ? company.model
     : user.openai_model?.trim() || "gpt-4o-mini";
   const openaiBaseUrl = usingCompanyAi ? company.baseUrl : null;
   if (usingCompanyAi) {
+    const custom = company.kind === "custom";
     return {
       userId,
       openaiApiKey,
       openaiModel,
       openaiBaseUrl,
-      chatProvider: "custom",
+      chatProvider: custom ? "custom" : "openai",
       chatApiKey: company.apiKey,
-      chatBaseUrl: company.baseUrl,
+      chatBaseUrl: custom ? company.baseUrl : null,
       chatModel: company.model,
       usingCompanyAi: true,
     };

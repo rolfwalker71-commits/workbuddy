@@ -1,13 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Server, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  segmentedTrackClass,
+  segmentedTriggerClass,
+} from "@/components/layout/segmented-control";
+import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
+import {
+  COMPANY_OPENAI_MODELS,
+  type CompanyAiKind,
+} from "@/lib/ai/company-ai-shared";
 
 type CompanyAiPublic = {
   enabled: boolean;
+  kind: CompanyAiKind;
   hasKey: boolean;
   model: string;
   baseUrl: string;
@@ -18,6 +36,7 @@ type CompanyAiPublic = {
 export function SettingsCompanyAiPanel() {
   const [data, setData] = useState<CompanyAiPublic | null>(null);
   const [enabled, setEnabled] = useState(true);
+  const [kind, setKind] = useState<CompanyAiKind>("openai");
   const [apiKey, setApiKey] = useState("");
   const [clearKey, setClearKey] = useState(false);
   const [model, setModel] = useState("gpt-4o-mini");
@@ -26,12 +45,24 @@ export function SettingsCompanyAiPanel() {
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const openaiModels = useMemo(() => {
+    if (
+      kind === "openai" &&
+      model &&
+      !(COMPANY_OPENAI_MODELS as readonly string[]).includes(model)
+    ) {
+      return [model, ...COMPANY_OPENAI_MODELS];
+    }
+    return [...COMPANY_OPENAI_MODELS];
+  }, [kind, model]);
+
   async function load() {
     const res = await fetch("/api/settings/company-ai");
     const json = (await res.json()) as CompanyAiPublic;
     if (!res.ok) throw new Error(json.error || "Firmen-KI laden fehlgeschlagen");
     setData(json);
     setEnabled(json.enabled);
+    setKind(json.kind || "openai");
     setModel(json.model || "gpt-4o-mini");
     setBaseUrl(json.baseUrl || "");
   }
@@ -52,10 +83,11 @@ export function SettingsCompanyAiPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           enabled,
+          kind,
           apiKey: apiKey.trim() || undefined,
           clearApiKey: clearKey,
           model,
-          baseUrl: baseUrl.trim() || null,
+          baseUrl: kind === "custom" ? baseUrl.trim() || null : null,
         }),
       });
       const json = (await res.json()) as CompanyAiPublic;
@@ -64,6 +96,7 @@ export function SettingsCompanyAiPanel() {
       setClearKey(false);
       setData(json);
       setEnabled(json.enabled);
+      setKind(json.kind || "openai");
       setModel(json.model || "gpt-4o-mini");
       setBaseUrl(json.baseUrl || "");
       setStatus("Firmen-KI gespeichert.");
@@ -83,11 +116,9 @@ export function SettingsCompanyAiPanel() {
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <p className="text-muted-foreground">
-          Führender Custom-Provider für alle Konten. Trage genau die drei
-          Angaben vom Provider ein: API-Key, Modell und URL. Solange das aktiv
-          ist, gelten diese Werte — persönliche Keys unter Konto werden nicht
-          verwendet. Der Key liegt verschlüsselt in der Datenbank, nicht in der
-          .env, ausser du setzt bewusst <code>COMPANY_AI_*</code> für Docker.
+          Führend für alle Konten. OpenAI: nur Key und Modell. Custom: Key,
+          Modell und URL vom Provider. Persönliche Keys unter Konto greifen
+          erst, wenn das hier aus ist.
         </p>
         {fromEnv ? (
           <p className="rounded-xl bg-muted px-3 py-2 text-xs">
@@ -103,6 +134,44 @@ export function SettingsCompanyAiPanel() {
           />
           Firmen-KI aktiv
         </label>
+        <div
+          className={segmentedTrackClass}
+          role="tablist"
+          aria-label="Firmen-KI Provider"
+        >
+          <Button
+            type="button"
+            variant="ghost"
+            role="tab"
+            data-segment="true"
+            aria-selected={kind === "openai"}
+            className={segmentedTriggerClass(kind === "openai")}
+            onClick={() => setKind("openai")}
+          >
+            <Sparkles
+              className="size-4 shrink-0"
+              strokeWidth={APP_ICON_STROKE}
+              aria-hidden
+            />
+            OpenAI
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            role="tab"
+            data-segment="true"
+            aria-selected={kind === "custom"}
+            className={segmentedTriggerClass(kind === "custom")}
+            onClick={() => setKind("custom")}
+          >
+            <Server
+              className="size-4 shrink-0"
+              strokeWidth={APP_ICON_STROKE}
+              aria-hidden
+            />
+            Custom
+          </Button>
+        </div>
         <p className="text-xs text-muted-foreground">
           {data?.hasKey
             ? "Ein Firmen-Key ist gesetzt (nicht sichtbar)."
@@ -131,22 +200,44 @@ export function SettingsCompanyAiPanel() {
         </label>
         <div className="space-y-1.5">
           <Label htmlFor="company-ai-model">Modell</Label>
-          <Input
-            id="company-ai-model"
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            placeholder="gpt-4o-mini"
-          />
+          {kind === "openai" ? (
+            <Select
+              value={model}
+              onValueChange={(v) => {
+                if (v) setModel(v);
+              }}
+            >
+              <SelectTrigger id="company-ai-model">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {openaiModels.map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {m}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              id="company-ai-model"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder="gpt-4o-mini"
+            />
+          )}
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="company-ai-url">URL</Label>
-          <Input
-            id="company-ai-url"
-            value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder="https://…/v1"
-          />
-        </div>
+        {kind === "custom" ? (
+          <div className="space-y-1.5">
+            <Label htmlFor="company-ai-url">URL</Label>
+            <Input
+              id="company-ai-url"
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              placeholder="https://…/v1"
+            />
+          </div>
+        ) : null}
         {error ? <p className="text-destructive">{error}</p> : null}
         {status ? <p className="text-muted-foreground">{status}</p> : null}
         <Button type="button" size="sm" disabled={busy} onClick={() => void save()}>

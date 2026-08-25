@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
 
 const PutSchema = z.object({
   enabled: z.boolean().optional(),
+  kind: z.enum(["openai", "custom"]).optional(),
   apiKey: z.string().optional().nullable(),
   clearApiKey: z.boolean().optional(),
   model: z.string().optional().nullable(),

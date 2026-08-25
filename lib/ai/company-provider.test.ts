@@ -34,7 +34,39 @@ test("company AI uses settings key, never OPENAI_API_KEY", async () => {
   assert.notEqual(cfg.apiKey, process.env.OPENAI_API_KEY);
   assert.equal(cfg.model, "gpt-4o-mini");
   assert.equal(cfg.baseUrl, "https://ai.example.com/v1");
+  assert.equal(cfg.kind, "custom");
   assert.equal(cfg.source, "settings");
+});
+
+test("official OpenAI company AI needs only key and model", async () => {
+  process.env.WORKBUDDY_SESSION_SECRET =
+    "a-secure-test-secret-with-more-than-32-characters";
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "wb-co-ai-oai-"));
+  process.env.DATABASE_PATH = path.join(tmp, "openai.sqlite");
+  process.env.OPENAI_API_KEY = "sk-env-must-not-be-used";
+  delete process.env.COMPANY_AI_API_KEY;
+  delete process.env.COMPANY_AI_DISABLED;
+  delete process.env.COMPANY_AI_KIND;
+  delete process.env.COMPANY_AI_BASE_URL;
+
+  const { resetDbForTests } = await import("../db/client.ts");
+  resetDbForTests();
+  const { getCompanyAiConfig, saveCompanyAiSettings } = await import(
+    "./company-provider.ts"
+  );
+
+  saveCompanyAiSettings({
+    enabled: true,
+    kind: "openai",
+    apiKey: "sk-openai-company",
+    model: "gpt-4o",
+  });
+  const cfg = getCompanyAiConfig();
+  assert.equal(cfg.enabled, true);
+  assert.equal(cfg.kind, "openai");
+  assert.equal(cfg.apiKey, "sk-openai-company");
+  assert.equal(cfg.model, "gpt-4o");
+  assert.equal(cfg.baseUrl, null);
 });
 
 test("COMPANY_AI_API_KEY env overrides stored key", async () => {

@@ -90,6 +90,43 @@ test("company AI leads for every user, even with a personal key", async () => {
   assert.equal(resolveUserAiConfig(user.id)?.chatProvider, "custom");
 });
 
+test("official OpenAI company AI uses the company key without a custom URL", async () => {
+  process.env.WORKBUDDY_SESSION_SECRET =
+    "a-secure-test-secret-with-more-than-32-characters";
+  process.env.WORKBUDDY_USERNAME = "admin";
+  process.env.WORKBUDDY_PASSWORD_HASH = "scrypt:x:y";
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "wb-ai-oai-"));
+  process.env.DATABASE_PATH = path.join(tmp, "test.sqlite");
+  delete process.env.COMPANY_AI_API_KEY;
+
+  const { resetDbForTests } = await import("../db/client.ts");
+  resetDbForTests();
+  const { createAppUser } = await import("../users/queries.ts");
+  const { saveCompanyAiSettings } = await import("./company-provider.ts");
+  const { enterAiRequestUser } = await import("./request-context.ts");
+  const { getOpenAIApiKey, resolveUserAiConfig } = await import("./client.ts");
+
+  saveCompanyAiSettings({
+    enabled: true,
+    kind: "openai",
+    apiKey: "sk-openai-company",
+    model: "gpt-4o-mini",
+  });
+  const user = createAppUser({
+    username: "dora",
+    email: "dora@example.com",
+    displayName: "Dora",
+    passwordHash: "hash",
+  });
+  enterAiRequestUser(user.id);
+  const cfg = resolveUserAiConfig(user.id);
+  assert.equal(getOpenAIApiKey(), "sk-openai-company");
+  assert.equal(cfg?.usingCompanyAi, true);
+  assert.equal(cfg?.openaiBaseUrl, null);
+  assert.equal(cfg?.chatProvider, "openai");
+  assert.equal(cfg?.openaiModel, "gpt-4o-mini");
+});
+
 test("after-style work keeps the user key only inside runWithAiUser", async () => {
   process.env.WORKBUDDY_SESSION_SECRET =
     "a-secure-test-secret-with-more-than-32-characters";

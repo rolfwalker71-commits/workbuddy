@@ -22,8 +22,10 @@ npm run auth:secrets -- 'dein-sicheres-passwort'
    - `MICROSOFT_OAUTH_CLIENT_ID` / `CLIENT_SECRET` / `TENANT` (default `organizations`) in `.env`
 
 4. `MARI_REST_BASE_URL` setzen (oder Default belassen). **Kein** `OPENAI_API_KEY` in `.env`.
-   Firmen-KI (z.B. `gpt-4o-mini`) legt der Admin unter **Einstellungen → Firmen-KI** ab.
-   Optionaler Docker-Override: `COMPANY_AI_API_KEY` / `COMPANY_AI_MODEL` / `COMPANY_AI_BASE_URL`.
+   Firmen-KI (OpenAI: Key + Modell, oder Custom inkl. URL) legt der Admin unter
+   **Einstellungen → Firmen-KI** ab.
+   Optionaler Docker-Override: `COMPANY_AI_API_KEY` / `COMPANY_AI_KIND` /
+   `COMPANY_AI_MODEL` / `COMPANY_AI_BASE_URL`.
 
 5. Stack starten:
 
