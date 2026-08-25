@@ -45,6 +45,8 @@ test("mergeHomeOverviewDetails keeps unread KPIs and fills lists", () => {
     todayMail: [],
     maringo: null,
     weather: null,
+    ttvDuty: null,
+    absence: null,
   };
   const details: HomeDetailsPayload = {
     microsoft: {
@@ -131,6 +133,8 @@ test("mergeHomeMaringoTickets updates bagel counts without dropping modules", ()
       },
     },
     weather: null,
+    ttvDuty: null,
+    absence: null,
   };
   const merged = mergeHomeMaringoTickets(overview, {
     configured: true,
@@ -171,6 +175,8 @@ test("mergeHomeKpis fills unread zeros and keeps weather if live weather missing
     todayEvents: [],
     todayMail: [],
     maringo: null,
+    ttvDuty: null,
+    absence: null,
     weather: {
       placeLabel: "Altdorf",
       temperatureC: 18,

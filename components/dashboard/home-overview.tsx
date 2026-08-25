@@ -42,9 +42,18 @@ import { HomeWeatherWidget } from "./home-weather-widget";
 import { BagelHoleLabel } from "@/components/ui/bagel-hole-label";
 import { EventArtCard } from "@/components/calendar/event-art-card";
 import { EventDetailDialog } from "@/components/calendar/event-detail-dialog";
+import { EventMariActions } from "@/components/calendar/event-mari-actions";
+import { HomeDutyAbsenceBar } from "@/components/dashboard/home-duty-absence-bar";
+import { HomeNextQueue } from "@/components/dashboard/home-next-queue";
+import { buildHomeNextQueue } from "@/lib/dashboard/home-next-queue";
 import { filterTodayEventsAfterGrace } from "@/lib/workspace/event-grace";
 import { zurichHm, zurichYmd } from "@/lib/microsoft/time";
 import type { WorkspaceTodayEvent } from "@/lib/workspace/merge-today";
+import type {
+  HomeAbsenceState,
+  HomeTicketRow,
+  HomeTtvDutyState,
+} from "@/lib/dashboard/home-surfaces-shared";
 
 const ASIDE_WIDGET_CLASS =
   "rounded-2xl border border-border/70 bg-card shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_3px_10px_rgba(15,23,42,0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_4px_14px_rgba(0,0,0,0.28)]";
@@ -501,10 +510,17 @@ export function HomeOverview() {
               if (!ticketsRes.ok || cancelled) return;
               const live = (await ticketsRes.json()) as {
                 tickets?: MariTicketsWatchState | null;
+                ticketRows?: HomeTicketRow[];
+                ttvInboxCount?: number;
               };
               if (cancelled || !live.tickets) return;
               setData((prev) =>
-                prev ? mergeHomeMaringoTickets(prev, live.tickets!) : prev
+                prev
+                  ? mergeHomeMaringoTickets(prev, live.tickets!, {
+                      ticketRows: live.ticketRows,
+                      ttvInboxCount: live.ttvInboxCount,
+                    })
+                  : prev
               );
             })
             .catch(() => undefined);
@@ -585,6 +601,20 @@ export function HomeOverview() {
     new Map(taskItems.map((t) => [t.key, t])).values()
   );
   const tickets = data?.maringo?.tickets;
+  const nextQueue = useMemo(
+    () =>
+      buildHomeNextQueue({
+        nowYmd: zurichNow.ymd,
+        nowHm: zurichNow.hm,
+        events: todayEvents,
+        tickets: data?.maringo?.ticketRows || [],
+        pendingStamps: data?.pendingStamps || [],
+        tasks: uniqueTasks,
+        ttvInboxCount: data?.maringo?.ttvInboxCount || 0,
+        iAmTtv: Boolean(data?.ttvDuty?.isMe),
+      }),
+    [data, todayEvents, uniqueTasks, zurichNow]
+  );
   const positiveCounts = (tickets?.countsByStatus || []).filter((c) => c.count > 0);
   const pollLabel = formatPollAt(tickets?.lastPollAt);
   const waitingOnMe = (tickets?.countsByStatus || [])
@@ -683,6 +713,21 @@ export function HomeOverview() {
           ) : null}
         </div>
       </header>
+
+      {data?.ttvDuty || data?.absence ? (
+        <HomeDutyAbsenceBar
+          ttvDuty={data.ttvDuty}
+          absence={data.absence}
+          onDutyChange={(next: HomeTtvDutyState) =>
+            setData((prev) => (prev ? { ...prev, ttvDuty: next } : prev))
+          }
+          onAbsenceChange={(next: HomeAbsenceState) =>
+            setData((prev) => (prev ? { ...prev, absence: next } : prev))
+          }
+        />
+      ) : null}
+
+      <HomeNextQueue items={nextQueue} />
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       {loading && !data ? (
@@ -799,6 +844,17 @@ export function HomeOverview() {
                       <EventArtCard
                         event={ev}
                         onOpen={() => setDetailEvent(ev)}
+                        footer={
+                          ev.mari ? (
+                            <EventMariActions
+                              mari={ev.mari}
+                              eventDate={ev.date}
+                              endTime={ev.endTime}
+                              time={ev.time}
+                              isAllDay={ev.isAllDay}
+                            />
+                          ) : undefined
+                        }
                       />
                     </li>
                   ))}
@@ -809,6 +865,17 @@ export function HomeOverview() {
                   onOpenChange={(next) => {
                     if (!next) setDetailEvent(null);
                   }}
+                  actions={
+                    detailEvent?.mari ? (
+                      <EventMariActions
+                        mari={detailEvent.mari}
+                        eventDate={detailEvent.date}
+                        endTime={detailEvent.endTime}
+                        time={detailEvent.time}
+                        isAllDay={detailEvent.isAllDay}
+                      />
+                    ) : undefined
+                  }
                 />
               </CardContent>
             </Card>

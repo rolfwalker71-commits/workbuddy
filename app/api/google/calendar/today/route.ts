@@ -10,6 +10,7 @@ import { isDayCloseRitualId } from "@/lib/dashboard/day-close-ritual";
 import { attachDayCloseRitualGoogle } from "@/lib/dashboard/day-close-status";
 import { zurichHm, zurichYmd } from "@/lib/microsoft/time";
 import { filterTodayEventsAfterGrace } from "@/lib/workspace/event-grace";
+import { attachMariToEvents } from "@/lib/workspace/event-mari";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,7 +30,13 @@ export async function GET(request: Request) {
     const today = zurichYmd();
     const raw = await listGoogleEventsToday(userId, request);
     const withRitual = await attachDayCloseRitualGoogle(userId, today, raw);
-    const events = filterTodayEventsAfterGrace(withRitual, today, zurichHm());
+    const events = await attachMariToEvents(
+      userId,
+      filterTodayEventsAfterGrace(withRitual, today, zurichHm()).map((e) => ({
+        ...e,
+        provider: "google" as const,
+      }))
+    );
     const cloud = events.filter((e) => !isDayCloseRitualId(e.id));
     return NextResponse.json({
       events,

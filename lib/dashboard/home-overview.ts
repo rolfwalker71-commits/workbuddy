@@ -40,6 +40,20 @@ import type {
   HomeOverviewPayload,
   HomeProviderBlock,
 } from "./home-overview-shared";
+import {
+  attachMariToEvents,
+  listHomePendingStamps,
+} from "@/lib/workspace/event-mari";
+import { getTtvDutyForDay } from "@/lib/mari/ttv-duty";
+import {
+  getUserAbsence,
+  isAbsentOn,
+  listAbsencesOnDay,
+} from "@/lib/users/absence";
+import type {
+  HomeAbsenceState,
+  HomeTtvDutyState,
+} from "@/lib/dashboard/home-surfaces-shared";
 
 export type {
   HomeDetailsPayload,
@@ -98,6 +112,41 @@ function eventsFromToday(
       isAllDay: e.isAllDay,
       done: Boolean(e.done),
     }));
+}
+
+function homeTtvDuty(userId: number | null, today: string): HomeTtvDutyState {
+  const duty = getTtvDutyForDay(today);
+  return {
+    ymd: today,
+    userId: duty?.userId ?? null,
+    displayName: duty?.displayName ?? null,
+    source: duty?.source ?? null,
+    isMe: duty != null && userId != null && duty.userId === userId,
+    ttvInboxHref: "/maringo?filter=ttv",
+  };
+}
+
+function homeAbsence(userId: number | null, today: string): HomeAbsenceState {
+  const self = userId != null ? getUserAbsence(userId) : null;
+  const colleagues = listAbsencesOnDay(today).filter(
+    (a) => userId == null || a.userId !== userId
+  );
+  return {
+    today,
+    self: self
+      ? {
+          fromYmd: self.fromYmd,
+          toYmd: self.toYmd,
+          message: self.message,
+          isAwayToday: isAbsentOn(self, today),
+        }
+      : null,
+    colleagues: colleagues.map((a) => ({
+      userId: a.userId,
+      displayName: a.displayName,
+      message: a.message,
+    })),
+  };
 }
 
 function emptyTickets(): MariTicketsWatchState {
@@ -182,6 +231,9 @@ export async function getHomeOverview(
       ? { enabled: true, tickets: tickets ?? emptyTickets() }
       : null,
     weather,
+    ttvDuty: showMari ? homeTtvDuty(userId, today) : null,
+    absence: homeAbsence(userId, today),
+    pendingStamps: [],
   };
 }
 
@@ -233,6 +285,8 @@ export async function getHomeDetails(
     userId != null && showGoogle && isGoogleMailConnected(userId);
 
   if (userId == null || (!showMs && !showGoogle)) {
+    const pendingStamps =
+      userId != null ? await listHomePendingStamps(userId, zurichYmd()) : [];
     return {
       microsoft: showMs
         ? { events: [], mailInbox: [], tasks: emptyTasks() }
@@ -242,6 +296,7 @@ export async function getHomeDetails(
         : null,
       todayEvents: [],
       todayMail: [],
+      pendingStamps,
     };
   }
 
@@ -316,22 +371,28 @@ export async function getHomeDetails(
     }))
   );
 
+  const [linkedEvents, pendingStamps] = await Promise.all([
+    attachMariToEvents(userId, todayEvents),
+    listHomePendingStamps(userId, zurichYmd()),
+  ]);
+
   return {
     microsoft: showMs
       ? {
-          events: eventsFromToday(todayEvents, "microsoft"),
+          events: eventsFromToday(linkedEvents, "microsoft"),
           mailInbox: msMail,
           tasks,
         }
       : null,
     google: showGoogle
       ? {
-          events: eventsFromToday(todayEvents, "google"),
+          events: eventsFromToday(linkedEvents, "google"),
           mailInbox: googleMail,
           tasks,
         }
       : null,
-    todayEvents,
+    todayEvents: linkedEvents,
     todayMail,
+    pendingStamps,
   };
 }

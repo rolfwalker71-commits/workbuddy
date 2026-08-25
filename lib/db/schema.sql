@@ -202,3 +202,22 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 );
 CREATE INDEX IF NOT EXISTS idx_push_subscriptions_owner
   ON push_subscriptions(owner_key);
+
+CREATE TABLE IF NOT EXISTS ttv_duty (
+  ymd TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  source TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(user_id) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_ttv_duty_user ON ttv_duty(user_id, ymd);
+
+CREATE TABLE IF NOT EXISTS user_absence (
+  user_id INTEGER PRIMARY KEY,
+  from_ymd TEXT NOT NULL,
+  to_ymd TEXT NOT NULL,
+  message TEXT,
+  outlook_event_id TEXT,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(user_id) REFERENCES users(id)
+);

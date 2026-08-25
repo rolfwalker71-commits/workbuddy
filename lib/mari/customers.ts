@@ -170,3 +170,16 @@ export async function searchMariCustomers(
 
   return mergeCustomers(fromIssues, fromMaster, limit);
 }
+
+export async function getMariCustomerByCardCode(
+  cardCode: string
+): Promise<MariCustomerOption | null> {
+  const code = normalizeMariCardCode(cardCode);
+  if (!code) return null;
+  const hits = await searchMariCustomers(code, { limit: 15 });
+  return (
+    hits.find((h) => h.cardCode.toLowerCase() === code.toLowerCase()) ||
+    hits[0] ||
+    null
+  );
+}

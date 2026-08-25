@@ -8,6 +8,7 @@ import {
   withDayCloseRitual,
   type DayCloseRitualItem,
 } from "@/lib/dashboard/day-close-ritual";
+import type { WorkspaceEventMari } from "@/lib/workspace/event-mari-shared";
 
 export type WorkspaceProvider = "microsoft" | "google" | "buddy";
 
@@ -38,6 +39,7 @@ export type WorkspaceTodayEvent = {
   meetUrl?: string | null;
   calendarType?: string | null;
   calendarName?: string | null;
+  mari?: WorkspaceEventMari | null;
 };
 
 export type WorkspaceMailSample = {
@@ -140,6 +142,7 @@ export function toWorkspaceTodayEvent(input: {
   meetUrl?: string | null;
   calendarType?: string | null;
   calendarName?: string | null;
+  mari?: WorkspaceEventMari | null;
 }): WorkspaceTodayEvent {
   const title =
     (input.title || input.subject || input.summary || "").trim() ||
@@ -167,5 +170,6 @@ export function toWorkspaceTodayEvent(input: {
     meetUrl: input.meetUrl ?? null,
     calendarType: input.calendarType ?? null,
     calendarName: input.calendarName ?? null,
+    mari: input.mari ?? null,
   };
 }

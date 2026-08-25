@@ -50,10 +50,12 @@ import { weekdayLabel } from "@/lib/utils/weekday";
 import { useAuth } from "@/components/auth/auth-provider";
 import { AdhocEventDialog } from "@/components/calendar/adhoc-event-dialog";
 import { EventArtCard } from "@/components/calendar/event-art-card";
+import { EventMariActions } from "@/components/calendar/event-mari-actions";
 import {
   EventDetailDialog,
   type EventEditValues,
 } from "@/components/calendar/event-detail-dialog";
+import type { WorkspaceEventMari } from "@/lib/workspace/event-mari-shared";
 import { MicrosoftMailComposeDialog } from "@/components/microsoft/microsoft-mail-compose-dialog";
 import { WorkspaceTasksPanel } from "@/components/workspace/workspace-tasks-panel";
 import {
@@ -178,6 +180,7 @@ type WorkspaceCalEvent = {
   meetUrl: string | null;
   calendarType: string | null;
   calendarName: string | null;
+  mari?: WorkspaceEventMari | null;
 };
 
 function asCalEvent(e: {
@@ -197,6 +200,7 @@ function asCalEvent(e: {
   meetUrl?: string | null;
   calendarType?: string | null;
   calendarName?: string | null;
+  mari?: WorkspaceEventMari | null;
 }): WorkspaceCalEvent {
   return {
     id: e.id,
@@ -218,6 +222,7 @@ function asCalEvent(e: {
     meetUrl: e.meetUrl ?? null,
     calendarType: e.calendarType ?? null,
     calendarName: e.calendarName ?? null,
+    mari: e.mari ?? null,
   };
 }
 
@@ -458,6 +463,10 @@ function mapTodayEvents(
       meetUrl: typeof e.meetUrl === "string" ? e.meetUrl : null,
       calendarType: typeof e.calendarType === "string" ? e.calendarType : null,
       calendarName: typeof e.calendarName === "string" ? e.calendarName : null,
+      mari:
+        e.mari && typeof e.mari === "object"
+          ? (e.mari as WorkspaceEventMari)
+          : null,
     });
     return asCalEvent(mapped);
   });
@@ -1894,7 +1903,18 @@ export function WorkspaceDayClient({
                             : undefined
                         }
                         footer={
-                          showActions ? (
+                          showActions || e.mari ? (
+                            <div className="space-y-2">
+                              {e.mari ? (
+                                <EventMariActions
+                                  mari={e.mari}
+                                  eventDate={e.date}
+                                  endTime={e.endTime}
+                                  time={e.time}
+                                  isAllDay={e.isAllDay}
+                                />
+                              ) : null}
+                              {showActions ? (
                             <EventDetailActions
                               event={e}
                               busy={busyId === key}
@@ -1915,6 +1935,8 @@ export function WorkspaceDayClient({
                               onSuggest={() => void suggestSlots(e)}
                               onReschedule={(s) => void reschedule(e, s)}
                             />
+                              ) : null}
+                            </div>
                           ) : undefined
                         }
                       />
@@ -1945,6 +1967,16 @@ export function WorkspaceDayClient({
                 }
                 actions={
                   detailEvent ? (
+                    <div className="space-y-3">
+                      {detailEvent.mari ? (
+                        <EventMariActions
+                          mari={detailEvent.mari}
+                          eventDate={detailEvent.date}
+                          endTime={detailEvent.endTime}
+                          time={detailEvent.time}
+                          isAllDay={detailEvent.isAllDay}
+                        />
+                      ) : null}
                     <EventDetailActions
                       event={detailEvent}
                       busy={busyId === workspaceEventKey(detailEvent)}
@@ -1966,6 +1998,7 @@ export function WorkspaceDayClient({
                       onSuggest={() => void suggestSlots(detailEvent)}
                       onReschedule={(s) => void reschedule(detailEvent, s)}
                     />
+                    </div>
                   ) : null
                 }
               />

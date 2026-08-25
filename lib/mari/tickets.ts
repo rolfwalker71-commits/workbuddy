@@ -175,6 +175,8 @@ export type ListTicketsOptions = {
    */
   ttvInbox?: boolean;
   requestDateFrom?: string | null;
+  /** Lookup by IssueID, any handler/status unless statuses set. */
+  issueIds?: number[];
 };
 
 export type MariEmployeeOption = {
@@ -265,12 +267,20 @@ export async function listMyTickets(
 ): Promise<MariTicketListItem[]> {
   requireMariConfig();
   const ttvInbox = options.ttvInbox === true;
+  const issueIds = [
+    ...new Set(
+      (options.issueIds || []).filter((id) => Number.isInteger(id) && id > 0)
+    ),
+  ].slice(0, 40);
+  const byIssueIds = issueIds.length > 0;
   const statuses = ttvInbox
     ? [TTV_INBOX_STATUS_ID]
     : options.statuses && options.statuses.length > 0
       ? options.statuses.filter((n) => Number.isInteger(n) && n > 0)
-      : [...WORK_STATUS_IDS];
-  if (statuses.length === 0) return [];
+      : byIssueIds
+        ? []
+        : [...WORK_STATUS_IDS];
+  if (!byIssueIds && statuses.length === 0) return [];
 
   const cardCodes = [
     ...new Set(
@@ -279,15 +289,20 @@ export async function listMyTickets(
         .filter((c) => c.length > 0 && c.length <= 50)
     ),
   ].slice(0, 40);
-  const byCustomer = !ttvInbox && cardCodes.length > 0;
+  const byCustomer = !ttvInbox && !byIssueIds && cardCodes.length > 0;
   const limit = Math.min(
-    Math.max(options.limit ?? (ttvInbox || byCustomer ? 200 : 100), 1),
+    Math.max(
+      options.limit ?? (ttvInbox || byCustomer || byIssueIds ? 200 : 100),
+      1
+    ),
     200
   );
 
   let ownerClause: string;
   if (ttvInbox) {
     ownerClause = "1 = 1";
+  } else if (byIssueIds) {
+    ownerClause = `i."IssueID" IN (${issueIds.join(",")})`;
   } else if (byCustomer) {
     ownerClause = `i."CardCode" IN (${cardCodes.map(sqlQuote).join(",")})`;
   } else {
@@ -304,9 +319,10 @@ export async function listMyTickets(
     ownerClause = `i."HandledBy" = ${sqlQuote(empRaw)}`;
   }
 
-  const statusList = statuses.join(",");
+  const statusClause =
+    statuses.length > 0 ? `AND i."Status" IN (${statuses.join(",")})` : "";
   const overdueClause =
-    !ttvInbox && options.overdueOnly
+    !ttvInbox && !byIssueIds && options.overdueOnly
       ? ` AND i."DueDate" IS NOT NULL AND i."DueDate" < CURRENT_DATE `
       : "";
   const requestDateFrom = ttvInbox
@@ -396,7 +412,7 @@ LEFT JOIN "MARISupportGroup" g
 WHERE ${ownerClause}
   AND i."EditorType" = 3
   AND i."HotlineClassType" = ${SUPPORT_HOTLINE_CLASS_TYPE}
-  AND i."Status" IN (${statusList})
+  ${statusClause}
   ${overdueClause}
   ${requestDateClause}
 ORDER BY

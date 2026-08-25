@@ -7,6 +7,8 @@ export type CreateOutlookEventInput = {
   startTime?: string | null;
   endTime?: string | null;
   allDay?: boolean;
+  /** Inclusive last day for multi-day all-day events. */
+  endDate?: string | null;
   location?: string | null;
   notes?: string | null;
   /** Outlook categories (e.g. Buddy/Maringo). */
@@ -15,6 +17,8 @@ export type CreateOutlookEventInput = {
   teamsMeeting?: boolean;
   /** Optional target calendar (default: /me/events). */
   calendarId?: string | null;
+  /** Graph showAs, e.g. oof for Abwesenheit. */
+  showAs?: string | null;
 };
 
 export type CreatedOutlookEvent = {
@@ -33,8 +37,12 @@ export async function createOutlookCalendarEvent(
     input.categories?.map((c) => c.trim()).filter(Boolean) || undefined;
   let body: Record<string, unknown>;
   if (allDay) {
+    const lastInclusive =
+      input.endDate && /^\d{4}-\d{2}-\d{2}$/.test(input.endDate)
+        ? input.endDate
+        : input.date;
     const endDate = (() => {
-      const d = new Date(`${input.date}T12:00:00Z`);
+      const d = new Date(`${lastInclusive}T12:00:00Z`);
       d.setUTCDate(d.getUTCDate() + 1);
       return d.toISOString().slice(0, 10);
     })();
@@ -48,6 +56,7 @@ export async function createOutlookCalendarEvent(
         ? { contentType: "Text", content: input.notes }
         : undefined,
       categories,
+      ...(input.showAs ? { showAs: input.showAs } : {}),
     };
   } else {
     const startHm = input.startTime || "09:00";
@@ -104,6 +113,17 @@ export async function createOutlookCalendarEvent(
   };
 }
 
+export async function deleteOutlookCalendarEvent(
+  userId: number,
+  eventId: string
+): Promise<void> {
+  const id = eventId.trim();
+  if (!id) return;
+  await graphJson(userId, `/me/events/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+}
+
 function outlookEventWriteBody(
   input: CreateOutlookEventInput
 ): Record<string, unknown> {
@@ -115,8 +135,12 @@ function outlookEventWriteBody(
       ? undefined
       : input.notes;
   if (allDay) {
+    const lastInclusive =
+      input.endDate && /^\d{4}-\d{2}-\d{2}$/.test(input.endDate)
+        ? input.endDate
+        : input.date;
     const endDate = (() => {
-      const d = new Date(`${input.date}T12:00:00Z`);
+      const d = new Date(`${lastInclusive}T12:00:00Z`);
       d.setUTCDate(d.getUTCDate() + 1);
       return d.toISOString().slice(0, 10);
     })();
@@ -130,6 +154,7 @@ function outlookEventWriteBody(
         ? { body: { contentType: "Text", content: notes } }
         : {}),
       categories,
+      ...(input.showAs ? { showAs: input.showAs } : {}),
     };
   }
   const startHm = input.startTime || "09:00";

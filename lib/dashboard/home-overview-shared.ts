@@ -12,6 +12,12 @@ import type {
   WorkspaceMailSample,
   WorkspaceTodayEvent,
 } from "@/lib/workspace/merge-today";
+import type {
+  HomeAbsenceState,
+  HomePendingStamp,
+  HomeTicketRow,
+  HomeTtvDutyState,
+} from "@/lib/dashboard/home-surfaces-shared";
 
 export type HomeMailSample = {
   id: string;
@@ -59,8 +65,13 @@ export type HomeOverviewPayload = {
   maringo: {
     enabled: boolean;
     tickets: MariTicketsWatchState;
+    ticketRows?: HomeTicketRow[];
+    ttvInboxCount?: number;
   } | null;
   weather: HomeWeatherCard | null;
+  ttvDuty: HomeTtvDutyState | null;
+  absence: HomeAbsenceState | null;
+  pendingStamps?: HomePendingStamp[];
 };
 
 export type HomeDetailsPayload = {
@@ -68,6 +79,7 @@ export type HomeDetailsPayload = {
   google: Pick<HomeProviderBlock, "events" | "mailInbox" | "tasks"> | null;
   todayEvents: WorkspaceTodayEvent[];
   todayMail: WorkspaceMailSample[];
+  pendingStamps?: HomePendingStamp[];
 };
 
 export function mergeHomeOverviewDetails(
@@ -96,6 +108,7 @@ export function mergeHomeOverviewDetails(
         : overview.google,
     todayEvents: details.todayEvents,
     todayMail: details.todayMail,
+    pendingStamps: details.pendingStamps ?? overview.pendingStamps,
   };
 }
 
@@ -135,11 +148,17 @@ export function mergeHomeKpis(
 
 export function mergeHomeMaringoTickets(
   overview: HomeOverviewPayload,
-  tickets: MariTicketsWatchState
+  tickets: MariTicketsWatchState,
+  extra?: { ticketRows?: HomeTicketRow[]; ttvInboxCount?: number }
 ): HomeOverviewPayload {
   if (!overview.maringo) return overview;
   return {
     ...overview,
-    maringo: { ...overview.maringo, tickets },
+    maringo: {
+      ...overview.maringo,
+      tickets,
+      ticketRows: extra?.ticketRows ?? overview.maringo.ticketRows,
+      ttvInboxCount: extra?.ttvInboxCount ?? overview.maringo.ttvInboxCount,
+    },
   };
 }

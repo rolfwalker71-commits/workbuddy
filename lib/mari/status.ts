@@ -34,7 +34,7 @@ export const ALL_STATUS_IDS = [
 
 export type StatusId = (typeof ALL_STATUS_IDS)[number];
 
-const CLOSED_STATUS_IDS = new Set<number>([2, 5, 8, 12]);
+export const CLOSED_STATUS_IDS = new Set<number>([2, 5, 8, 12]);
 
 /** Offene Tickets für Home-Widget (inkl. On Hold / Nachfassen). */
 export const OPEN_WORK_STATUS_IDS = ALL_STATUS_IDS.filter(

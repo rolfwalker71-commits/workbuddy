@@ -20,6 +20,7 @@ import {
   CalendarPlus,
   Clock3,
   Flag,
+  FolderOpen,
   Inbox,
   ListTodo,
   Lock,
@@ -145,6 +146,8 @@ import {
   type MariTimeSuggestion,
 } from "@/components/maringo/maringo-time-suggestions-panel";
 import { TicketAnalyzeAttachmentPicker } from "@/components/maringo/ticket-analyze-attachment-picker";
+import { TtvDutyChip } from "@/components/maringo/ttv-duty-chip";
+import { CustomerWorkspacePanel } from "@/components/maringo/customer-workspace-panel";
 
 function ReplyLangToggle({
   lang,
@@ -721,9 +724,10 @@ function SolutionArtifactCard({
 
 export function MaringoWorkspaceClient() {
   const searchParams = useSearchParams();
-  const [workspaceTab, setWorkspaceTab] = useState<"tickets" | "hours">(
-    "tickets"
-  );
+  const [workspaceTab, setWorkspaceTab] = useState<
+    "tickets" | "hours" | "kunde"
+  >("tickets");
+  const [akteCard, setAkteCard] = useState<MariCustomerOption | null>(null);
   const [statuses, setStatuses] = useState<number[]>([...WORK_STATUS_IDS]);
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [filterReady, setFilterReady] = useState(false);
@@ -1158,7 +1162,10 @@ export function MaringoWorkspaceClient() {
       if (typeof patch.overdueOnly === "boolean") {
         setOverdueOnly(patch.overdueOnly);
       }
-      if (isMariTicketFilterMode(patch.filterMode)) {
+      if (
+        isMariTicketFilterMode(patch.filterMode) &&
+        searchParams.get("filter") !== "ttv"
+      ) {
         setFilterMode(patch.filterMode);
       }
       const lookback = sanitizeTtvLookbackDays(patch.ttvLookbackDays);
@@ -1216,7 +1223,7 @@ export function MaringoWorkspaceClient() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [searchParams]);
 
   useEffect(() => {
     if (!filterReady) return;
@@ -1369,6 +1376,18 @@ export function MaringoWorkspaceClient() {
   useEffect(() => {
     const tab = searchParams.get("tab");
     if (tab === "hours") setWorkspaceTab("hours");
+    const view = searchParams.get("view");
+    const card = (searchParams.get("card") || "").trim();
+    if (view === "kunde") {
+      setWorkspaceTab("kunde");
+      if (card) setAkteCard((prev) => prev?.cardCode === card ? prev : { cardCode: card, name: card });
+    }
+    const filter = searchParams.get("filter");
+    if (filter === "ttv") {
+      setFilterMode("ttv");
+      setListSort("newest");
+      setWorkspaceTab("tickets");
+    }
     const openRaw = searchParams.get("open");
     if (openRaw) {
       const id = Number(openRaw);
@@ -1376,6 +1395,9 @@ export function MaringoWorkspaceClient() {
         setSelectedId(id);
         setTicketFlyoutOpen(true);
         setWorkspaceTab("tickets");
+        if (searchParams.get("book") === "1") {
+          setBookDialogOpen(true);
+        }
       }
     }
   }, [searchParams]);
@@ -1416,6 +1438,21 @@ export function MaringoWorkspaceClient() {
     setSelectedId(issueId);
     setTicketFlyoutOpen(true);
     setAnalyzePickerOpen(false);
+    setWorkspaceTab("tickets");
+  }
+
+  function openAkte(ticket: {
+    cardCode: string | null;
+    addressMatchcode: string | null;
+  }) {
+    if (!ticket.cardCode) return;
+    setAkteCard({
+      cardCode: ticket.cardCode,
+      name: ticket.addressMatchcode || ticket.cardCode,
+    });
+    setTicketFlyoutOpen(false);
+    setSecondaryFlyouts([]);
+    setWorkspaceTab("kunde");
   }
 
   function closeTicketFlyout() {
@@ -1977,6 +2014,20 @@ export function MaringoWorkspaceClient() {
           <Clock3 className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
           Stunden
         </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          data-segment="true"
+          onClick={() => {
+            setTicketFlyoutOpen(false);
+            setSecondaryFlyouts([]);
+            setWorkspaceTab("kunde");
+          }}
+          className={segmentedTriggerClass(workspaceTab === "kunde")}
+        >
+          <FolderOpen className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
+          Akte
+        </Button>
       </nav>
 
       {!configured ? (
@@ -2014,6 +2065,20 @@ export function MaringoWorkspaceClient() {
           />
           <MaringoTimekeepingPanel />
         </div>
+      ) : workspaceTab === "kunde" ? (
+        <CustomerWorkspacePanel
+          cardCode={akteCard?.cardCode || null}
+          onOpenTicket={(id) => openTicket(id)}
+          onBook={(ticket) => {
+            setSelectedId(ticket.issueId);
+            setBookDialogOpen(true);
+          }}
+          onAdhoc={(ticket) => {
+            if (ticket) setSelectedId(ticket.issueId);
+            setTicketCalendarOpen(true);
+          }}
+          onPickCustomer={(c) => setAkteCard(c)}
+        />
       ) : (
       <div className="min-h-[70vh] overflow-hidden rounded-2xl border border-border/60 bg-card shadow-[0_4px_18px_rgba(15,23,42,0.05)]">
         {/* List pane */}
@@ -2044,6 +2109,16 @@ export function MaringoWorkspaceClient() {
           </div>
 
           <div className="space-y-1.5 border-b border-border/50 px-3 py-2">
+            <TtvDutyChip
+              onOpenInbox={() => {
+                setFilterMode("ttv");
+                setListSort("newest");
+              }}
+            />
+            <p className="text-[0.625rem] text-muted-foreground">
+              Dienst ist wer den Tag hat. Filter TTV bleibt der Fallback für
+              NEU-Tickets, auch ohne Dienst.
+            </p>
             <div className="flex flex-wrap items-center gap-1.5">
               {filterMode !== "ttv" ? (
                 <>
@@ -2491,13 +2566,13 @@ export function MaringoWorkspaceClient() {
               );
               const stamp = listCalendarStamps[t.issueId] || null;
               return (
-                <li key={t.issueId} className="border-b border-border/40 last:border-b-0">
+                <li key={t.issueId} className="flex items-stretch border-b border-border/40 last:border-b-0">
                   <Button
                     type="button"
                     variant="ghost"
                     onClick={() => openTicket(t.issueId)}
                     className={cn(
-                      "relative h-auto w-full items-start justify-start gap-2 rounded-none border-l-2 px-2.5 py-2 text-left",
+                      "relative h-auto min-w-0 flex-1 items-start justify-start gap-2 rounded-none border-l-2 px-2.5 py-2 text-left",
                       active
                         ? "border-l-orange-400 bg-orange-50/70 hover:bg-orange-50/70 dark:bg-orange-500/15 dark:hover:bg-orange-500/15"
                         : "border-l-transparent hover:bg-muted/40"
@@ -2586,6 +2661,17 @@ export function MaringoWorkspaceClient() {
                       ) : null}
                     </div>
                   </Button>
+                  {t.cardCode ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto self-center rounded-none px-2 text-[0.625rem] font-semibold"
+                      onClick={() => openAkte(t)}
+                    >
+                      Akte
+                    </Button>
+                  ) : null}
                 </li>
               );
             })}
@@ -2649,6 +2735,18 @@ export function MaringoWorkspaceClient() {
                             {detail.briefDescription}
                           </h2>
                         </div>
+                        {detail.cardCode ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="xs"
+                            className="mt-0.5 shrink-0 text-current hover:bg-black/5"
+                            onClick={() => openAkte(detail)}
+                          >
+                            <FolderOpen className="size-3" />
+                            Akte
+                          </Button>
+                        ) : null}
                         <StatusChip
                           status={detail.status}
                           statusName={detail.statusName}
