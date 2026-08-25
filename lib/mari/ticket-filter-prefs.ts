@@ -4,6 +4,7 @@ import { normalizeMariCardCode } from "@/lib/mari/customers";
 import {
   DEFAULT_MARI_LIST_META_FIELDS,
   MARI_LIST_META_FIELD_OPTIONS,
+  isMariTicketFilterMode,
   type MariListMetaField,
   type MariListSort,
   type MariTicketFilterCustomer,
@@ -46,8 +47,7 @@ function sanitizeStatuses(raw: unknown): number[] | null {
 }
 
 function sanitizeFilterMode(raw: unknown): MariTicketFilterMode | null {
-  if (raw === "handler" || raw === "customer") return raw;
-  return null;
+  return isMariTicketFilterMode(raw) ? raw : null;
 }
 
 function sanitizeTimelineSort(raw: unknown): MariTimelineSort | null {

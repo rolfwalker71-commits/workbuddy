@@ -5,8 +5,11 @@ export const WORK_STATUS_IDS = [1, 3, 4, 6, 7, 11, 13, 14] as const;
 
 export type WorkStatusId = (typeof WORK_STATUS_IDS)[number];
 
+/** Eingangsstatus — noch nicht klassifiziert (TTV-Inbox). */
+export const NEW_STATUS_ID = 11;
+
 export const STATUS_LABELS: Record<number, string> = {
-  11: "NEU",
+  [NEW_STATUS_ID]: "NEU",
   1: "Offen",
   3: "In Arbeit",
   13: "Aktualisiert",

@@ -12,6 +12,7 @@ import {
   normalizeMariEmployeeNumber,
   type MariTicketListItem,
 } from "@/lib/mari/tickets";
+import { TTV_INBOX_STATUS_ID, ttvInboxDateWindow } from "@/lib/mari/ttv";
 import { getAppUserById } from "@/lib/users/queries";
 import { ownerKeyFromAuth } from "@/lib/auth/owner-key";
 import { attachMariTicketAnalysisFlags } from "@/lib/mari/ticket-analysis-store";
@@ -45,6 +46,36 @@ export async function GET(request: Request) {
   try {
     const cfg = requireMariConfig();
     const url = new URL(request.url);
+    const userEmp =
+      auth.userId != null
+        ? getAppUserById(auth.userId)?.mari_employee_number
+        : null;
+    const defaultHandledBy =
+      normalizeMariEmployeeNumber(userEmp) ||
+      cfg.employeeNumber.trim().toUpperCase();
+
+    if (url.searchParams.get("filterMode") === "ttv") {
+      const window = ttvInboxDateWindow();
+      const tickets = attachMariTicketAnalysisFlags(
+        ownerKeyFromAuth(auth),
+        await listMyTickets({
+          ttvInbox: true,
+          requestDateFrom: window.fromYmd,
+        })
+      );
+      return NextResponse.json({
+        configured: true,
+        tickets,
+        calendarStamps: stampsForTickets(auth.userId, tickets),
+        statuses: [TTV_INBOX_STATUS_ID],
+        overdueOnly: false,
+        filterMode: "ttv" as const,
+        requestDateFrom: window.fromYmd,
+        requestDateTo: window.toYmd,
+        defaultHandledBy,
+      });
+    }
+
     const statuses = parseStatusIdsParam(
       url.searchParams.get("status"),
       WORK_STATUS_IDS
@@ -69,12 +100,7 @@ export async function GET(request: Request) {
         overdueOnly,
         cardCodes,
         filterMode: "customer" as const,
-        defaultHandledBy:
-          normalizeMariEmployeeNumber(
-            auth.userId != null
-              ? getAppUserById(auth.userId)?.mari_employee_number
-              : null
-          ) || cfg.employeeNumber.trim().toUpperCase(),
+        defaultHandledBy,
       });
     }
 
@@ -82,10 +108,6 @@ export async function GET(request: Request) {
       url.searchParams.get("handledBy") ||
       url.searchParams.get("employee") ||
       null;
-    const userEmp =
-      auth.userId != null
-        ? getAppUserById(auth.userId)?.mari_employee_number
-        : null;
     const handledBy =
       normalizeMariEmployeeNumber(handledByParam) ||
       normalizeMariEmployeeNumber(userEmp) ||
@@ -116,9 +138,7 @@ export async function GET(request: Request) {
         overdueOnly,
         handledBy,
       filterMode: "handler" as const,
-      defaultHandledBy:
-        normalizeMariEmployeeNumber(userEmp) ||
-        cfg.employeeNumber.trim().toUpperCase(),
+      defaultHandledBy,
     });
   } catch (err) {
     const message =

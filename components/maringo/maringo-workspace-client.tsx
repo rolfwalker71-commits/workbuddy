@@ -96,6 +96,7 @@ import type {
 import {
   DEFAULT_MARI_LIST_META_FIELDS,
   MARI_LIST_META_FIELD_OPTIONS,
+  isMariTicketFilterMode,
   parseMariTicketFilterPrefsPatch,
   readMariTicketFilterPrefsLocal,
   writeMariTicketFilterPrefsLocal,
@@ -934,6 +935,27 @@ export function MaringoWorkspaceClient() {
       setListCalendarStamps(next);
     };
     try {
+      if (filterMode === "ttv") {
+        const res = await fetch("/api/maringo/tickets?filterMode=ttv");
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 503) {
+          setConfigured(false);
+          setPasswordUnreadable(Boolean(data.mariPasswordUnreadable));
+          setTickets([]);
+          setListCalendarStamps({});
+          return;
+        }
+        setConfigured(true);
+        setPasswordUnreadable(false);
+        if (!res.ok) throw new Error(data.error || "Liste fehlgeschlagen");
+        setTickets(Array.isArray(data.tickets) ? data.tickets : []);
+        applyStamps(data.calendarStamps);
+        if (typeof data.defaultHandledBy === "string" && data.defaultHandledBy) {
+          setDefaultHandledBy(String(data.defaultHandledBy).toUpperCase());
+        }
+        return;
+      }
+
       if (filterMode === "customer") {
         if (!selectedCardCodesKey) {
           setConfigured(true);
@@ -1121,7 +1143,7 @@ export function MaringoWorkspaceClient() {
       if (typeof patch.overdueOnly === "boolean") {
         setOverdueOnly(patch.overdueOnly);
       }
-      if (patch.filterMode === "handler" || patch.filterMode === "customer") {
+      if (isMariTicketFilterMode(patch.filterMode)) {
         setFilterMode(patch.filterMode);
       }
       if (patch.timelineSort === "newest" || patch.timelineSort === "oldest") {
@@ -1979,7 +2001,9 @@ export function MaringoWorkspaceClient() {
             <div className="min-w-0">
               <p className="text-[0.8125rem] font-black tracking-tight">Tickets</p>
               <p className="text-[0.6875rem] text-muted-foreground">
-                {tickets.length} Ticket{tickets.length === 1 ? "" : "s"}
+                {filterMode === "ttv"
+                  ? `${tickets.length} neu (heute + gestern)`
+                  : `${tickets.length} Ticket${tickets.length === 1 ? "" : "s"}`}
               </p>
             </div>
             <Button
@@ -2000,69 +2024,73 @@ export function MaringoWorkspaceClient() {
 
           <div className="space-y-1.5 border-b border-border/50 px-3 py-2">
             <div className="flex flex-wrap items-center gap-1.5">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={selectAllWorkStatuses}
-                className={cn(
-                  "h-auto rounded-full px-2.5 py-1 text-[0.6875rem] font-semibold",
-                  statuses.length === WORK_STATUS_IDS.length && !overdueOnly
-                    ? "border-orange-200/90 bg-orange-50/80 text-orange-900 dark:border-orange-400/35 dark:bg-orange-500/15 dark:text-orange-100"
-                    : "border-border/70 bg-background text-muted-foreground hover:bg-muted/40"
-                )}
-              >
-                Meine
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setOverdueOnly((v) => !v)}
-                className={cn(
-                  "h-auto rounded-full px-2.5 py-1 text-[0.6875rem] font-semibold",
-                  overdueOnly
-                    ? "border-rose-300 bg-rose-50 text-rose-950 dark:border-rose-400/40 dark:bg-rose-500/15 dark:text-rose-100"
-                    : "border-border/70 bg-background text-muted-foreground hover:bg-muted/40"
-                )}
-              >
-                Überfällig
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7 rounded-full px-2.5 text-[0.6875rem] font-semibold"
-                    />
-                  }
-                >
-                  Status · {statuses.length}
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="max-h-80 w-60 overflow-y-auto">
-                  <DropdownMenuGroup>
-                    <DropdownMenuLabel>Status (Mehrfachauswahl)</DropdownMenuLabel>
-                    {ALL_STATUS_IDS.map((id) => (
-                      <DropdownMenuCheckboxItem
-                        key={id}
-                        checked={statuses.includes(id)}
-                        onCheckedChange={() => toggleStatus(id)}
-                      >
-                        {STATUS_LABELS[id] || `Status ${id}`}
-                      </DropdownMenuCheckboxItem>
-                    ))}
-                  </DropdownMenuGroup>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={selectAllWorkStatuses}>
-                    Alle Arbeitsstatus
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={selectAllStatuses}>
-                    Alle Status
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {filterMode !== "ttv" ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={selectAllWorkStatuses}
+                    className={cn(
+                      "h-auto rounded-full px-2.5 py-1 text-[0.6875rem] font-semibold",
+                      statuses.length === WORK_STATUS_IDS.length && !overdueOnly
+                        ? "border-orange-200/90 bg-orange-50/80 text-orange-900 dark:border-orange-400/35 dark:bg-orange-500/15 dark:text-orange-100"
+                        : "border-border/70 bg-background text-muted-foreground hover:bg-muted/40"
+                    )}
+                  >
+                    Meine
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setOverdueOnly((v) => !v)}
+                    className={cn(
+                      "h-auto rounded-full px-2.5 py-1 text-[0.6875rem] font-semibold",
+                      overdueOnly
+                        ? "border-rose-300 bg-rose-50 text-rose-950 dark:border-rose-400/40 dark:bg-rose-500/15 dark:text-rose-100"
+                        : "border-border/70 bg-background text-muted-foreground hover:bg-muted/40"
+                    )}
+                  >
+                    Überfällig
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 rounded-full px-2.5 text-[0.6875rem] font-semibold"
+                        />
+                      }
+                    >
+                      Status · {statuses.length}
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="max-h-80 w-60 overflow-y-auto">
+                      <DropdownMenuGroup>
+                        <DropdownMenuLabel>Status (Mehrfachauswahl)</DropdownMenuLabel>
+                        {ALL_STATUS_IDS.map((id) => (
+                          <DropdownMenuCheckboxItem
+                            key={id}
+                            checked={statuses.includes(id)}
+                            onCheckedChange={() => toggleStatus(id)}
+                          >
+                            {STATUS_LABELS[id] || `Status ${id}`}
+                          </DropdownMenuCheckboxItem>
+                        ))}
+                      </DropdownMenuGroup>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={selectAllWorkStatuses}>
+                        Alle Arbeitsstatus
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={selectAllStatuses}>
+                        Alle Status
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </>
+              ) : null}
               <div className="ml-auto inline-flex items-center gap-0.5 rounded-full border border-border/70 p-0.5">
                 <Button
                   type="button"
@@ -2098,7 +2126,11 @@ export function MaringoWorkspaceClient() {
                 </Button>
               </div>
             </div>
-            {statuses.length > 0 ? (
+            {filterMode === "ttv" ? (
+              <p className="truncate text-[0.6875rem] leading-snug text-muted-foreground">
+                Status NEU · heute + gestern · alle Bearbeiter
+              </p>
+            ) : statuses.length > 0 ? (
               <p
                 className="truncate text-[0.6875rem] leading-snug text-muted-foreground"
                 title={statuses
@@ -2140,9 +2172,32 @@ export function MaringoWorkspaceClient() {
                 >
                   Kunde
                 </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  title="Ticket-Tagesverantwortlicher — neue Tickets von heute und gestern"
+                  onClick={() => {
+                    setFilterMode("ttv");
+                    setListSort("newest");
+                  }}
+                  className={cn(
+                    "h-auto flex-1 rounded-md px-2 py-1 text-[0.6875rem] font-semibold",
+                    filterMode === "ttv"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  TTV
+                </Button>
               </div>
 
-              {filterMode === "handler" ? (
+              {filterMode === "ttv" ? (
+                <p className="text-[0.625rem] text-muted-foreground">
+                  Alle neuen Tickets (Status NEU) der letzten zwei Tage,
+                  unabhängig vom Bearbeiter. Neueste oben.
+                </p>
+              ) : filterMode === "handler" ? (
                 <div>
                   <Label htmlFor="mari-handler" className="sr-only">
                     Bearbeiter
@@ -2369,9 +2424,11 @@ export function MaringoWorkspaceClient() {
             ) : null}
             {!listLoading && tickets.length === 0 ? (
               <li className="px-3 py-8 text-center text-sm text-muted-foreground">
-                {filterMode === "customer" && selectedCustomers.length === 0
-                  ? "Kunde wählen, um Tickets zu laden."
-                  : "Keine Tickets für die gewählten Filter."}
+                {filterMode === "ttv"
+                  ? "Keine neuen Tickets von heute oder gestern."
+                  : filterMode === "customer" && selectedCustomers.length === 0
+                    ? "Kunde wählen, um Tickets zu laden."
+                    : "Keine Tickets für die gewählten Filter."}
               </li>
             ) : null}
             {sortedTickets.map((t) => {
@@ -2418,6 +2475,12 @@ export function MaringoWorkspaceClient() {
                           {t.briefDescription}
                         </p>
                       </div>
+                      {filterMode === "ttv" &&
+                      (t.handledByName || t.handledBy) ? (
+                        <p className="mt-0.5 truncate text-[0.625rem] text-muted-foreground">
+                          {t.handledByName || t.handledBy}
+                        </p>
+                      ) : null}
                       {metaItems.length > 0 ? (
                         <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[0.6875rem] text-muted-foreground">
                           {metaItems.map((item, idx) => (

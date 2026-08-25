@@ -24,6 +24,11 @@ import {
   statusChipLabel,
 } from "@/lib/mari/status";
 import {
+  TTV_INBOX_STATUS_ID,
+  sanitizeYmd,
+  ttvInboxDateWindow,
+} from "@/lib/mari/ttv";
+import {
   normalizeMariDueDate,
   sanitizeMariProjectNumber,
 } from "@/lib/mari/timekeeping-shared";
@@ -164,6 +169,12 @@ export type ListTicketsOptions = {
    * Mutually exclusive with employee filter in the API layer.
    */
   cardCodes?: string[];
+  /**
+   * TTV-Eingang: Status NEU, alle Bearbeiter, RequestDate ab
+   * requestDateFrom (heute + gestern wenn leer).
+   */
+  ttvInbox?: boolean;
+  requestDateFrom?: string | null;
 };
 
 export type MariEmployeeOption = {
@@ -253,8 +264,10 @@ export async function listMyTickets(
   options: ListTicketsOptions = {}
 ): Promise<MariTicketListItem[]> {
   requireMariConfig();
-  const statuses =
-    options.statuses && options.statuses.length > 0
+  const ttvInbox = options.ttvInbox === true;
+  const statuses = ttvInbox
+    ? [TTV_INBOX_STATUS_ID]
+    : options.statuses && options.statuses.length > 0
       ? options.statuses.filter((n) => Number.isInteger(n) && n > 0)
       : [...WORK_STATUS_IDS];
   if (statuses.length === 0) return [];
@@ -266,14 +279,16 @@ export async function listMyTickets(
         .filter((c) => c.length > 0 && c.length <= 50)
     ),
   ].slice(0, 40);
-  const byCustomer = cardCodes.length > 0;
+  const byCustomer = !ttvInbox && cardCodes.length > 0;
   const limit = Math.min(
-    Math.max(options.limit ?? (byCustomer ? 200 : 100), 1),
+    Math.max(options.limit ?? (ttvInbox || byCustomer ? 200 : 100), 1),
     200
   );
 
   let ownerClause: string;
-  if (byCustomer) {
+  if (ttvInbox) {
+    ownerClause = "1 = 1";
+  } else if (byCustomer) {
     ownerClause = `i."CardCode" IN (${cardCodes.map(sqlQuote).join(",")})`;
   } else {
     const cfg = requireMariConfig();
@@ -290,9 +305,21 @@ export async function listMyTickets(
   }
 
   const statusList = statuses.join(",");
-  const overdueClause = options.overdueOnly
-    ? ` AND i."DueDate" IS NOT NULL AND i."DueDate" < CURRENT_DATE `
+  const overdueClause =
+    !ttvInbox && options.overdueOnly
+      ? ` AND i."DueDate" IS NOT NULL AND i."DueDate" < CURRENT_DATE `
+      : "";
+  const requestDateFrom = ttvInbox
+    ? sanitizeYmd(options.requestDateFrom) || ttvInboxDateWindow().fromYmd
+    : null;
+  const requestDateClause = requestDateFrom
+    ? ` AND i."RequestDate" IS NOT NULL AND CAST(i."RequestDate" AS DATE) >= ${sqlQuote(requestDateFrom)} `
     : "";
+  const orderBy = ttvInbox
+    ? `i."RequestDate" DESC, i."IssueID" DESC`
+    : `CASE WHEN i."DueDate" IS NULL THEN 1 ELSE 0 END,
+  i."DueDate",
+  i."IssueID"`;
 
   const rows = await mariSql<{
     IssueID: number;
@@ -371,10 +398,9 @@ WHERE ${ownerClause}
   AND i."HotlineClassType" = ${SUPPORT_HOTLINE_CLASS_TYPE}
   AND i."Status" IN (${statusList})
   ${overdueClause}
+  ${requestDateClause}
 ORDER BY
-  CASE WHEN i."DueDate" IS NULL THEN 1 ELSE 0 END,
-  i."DueDate",
-  i."IssueID"`
+  ${orderBy}`
   );
 
   return rows.map((r) => {

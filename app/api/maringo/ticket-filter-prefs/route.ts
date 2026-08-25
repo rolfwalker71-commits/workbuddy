@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 const PutSchema = z.object({
   statuses: z.array(z.number().int().positive()).optional(),
   overdueOnly: z.boolean().optional(),
-  filterMode: z.enum(["handler", "customer"]).optional(),
+  filterMode: z.enum(["handler", "customer", "ttv"]).optional(),
   customers: z
     .array(
       z.object({

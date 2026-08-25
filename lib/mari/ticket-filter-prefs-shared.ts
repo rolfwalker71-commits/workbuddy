@@ -1,6 +1,14 @@
 /** Client-safe Maringo ticket filter / list-meta types (no Node/SQLite). */
 
-export type MariTicketFilterMode = "handler" | "customer";
+export const MARI_TICKET_FILTER_MODES = ["handler", "customer", "ttv"] as const;
+
+export type MariTicketFilterMode = (typeof MARI_TICKET_FILTER_MODES)[number];
+
+export function isMariTicketFilterMode(
+  raw: unknown
+): raw is MariTicketFilterMode {
+  return raw === "handler" || raw === "customer" || raw === "ttv";
+}
 
 /** Verlauf: newest = aktuellste Nachricht oben */
 export type MariTimelineSort = "newest" | "oldest";
@@ -104,7 +112,7 @@ export function parseMariTicketFilterPrefsPatch(
     if (statuses.length > 0) out.statuses = statuses;
   }
   if (typeof o.overdueOnly === "boolean") out.overdueOnly = o.overdueOnly;
-  if (o.filterMode === "handler" || o.filterMode === "customer") {
+  if (isMariTicketFilterMode(o.filterMode)) {
     out.filterMode = o.filterMode;
   }
   if (o.timelineSort === "newest" || o.timelineSort === "oldest") {
