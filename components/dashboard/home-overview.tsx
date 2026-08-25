@@ -558,18 +558,6 @@ export function HomeOverview() {
     [data?.todayEvents, zurichNow]
   );
 
-  const nextEvent = useMemo(() => {
-    if (todayEvents.length > 0) {
-      return todayEvents.find((e) => !e.done) || todayEvents[0] || null;
-    }
-    const events = filterTodayEventsAfterGrace(
-      data?.microsoft?.events || data?.google?.events || [],
-      zurichNow.ymd,
-      zurichNow.hm
-    );
-    return events.find((e) => !e.done) || events[0] || null;
-  }, [data, todayEvents, zurichNow]);
-
   const mailSample =
     data?.todayMail[0] ||
     data?.microsoft?.mailInbox[0] ||
@@ -743,39 +731,31 @@ export function HomeOverview() {
                 ? "Google Workspace"
                 : "Microsoft 365"}
           </h2>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <FocusTile
-              href={calendarHref}
-              icon={CalendarDays}
-              eyebrow="Nächster Termin"
-              title={
-                nextEvent && "title" in nextEvent
-                  ? nextEvent.title
-                  : nextEvent && "subject" in nextEvent
-                    ? nextEvent.subject
-                    : detailsLoading
-                      ? "Termine werden geladen…"
-                      : "Keine Termine"
-              }
-              detail={
-                nextEvent
-                  ? [
-                      "time" in nextEvent
-                        ? nextEvent.time
-                        : "startHm" in nextEvent
-                          ? nextEvent.startHm
-                          : null,
-                      nextEvent.location,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ") || "Heute"
-                  : detailsLoading
+          <div
+            className={cn(
+              "grid gap-3 sm:grid-cols-2",
+              todayEvents.length === 0 ? "xl:grid-cols-3" : ""
+            )}
+          >
+            {todayEvents.length === 0 ? (
+              <FocusTile
+                href={calendarHref}
+                icon={CalendarDays}
+                eyebrow="Kalender"
+                title={
+                  detailsLoading
+                    ? "Termine werden geladen…"
+                    : "Keine Termine"
+                }
+                detail={
+                  detailsLoading
                     ? "Kalender"
                     : anyMailConnected
                       ? "Kalender öffnen"
                       : "Konto verbinden"
-              }
-            />
+                }
+              />
+            ) : null}
             <FocusTile
               href={mailHref}
               logo={

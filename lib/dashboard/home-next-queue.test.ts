@@ -89,6 +89,39 @@ test("TTV duty hint ranks higher than fallback inbox", () => {
   assert.doesNotMatch(asDuty[0]?.detail || "", /Fallback/);
 });
 
+test("queue keeps only the next meeting in the next 45 minutes", () => {
+  const items = buildHomeNextQueue({
+    nowYmd: "2026-08-25",
+    nowHm: "13:20",
+    events: [
+      ev({
+        id: "soon",
+        title: "AI Wochencall",
+        time: "13:24",
+        endTime: "14:00",
+      }),
+      ev({
+        id: "later",
+        title: "Rinco Hana",
+        time: "14:00",
+        endTime: "14:30",
+      }),
+    ],
+    tickets: [],
+    pendingStamps: [],
+    tasks: [],
+    ttvInboxCount: 0,
+    iAmTtv: false,
+  });
+  assert.equal(items.length, 1);
+  assert.equal(items[0]?.kind, "event-soon");
+  assert.match(items[0]?.title || "", /AI Wochencall/);
+  assert.equal(
+    items.some((i) => i.kind === "event-later" || /Rinco/.test(i.title)),
+    false
+  );
+});
+
 test("pending stamp after meeting becomes hours item", () => {
   const items = buildHomeNextQueue({
     nowYmd: "2026-08-25",

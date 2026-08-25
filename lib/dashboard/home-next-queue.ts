@@ -13,8 +13,7 @@ export type HomeNextQueueKind =
   | "ticket-overdue"
   | "hours-pending"
   | "ttv-inbox"
-  | "task-overdue"
-  | "event-later";
+  | "task-overdue";
 
 export type HomeNextQueueItem = {
   id: string;
@@ -31,7 +30,6 @@ const KIND_RANK: Record<HomeNextQueueKind, number> = {
   "hours-pending": 30,
   "ttv-inbox": 40,
   "task-overdue": 50,
-  "event-later": 60,
 };
 
 export function buildHomeNextQueue(input: {
@@ -46,39 +44,36 @@ export function buildHomeNextQueue(input: {
 }): HomeNextQueueItem[] {
   const items: HomeNextQueueItem[] = [];
 
-  for (const event of input.events) {
-    if (event.done || event.isAllDay) continue;
-    const until = minutesUntilHm(event.time, input.nowHm);
-    if (until == null || until < 0) continue;
+  const soonEvent = input.events
+    .map((event) => {
+      if (event.done || event.isAllDay) return null;
+      const until = minutesUntilHm(event.time, input.nowHm);
+      if (until == null || until < 0 || until > 45) return null;
+      return { event, until };
+    })
+    .filter((row): row is { event: WorkspaceTodayEvent; until: number } => row != null)
+    .sort((a, b) => a.until - b.until)[0];
+
+  if (soonEvent) {
+    const { event, until } = soonEvent;
     const ticket = event.mari
       ? `#${event.mari.issueId} ${event.mari.briefDescription || event.title}`
       : event.title;
     const href = event.mari
       ? `/maringo?open=${event.mari.issueId}`
       : "/microsoft?tab=calendar";
-    if (until <= 45) {
-      items.push({
-        id: `event-soon:${event.provider}:${event.id}`,
-        kind: "event-soon",
-        title: `${event.time} ${ticket}`,
-        detail: event.mari
-          ? `Termin in ${until} Min · Ticket · Akte`
-          : `Termin in ${until} Min`,
-        href: event.mari?.cardCode
-          ? `/maringo?view=kunde&card=${encodeURIComponent(event.mari.cardCode)}`
-          : href,
-        rank: KIND_RANK["event-soon"] - (event.mari ? 2 : 0),
-      });
-    } else {
-      items.push({
-        id: `event-later:${event.provider}:${event.id}`,
-        kind: "event-later",
-        title: `${event.time} ${ticket}`,
-        detail: "Später heute",
-        href,
-        rank: KIND_RANK["event-later"],
-      });
-    }
+    items.push({
+      id: `event-soon:${event.provider}:${event.id}`,
+      kind: "event-soon",
+      title: `${event.time} ${ticket}`,
+      detail: event.mari
+        ? `Termin in ${until} Min · Ticket · Akte`
+        : `Termin in ${until} Min`,
+      href: event.mari?.cardCode
+        ? `/maringo?view=kunde&card=${encodeURIComponent(event.mari.cardCode)}`
+        : href,
+      rank: KIND_RANK["event-soon"] - (event.mari ? 2 : 0),
+    });
   }
 
   for (const ticket of input.tickets) {

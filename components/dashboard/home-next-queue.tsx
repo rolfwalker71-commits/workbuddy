@@ -17,7 +17,6 @@ const ICONS = {
   "hours-pending": Clock3,
   "ttv-inbox": Inbox,
   "task-overdue": ClipboardList,
-  "event-later": CalendarDays,
 } as const;
 
 export function HomeNextQueue({ items }: { items: HomeNextQueueItem[] }) {
