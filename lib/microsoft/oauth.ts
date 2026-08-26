@@ -540,13 +540,15 @@ export async function finishMicrosoftLogin(
 
 /** Valid access token for Graph calls (refreshes when needed). */
 export async function getMicrosoftAccessToken(
-  userId: number
+  userId: number,
+  options?: { forceRefresh?: boolean }
 ): Promise<string> {
   const stored = readMicrosoftUserTokens(userId);
   if (!stored?.refreshToken) {
     throw new Error("Microsoft 365-Konto nicht verbunden.");
   }
   if (
+    !options?.forceRefresh &&
     stored.accessToken &&
     stored.expiryDate != null &&
     stored.expiryDate > Date.now() + 60_000
@@ -572,4 +574,28 @@ export async function getMicrosoftAccessToken(
   };
   saveMicrosoftUserTokens(userId, next);
   return json.access_token;
+}
+
+/**
+ * Azure admin consent is not enough if the stored token predates the scopes.
+ * Force a refresh (full MICROSOFT_OAUTH_SCOPES) so incremental grants can land.
+ */
+export async function ensureMicrosoftMeetingTranscriptScopes(
+  userId: number
+): Promise<{ hasMeetings: boolean; hasTranscript: boolean }> {
+  if (
+    hasMicrosoftOnlineMeetingsScope(userId) &&
+    hasMicrosoftTranscriptScope(userId)
+  ) {
+    return { hasMeetings: true, hasTranscript: true };
+  }
+  try {
+    await getMicrosoftAccessToken(userId, { forceRefresh: true });
+  } catch {
+    /* keep stored token — caller may ask the user to reconnect */
+  }
+  return {
+    hasMeetings: hasMicrosoftOnlineMeetingsScope(userId),
+    hasTranscript: hasMicrosoftTranscriptScope(userId),
+  };
 }

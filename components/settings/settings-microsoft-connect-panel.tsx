@@ -289,7 +289,8 @@ export function SettingsMicrosoftConnectPanel() {
                   <p className="text-xs text-amber-800">
                     Teams-Chats, Kanäle und Transkripte brauchen eine neue
                     Zustimmung — bitte «Neu verbinden», damit das Token die
-                    neuen Rechte bekommt (u. a. Team.ReadBasic.All,
+                    neuen Rechte bekommt (OnlineMeetings.Read,
+                    OnlineMeetingTranscript.Read.All, Team.ReadBasic.All,
                     Channel.ReadBasic.All).
                   </p>
                 ) : (

@@ -18,6 +18,9 @@ test("Microsoft scopes include mail + calendar + tasks + Teams read", () => {
   assert.ok(MICROSOFT_OAUTH_SCOPES.includes("ChannelMessage.Read.All"));
   assert.ok(MICROSOFT_OAUTH_SCOPES.includes("OnlineMeetings.Read"));
   assert.ok(MICROSOFT_OAUTH_SCOPES.includes("OnlineMeetingTranscript.Read.All"));
+  const authorizeScope = MICROSOFT_OAUTH_SCOPES.join(" ");
+  assert.match(authorizeScope, /OnlineMeetings\.Read/);
+  assert.match(authorizeScope, /OnlineMeetingTranscript\.Read\.All/);
   assert.ok(!(MICROSOFT_OAUTH_SCOPES as readonly string[]).includes("Chat.ReadWrite"));
   assert.ok(
     !(MICROSOFT_OAUTH_SCOPES as readonly string[]).includes("ChatMessage.Send")

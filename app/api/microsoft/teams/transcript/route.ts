@@ -3,8 +3,8 @@ import { isAuthError, requireModule } from "@/lib/auth/current-user";
 import { ensureInitialized } from "@/lib/db/migrations";
 import { getMeetingTranscript } from "@/lib/microsoft/meeting-transcripts";
 import {
+  ensureMicrosoftMeetingTranscriptScopes,
   hasMicrosoftChatScope,
-  hasMicrosoftTranscriptScope,
   isMicrosoftConnected,
   resolveMicrosoftUserId,
 } from "@/lib/microsoft/oauth";
@@ -23,11 +23,12 @@ export async function GET(request: Request) {
       { status: 400 }
     );
   }
-  if (!hasMicrosoftTranscriptScope(userId) && !hasMicrosoftChatScope(userId)) {
+  const scopes = await ensureMicrosoftMeetingTranscriptScopes(userId);
+  if (!scopes.hasTranscript && !hasMicrosoftChatScope(userId)) {
     return NextResponse.json(
       {
         error:
-          "Teams-Rechte fehlen. Unter Konto Microsoft 365 neu verbinden (Chat.Read + OnlineMeetingTranscript.Read.All).",
+          "Im Token fehlen OnlineMeetings.Read und OnlineMeetingTranscript.Read.All. Unter Konto → Microsoft 365 neu verbinden (Zustimmungsdialog).",
         needsReconnect: true,
       },
       { status: 403 }

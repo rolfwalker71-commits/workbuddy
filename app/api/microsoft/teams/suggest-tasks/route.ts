@@ -7,6 +7,7 @@ import { getMeetingTranscript } from "@/lib/microsoft/meeting-transcripts";
 import { listChannelMessages } from "@/lib/microsoft/teams-channels";
 import { listTeamsChatMessages } from "@/lib/microsoft/teams-chats";
 import {
+  ensureMicrosoftMeetingTranscriptScopes,
   hasMicrosoftChannelMessageScope,
   hasMicrosoftChatMessageScope,
   isMicrosoftConnected,
@@ -152,6 +153,7 @@ export async function POST(request: Request) {
       });
     }
 
+    await ensureMicrosoftMeetingTranscriptScopes(userId);
     const transcript = await getMeetingTranscript({
       userId,
       eventId: body.eventId,

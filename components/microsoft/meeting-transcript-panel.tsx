@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { FileText } from "lucide-react";
 import {
   MicrosoftTaskSuggestions,
@@ -70,7 +71,11 @@ export function MeetingTranscriptPanel({
         return;
       }
       if (!res.ok) throw new Error(json.error || "Transkript fehlgeschlagen");
-      setData(json.transcript as TranscriptPayload);
+      const transcript = json.transcript as TranscriptPayload & {
+        needsReconnect?: boolean;
+      };
+      setNeedsReconnect(Boolean(transcript?.needsReconnect));
+      setData(transcript);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -151,9 +156,18 @@ export function MeetingTranscriptPanel({
       </p>
       {loading ? (
         <p className="text-sm text-muted-foreground">Suche Transkript…</p>
-      ) : needsReconnect ? (
+      ) : needsReconnect && !data?.text && !chatFallback.length ? (
         <p className="text-sm text-amber-900 dark:text-amber-100">
-          Transkript-Recht fehlt — unter Konto Microsoft 365 neu verbinden.
+          Im Token fehlen OnlineMeetings.Read oder
+          OnlineMeetingTranscript.Read.All. Unter{" "}
+          <Link
+            href="/account"
+            className="font-medium underline underline-offset-2"
+          >
+            Konto
+          </Link>{" "}
+          Microsoft 365 neu verbinden (Zustimmungsdialog). Die Azure-Freigabe
+          allein reicht nicht.
         </p>
       ) : error ? (
         <p className="text-sm text-destructive">{error}</p>
