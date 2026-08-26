@@ -1,4 +1,5 @@
 import { graphJson, MicrosoftGraphError } from "@/lib/microsoft/graph";
+import { graphODataQuery, graphPath } from "@/lib/microsoft/graph-query";
 import type { TeamsChatMessage } from "@/lib/microsoft/teams-chats";
 import { stripGraphHtml } from "@/lib/microsoft/teams-text";
 
@@ -102,14 +103,10 @@ export async function listJoinedTeams(
   userId: number,
   options?: { top?: number }
 ): Promise<TeamsJoinedTeam[]> {
-  const top = Math.min(Math.max(options?.top ?? 50, 1), 50);
-  const qs = new URLSearchParams({
-    $top: String(top),
-    $select: "id,displayName,description",
-  });
+  // GET /me/joinedTeams rejects all OData options, including $top (Graph 400).
   const data = await graphJson<{ value?: GraphTeam[] }>(
     userId,
-    `/me/joinedTeams?${qs}`
+    graphPath("/me/joinedTeams")
   );
   const items: TeamsJoinedTeam[] = [];
   for (const raw of data.value || []) {
@@ -117,7 +114,9 @@ export async function listJoinedTeams(
     if (team) items.push(team);
   }
   items.sort((a, b) => a.name.localeCompare(b.name, "de"));
-  return items;
+  if (options?.top == null) return items;
+  const limit = Math.min(Math.max(options.top, 1), items.length);
+  return items.slice(0, limit);
 }
 
 export async function listTeamChannels(
@@ -125,14 +124,13 @@ export async function listTeamChannels(
   team: Pick<TeamsJoinedTeam, "id" | "name">,
   options?: { top?: number }
 ): Promise<TeamsChannelItem[]> {
-  const top = Math.min(Math.max(options?.top ?? 50, 1), 50);
-  const qs = new URLSearchParams({
-    $top: String(top),
-    $select: "id,displayName,description,webUrl,membershipType",
+  // List channels supports $select/$filter only — $top returns Graph 400.
+  const qs = graphODataQuery({
+    select: "id,displayName,description,webUrl,membershipType",
   });
   const data = await graphJson<{ value?: GraphChannel[] }>(
     userId,
-    `/teams/${encodeURIComponent(team.id)}/channels?${qs}`
+    graphPath(`/teams/${encodeURIComponent(team.id)}/channels`, qs)
   );
   const items: TeamsChannelItem[] = [];
   for (const raw of data.value || []) {
@@ -140,7 +138,9 @@ export async function listTeamChannels(
     if (channel) items.push(channel);
   }
   items.sort((a, b) => a.name.localeCompare(b.name, "de"));
-  return items;
+  if (options?.top == null) return items;
+  const limit = Math.min(Math.max(options.top, 1), items.length);
+  return items.slice(0, limit);
 }
 
 export async function listJoinedTeamsWithChannels(

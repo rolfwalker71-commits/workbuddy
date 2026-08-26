@@ -1727,7 +1727,7 @@ export function WorkspaceDayClient({
               ) : null}
             </p>
             <nav
-              className={cn(segmentedTrackClass, "h-auto min-h-10")}
+              className={cn(segmentedTrackClass, "overflow-visible")}
               aria-label="Kalender Mail Teams Aufgaben"
             >
               <Button
@@ -1773,7 +1773,7 @@ export function WorkspaceDayClient({
                 className={mailWorkspaceTabClass(tab === "planner", routeHint)}
                 onClick={() => goTab("planner")}
               >
-                <span className="inline-flex items-center gap-0.5">
+                <span className="inline-flex items-center gap-0.5 overflow-visible">
                   {scope === "microsoft" ? (
                     <>
                       <MicrosoftPlannerLogo className="size-4" />
