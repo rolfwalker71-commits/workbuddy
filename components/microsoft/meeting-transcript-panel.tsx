@@ -24,12 +24,14 @@ type TranscriptPayload = {
 export function MeetingTranscriptPanel({
   eventId,
   joinUrl,
+  chatId,
   issueId,
   calendarId,
   compact,
 }: {
   eventId?: string | null;
   joinUrl?: string | null;
+  chatId?: string | null;
   issueId?: number | null;
   calendarId?: string | null;
   compact?: boolean;
@@ -46,7 +48,7 @@ export function MeetingTranscriptPanel({
   const [taskStatus, setTaskStatus] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!eventId && !joinUrl && issueId == null) {
+    if (!eventId && !joinUrl && !chatId && issueId == null) {
       setLoading(false);
       return;
     }
@@ -56,6 +58,7 @@ export function MeetingTranscriptPanel({
     const qs = new URLSearchParams();
     if (eventId) qs.set("eventId", eventId);
     if (joinUrl) qs.set("joinUrl", joinUrl);
+    if (chatId) qs.set("chatId", chatId);
     if (calendarId) qs.set("calendarId", calendarId);
     if (issueId != null) qs.set("issueId", String(issueId));
     try {
@@ -73,7 +76,7 @@ export function MeetingTranscriptPanel({
     } finally {
       setLoading(false);
     }
-  }, [calendarId, eventId, issueId, joinUrl]);
+  }, [calendarId, chatId, eventId, issueId, joinUrl]);
 
   useEffect(() => {
     void load();
@@ -90,6 +93,7 @@ export function MeetingTranscriptPanel({
         body: JSON.stringify({
           eventId: eventId || undefined,
           joinUrl: joinUrl || undefined,
+          chatId: chatId || undefined,
           issueId: issueId ?? undefined,
         }),
       });
@@ -133,7 +137,7 @@ export function MeetingTranscriptPanel({
     }
   }
 
-  if (!eventId && !joinUrl && issueId == null) return null;
+  if (!eventId && !joinUrl && !chatId && issueId == null) return null;
 
   const chatFallback = data?.chatMessages?.length
     ? data.chatMessages

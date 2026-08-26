@@ -45,6 +45,7 @@ export type EventDetailModel = EventArtSubject & {
   provider?: WorkspaceProvider;
   location?: string | null;
   calendarId?: string | null;
+  meetUrl?: string | null;
   mari?: { issueId?: number | null } | null;
 };
 

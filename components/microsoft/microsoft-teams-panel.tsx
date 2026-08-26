@@ -10,6 +10,7 @@ import {
   TeamsAnalysisTrigger,
   useTeamsAnalysis,
 } from "@/components/microsoft/microsoft-teams-analysis";
+import { MeetingTranscriptPanel } from "@/components/microsoft/meeting-transcript-panel";
 import {
   segmentedTrackClass,
   segmentedTriggerClass,
@@ -30,6 +31,7 @@ type ChatItem = {
   lastUpdatedAt: string | null;
   preview: string | null;
   webUrl: string | null;
+  joinUrl: string | null;
   memberNames: string[];
 };
 
@@ -60,7 +62,12 @@ type ChatMessage = {
 type TeamsView = "chats" | "channels";
 
 type OpenTarget =
-  | { kind: "chat"; id: string }
+  | {
+      kind: "chat";
+      id: string;
+      chatType: ChatItem["chatType"];
+      joinUrl: string | null;
+    }
   | { kind: "channel"; teamId: string; channelId: string };
 
 function typeLabel(t: ChatItem["chatType"]): string {
@@ -92,6 +99,10 @@ export function MicrosoftTeamsPanel({
   const [open, setOpen] = useState<OpenTarget | null>(null);
   const [threadTitle, setThreadTitle] = useState("Chat");
   const [threadWebUrl, setThreadWebUrl] = useState<string | null>(null);
+  const [threadChatId, setThreadChatId] = useState<string | null>(null);
+  const [threadChatType, setThreadChatType] =
+    useState<ChatItem["chatType"] | null>(null);
+  const [threadJoinUrl, setThreadJoinUrl] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [msgLoading, setMsgLoading] = useState(false);
   const threadAnalysis = useTeamsAnalysis();
@@ -186,9 +197,17 @@ export function MicrosoftTeamsPanel({
   }, [flyoutWanted, closeFlyout]);
 
   async function openChat(chat: ChatItem) {
-    setOpen({ kind: "chat", id: chat.id });
+    setOpen({
+      kind: "chat",
+      id: chat.id,
+      chatType: chat.chatType,
+      joinUrl: chat.joinUrl,
+    });
     setThreadTitle(chat.title);
     setThreadWebUrl(chat.webUrl);
+    setThreadChatId(chat.id);
+    setThreadChatType(chat.chatType);
+    setThreadJoinUrl(chat.joinUrl);
     resetThread();
     setMsgLoading(true);
     try {
@@ -213,6 +232,9 @@ export function MicrosoftTeamsPanel({
     });
     setThreadTitle(`${channel.teamName} · ${channel.name}`);
     setThreadWebUrl(channel.webUrl);
+    setThreadChatId(null);
+    setThreadChatType(null);
+    setThreadJoinUrl(null);
     resetThread();
     setMsgLoading(true);
     try {
@@ -573,13 +595,24 @@ export function MicrosoftTeamsPanel({
                   </div>
 
                   <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3">
+                    {threadChatType === "meeting" || threadJoinUrl ? (
+                      <div className="mb-3">
+                        <MeetingTranscriptPanel
+                          chatId={threadChatId}
+                          joinUrl={threadJoinUrl}
+                          compact
+                        />
+                      </div>
+                    ) : null}
                     {msgLoading ? (
                       <p className="text-sm text-muted-foreground">
                         Lade Nachrichten…
                       </p>
                     ) : messages.length === 0 ? (
                       <p className="text-sm text-muted-foreground">
-                        Keine Nachrichten in diesem Ausschnitt.
+                        {threadChatType === "meeting" || threadJoinUrl
+                          ? "Keine Chat-Nachrichten — der Inhalt sitzt meist im Transkript darüber."
+                          : "Keine Nachrichten in diesem Ausschnitt."}
                       </p>
                     ) : (
                       <ul className="space-y-2">

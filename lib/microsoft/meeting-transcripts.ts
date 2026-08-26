@@ -3,6 +3,7 @@ import { getPrimaryMariCalendarStampForIssue } from "@/lib/mari/calendar-stamp";
 import { zurichYmd } from "@/lib/microsoft/time";
 import {
   findMeetingChatByJoinUrl,
+  getTeamsChat,
   listTeamsChatMessages,
   type TeamsChatMessage,
 } from "@/lib/microsoft/teams-chats";
@@ -93,11 +94,11 @@ export async function getOutlookEventMeetingInfo(
   }
 }
 
-async function lookupOnlineMeetingId(
+async function lookupOnlineMeeting(
   userId: number,
-  joinUrl: string
+  filter: string
 ): Promise<GraphOnlineMeeting | null> {
-  const encoded = encodeURIComponent(`JoinWebUrl eq '${escapeODataString(joinUrl)}'`);
+  const encoded = encodeURIComponent(filter);
   try {
     const data = await graphJson<{ value?: GraphOnlineMeeting[] }>(
       userId,
@@ -107,12 +108,30 @@ async function lookupOnlineMeetingId(
   } catch (error) {
     if (
       error instanceof MicrosoftGraphError &&
-      (error.status === 403 || error.status === 404)
+      (error.status === 400 || error.status === 403 || error.status === 404)
     ) {
       return null;
     }
     throw error;
   }
+}
+
+async function lookupOnlineMeetingId(
+  userId: number,
+  joinUrl: string,
+  chatId?: string | null
+): Promise<GraphOnlineMeeting | null> {
+  const byJoin = await lookupOnlineMeeting(
+    userId,
+    `JoinWebUrl eq '${escapeODataString(joinUrl)}'`
+  );
+  if (byJoin) return byJoin;
+  const threadId = chatId?.trim();
+  if (!threadId) return null;
+  return lookupOnlineMeeting(
+    userId,
+    `ChatInfo/ThreadId eq '${escapeODataString(threadId)}'`
+  );
 }
 
 async function fetchTranscriptContent(
@@ -191,14 +210,25 @@ export async function getMeetingTranscript(input: {
   eventId?: string | null;
   calendarId?: string | null;
   joinUrl?: string | null;
+  chatId?: string | null;
   issueId?: number | null;
 }): Promise<MeetingTranscriptResult> {
   const { userId } = input;
   let eventId = input.eventId?.trim() || null;
   let calendarId = input.calendarId?.trim() || null;
   let joinUrl = input.joinUrl?.trim() || null;
+  let chatId = input.chatId?.trim() || null;
   let issueId = input.issueId ?? null;
   let subject: string | null = null;
+
+  if (chatId && (!joinUrl || !eventId)) {
+    const chat = await getTeamsChat(userId, chatId);
+    if (chat) {
+      subject = chat.title || subject;
+      joinUrl = joinUrl || chat.joinUrl;
+      eventId = eventId || chat.calendarEventId;
+    }
+  }
 
   if (issueId != null && !eventId) {
     const stamp = getPrimaryMariCalendarStampForIssue(
@@ -231,7 +261,7 @@ export async function getMeetingTranscript(input: {
     });
   }
 
-  const meeting = await lookupOnlineMeetingId(userId, joinUrl);
+  const meeting = await lookupOnlineMeetingId(userId, joinUrl, chatId);
   let transcript: Awaited<ReturnType<typeof fetchTranscriptContent>> | null =
     null;
   if (meeting?.id) {

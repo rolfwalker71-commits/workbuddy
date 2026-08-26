@@ -11,6 +11,7 @@ export type TeamsChatListItem = {
   preview: string | null;
   webUrl: string | null;
   joinUrl: string | null;
+  calendarEventId: string | null;
   memberNames: string[];
 };
 
@@ -27,7 +28,10 @@ type GraphChat = {
   chatType?: string | null;
   lastUpdatedDateTime?: string | null;
   webUrl?: string | null;
-  onlineMeetingInfo?: { joinWebUrl?: string | null } | null;
+  onlineMeetingInfo?: {
+    joinWebUrl?: string | null;
+    calendarEventId?: string | null;
+  } | null;
   members?: Array<{
     displayName?: string | null;
     email?: string | null;
@@ -49,9 +53,34 @@ type GraphChatMessage = {
   body?: { content?: string | null; contentType?: string | null } | null;
 };
 
-function asChatType(raw: string | null | undefined): TeamsChatType {
+export function asChatType(raw: string | null | undefined): TeamsChatType {
   if (raw === "oneOnOne" || raw === "group" || raw === "meeting") return raw;
   return "unknown";
+}
+
+export function mapGraphChat(
+  chat: GraphChat,
+  myId: string | null
+): TeamsChatListItem | null {
+  if (!chat.id) return null;
+  const previewRaw = stripGraphHtml(chat.lastMessagePreview?.body?.content);
+  return {
+    id: chat.id,
+    title: chatTitle(chat, myId),
+    chatType: asChatType(chat.chatType),
+    lastUpdatedAt:
+      chat.lastMessagePreview?.createdDateTime ||
+      chat.lastUpdatedDateTime ||
+      null,
+    preview: previewRaw ? previewText(previewRaw, 96) : null,
+    webUrl: chat.webUrl || null,
+    joinUrl: chat.onlineMeetingInfo?.joinWebUrl?.trim() || null,
+    calendarEventId: chat.onlineMeetingInfo?.calendarEventId?.trim() || null,
+    memberNames: (chat.members || [])
+      .map((m) => m.displayName?.trim())
+      .filter((n): n is string => Boolean(n))
+      .slice(0, 6),
+  };
 }
 
 function chatTitle(chat: GraphChat, myId: string | null): string {
@@ -109,24 +138,8 @@ export async function listTeamsChats(
   }
   const items: TeamsChatListItem[] = [];
   for (const chat of data.value || []) {
-    if (!chat.id) continue;
-    const previewRaw = stripGraphHtml(chat.lastMessagePreview?.body?.content);
-    items.push({
-      id: chat.id,
-      title: chatTitle(chat, meId),
-      chatType: asChatType(chat.chatType),
-      lastUpdatedAt:
-        chat.lastMessagePreview?.createdDateTime ||
-        chat.lastUpdatedDateTime ||
-        null,
-      preview: previewRaw ? previewText(previewRaw, 96) : null,
-      webUrl: chat.webUrl || null,
-      joinUrl: chat.onlineMeetingInfo?.joinWebUrl || null,
-      memberNames: (chat.members || [])
-        .map((m) => m.displayName?.trim())
-        .filter((n): n is string => Boolean(n))
-        .slice(0, 6),
-    });
+    const item = mapGraphChat(chat, meId);
+    if (item) items.push(item);
   }
   items.sort((a, b) =>
     (b.lastUpdatedAt || "").localeCompare(a.lastUpdatedAt || "")
@@ -151,6 +164,29 @@ export async function getLatestTeamsChatSnippet(userId: number): Promise<{
     preview: chat.preview,
     lastUpdatedAt: chat.lastUpdatedAt,
   };
+}
+
+export async function getTeamsChat(
+  userId: number,
+  chatId: string
+): Promise<TeamsChatListItem | null> {
+  const id = chatId.trim();
+  if (!id) return null;
+  try {
+    const chat = await graphJson<GraphChat>(
+      userId,
+      `/me/chats/${encodeURIComponent(id)}?$select=id,topic,chatType,lastUpdatedDateTime,webUrl,onlineMeetingInfo`
+    );
+    return mapGraphChat(chat, null);
+  } catch (error) {
+    if (
+      error instanceof MicrosoftGraphError &&
+      (error.status === 403 || error.status === 404)
+    ) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 export async function listTeamsChatMessages(

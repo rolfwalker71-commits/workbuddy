@@ -37,13 +37,14 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const eventId = params.get("eventId")?.trim() || null;
   const joinUrl = params.get("joinUrl")?.trim() || null;
+  const chatId = params.get("chatId")?.trim() || null;
   const calendarId = params.get("calendarId")?.trim() || null;
   const issueRaw = params.get("issueId");
   const issueId = issueRaw && /^\d+$/.test(issueRaw) ? Number(issueRaw) : null;
 
-  if (!eventId && !joinUrl && issueId == null) {
+  if (!eventId && !joinUrl && !chatId && issueId == null) {
     return NextResponse.json(
-      { error: "eventId, joinUrl oder issueId nötig." },
+      { error: "eventId, joinUrl, chatId oder issueId nötig." },
       { status: 400 }
     );
   }
@@ -53,6 +54,7 @@ export async function GET(request: Request) {
       userId,
       eventId,
       joinUrl,
+      chatId,
       calendarId,
       issueId,
     });

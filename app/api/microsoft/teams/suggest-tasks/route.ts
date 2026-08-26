@@ -96,7 +96,39 @@ export async function POST(request: Request) {
       });
     }
 
-    if (body.chatId) {
+    if (body.chatId && !body.eventId && !body.joinUrl && body.issueId == null) {
+      const fromMeeting = await getMeetingTranscript({
+        userId,
+        chatId: body.chatId,
+      });
+      if (fromMeeting.text || fromMeeting.chatMessages.length > 0) {
+        const fromTranscript = fromMeeting.text
+          ? fromMeeting.text
+              .split("\n")
+              .map((line) => {
+                const idx = line.indexOf(": ");
+                return {
+                  from: idx > 0 ? line.slice(0, idx) : null,
+                  text: idx > 0 ? line.slice(idx + 2) : line,
+                };
+              })
+              .filter((m) => m.text.trim())
+          : [];
+        const messages =
+          fromTranscript.length > 0
+            ? fromTranscript
+            : fromMeeting.chatMessages;
+        const { suggestions, usedAi } = await suggestTasksFromChatMessages(
+          messages,
+          { label: fromMeeting.subject || "Meeting" }
+        );
+        return NextResponse.json({
+          ok: true,
+          suggestions,
+          usedAi,
+          source: fromTranscript.length > 0 ? "transcript" : "meeting_chat",
+        });
+      }
       if (!hasMicrosoftChatMessageScope(userId)) {
         return NextResponse.json(
           {
@@ -124,6 +156,7 @@ export async function POST(request: Request) {
       userId,
       eventId: body.eventId,
       joinUrl: body.joinUrl,
+      chatId: body.chatId,
       issueId: body.issueId ?? null,
     });
     const fromTranscript = transcript.text
