@@ -1,6 +1,8 @@
 /**
- * Hide timed today-events after end + 30 min (FamilyBrain Ablauf rule).
+ * Overview / Ablauf only: hide timed today-events after end + 30 min.
  * All-day / untimed items stay until 23:59 Europe/Zurich.
+ * Do not use on the Kalender tab — that list keeps the full day until
+ * Tagesabschluss (calendar today APIs, no grace filter).
  */
 
 export const EVENT_PAST_GRACE_MINUTES = 30;
@@ -85,7 +87,7 @@ export function filterAblaufTimelineItems<T extends TimedAgendaLike>(
   });
 }
 
-/** Today lists: drop items that already passed end + grace. */
+/** Home / Übersicht today lists: drop items that already passed end + grace. */
 export function filterTodayEventsAfterGrace<T extends TimedAgendaLike>(
   items: T[],
   today: string,

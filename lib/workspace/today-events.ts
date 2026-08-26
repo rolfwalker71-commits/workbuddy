@@ -47,5 +47,6 @@ export async function loadWorkspaceTodayEvents(
     ritualAsWorkspaceTodayEvent,
     getDayCloseSchedule(userId)
   );
+  // Home / Übersicht only. Kalender uses /calendar/today without this filter.
   return filterTodayEventsAfterGrace(withRitual, today, zurichHm());
 }

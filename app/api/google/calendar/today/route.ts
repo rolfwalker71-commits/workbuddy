@@ -8,8 +8,7 @@ import {
 } from "@/lib/google/oauth";
 import { isDayCloseRitualId } from "@/lib/dashboard/day-close-ritual";
 import { attachDayCloseRitualGoogle } from "@/lib/dashboard/day-close-status";
-import { zurichHm, zurichYmd } from "@/lib/microsoft/time";
-import { filterTodayEventsAfterGrace } from "@/lib/workspace/event-grace";
+import { zurichYmd } from "@/lib/microsoft/time";
 import { attachMariToEvents } from "@/lib/workspace/event-mari";
 
 export const runtime = "nodejs";
@@ -30,9 +29,10 @@ export async function GET(request: Request) {
     const today = zurichYmd();
     const raw = await listGoogleEventsToday(userId, request);
     const withRitual = await attachDayCloseRitualGoogle(userId, today, raw);
+    // Full day for Kalender — do not drop past items (overview grace is Home-only).
     const events = await attachMariToEvents(
       userId,
-      filterTodayEventsAfterGrace(withRitual, today, zurichHm()).map((e) => ({
+      withRitual.map((e) => ({
         ...e,
         provider: "google" as const,
       }))

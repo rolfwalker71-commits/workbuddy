@@ -891,6 +891,7 @@ export function WorkspaceDayClient({
     }
   }, [routeHint, msConnected, googleConnected]);
 
+  // Kalender lists the full day (today APIs skip overview grace).
   const visibleEvents = events;
 
   const openEvents = useMemo(

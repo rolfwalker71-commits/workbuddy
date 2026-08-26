@@ -9,8 +9,7 @@ import {
 } from "@/lib/microsoft/oauth";
 import { isDayCloseRitualId } from "@/lib/dashboard/day-close-ritual";
 import { attachDayCloseRitualMs } from "@/lib/dashboard/day-close-status";
-import { zurichHm, zurichYmd } from "@/lib/microsoft/time";
-import { filterTodayEventsAfterGrace } from "@/lib/workspace/event-grace";
+import { zurichYmd } from "@/lib/microsoft/time";
 import { attachMariToEvents } from "@/lib/workspace/event-mari";
 
 export const runtime = "nodejs";
@@ -36,9 +35,10 @@ export async function GET() {
     );
     const raw = agenda.map(microsoftAgendaToReviewEvent);
     const withRitual = await attachDayCloseRitualMs(userId, today, raw);
+    // Full day for Kalender — do not drop past items (overview grace is Home-only).
     const events = await attachMariToEvents(
       userId,
-      filterTodayEventsAfterGrace(withRitual, today, zurichHm()).map((e) => ({
+      withRitual.map((e) => ({
         ...e,
         provider: "microsoft" as const,
       }))
