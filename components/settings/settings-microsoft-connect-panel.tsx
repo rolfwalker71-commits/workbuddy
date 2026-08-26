@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { MicrosoftLogo } from "@/components/branding/provider-logos";
+import { useAuth } from "@/components/auth/auth-provider";
 import { cn } from "@/lib/utils";
 
 type Connection = {
@@ -42,7 +43,10 @@ type Probe = {
 
 export function SettingsMicrosoftConnectPanel() {
   const searchParams = useSearchParams();
+  const { refresh: refreshAuth } = useAuth();
   const [data, setData] = useState<Connection | null>(null);
+  const [teamsEnabled, setTeamsEnabled] = useState(true);
+  const [teamsSaving, setTeamsSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [probing, setProbing] = useState(false);
@@ -62,6 +66,15 @@ export function SettingsMicrosoftConnectPanel() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Status laden fehlgeschlagen");
       setData(json as Connection);
+      try {
+        const accRes = await fetch("/api/account");
+        const accJson = await accRes.json().catch(() => ({}));
+        if (accRes.ok) {
+          setTeamsEnabled(accJson.teamsEnabled !== false);
+        }
+      } catch {
+        /* keep default on */
+      }
       if (json.connected) {
         try {
           const sigRes = await fetch("/api/microsoft/mail/signature");
@@ -118,6 +131,28 @@ export function SettingsMicrosoftConnectPanel() {
       setError(`Verbindung fehlgeschlagen: ${reason}`);
     }
   }, [searchParams, load]);
+
+  async function saveTeamsEnabled(next: boolean) {
+    setTeamsSaving(true);
+    setTeamsEnabled(next);
+    setError(null);
+    try {
+      const res = await fetch("/api/account", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teamsEnabled: next }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Teams-Einstellung fehlgeschlagen");
+      setTeamsEnabled(json.teamsEnabled !== false);
+      await refreshAuth();
+    } catch (err) {
+      setTeamsEnabled(!next);
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTeamsSaving(false);
+    }
+  }
 
   async function disconnect() {
     if (!window.confirm("Dein Microsoft 365-Konto von Buddy trennen?")) return;
@@ -301,6 +336,24 @@ export function SettingsMicrosoftConnectPanel() {
                 Mein Microsoft 365 verbinden
               </a>
             )}
+            <div className="flex items-start gap-3 rounded-xl border border-border/60 bg-muted/30 px-3 py-3">
+              <input
+                id="ms-teams-enabled"
+                type="checkbox"
+                className="mt-1 size-4 accent-[var(--brand-docs)]"
+                checked={teamsEnabled}
+                disabled={teamsSaving}
+                onChange={(e) => void saveTeamsEnabled(e.target.checked)}
+              />
+              <div className="min-w-0 space-y-1">
+                <Label htmlFor="ms-teams-enabled" className="cursor-pointer">
+                  Teams
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Chats, Kanäle, Analyse und Karte auf Home.
+                </p>
+              </div>
+            </div>
             {data?.connected ? (
               <div className="space-y-3 rounded-xl border border-border/60 bg-muted/15 p-3">
                 <div className="space-y-1">

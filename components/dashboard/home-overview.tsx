@@ -565,8 +565,11 @@ export function HomeOverview() {
     data?.google && !data.microsoft
       ? "/google?tab=mail&view=tagesanalysen"
       : "/microsoft?tab=mail&view=tagesanalysen";
-  const lastTeams = data?.microsoft?.connected
-    ? data.microsoft.lastTeams ?? null
+  const showTeamsCard = Boolean(
+    data?.microsoft?.connected && data.microsoft.teamsEnabled !== false
+  );
+  const lastTeams = showTeamsCard
+    ? data?.microsoft?.lastTeams ?? null
     : null;
   const teamsHref = lastTeams
     ? `/microsoft?tab=teams&chat=${encodeURIComponent(lastTeams.chatId)}`
@@ -732,9 +735,9 @@ export function HomeOverview() {
           <div
             className={cn(
               "grid gap-3 sm:grid-cols-2",
-              todayEvents.length === 0 && data.microsoft?.connected
+              todayEvents.length === 0 && showTeamsCard
                 ? "xl:grid-cols-4"
-                : todayEvents.length === 0 || data.microsoft?.connected
+                : todayEvents.length === 0 || showTeamsCard
                   ? "xl:grid-cols-3"
                   : ""
             )}
@@ -810,7 +813,7 @@ export function HomeOverview() {
                   : "Analyse im Mail-Tab starten"
               }
             />
-            {data.microsoft?.connected ? (
+            {showTeamsCard ? (
               <FocusTile
                 href={teamsHref}
                 logo={<MicrosoftTeamsLogo className="size-5" />}

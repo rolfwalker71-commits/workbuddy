@@ -57,6 +57,7 @@ function ensureUsersColumns(db: Database.Database): void {
     ["chat_model", "TEXT"],
     ["google_oauth_client_id", "TEXT"],
     ["google_oauth_client_secret_enc", "TEXT"],
+    ["teams_enabled", "INTEGER"],
   ];
   for (const [name, ddl] of adds) {
     if (!names.has(name)) {

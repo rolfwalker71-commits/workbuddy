@@ -9,6 +9,10 @@ import {
   isMicrosoftConnected,
   resolveMicrosoftUserId,
 } from "@/lib/microsoft/oauth";
+import {
+  isUserTeamsEnabled,
+  teamsPreferenceOffResponse,
+} from "@/lib/microsoft/teams-prefs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,6 +22,7 @@ export async function GET(request: Request) {
   const auth = await requireModule("microsoft");
   if (isAuthError(auth)) return auth;
   const userId = resolveMicrosoftUserId(auth);
+  if (!isUserTeamsEnabled(userId)) return teamsPreferenceOffResponse();
   if (userId == null || !isMicrosoftConnected(userId)) {
     return NextResponse.json(
       { error: "Microsoft 365 nicht verbunden." },

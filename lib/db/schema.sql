@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS users (
   google_oauth_client_id TEXT,
   google_oauth_client_secret_enc TEXT,
   notification_prefs TEXT,
+  teams_enabled INTEGER,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

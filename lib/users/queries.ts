@@ -33,6 +33,7 @@ export type AppUserRow = {
   google_oauth_client_id: string | null;
   google_oauth_client_secret_enc: string | null;
   notification_prefs: string | null;
+  teams_enabled: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -113,6 +114,10 @@ function coerceUserRow(row: AppUserRow & { mari_rest_password?: string | null })
     google_oauth_client_id: row.google_oauth_client_id ?? null,
     google_oauth_client_secret_enc: row.google_oauth_client_secret_enc ?? null,
     notification_prefs: row.notification_prefs ?? null,
+    teams_enabled:
+      row.teams_enabled === 0 || row.teams_enabled === 1
+        ? row.teams_enabled
+        : null,
   };
 }
 
@@ -228,6 +233,7 @@ export function updateAppUser(
     googleOauthClientId?: string | null;
     googleOauthClientSecret?: string | null;
     clearGoogleOauthClientSecret?: boolean;
+    teamsEnabled?: boolean;
   }
 ): AppUserRow {
   const existing = getAppUserById(id);
@@ -313,6 +319,7 @@ export function updateAppUser(
          chat_model = ?,
          google_oauth_client_id = ?,
          google_oauth_client_secret_enc = ?,
+         teams_enabled = ?,
          updated_at = ?
        WHERE id = ?`
     ).run(
@@ -346,6 +353,11 @@ export function updateAppUser(
         : existing.chat_model,
       googleOauthClientId,
       googleOauthClientSecretEnc,
+      input.teamsEnabled !== undefined
+        ? input.teamsEnabled
+          ? 1
+          : 0
+        : existing.teams_enabled,
       nowIso(),
       id
     );

@@ -137,15 +137,15 @@ function clampMailRange(from: string, to: string): { from: string; to: string } 
 
 type Tab = "calendar" | "mail" | "planner" | "teams";
 
-function parseTab(raw: string | null, _openId: string | null): Tab {
-  if (
-    raw === "calendar" ||
-    raw === "planner" ||
-    raw === "mail" ||
-    raw === "teams"
-  ) {
+function parseTab(
+  raw: string | null,
+  _openId: string | null,
+  teamsEnabled = true
+): Tab {
+  if (raw === "calendar" || raw === "planner" || raw === "mail") {
     return raw;
   }
+  if (raw === "teams") return teamsEnabled ? "teams" : "mail";
   if (raw === "inbox" || raw === "triage" || raw === "day") return "mail";
   return "mail";
 }
@@ -599,10 +599,11 @@ export function WorkspaceDayClient({
     (pathname.startsWith("/google") ? "google" : "microsoft");
   const wantMs = scope === "microsoft" && modules.includes("microsoft");
   const wantGoogle = scope === "google" && modules.includes("google");
+  const teamsEnabled = me?.teamsEnabled !== false;
   const routeHint = scope;
 
   const [tab, setTab] = useState<Tab>(() =>
-    parseTab(searchParams.get("tab"), searchParams.get("open"))
+    parseTab(searchParams.get("tab"), searchParams.get("open"), true)
   );
   const [mailView, setMailView] = useState<MailWorkspaceView>(() =>
     parseMailView(searchParams.get("view"), searchParams.get("tab"))
@@ -823,13 +824,9 @@ export function WorkspaceDayClient({
 
   useEffect(() => {
     const t = searchParams.get("tab");
-    if (t) setTab(parseTab(t, searchParams.get("open")));
+    if (t) setTab(parseTab(t, searchParams.get("open"), teamsEnabled));
     setMailView(parseMailView(searchParams.get("view"), t));
-  }, [searchParams]);
-
-  useEffect(() => {
-    if (scope !== "microsoft" && tab === "teams") setTab("mail");
-  }, [scope, tab]);
+  }, [searchParams, teamsEnabled]);
 
   const replaceQuery = useCallback(
     (patch: Record<string, string | null>) => {
@@ -843,6 +840,18 @@ export function WorkspaceDayClient({
     },
     [searchParams, pathname, router]
   );
+
+  useEffect(() => {
+    if (searchParams.get("tab") !== "teams") {
+      if (tab === "teams" && (scope !== "microsoft" || !teamsEnabled)) {
+        setTab("mail");
+      }
+      return;
+    }
+    if (scope === "microsoft" && teamsEnabled) return;
+    setTab("mail");
+    replaceQuery({ tab: "mail", chat: null });
+  }, [scope, tab, teamsEnabled, searchParams, replaceQuery]);
 
   function goTab(next: Tab) {
     setTab(next);
@@ -1671,7 +1680,9 @@ export function WorkspaceDayClient({
         description={
           scope === "google"
             ? "Gmail, Kalender und Tasks."
-            : "Outlook-Chronik, Kalender, Teams-Chats und Kanäle, Tagesanalysen — plus Planner und Slot-Suche."
+            : teamsEnabled
+              ? "Outlook-Chronik, Kalender, Teams-Chats und Kanäle, Tagesanalysen — plus Planner und Slot-Suche."
+              : "Outlook-Chronik, Kalender, Tagesanalysen — plus Planner und Slot-Suche."
         }
         logo={
           scope === "google" ? (
@@ -1728,7 +1739,11 @@ export function WorkspaceDayClient({
             </p>
             <nav
               className={cn(segmentedTrackClass, "overflow-visible")}
-              aria-label="Kalender Mail Teams Aufgaben"
+              aria-label={
+                scope === "microsoft" && teamsEnabled
+                  ? "Kalender Mail Teams Aufgaben"
+                  : "Kalender Mail Aufgaben"
+              }
             >
               <Button
                 type="button"
@@ -1754,7 +1769,7 @@ export function WorkspaceDayClient({
                 <CalendarClock className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
                 Kalender
               </Button>
-              {scope === "microsoft" ? (
+              {scope === "microsoft" && teamsEnabled ? (
                 <Button
                   type="button"
                   variant="ghost"
@@ -2023,7 +2038,7 @@ export function WorkspaceDayClient({
                 providerScope={scope}
               />
             </section>
-          ) : tab === "teams" && scope === "microsoft" ? (
+          ) : tab === "teams" && scope === "microsoft" && teamsEnabled ? (
             <MicrosoftTeamsPanel initialChatId={searchParams.get("chat")} />
           ) : tab === "planner" ? (
             <section className="space-y-3">

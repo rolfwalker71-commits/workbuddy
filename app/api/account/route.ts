@@ -14,6 +14,7 @@ import {
   getCompanyAiPublic,
   omitPersonalAiAccountPut,
 } from "@/lib/ai/company-provider";
+import { parseTeamsEnabled } from "@/lib/microsoft/teams-prefs";
 
 function openaiAccountPayload(row: AppUserRow | null) {
   const company = getCompanyAiPublic();
@@ -28,6 +29,21 @@ function openaiAccountPayload(row: AppUserRow | null) {
     hasChatKey: Boolean(row?.chat_api_key_enc) || company.enabled,
     chatBaseUrl: row?.chat_base_url || "",
     chatModel: row?.chat_model || "",
+  };
+}
+
+function accountPayload(userId: number) {
+  const user = getAppUserPublic(userId);
+  const row = getAppUserById(userId);
+  return {
+    user,
+    mari: getMariSettingsPublic(userId),
+    openai: openaiAccountPayload(row),
+    google: {
+      clientId: row?.google_oauth_client_id || "",
+      hasGoogleOauthClient: Boolean(row?.google_oauth_client_secret_enc),
+    },
+    teamsEnabled: parseTeamsEnabled(row?.teams_enabled),
   };
 }
 
@@ -50,6 +66,7 @@ const PutSchema = z.object({
   googleOauthClientId: z.string().optional().nullable(),
   googleOauthClientSecret: z.string().optional(),
   clearGoogleOauthClientSecret: z.boolean().optional(),
+  teamsEnabled: z.boolean().optional(),
 });
 
 export async function GET() {
@@ -63,17 +80,7 @@ export async function GET() {
       { status: 400 }
     );
   }
-  const user = getAppUserPublic(userId);
-  const row = getAppUserById(userId);
-  return NextResponse.json({
-    user,
-    mari: getMariSettingsPublic(userId),
-    openai: openaiAccountPayload(row),
-    google: {
-      clientId: row?.google_oauth_client_id || "",
-      hasGoogleOauthClient: Boolean(row?.google_oauth_client_secret_enc),
-    },
-  });
+  return NextResponse.json(accountPayload(userId));
 }
 
 export async function PUT(request: Request) {
@@ -97,18 +104,7 @@ export async function PUT(request: Request) {
       userId,
       omitPersonalAiAccountPut(parsed.data, company.enabled)
     );
-    return NextResponse.json({ ok: true, ...(await (async () => {
-      const row = getAppUserById(userId);
-      return {
-        user: getAppUserPublic(userId),
-        mari: getMariSettingsPublic(userId),
-        openai: openaiAccountPayload(row),
-        google: {
-          clientId: row?.google_oauth_client_id || "",
-          hasGoogleOauthClient: Boolean(row?.google_oauth_client_secret_enc),
-        },
-      };
-    })()) });
+    return NextResponse.json({ ok: true, ...accountPayload(userId) });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : String(error) },

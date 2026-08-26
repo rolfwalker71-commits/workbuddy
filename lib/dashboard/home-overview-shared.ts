@@ -60,6 +60,7 @@ export type HomeProviderBlock = {
   mailDay: HomeMailDaySummary | null;
   tasks: HomeTasksBundle;
   lastTeams?: HomeTeamsSnippet | null;
+  teamsEnabled?: boolean;
 };
 
 export type HomeOverviewPayload = {

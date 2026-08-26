@@ -7,6 +7,7 @@ import {
   isMicrosoftConnected,
 } from "@/lib/microsoft/oauth";
 import { getLatestTeamsChatSnippet } from "@/lib/microsoft/teams-chats";
+import { isUserTeamsEnabled } from "@/lib/microsoft/teams-prefs";
 import {
   getInboxUnreadCount,
   getTodayMicrosoftMailExcerpt,
@@ -190,6 +191,7 @@ export async function getHomeOverview(
   const unreadCount = msConnected ? cached.microsoftUnread : null;
   const googleUnread = googleConnected ? cached.googleUnread : null;
   const weather = cached.weather;
+  const teamsEnabled = isUserTeamsEnabled(userId);
 
   const microsoft: HomeOverviewPayload["microsoft"] = showMs
     ? {
@@ -204,6 +206,7 @@ export async function getHomeOverview(
             : null,
         tasks: emptyTasks({ microsoftConnected: msConnected }),
         lastTeams: null,
+        teamsEnabled,
       }
     : null;
 
@@ -355,7 +358,9 @@ export async function getHomeDetails(
           })
         )
       : Promise.resolve(emptyTasks()),
-    msConnected && hasMicrosoftChatScope(userId)
+    msConnected &&
+    isUserTeamsEnabled(userId) &&
+    hasMicrosoftChatScope(userId)
       ? withTimeout(getLatestTeamsChatSnippet(userId), HOME_PROVIDER_TIMEOUT_MS, null)
       : Promise.resolve(null),
   ]);

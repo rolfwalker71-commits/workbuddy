@@ -8,6 +8,7 @@ import {
   getAppUserById,
   getAppUserByUsername,
 } from "@/lib/users/queries";
+import { parseTeamsEnabled } from "@/lib/microsoft/teams-prefs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,6 +33,7 @@ export async function GET() {
       avatarUrl: fresh ? userAvatarPublicUrl(fresh.avatar_path) : null,
       userId: fresh?.id ?? ctx.userId,
       modules: [...ALL_APP_MODULES],
+      teamsEnabled: parseTeamsEnabled(fresh?.teams_enabled),
     });
   }
   const user = ctx.userId ? getAppUserById(ctx.userId) : null;
@@ -54,6 +56,7 @@ export async function GET() {
     avatarUrl: userAvatarPublicUrl(fresh.avatar_path),
     isAdmin,
     modules: effectiveUserModules(fresh.id, isAdmin),
+    teamsEnabled: parseTeamsEnabled(fresh.teams_enabled),
     mariEmployeeNumber: fresh.mari_employee_number,
     hasOpenaiKey: Boolean(fresh.openai_api_key_enc),
     hasMariPassword: Boolean(fresh.mari_rest_password_enc),
