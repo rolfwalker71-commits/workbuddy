@@ -35,6 +35,13 @@ export type HomeMailDaySummary = {
   headline: string | null;
 };
 
+export type HomeTeamsSnippet = {
+  chatId: string;
+  title: string;
+  preview: string | null;
+  lastUpdatedAt: string | null;
+};
+
 export type HomeProviderBlock = {
   enabled: boolean;
   connected: boolean;
@@ -52,6 +59,7 @@ export type HomeProviderBlock = {
   unreadCount: number | null;
   mailDay: HomeMailDaySummary | null;
   tasks: HomeTasksBundle;
+  lastTeams?: HomeTeamsSnippet | null;
 };
 
 export type HomeOverviewPayload = {
@@ -75,7 +83,10 @@ export type HomeOverviewPayload = {
 };
 
 export type HomeDetailsPayload = {
-  microsoft: Pick<HomeProviderBlock, "events" | "mailInbox" | "tasks"> | null;
+  microsoft: Pick<
+    HomeProviderBlock,
+    "events" | "mailInbox" | "tasks" | "lastTeams"
+  > | null;
   google: Pick<HomeProviderBlock, "events" | "mailInbox" | "tasks"> | null;
   todayEvents: WorkspaceTodayEvent[];
   todayMail: WorkspaceMailSample[];
@@ -95,6 +106,8 @@ export function mergeHomeOverviewDetails(
             events: details.microsoft.events,
             mailInbox: details.microsoft.mailInbox,
             tasks: details.microsoft.tasks,
+            lastTeams:
+              details.microsoft.lastTeams ?? overview.microsoft.lastTeams,
           }
         : overview.microsoft,
     google:

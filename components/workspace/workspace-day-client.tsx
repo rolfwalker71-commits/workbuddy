@@ -2024,7 +2024,7 @@ export function WorkspaceDayClient({
               />
             </section>
           ) : tab === "teams" && scope === "microsoft" ? (
-            <MicrosoftTeamsPanel />
+            <MicrosoftTeamsPanel initialChatId={searchParams.get("chat")} />
           ) : tab === "planner" ? (
             <section className="space-y-3">
               <h2 className="text-[0.9375rem] font-semibold">

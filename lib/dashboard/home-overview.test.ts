@@ -72,6 +72,12 @@ test("mergeHomeOverviewDetails keeps unread KPIs and fills lists", () => {
         },
       ],
       tasks: { ...emptyTasks(), items: [] },
+      lastTeams: {
+        chatId: "c1",
+        title: "Anna",
+        preview: "Offerte kommt",
+        lastUpdatedAt: "2026-08-23T07:10:00.000Z",
+      },
     },
     google: {
       events: [],
@@ -110,6 +116,7 @@ test("mergeHomeOverviewDetails keeps unread KPIs and fills lists", () => {
   assert.equal(merged.microsoft?.events.length, 1);
   assert.equal(merged.todayEvents[0]?.title, "Standup");
   assert.equal(merged.todayMail[0]?.subject, "Hallo");
+  assert.equal(merged.microsoft?.lastTeams?.title, "Anna");
 });
 
 test("mergeHomeMaringoTickets updates bagel counts without dropping modules", () => {

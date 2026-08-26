@@ -134,6 +134,25 @@ export async function listTeamsChats(
   return items;
 }
 
+/** Newest listed chat for Home — same Graph path as Teams → Chats. */
+export async function getLatestTeamsChatSnippet(userId: number): Promise<{
+  chatId: string;
+  title: string;
+  preview: string | null;
+  lastUpdatedAt: string | null;
+} | null> {
+  const chats = await listTeamsChats(userId, { top: 8 });
+  const chat =
+    chats.find((c) => c.lastUpdatedAt || c.preview) || chats[0] || null;
+  if (!chat) return null;
+  return {
+    chatId: chat.id,
+    title: chat.title,
+    preview: chat.preview,
+    lastUpdatedAt: chat.lastUpdatedAt,
+  };
+}
+
 export async function listTeamsChatMessages(
   userId: number,
   chatId: string,

@@ -2,9 +2,11 @@ import type { AuthContext } from "@/lib/auth/current-user";
 import { ownerKeyFromAuth } from "@/lib/auth/owner-key";
 import { resolveAppUserId } from "@/lib/users/resolve-user";
 import {
+  hasMicrosoftChatScope,
   hasMicrosoftMailScope,
   isMicrosoftConnected,
 } from "@/lib/microsoft/oauth";
+import { getLatestTeamsChatSnippet } from "@/lib/microsoft/teams-chats";
 import {
   getInboxUnreadCount,
   getTodayMicrosoftMailExcerpt,
@@ -201,6 +203,7 @@ export async function getHomeOverview(
             ? cachedMailDay(getMsMailDayCached(userId, today))
             : null,
         tasks: emptyTasks({ microsoftConnected: msConnected }),
+        lastTeams: null,
       }
     : null;
 
@@ -289,7 +292,7 @@ export async function getHomeDetails(
       userId != null ? await listHomePendingStamps(userId, zurichYmd()) : [];
     return {
       microsoft: showMs
-        ? { events: [], mailInbox: [], tasks: emptyTasks() }
+        ? { events: [], mailInbox: [], tasks: emptyTasks(), lastTeams: null }
         : null,
       google: showGoogle
         ? { events: [], mailInbox: [], tasks: emptyTasks() }
@@ -300,7 +303,7 @@ export async function getHomeDetails(
     };
   }
 
-  const [todayEvents, msMail, googleMail, tasks] = await Promise.all([
+  const [todayEvents, msMail, googleMail, tasks, lastTeams] = await Promise.all([
     showMs || showGoogle
       ? withTimeout(
           loadWorkspaceTodayEvents(userId, {
@@ -352,6 +355,9 @@ export async function getHomeDetails(
           })
         )
       : Promise.resolve(emptyTasks()),
+    msConnected && hasMicrosoftChatScope(userId)
+      ? withTimeout(getLatestTeamsChatSnippet(userId), HOME_PROVIDER_TIMEOUT_MS, null)
+      : Promise.resolve(null),
   ]);
 
   const todayMail = mergeWorkspaceMailSamples(
@@ -382,6 +388,7 @@ export async function getHomeDetails(
           events: eventsFromToday(linkedEvents, "microsoft"),
           mailInbox: msMail,
           tasks,
+          lastTeams,
         }
       : null,
     google: showGoogle

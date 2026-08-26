@@ -1,17 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Hash, MessageSquare, RefreshCw, Users, Video } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { Hash, MessageSquare, RefreshCw, Users, Video, X } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { MicrosoftTeamsLogo } from "@/components/branding/provider-logos";
 import {
-  MicrosoftTaskSuggestions,
-  type SuggestedTask,
-} from "@/components/microsoft/microsoft-task-suggestions";
+  TeamsAnalysisResults,
+  TeamsAnalysisTrigger,
+  useTeamsAnalysis,
+} from "@/components/microsoft/microsoft-teams-analysis";
 import {
   segmentedTrackClass,
   segmentedTriggerClass,
 } from "@/components/layout/segmented-control";
+import {
+  MARI_FLYOUT_MS,
+  MariMainFlyoutShell,
+  useFlyoutPresence,
+} from "@/components/maringo/maringo-flyout-chrome";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { formatSwissDateTime } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils";
@@ -69,7 +76,11 @@ function membershipLabel(t: ChannelItem["membershipType"]): string | null {
   return null;
 }
 
-export function MicrosoftTeamsPanel() {
+export function MicrosoftTeamsPanel({
+  initialChatId = null,
+}: {
+  initialChatId?: string | null;
+}) {
   const [view, setView] = useState<TeamsView>("chats");
   const [chats, setChats] = useState<ChatItem[]>([]);
   const [teams, setTeams] = useState<TeamItem[]>([]);
@@ -79,14 +90,16 @@ export function MicrosoftTeamsPanel() {
   const [needsChatReconnect, setNeedsChatReconnect] = useState(false);
   const [needsChannelReconnect, setNeedsChannelReconnect] = useState(false);
   const [open, setOpen] = useState<OpenTarget | null>(null);
+  const [threadTitle, setThreadTitle] = useState("Chat");
+  const [threadWebUrl, setThreadWebUrl] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [msgLoading, setMsgLoading] = useState(false);
-  const [suggestions, setSuggestions] = useState<SuggestedTask[]>([]);
-  const [usedAi, setUsedAi] = useState(false);
-  const [suggesting, setSuggesting] = useState(false);
-  const [applying, setApplying] = useState(false);
-  const [taskError, setTaskError] = useState<string | null>(null);
-  const [taskStatus, setTaskStatus] = useState<string | null>(null);
+  const threadAnalysis = useTeamsAnalysis();
+  const dayAnalysis = useTeamsAnalysis();
+  const openedFromUrl = useRef(false);
+  const [flyoutPortalReady, setFlyoutPortalReady] = useState(false);
+  const flyoutWanted = open != null;
+  const flyoutPresence = useFlyoutPresence(flyoutWanted);
 
   const loadChats = useCallback(async () => {
     setLoadingChats(true);
@@ -140,14 +153,42 @@ export function MicrosoftTeamsPanel() {
 
   function resetThread() {
     setMessages([]);
-    setSuggestions([]);
-    setUsedAi(false);
-    setTaskError(null);
-    setTaskStatus(null);
+    threadAnalysis.reset();
   }
+
+  const closeFlyout = useCallback(() => {
+    setOpen(null);
+  }, []);
+
+  useEffect(() => {
+    setFlyoutPortalReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!flyoutWanted) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [flyoutWanted]);
+
+  useEffect(() => {
+    if (!flyoutWanted) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      closeFlyout();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [flyoutWanted, closeFlyout]);
 
   async function openChat(chat: ChatItem) {
     setOpen({ kind: "chat", id: chat.id });
+    setThreadTitle(chat.title);
+    setThreadWebUrl(chat.webUrl);
     resetThread();
     setMsgLoading(true);
     try {
@@ -170,6 +211,8 @@ export function MicrosoftTeamsPanel() {
       teamId: channel.teamId,
       channelId: channel.id,
     });
+    setThreadTitle(`${channel.teamName} · ${channel.name}`);
+    setThreadWebUrl(channel.webUrl);
     resetThread();
     setMsgLoading(true);
     try {
@@ -192,73 +235,23 @@ export function MicrosoftTeamsPanel() {
     }
   }
 
-  async function suggestFromOpen() {
+  useEffect(() => {
+    if (openedFromUrl.current || !initialChatId || chats.length === 0) return;
+    const chat = chats.find((c) => c.id === initialChatId);
+    if (!chat) return;
+    openedFromUrl.current = true;
+    void openChat(chat);
+  }, [initialChatId, chats]);
+
+  function analyzeOpenThread() {
     if (!open) return;
-    setSuggesting(true);
-    setTaskError(null);
-    setTaskStatus(null);
-    try {
-      const body =
-        open.kind === "chat"
-          ? { chatId: open.id }
-          : { teamId: open.teamId, channelId: open.channelId };
-      const res = await fetch("/api/microsoft/teams/suggest-tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || "Vorschläge fehlgeschlagen");
-      setSuggestions((json.suggestions || []) as SuggestedTask[]);
-      setUsedAi(Boolean(json.usedAi));
-    } catch (err) {
-      setTaskError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSuggesting(false);
-    }
+    void threadAnalysis.run(
+      open.kind === "chat"
+        ? { chatId: open.id }
+        : { teamId: open.teamId, channelId: open.channelId }
+    );
   }
 
-  async function applyTasks(selected: SuggestedTask[]) {
-    setApplying(true);
-    setTaskError(null);
-    setTaskStatus(null);
-    try {
-      let ok = 0;
-      for (const task of selected) {
-        const res = await fetch("/api/microsoft/todo/tasks", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: task.title,
-            notes: task.notes || task.reason || null,
-          }),
-        });
-        const json = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(json.error || "To Do anlegen fehlgeschlagen");
-        ok += 1;
-      }
-      setTaskStatus(
-        ok === 1 ? "1 Aufgabe in To Do übernommen." : `${ok} Aufgaben in To Do übernommen.`
-      );
-      setSuggestions((prev) =>
-        prev.filter((s) => !selected.some((x) => x.title === s.title))
-      );
-    } catch (err) {
-      setTaskError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setApplying(false);
-    }
-  }
-
-  const openChatMeta =
-    open?.kind === "chat" ? chats.find((c) => c.id === open.id) || null : null;
-  const openChannelMeta =
-    open?.kind === "channel"
-      ? teams
-          .flatMap((t) => t.channels)
-          .find((c) => c.teamId === open.teamId && c.id === open.channelId) ||
-        null
-      : null;
   const loading = view === "chats" ? loadingChats : loadingChannels;
   const channelCount = teams.reduce((n, t) => n + t.channels.length, 0);
 
@@ -272,23 +265,34 @@ export function MicrosoftTeamsPanel() {
           </h2>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
             Deine Chats und die Teams, in denen du Mitglied bist — nicht das
-            ganze Unternehmen. Offene Punkte werden nur nach «Aufgaben
-            übernehmen» nach To Do gelegt.
+            ganze Unternehmen. Analyse legt nichts an, bevor du bestätigst.
           </p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={loading}
-          onClick={refresh}
-        >
-          <RefreshCw
-            className={cn("size-3.5", loading && "animate-spin")}
-            strokeWidth={APP_ICON_STROKE}
-          />
-          Aktualisieren
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {view === "chats" ? (
+            <TeamsAnalysisTrigger
+              loading={dayAnalysis.loading}
+              disabled={loadingChats || chats.length === 0}
+              label={
+                dayAnalysis.analysis ? "Neu analysieren" : "Tag analysieren"
+              }
+              onAnalyze={() => void dayAnalysis.run({ scope: "day" })}
+            />
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={loading}
+            onClick={refresh}
+          >
+            <RefreshCw
+              className={cn("size-3.5", loading && "animate-spin")}
+              strokeWidth={APP_ICON_STROKE}
+            />
+            Aktualisieren
+          </Button>
+        </div>
       </div>
 
       <div
@@ -343,6 +347,27 @@ export function MicrosoftTeamsPanel() {
         </p>
       ) : null}
 
+      {view === "chats" &&
+      (dayAnalysis.analysis || dayAnalysis.loading || dayAnalysis.error) ? (
+        <div className="rounded-2xl bg-card px-4 py-3 shadow-sm ring-1 ring-border/50">
+          <p className="text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground">
+            Tag analysieren
+          </p>
+          <div className="mt-2">
+            <TeamsAnalysisResults
+              analysis={dayAnalysis.analysis}
+              usedAi={dayAnalysis.usedAi}
+              loading={dayAnalysis.loading}
+              applying={dayAnalysis.applying}
+              error={dayAnalysis.error}
+              status={dayAnalysis.status}
+              meta={dayAnalysis.meta}
+              onApply={(tasks, events) => void dayAnalysis.apply(tasks, events)}
+            />
+          </div>
+        </div>
+      ) : null}
+
       {view === "chats" ? (
         loadingChats && chats.length === 0 ? (
           <p className="text-sm text-muted-foreground">Lade Chats…</p>
@@ -358,6 +383,7 @@ export function MicrosoftTeamsPanel() {
                 <li key={chat.id}>
                   <button
                     type="button"
+                    aria-pressed={active}
                     onClick={() => void openChat(chat)}
                     className={cn(
                       "flex w-full items-start gap-3 rounded-2xl bg-card px-3.5 py-3 text-left shadow-[0_2px_10px_rgba(15,23,42,0.06)] ring-1",
@@ -443,6 +469,7 @@ export function MicrosoftTeamsPanel() {
                       <li key={`${channel.teamId}:${channel.id}`}>
                         <button
                           type="button"
+                          aria-pressed={active}
                           onClick={() => void openChannel(channel)}
                           className={cn(
                             "flex w-full items-start gap-3 rounded-2xl bg-card px-3.5 py-3 text-left shadow-[0_2px_10px_rgba(15,23,42,0.06)] ring-1",
@@ -482,75 +509,121 @@ export function MicrosoftTeamsPanel() {
         </div>
       )}
 
-      {open ? (
-        <div className="space-y-3 rounded-2xl bg-card p-3 shadow-[0_2px_10px_rgba(15,23,42,0.06)] ring-1 ring-border/50">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-semibold leading-snug break-words">
-              {open.kind === "chat"
-                ? openChatMeta?.title || "Chat"
-                : openChannelMeta
-                  ? `${openChannelMeta.teamName} · ${openChannelMeta.name}`
-                  : "Kanal"}
-            </p>
-            {(open.kind === "chat" ? openChatMeta?.webUrl : openChannelMeta?.webUrl) ? (
-              <a
-                href={
-                  (open.kind === "chat"
-                    ? openChatMeta?.webUrl
-                    : openChannelMeta?.webUrl) || "#"
-                }
-                target="_blank"
-                rel="noreferrer"
+      {flyoutPortalReady && flyoutPresence.mounted
+        ? createPortal(
+            <div className="fixed inset-0 z-[1000]">
+              <Button
+                type="button"
+                variant="ghost"
                 className={cn(
-                  buttonVariants({ variant: "outline", size: "sm" }),
-                  "gap-1.5"
+                  "absolute inset-0 h-auto w-full rounded-none border-0 bg-black/20 p-0 transition-opacity ease-in-out hover:bg-black/20",
+                  flyoutPresence.entered ? "opacity-100" : "opacity-0"
                 )}
-              >
-                In Teams
-              </a>
-            ) : null}
-          </div>
-          {msgLoading ? (
-            <p className="text-sm text-muted-foreground">Lade Nachrichten…</p>
-          ) : messages.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Keine Nachrichten in diesem Ausschnitt.
-            </p>
-          ) : (
-            <ul className="max-h-[22rem] space-y-2 overflow-y-auto pr-1">
-              {messages.map((m) => (
-                <li
-                  key={m.id}
-                  className="rounded-2xl bg-muted px-3 py-2 text-sm"
+                style={{ transitionDuration: `${MARI_FLYOUT_MS}ms` }}
+                aria-label="Flyout schliessen"
+                onClick={closeFlyout}
+              />
+              <MariMainFlyoutShell open={flyoutPresence.entered}>
+                <div
+                  className="flex min-h-0 min-w-0 flex-1 flex-col"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label={threadTitle}
                 >
-                  <p className="text-[0.6875rem] font-semibold text-muted-foreground">
-                    {m.from || "Unbekannt"}
-                    {m.createdAt ? ` · ${formatSwissDateTime(m.createdAt)}` : ""}
-                  </p>
-                  <p className="mt-0.5 whitespace-pre-wrap leading-snug">
-                    {m.text}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-          <MicrosoftTaskSuggestions
-            suggestions={suggestions}
-            usedAi={usedAi}
-            loading={suggesting}
-            applying={applying}
-            error={taskError}
-            onSuggest={() => void suggestFromOpen()}
-            onApply={(sel) => void applyTasks(sel)}
-            emptyHint="Vorschläge erscheinen hier — nichts wird automatisch nach To Do geschrieben."
-          />
-          {taskStatus ? (
-            <p className="text-sm text-emerald-700" role="status">
-              {taskStatus}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
+                  <div className="flex shrink-0 items-start gap-2 border-b border-border/50 px-4 py-2">
+                    <div className="min-w-0 flex-1">
+                      <h2 className="text-[0.9375rem] font-bold leading-snug tracking-tight break-words">
+                        {threadTitle}
+                      </h2>
+                    </div>
+                    <TeamsAnalysisTrigger
+                      loading={threadAnalysis.loading}
+                      disabled={msgLoading || messages.length === 0}
+                      label={
+                        threadAnalysis.analysis
+                          ? "Neu analysieren"
+                          : "Analysieren"
+                      }
+                      onAnalyze={analyzeOpenThread}
+                      className="mt-0.5 shrink-0"
+                    />
+                    {threadWebUrl ? (
+                      <a
+                        href={threadWebUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={cn(
+                          buttonVariants({ variant: "outline", size: "sm" }),
+                          "mt-0.5 shrink-0 gap-1.5 whitespace-nowrap"
+                        )}
+                      >
+                        In Teams
+                      </a>
+                    ) : null}
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="size-7 shrink-0"
+                      onClick={closeFlyout}
+                      aria-label="Schliessen"
+                    >
+                      <X className="size-4" />
+                    </Button>
+                  </div>
+
+                  <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3">
+                    {msgLoading ? (
+                      <p className="text-sm text-muted-foreground">
+                        Lade Nachrichten…
+                      </p>
+                    ) : messages.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Keine Nachrichten in diesem Ausschnitt.
+                      </p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {messages.map((m) => (
+                          <li
+                            key={m.id}
+                            className="rounded-2xl bg-muted px-3 py-2 text-sm"
+                          >
+                            <p className="text-[0.6875rem] font-semibold text-muted-foreground">
+                              {m.from || "Unbekannt"}
+                              {m.createdAt
+                                ? ` · ${formatSwissDateTime(m.createdAt)}`
+                                : ""}
+                            </p>
+                            <p className="mt-0.5 whitespace-pre-wrap leading-snug">
+                              {m.text}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  <div className="shrink-0 space-y-2.5 border-t border-border/50 px-4 py-3">
+                    <TeamsAnalysisResults
+                      compact
+                      analysis={threadAnalysis.analysis}
+                      usedAi={threadAnalysis.usedAi}
+                      loading={threadAnalysis.loading}
+                      applying={threadAnalysis.applying}
+                      error={threadAnalysis.error}
+                      status={threadAnalysis.status}
+                      meta={threadAnalysis.meta}
+                      onApply={(tasks, events) =>
+                        void threadAnalysis.apply(tasks, events)
+                      }
+                    />
+                  </div>
+                </div>
+              </MariMainFlyoutShell>
+            </div>,
+            document.body
+          )
+        : null}
     </section>
   );
 }

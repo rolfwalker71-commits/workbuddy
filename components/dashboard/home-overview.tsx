@@ -17,6 +17,7 @@ import {
   MicrosoftLogo,
   MicrosoftPlannerLogo,
   MicrosoftToDoLogo,
+  MicrosoftTeamsLogo,
   OutlookLogo,
 } from "@/components/branding/provider-logos";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
@@ -564,6 +565,12 @@ export function HomeOverview() {
     data?.google && !data.microsoft
       ? "/google?tab=mail&view=tagesanalysen"
       : "/microsoft?tab=mail&view=tagesanalysen";
+  const lastTeams = data?.microsoft?.connected
+    ? data.microsoft.lastTeams ?? null
+    : null;
+  const teamsHref = lastTeams
+    ? `/microsoft?tab=teams&chat=${encodeURIComponent(lastTeams.chatId)}`
+    : "/microsoft?tab=teams";
   const anyMailConnected = Boolean(
     data?.microsoft?.connected || data?.google?.connected
   );
@@ -725,7 +732,11 @@ export function HomeOverview() {
           <div
             className={cn(
               "grid gap-3 sm:grid-cols-2",
-              todayEvents.length === 0 ? "xl:grid-cols-3" : ""
+              todayEvents.length === 0 && data.microsoft?.connected
+                ? "xl:grid-cols-4"
+                : todayEvents.length === 0 || data.microsoft?.connected
+                  ? "xl:grid-cols-3"
+                  : ""
             )}
           >
             {todayEvents.length === 0 ? (
@@ -799,6 +810,34 @@ export function HomeOverview() {
                   : "Analyse im Mail-Tab starten"
               }
             />
+            {data.microsoft?.connected ? (
+              <FocusTile
+                href={teamsHref}
+                logo={<MicrosoftTeamsLogo className="size-5" />}
+                eyebrow="Teams"
+                title={
+                  lastTeams?.preview ||
+                  lastTeams?.title ||
+                  (detailsLoading
+                    ? "Nachricht wird geladen…"
+                    : "Keine Nachricht")
+                }
+                detail={
+                  lastTeams
+                    ? [
+                        lastTeams.title,
+                        lastTeams.lastUpdatedAt
+                          ? formatSwissDateTime(lastTeams.lastUpdatedAt)
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")
+                    : detailsLoading
+                      ? "Teams"
+                      : "Teams öffnen"
+                }
+              />
+            ) : null}
           </div>
 
           {todayEvents.length > 0 ? (
