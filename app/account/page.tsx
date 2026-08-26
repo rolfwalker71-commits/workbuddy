@@ -49,6 +49,7 @@ export default function AccountPage() {
         <h2 className="text-sm font-semibold tracking-tight">Microsoft 365</h2>
         <p className="text-xs text-muted-foreground">
           Verbinde dein Work- oder Schulkonto. Eine Entra-App für alle User.
+          Nach neuen Teams-/Transkript-Rechten einmal neu verbinden.
         </p>
         <Suspense fallback={<p className="text-sm text-muted-foreground">Lade…</p>}>
           <SettingsMicrosoftConnectPanel />

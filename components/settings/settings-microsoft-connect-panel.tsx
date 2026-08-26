@@ -20,6 +20,12 @@ type Connection = {
   hasMailSendScope: boolean;
   hasCalendarScope: boolean;
   hasTasksScope?: boolean;
+  hasChatScope?: boolean;
+  hasTeamScope?: boolean;
+  hasChannelScope?: boolean;
+  hasChannelListScopes?: boolean;
+  hasTranscriptScope?: boolean;
+  hasTeamsScopes?: boolean;
 };
 
 type Probe = {
@@ -160,12 +166,14 @@ export function SettingsMicrosoftConnectPanel() {
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          Geschäftskonto für Outlook-Mail und -Kalender (z. B.{" "}
+          Geschäftskonto für Outlook-Mail, Kalender, Teams-Chats, Kanäle und
+          Meeting-Transkripte (z. B.{" "}
           <span className="font-medium text-foreground">
             rolf.walker@an-group.one
           </span>
           ). Getrennt von Google — Tokens nur für dich. Welche Kalender Buddy
-          zeigt, wählst du unten unter «Microsoft 365-Kalender».
+          zeigt, wählst du unten unter «Microsoft 365-Kalender». Nach neuen
+          Teams-Rechten (Kanäle) einmal «Neu verbinden».
         </p>
 
         {loading ? (
@@ -242,11 +250,21 @@ export function SettingsMicrosoftConnectPanel() {
                     Scopes unvollständig — bitte neu verbinden (Mail +
                     Kalender + Tasks).
                   </p>
+                ) : !data.hasTeamsScopes ? (
+                  <p className="text-xs text-amber-800">
+                    Teams-Chats, Kanäle und Transkripte brauchen eine neue
+                    Zustimmung — bitte «Neu verbinden», damit das Token die
+                    neuen Rechte bekommt (u. a. Team.ReadBasic.All,
+                    Channel.ReadBasic.All).
+                  </p>
                 ) : (
                   <p className="text-xs text-muted-foreground">
                     Mail und Kalender aktiv
                     {data.hasMailSendScope ? " (inkl. Senden)" : ""}
-                    {data.hasTasksScope ? " · To Do" : ""}.
+                    {data.hasTasksScope ? " · To Do" : ""}
+                    {data.hasChatScope ? " · Teams-Chats" : ""}
+                    {data.hasChannelListScopes ? " · Teams-Kanäle" : ""}
+                    {data.hasTranscriptScope ? " · Transkripte" : ""}.
                     {!data.hasTasksScope
                       ? " Für To Do: Tasks.ReadWrite in Entra + neu verbinden."
                       : ""}

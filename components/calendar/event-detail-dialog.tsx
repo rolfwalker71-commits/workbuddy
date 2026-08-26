@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { EventMapSnippet } from "@/components/calendar/event-map-snippet";
+import { MeetingTranscriptPanel } from "@/components/microsoft/meeting-transcript-panel";
 import { resolveEventArt, type EventArtSubject } from "@/lib/calendar/event-art";
 import { isPhysicalAgendaLocation } from "@/lib/dashboard/agenda-location";
 import { ProviderBadge } from "@/components/workspace/provider-badge";
@@ -43,6 +44,8 @@ export type EventDetailModel = EventArtSubject & {
   webLink?: string | null;
   provider?: WorkspaceProvider;
   location?: string | null;
+  calendarId?: string | null;
+  mari?: { issueId?: number | null } | null;
 };
 
 export function EventDetailDialog({
@@ -278,6 +281,17 @@ export function EventDetailDialog({
                   </a>
                 ) : null}
               </div>
+
+              {event.provider === "microsoft" &&
+              (event.meetUrl || event.id) ? (
+                <MeetingTranscriptPanel
+                  eventId={event.id}
+                  joinUrl={event.meetUrl}
+                  calendarId={event.calendarId}
+                  issueId={event.mari?.issueId ?? null}
+                  compact
+                />
+              ) : null}
 
               {actions ? <div className="space-y-2">{actions}</div> : null}
             </div>

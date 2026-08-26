@@ -26,6 +26,14 @@ export const MICROSOFT_OAUTH_SCOPES = [
   "Mail.Send",
   "Calendars.ReadWrite",
   "Tasks.ReadWrite",
+  "Chat.Read",
+  "ChatMessage.Read",
+  "Team.ReadBasic.All",
+  "Channel.ReadBasic.All",
+  "ChannelMessage.Read.All",
+  /** Needed to resolve a calendar event’s Teams meeting from joinUrl. */
+  "OnlineMeetings.Read",
+  "OnlineMeetingTranscript.Read.All",
 ] as const;
 
 export type MicrosoftUserTokens = {
@@ -145,40 +153,76 @@ function scopeSet(userId: number | null): Set<string> {
   return new Set(raw.split(/[\s]+/).filter(Boolean));
 }
 
-export function hasMicrosoftMailScope(userId: number | null): boolean {
-  const s = scopeSet(userId);
-  return (
-    s.has("Mail.ReadWrite") ||
-    s.has("Mail.Read") ||
-    s.has("https://graph.microsoft.com/Mail.ReadWrite") ||
-    s.has("https://graph.microsoft.com/Mail.Read")
+function scopeHas(s: Set<string>, ...names: string[]): boolean {
+  return names.some(
+    (name) => s.has(name) || s.has(`https://graph.microsoft.com/${name}`)
   );
+}
+
+export function hasMicrosoftMailScope(userId: number | null): boolean {
+  return scopeHas(scopeSet(userId), "Mail.ReadWrite", "Mail.Read");
 }
 
 export function hasMicrosoftMailSendScope(userId: number | null): boolean {
-  const s = scopeSet(userId);
-  return (
-    s.has("Mail.Send") || s.has("https://graph.microsoft.com/Mail.Send")
-  );
+  return scopeHas(scopeSet(userId), "Mail.Send");
 }
 
 export function hasMicrosoftCalendarScope(userId: number | null): boolean {
-  const s = scopeSet(userId);
-  return (
-    s.has("Calendars.ReadWrite") ||
-    s.has("Calendars.Read") ||
-    s.has("https://graph.microsoft.com/Calendars.ReadWrite") ||
-    s.has("https://graph.microsoft.com/Calendars.Read")
-  );
+  return scopeHas(scopeSet(userId), "Calendars.ReadWrite", "Calendars.Read");
 }
 
 export function hasMicrosoftTasksScope(userId: number | null): boolean {
-  const s = scopeSet(userId);
+  return scopeHas(scopeSet(userId), "Tasks.ReadWrite", "Tasks.Read");
+}
+
+export function hasMicrosoftChatScope(userId: number | null): boolean {
+  return scopeHas(scopeSet(userId), "Chat.Read");
+}
+
+export function hasMicrosoftChatMessageScope(userId: number | null): boolean {
   return (
-    s.has("Tasks.ReadWrite") ||
-    s.has("Tasks.Read") ||
-    s.has("https://graph.microsoft.com/Tasks.ReadWrite") ||
-    s.has("https://graph.microsoft.com/Tasks.Read")
+    hasMicrosoftChatScope(userId) &&
+    scopeHas(scopeSet(userId), "ChatMessage.Read")
+  );
+}
+
+export function hasMicrosoftTeamScope(userId: number | null): boolean {
+  return scopeHas(scopeSet(userId), "Team.ReadBasic.All");
+}
+
+export function hasMicrosoftChannelScope(userId: number | null): boolean {
+  return scopeHas(scopeSet(userId), "Channel.ReadBasic.All");
+}
+
+/** Joined teams + channel names — missing until the user re-consents. */
+export function hasMicrosoftChannelListScopes(
+  userId: number | null
+): boolean {
+  return hasMicrosoftTeamScope(userId) && hasMicrosoftChannelScope(userId);
+}
+
+export function hasMicrosoftChannelMessageScope(
+  userId: number | null
+): boolean {
+  return scopeHas(scopeSet(userId), "ChannelMessage.Read.All");
+}
+
+export function hasMicrosoftOnlineMeetingsScope(
+  userId: number | null
+): boolean {
+  return scopeHas(scopeSet(userId), "OnlineMeetings.Read", "OnlineMeetings.ReadWrite");
+}
+
+export function hasMicrosoftTranscriptScope(userId: number | null): boolean {
+  return scopeHas(scopeSet(userId), "OnlineMeetingTranscript.Read.All");
+}
+
+/** Chats + channels + transcripts after reconnect — missing until re-consent. */
+export function hasMicrosoftTeamsScopes(userId: number | null): boolean {
+  return (
+    hasMicrosoftChatMessageScope(userId) &&
+    hasMicrosoftChannelListScopes(userId) &&
+    hasMicrosoftTranscriptScope(userId)
   );
 }
 

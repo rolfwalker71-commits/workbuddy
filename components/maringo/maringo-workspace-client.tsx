@@ -152,6 +152,7 @@ import { MaringoTimeBookDialog } from "@/components/maringo/maringo-time-book-di
 import { MaringoTicketKopfForm } from "@/components/maringo/maringo-ticket-kopf-form";
 import type { TimeBookFormDefaults } from "@/components/maringo/maringo-time-book-form";
 import { AdhocEventDialog } from "@/components/calendar/adhoc-event-dialog";
+import { MeetingTranscriptPanel } from "@/components/microsoft/meeting-transcript-panel";
 import type { MariCalendarStamp } from "@/lib/mari/calendar-stamp";
 import {
   MaringoTimeSuggestionsPanel,
@@ -3265,6 +3266,14 @@ export function MaringoWorkspaceClient() {
                       </div>
 
                       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
+                        {ticketCalendarStamp ? (
+                          <MeetingTranscriptPanel
+                            eventId={ticketCalendarStamp.eventId}
+                            calendarId={ticketCalendarStamp.calendarId}
+                            issueId={detail.issueId}
+                            compact
+                          />
+                        ) : null}
                         {!ticketReview && analysis && analysisOpen ? (
                           <Card className="border-orange-200/70 bg-orange-50/40 dark:border-orange-400/30 dark:bg-orange-500/10">
                             <CardContent className="space-y-3 p-4 text-[0.8125rem]">

@@ -6,14 +6,27 @@ import {
   parseMicrosoftOauthState,
 } from "./oauth.ts";
 
-test("Microsoft scopes include mail + calendar + tasks by default", () => {
+test("Microsoft scopes include mail + calendar + tasks + Teams read", () => {
   assert.ok(MICROSOFT_OAUTH_SCOPES.includes("Mail.ReadWrite"));
   assert.ok(MICROSOFT_OAUTH_SCOPES.includes("Calendars.ReadWrite"));
   assert.ok(MICROSOFT_OAUTH_SCOPES.includes("Tasks.ReadWrite"));
   assert.ok(MICROSOFT_OAUTH_SCOPES.includes("offline_access"));
+  assert.ok(MICROSOFT_OAUTH_SCOPES.includes("Chat.Read"));
+  assert.ok(MICROSOFT_OAUTH_SCOPES.includes("ChatMessage.Read"));
+  assert.ok(MICROSOFT_OAUTH_SCOPES.includes("Team.ReadBasic.All"));
+  assert.ok(MICROSOFT_OAUTH_SCOPES.includes("Channel.ReadBasic.All"));
+  assert.ok(MICROSOFT_OAUTH_SCOPES.includes("ChannelMessage.Read.All"));
+  assert.ok(MICROSOFT_OAUTH_SCOPES.includes("OnlineMeetings.Read"));
+  assert.ok(MICROSOFT_OAUTH_SCOPES.includes("OnlineMeetingTranscript.Read.All"));
   assert.ok(!(MICROSOFT_OAUTH_SCOPES as readonly string[]).includes("Chat.ReadWrite"));
   assert.ok(
     !(MICROSOFT_OAUTH_SCOPES as readonly string[]).includes("ChatMessage.Send")
+  );
+  assert.ok(
+    !(MICROSOFT_OAUTH_SCOPES as readonly string[]).includes("Team.ReadWrite.All")
+  );
+  assert.ok(
+    !(MICROSOFT_OAUTH_SCOPES as readonly string[]).includes("Channel.Read.All")
   );
   assert.equal(
     MICROSOFT_OAUTH_CALLBACK_PATH,

@@ -31,6 +31,7 @@ import {
   GoogleTasksLogo,
   MicrosoftLogo,
   MicrosoftPlannerLogo,
+  MicrosoftTeamsLogo,
   MicrosoftToDoLogo,
   OutlookLogo,
 } from "@/components/branding/provider-logos";
@@ -62,6 +63,7 @@ import {
 import type { WorkspaceEventMari } from "@/lib/workspace/event-mari-shared";
 import { MicrosoftMailComposeDialog } from "@/components/microsoft/microsoft-mail-compose-dialog";
 import { WorkspaceTasksPanel } from "@/components/workspace/workspace-tasks-panel";
+import { MicrosoftTeamsPanel } from "@/components/microsoft/microsoft-teams-panel";
 import {
   mergeWorkspaceTodayEvents,
   toWorkspaceTodayEvent,
@@ -133,10 +135,15 @@ function clampMailRange(from: string, to: string): { from: string; to: string } 
   return { from: f, to: t };
 }
 
-type Tab = "calendar" | "mail" | "planner";
+type Tab = "calendar" | "mail" | "planner" | "teams";
 
 function parseTab(raw: string | null, _openId: string | null): Tab {
-  if (raw === "calendar" || raw === "planner" || raw === "mail") {
+  if (
+    raw === "calendar" ||
+    raw === "planner" ||
+    raw === "mail" ||
+    raw === "teams"
+  ) {
     return raw;
   }
   if (raw === "inbox" || raw === "triage" || raw === "day") return "mail";
@@ -819,6 +826,10 @@ export function WorkspaceDayClient({
     if (t) setTab(parseTab(t, searchParams.get("open")));
     setMailView(parseMailView(searchParams.get("view"), t));
   }, [searchParams]);
+
+  useEffect(() => {
+    if (scope !== "microsoft" && tab === "teams") setTab("mail");
+  }, [scope, tab]);
 
   const replaceQuery = useCallback(
     (patch: Record<string, string | null>) => {
@@ -1660,7 +1671,7 @@ export function WorkspaceDayClient({
         description={
           scope === "google"
             ? "Gmail, Kalender und Tasks."
-            : "Outlook-Chronik, Kalender und Tagesanalysen — plus Planner und Slot-Suche."
+            : "Outlook-Chronik, Kalender, Teams-Chats und Kanäle, Tagesanalysen — plus Planner und Slot-Suche."
         }
         logo={
           scope === "google" ? (
@@ -1716,8 +1727,8 @@ export function WorkspaceDayClient({
               ) : null}
             </p>
             <nav
-              className={segmentedTrackClass}
-              aria-label="Kalender Mail Aufgaben"
+              className={cn(segmentedTrackClass, "h-auto min-h-10")}
+              aria-label="Kalender Mail Teams Aufgaben"
             >
               <Button
                 type="button"
@@ -1743,6 +1754,18 @@ export function WorkspaceDayClient({
                 <CalendarClock className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
                 Kalender
               </Button>
+              {scope === "microsoft" ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  data-segment="true"
+                  className={mailWorkspaceTabClass(tab === "teams", routeHint)}
+                  onClick={() => goTab("teams")}
+                >
+                  <MicrosoftTeamsLogo className="size-4 shrink-0" />
+                  Teams
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="ghost"
@@ -2000,6 +2023,8 @@ export function WorkspaceDayClient({
                 providerScope={scope}
               />
             </section>
+          ) : tab === "teams" && scope === "microsoft" ? (
+            <MicrosoftTeamsPanel />
           ) : tab === "planner" ? (
             <section className="space-y-3">
               <h2 className="text-[0.9375rem] font-semibold">

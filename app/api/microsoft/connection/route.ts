@@ -7,9 +7,15 @@ import {
   getMicrosoftOauthRedirectUri,
   getMicrosoftOauthTenant,
   hasMicrosoftCalendarScope,
+  hasMicrosoftChannelListScopes,
+  hasMicrosoftChannelScope,
+  hasMicrosoftChatScope,
   hasMicrosoftMailScope,
   hasMicrosoftMailSendScope,
   hasMicrosoftTasksScope,
+  hasMicrosoftTeamScope,
+  hasMicrosoftTeamsScopes,
+  hasMicrosoftTranscriptScope,
   isMicrosoftConnected,
   isMicrosoftOauthConfigured,
   resolveMicrosoftUserId,
@@ -37,5 +43,13 @@ export async function GET(request: Request) {
     hasMailSendScope: connected ? hasMicrosoftMailSendScope(userId) : false,
     hasCalendarScope: connected ? hasMicrosoftCalendarScope(userId) : false,
     hasTasksScope: connected ? hasMicrosoftTasksScope(userId) : false,
+    hasChatScope: connected ? hasMicrosoftChatScope(userId) : false,
+    hasTeamScope: connected ? hasMicrosoftTeamScope(userId) : false,
+    hasChannelScope: connected ? hasMicrosoftChannelScope(userId) : false,
+    hasChannelListScopes: connected
+      ? hasMicrosoftChannelListScopes(userId)
+      : false,
+    hasTranscriptScope: connected ? hasMicrosoftTranscriptScope(userId) : false,
+    hasTeamsScopes: connected ? hasMicrosoftTeamsScopes(userId) : false,
   });
 }
