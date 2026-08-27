@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withMariModule } from "@/lib/mari/with-module";
 import { ownerKeyFromAuth } from "@/lib/auth/owner-key";
+import { MARI_EMPLOYEE_FILTER_MAX } from "@/lib/mari/tickets";
 import {
   deleteMariTicketSavedView,
   updateMariTicketSavedView,
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 const PatchSchema = z.object({
   label: z.string().min(1).max(60).optional(),
-  handledBy: z.array(z.string()).min(1).max(40).optional(),
+  handledBy: z.array(z.string()).min(1).max(MARI_EMPLOYEE_FILTER_MAX).optional(),
   statuses: z.array(z.number().int().positive()).optional(),
   overdueOnly: z.boolean().optional(),
   showOnHome: z.boolean().optional(),

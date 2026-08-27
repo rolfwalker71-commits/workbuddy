@@ -1,7 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { getSetting, setSetting } from "@/lib/db/migrations";
 import { ALL_STATUS_IDS, WORK_STATUS_IDS } from "@/lib/mari/status";
-import { normalizeMariEmployeeNumber } from "@/lib/mari/tickets";
+import {
+  MARI_EMPLOYEE_FILTER_MAX,
+  normalizeMariEmployeeNumber,
+} from "@/lib/mari/tickets";
 
 export const MARI_TICKET_SAVED_VIEWS_MAX = 8;
 
@@ -41,7 +44,7 @@ function sanitizeHandledBy(raw: unknown): string[] {
         .map((v) => normalizeMariEmployeeNumber(typeof v === "string" ? v : null))
         .filter((n): n is string => n != null)
     ),
-  ].slice(0, 40);
+  ].slice(0, MARI_EMPLOYEE_FILTER_MAX);
 }
 
 function sanitizeLabel(raw: unknown): string {

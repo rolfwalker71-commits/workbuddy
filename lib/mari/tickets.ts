@@ -202,6 +202,9 @@ export function normalizeMariEmployeeNumber(
   return v;
 }
 
+/** Whole support groups (e.g. Applikation CH) exceed the old 40 cap. */
+export const MARI_EMPLOYEE_FILTER_MAX = 200;
+
 export function parseEmployeeNumbersParam(
   raw: string | null | undefined
 ): string[] {
@@ -213,14 +216,15 @@ export function parseEmployeeNumbersParam(
         .map((p) => normalizeMariEmployeeNumber(p))
         .filter((n): n is string => n != null)
     ),
-  ].slice(0, 40);
+  ].slice(0, MARI_EMPLOYEE_FILTER_MAX);
 }
 
 function resolveEmployeeNumbers(options: ListTicketsOptions): string[] {
   const fromList = (options.employeeNumbers || [])
     .map((n) => normalizeMariEmployeeNumber(n))
     .filter((n): n is string => n != null);
-  if (fromList.length > 0) return [...new Set(fromList)].slice(0, 40);
+  if (fromList.length > 0)
+    return [...new Set(fromList)].slice(0, MARI_EMPLOYEE_FILTER_MAX);
   const single = normalizeMariEmployeeNumber(options.employeeNumber);
   return single ? [single] : [];
 }

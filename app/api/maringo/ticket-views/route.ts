@@ -3,7 +3,7 @@ import { z } from "zod";
 import { withMariModule } from "@/lib/mari/with-module";
 import { ownerKeyFromAuth } from "@/lib/auth/owner-key";
 import { hasMariConfig } from "@/lib/mari/config";
-import { countMyTickets } from "@/lib/mari/tickets";
+import { countMyTickets, MARI_EMPLOYEE_FILTER_MAX } from "@/lib/mari/tickets";
 import {
   createMariTicketSavedView,
   listMariTicketSavedViews,
@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 
 const PostSchema = z.object({
   label: z.string().min(1).max(60),
-  handledBy: z.array(z.string()).min(1).max(40),
+  handledBy: z.array(z.string()).min(1).max(MARI_EMPLOYEE_FILTER_MAX),
   statuses: z.array(z.number().int().positive()).optional(),
   overdueOnly: z.boolean().optional(),
   showOnHome: z.boolean().optional(),
@@ -70,7 +70,17 @@ export async function POST(request: Request) {
   return withMariModule(async (auth) => {
     const parsed = PostSchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) {
-      return NextResponse.json({ error: "Ungültige Eingabe" }, { status: 400 });
+      const tooManyHandlers = parsed.error.issues.some(
+        (issue) => issue.path[0] === "handledBy" && issue.code === "too_big"
+      );
+      return NextResponse.json(
+        {
+          error: tooManyHandlers
+            ? `Höchstens ${MARI_EMPLOYEE_FILTER_MAX} Bearbeiter in einer Sicht.`
+            : "Ungültige Eingabe",
+        },
+        { status: 400 }
+      );
     }
     try {
       const view = createMariTicketSavedView(ownerKeyFromAuth(auth), parsed.data);
