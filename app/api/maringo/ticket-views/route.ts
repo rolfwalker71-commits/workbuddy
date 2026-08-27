@@ -43,7 +43,11 @@ async function withCounts(views: MariTicketSavedView[]) {
           count,
           href: mariTicketSavedViewHref(view),
         };
-      } catch {
+      } catch (err) {
+        console.warn(
+          "[ticket-views] count failed:",
+          err instanceof Error ? err.message : err
+        );
         return {
           ...view,
           count: null as number | null,

@@ -27,6 +27,10 @@ import { getGoogleMailDayCached } from "@/lib/google/mail-day-analysis-job";
 import { zurichYmd } from "@/lib/microsoft/time";
 import { getMariTicketsWatchState } from "@/lib/mari/sync-tickets-if-due";
 import type { MariTicketsWatchState } from "@/lib/mari/sync-tickets-if-due";
+import {
+  listMariTicketSavedViews,
+  mariTicketSavedViewHref,
+} from "@/lib/mari/ticket-saved-views";
 import { loadHomeTasksBundle, type HomeTasksBundle } from "./home-tasks";
 import { fetchHomeWeatherCard } from "@/lib/weather/fetch";
 import { loadWorkspaceTodayEvents } from "@/lib/workspace/today-events";
@@ -234,7 +238,18 @@ export async function getHomeOverview(
     todayEvents: [],
     todayMail: [],
     maringo: showMari
-      ? { enabled: true, tickets: tickets ?? emptyTickets() }
+      ? {
+          enabled: true,
+          tickets: tickets ?? emptyTickets(),
+          savedViews: listMariTicketSavedViews(ownerKey)
+            .filter((v) => v.showOnHome)
+            .map((v) => ({
+              id: v.id,
+              label: v.label,
+              count: null as number | null,
+              href: mariTicketSavedViewHref(v),
+            })),
+        }
       : null,
     weather,
     ttvDuty: showMari ? homeTtvDuty(userId, today) : null,

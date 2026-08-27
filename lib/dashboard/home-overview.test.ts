@@ -143,16 +143,25 @@ test("mergeHomeMaringoTickets updates bagel counts without dropping modules", ()
     ttvDuty: null,
     absence: null,
   };
-  const merged = mergeHomeMaringoTickets(overview, {
-    configured: true,
-    employeeNumber: "M1010",
-    lastPollAt: "2026-08-23T16:00:00.000Z",
-    countsByStatus: [{ statusId: 11, label: "Offen", count: 4 }],
-    total: 4,
-    recentChanges: [],
-  });
+  const merged = mergeHomeMaringoTickets(
+    overview,
+    {
+      configured: true,
+      employeeNumber: "M1010",
+      lastPollAt: "2026-08-23T16:00:00.000Z",
+      countsByStatus: [{ statusId: 11, label: "Offen", count: 4 }],
+      total: 4,
+      recentChanges: [],
+    },
+    {
+      savedViews: [
+        { id: "v1", label: "ANG CH Support", count: 41, href: "/maringo?handledBy=M1010" },
+      ],
+    }
+  );
   assert.equal(merged.maringo?.tickets.total, 4);
   assert.equal(merged.maringo?.tickets.countsByStatus[0]?.count, 4);
+  assert.equal(merged.maringo?.savedViews?.[0]?.count, 41);
   assert.equal(merged.modules[0], "maringo");
 });
 

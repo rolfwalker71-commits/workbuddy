@@ -1,2 +1,2 @@
 /** Sidebar build stamp (YYYYMMDD-HHMM). Bump with `npm run version:bump` before each commit. */
-export const APP_VERSION = "20260827-1706";
+export const APP_VERSION = "20260827-1732";

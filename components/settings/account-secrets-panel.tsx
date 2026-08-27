@@ -227,15 +227,6 @@ export function AccountSecretsPanel() {
           <CardTitle className="text-base">Maringo / MARI</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            URL und REST-Zugang kommen vom Server
-            {data?.mari.mariBaseUrl ? ` (${data.mari.mariBaseUrl})` : ""}.
-            {data?.mari.mariConfigured
-              ? " Personalnummer ist gesetzt."
-              : data?.mari.mariSharedLogin || data?.mari.hasMariPassword
-                ? " Noch die Personalnummer eintragen."
-                : " Server-Zugang fehlt (Admin: .env)."}
-          </p>
           <div className="space-y-2">
             <Label htmlFor="mari-emp">Personalnummer</Label>
             <Input

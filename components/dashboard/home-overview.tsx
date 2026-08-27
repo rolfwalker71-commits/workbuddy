@@ -507,16 +507,25 @@ export function HomeOverview() {
                 ttvInboxCount?: number;
                 savedViews?: HomeTicketSavedViewKpi[];
               };
-              if (cancelled || !live.tickets) return;
-              setData((prev) =>
-                prev
-                  ? mergeHomeMaringoTickets(prev, live.tickets!, {
-                      ticketRows: live.ticketRows,
-                      ttvInboxCount: live.ttvInboxCount,
-                      savedViews: live.savedViews,
-                    })
-                  : prev
-              );
+              if (cancelled) return;
+              setData((prev) => {
+                if (!prev?.maringo) return prev;
+                if (live.tickets) {
+                  return mergeHomeMaringoTickets(prev, live.tickets, {
+                    ticketRows: live.ticketRows,
+                    ttvInboxCount: live.ttvInboxCount,
+                    savedViews: live.savedViews,
+                  });
+                }
+                if (!live.savedViews) return prev;
+                return {
+                  ...prev,
+                  maringo: {
+                    ...prev.maringo,
+                    savedViews: live.savedViews,
+                  },
+                };
+              });
             })
             .catch(() => undefined);
         }
@@ -1014,6 +1023,10 @@ export function HomeOverview() {
                 </div>
               )}
               {data.maringo.savedViews && data.maringo.savedViews.length > 0 ? (
+                <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-muted-foreground">
+                  Gespeicherte Sichten
+                </p>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {data.maringo.savedViews.map((view) => (
                     <Link
@@ -1029,6 +1042,7 @@ export function HomeOverview() {
                       </span>
                     </Link>
                   ))}
+                </div>
                 </div>
               ) : null}
               <div className="flex flex-wrap items-center justify-between gap-2">

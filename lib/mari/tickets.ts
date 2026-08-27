@@ -366,14 +366,30 @@ function lineLabel(posType: number): string {
   }
 }
 
+/** MARI/SQL Server often uppercases or quotes COUNT aliases. */
+export function readMariSqlCount(
+  row: Record<string, unknown> | null | undefined
+): number {
+  if (!row || typeof row !== "object") return 0;
+  for (const key of ["C", "c", "n", "N"]) {
+    const v = Number(row[key]);
+    if (Number.isFinite(v)) return v;
+  }
+  for (const value of Object.values(row)) {
+    const v = Number(value);
+    if (Number.isFinite(v)) return v;
+  }
+  return 0;
+}
+
 export async function countMyTickets(
   options: ListTicketsOptions = {}
 ): Promise<number> {
   requireMariConfig();
   const clauses = buildTicketWhereClauses(options);
   if (!clauses) return 0;
-  const rows = await mariSql<{ n: number }>(
-    `SELECT COUNT(*) AS n
+  const rows = await mariSql<Record<string, unknown>>(
+    `SELECT COUNT(*) AS "C"
 FROM "MARISupportIssue" i
 WHERE ${clauses.ownerClause}
   AND i."EditorType" = 3
@@ -382,8 +398,7 @@ WHERE ${clauses.ownerClause}
   ${clauses.overdueClause}
   ${clauses.requestDateClause}`
   );
-  const n = Number(rows[0]?.n);
-  return Number.isFinite(n) ? n : 0;
+  return readMariSqlCount(rows[0]);
 }
 
 export async function listMyTickets(

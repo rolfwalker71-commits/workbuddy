@@ -2813,6 +2813,12 @@ export function MaringoWorkspaceClient() {
                   key={t.issueId}
                   className={cn("flex items-stretch", rowFill)}
                 >
+                  <span
+                    aria-hidden
+                    className="my-1 ml-1.5 flex w-10 shrink-0 items-center justify-center self-stretch rounded-md border-2 border-white bg-orange-500 text-[1.25rem] font-black tabular-nums leading-none text-white shadow-sm dark:bg-orange-600"
+                  >
+                    {index + 1}
+                  </span>
                   <Button
                     type="button"
                     variant="ghost"
@@ -2847,12 +2853,6 @@ export function MaringoWorkspaceClient() {
                           {t.briefDescription}
                         </p>
                       </div>
-                      {filterMode === "ttv" &&
-                      (t.handledByName || t.handledBy) ? (
-                        <p className="mt-0.5 truncate text-[0.625rem] text-muted-foreground">
-                          {t.handledByName || t.handledBy}
-                        </p>
-                      ) : null}
                       {metaItems.length > 0 ? (
                         <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[0.6875rem] text-muted-foreground">
                           {metaItems.map((item, idx) => (
@@ -2874,7 +2874,23 @@ export function MaringoWorkspaceClient() {
                               )}
                             </span>
                           ))}
+                          {t.handledByName || t.handledBy ? (
+                            <span className="inline-flex min-w-0 items-center gap-1.5">
+                              {metaItems.length > 0 ? (
+                                <span className="text-border" aria-hidden>
+                                  ·
+                                </span>
+                              ) : null}
+                              <span className="truncate">
+                                {t.handledByName || t.handledBy}
+                              </span>
+                            </span>
+                          ) : null}
                         </div>
+                      ) : t.handledByName || t.handledBy ? (
+                        <p className="mt-0.5 truncate text-[0.6875rem] text-muted-foreground">
+                          {t.handledByName || t.handledBy}
+                        </p>
                       ) : null}
                     </div>
                     {stamp ? (
