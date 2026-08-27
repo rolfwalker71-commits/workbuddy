@@ -18,6 +18,7 @@ type AppUser = {
   modules: string[];
   has_mari_password: boolean;
   has_openai_key: boolean;
+  mari_employee_number?: string | null;
 };
 
 export function SettingsUsersPanel() {
@@ -117,16 +118,14 @@ export function SettingsUsersPanel() {
   }
 
   async function resetSecrets(id: number) {
-    if (!confirm("OpenAI-Key und Maringo-Passwort dieses Users entfernen?")) return;
+    if (!confirm("OpenAI-Key dieses Users entfernen?")) return;
     setBusy(true);
     try {
       const res = await fetch(`/api/users/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          clearMariRestPassword: true,
           clearOpenaiApiKey: true,
-          mariRestUsername: null,
         }),
       });
       const json = await res.json();
@@ -217,7 +216,9 @@ export function SettingsUsersPanel() {
                     ))}
                     {user.active ? null : <Badge variant="destructive">inaktiv</Badge>}
                     {user.has_openai_key ? <Badge>OpenAI</Badge> : null}
-                    {user.has_mari_password ? <Badge>MARI</Badge> : null}
+                    {user.mari_employee_number ? (
+                      <Badge>MARI {user.mari_employee_number}</Badge>
+                    ) : null}
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">

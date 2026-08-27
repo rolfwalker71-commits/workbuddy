@@ -10,6 +10,7 @@ import { parseStatusIdsParam, WORK_STATUS_IDS } from "@/lib/mari/status";
 import {
   listMyTickets,
   normalizeMariEmployeeNumber,
+  parseEmployeeNumbersParam,
   type MariTicketListItem,
 } from "@/lib/mari/tickets";
 import {
@@ -118,11 +119,18 @@ export async function GET(request: Request) {
       url.searchParams.get("handledBy") ||
       url.searchParams.get("employee") ||
       null;
+    const handledByList = parseEmployeeNumbersParam(handledByParam);
     const handledBy =
-      normalizeMariEmployeeNumber(handledByParam) ||
+      handledByList[0] ||
       normalizeMariEmployeeNumber(userEmp) ||
       normalizeMariEmployeeNumber(cfg.employeeNumber);
-    if (!handledBy) {
+    const employeeNumbers =
+      handledByList.length > 0
+        ? handledByList
+        : handledBy
+          ? [handledBy]
+          : [];
+    if (employeeNumbers.length === 0) {
       return NextResponse.json(
         {
           error: "Personalnummer ungültig (z.B. M1010).",
@@ -137,7 +145,7 @@ export async function GET(request: Request) {
       await listMyTickets({
         statuses,
         overdueOnly,
-        employeeNumber: handledBy,
+        employeeNumbers,
       })
     );
     return NextResponse.json({
@@ -146,7 +154,8 @@ export async function GET(request: Request) {
         calendarStamps: stampsForTickets(auth.userId, tickets),
         statuses,
         overdueOnly,
-        handledBy,
+        handledBy: employeeNumbers.join(","),
+        handledByList: employeeNumbers,
       filterMode: "handler" as const,
       defaultHandledBy,
     });

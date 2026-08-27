@@ -13,7 +13,7 @@ export async function POST() {
     return NextResponse.json(
       {
         error:
-          "MARI nicht konfiguriert. Hinterlege dein Maringo-Login unter Konto.",
+          "MARI nicht konfiguriert. Personalnummer unter Konto, REST-Zugang in der .env.",
       },
       { status: 400 }
     );

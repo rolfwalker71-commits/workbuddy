@@ -10,7 +10,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowDownAZ,
   ArrowUpAZ,
@@ -65,6 +65,7 @@ import {
   ALL_STATUS_IDS,
   STATUS_LABELS,
   WORK_STATUS_IDS,
+  parseStatusIdsParam,
   resolveRecommendedStatusId,
   statusChipClass,
   statusChipLabel,
@@ -92,12 +93,13 @@ import type {
 } from "@/lib/mari/tickets";
 import type { MariSupportGroupOption } from "@/lib/mari/ticket-meta";
 import {
-  employeeInSupportGroup,
-  filterEmployeesBySupportGroup,
   firstSupportGroupIdForEmployee,
-  parseMariSupportGroupId,
 } from "@/lib/mari/support-group-staff";
-import { MariSupportStaffPicker } from "@/components/maringo/mari-support-staff-picker";
+import { MariHandlerMultiPicker } from "@/components/maringo/mari-handler-multi-picker";
+import {
+  MariTicketSavedViewsBar,
+  type MariTicketSavedViewChip,
+} from "@/components/maringo/mari-ticket-saved-views-bar";
 import type { MariCustomerOption } from "@/lib/mari/customers";
 import type {
   MariListMetaField,
@@ -775,6 +777,7 @@ function TicketReviewToggle({
 
 export function MaringoWorkspaceClient() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [workspaceTab, setWorkspaceTab] = useState<
     "tickets" | "hours" | "kunde" | "ttv"
   >("tickets");
@@ -848,9 +851,9 @@ export function MaringoWorkspaceClient() {
   );
   const [filterSupportGroupId, setFilterSupportGroupId] = useState("");
   const [defaultHandledBy, setDefaultHandledBy] = useState("");
-  const [handledBy, setHandledBy] = useState("");
-  const [manualHandledBy, setManualHandledBy] = useState("");
-  const [handlerMode, setHandlerMode] = useState<"list" | "manual">("list");
+  const [handledByList, setHandledByList] = useState<string[]>([]);
+  const [extraHandledBy, setExtraHandledBy] = useState("");
+  const [savedViews, setSavedViews] = useState<MariTicketSavedViewChip[]>([]);
   const [filterMode, setFilterMode] =
     useState<MariTicketFilterMode>("handler");
   const [selectedCustomers, setSelectedCustomers] = useState<
@@ -965,24 +968,16 @@ export function MaringoWorkspaceClient() {
     );
   }, [ticketTimeLines]);
 
-  const effectiveHandledBy = useMemo(() => {
-    if (handlerMode === "manual") {
-      return manualHandledBy.trim().toUpperCase();
-    }
-    return (handledBy || defaultHandledBy).trim().toUpperCase();
-  }, [handlerMode, manualHandledBy, handledBy, defaultHandledBy]);
-
-  const [listHandledBy, setListHandledBy] = useState("");
-  useEffect(() => {
-    if (handlerMode !== "manual") {
-      setListHandledBy(effectiveHandledBy);
-      return;
-    }
-    const t = window.setTimeout(() => {
-      setListHandledBy(effectiveHandledBy);
-    }, 450);
-    return () => window.clearTimeout(t);
-  }, [handlerMode, effectiveHandledBy]);
+  const listHandledBy = useMemo(
+    () =>
+      (handledByList.length > 0
+        ? handledByList
+        : defaultHandledBy
+          ? [defaultHandledBy]
+          : []
+      ).join(","),
+    [handledByList, defaultHandledBy]
+  );
 
   const loadEmployees = useCallback(async () => {
     try {
@@ -1008,7 +1003,7 @@ export function MaringoWorkspaceClient() {
         .toUpperCase();
       if (def) {
         setDefaultHandledBy(def);
-        setHandledBy((prev) => prev || def);
+        setHandledByList((prev) => (prev.length > 0 ? prev : def ? [def] : []));
       }
       setFilterSupportGroupId((prev) => {
         if (prev) return prev;
@@ -1265,7 +1260,8 @@ export function MaringoWorkspaceClient() {
       }
       if (
         isMariTicketFilterMode(patch.filterMode) &&
-        searchParams.get("filter") !== "ttv"
+        searchParams.get("filter") !== "ttv" &&
+        !searchParams.get("handledBy")
       ) {
         setFilterMode(patch.filterMode);
       }
@@ -1511,6 +1507,28 @@ export function MaringoWorkspaceClient() {
       setListSort("newest");
       setWorkspaceTab("tickets");
     }
+    const handledByRaw = searchParams.get("handledBy");
+    const statusRaw = searchParams.get("status");
+    if (handledByRaw || statusRaw) {
+      setFilterMode("handler");
+      setWorkspaceTab("tickets");
+      if (handledByRaw) {
+        const nums = [
+          ...new Set(
+            handledByRaw
+              .split(",")
+              .map((s) => s.trim().toUpperCase())
+              .filter((s) => /^[A-Z0-9]{2,20}$/.test(s))
+          ),
+        ];
+        if (nums.length > 0) setHandledByList(nums);
+      }
+      if (statusRaw) {
+        const ids = parseStatusIdsParam(statusRaw, []);
+        if (ids.length > 0) setStatuses(ids);
+      }
+      if (searchParams.get("overdue") === "1") setOverdueOnly(true);
+    }
     const openRaw = searchParams.get("open");
     if (openRaw) {
       const id = Number(openRaw);
@@ -1666,10 +1684,9 @@ export function MaringoWorkspaceClient() {
   }
 
   function applyDefaultHandlerAndGroup() {
-    setHandlerMode("list");
-    setManualHandledBy("");
+    setExtraHandledBy("");
     if (defaultHandledBy) {
-      setHandledBy(defaultHandledBy);
+      setHandledByList([defaultHandledBy]);
       const gid = firstSupportGroupIdForEmployee(
         employees,
         defaultHandledBy,
@@ -1678,7 +1695,7 @@ export function MaringoWorkspaceClient() {
       setFilterSupportGroupId(gid != null ? String(gid) : "");
       return;
     }
-    setHandledBy("");
+    setHandledByList([]);
     setFilterSupportGroupId("");
   }
 
@@ -1697,30 +1714,58 @@ export function MaringoWorkspaceClient() {
     setOverdueOnly(false);
   }
 
-  function onHandlerSelectChange(value: string) {
-    if (value === "__manual__") {
-      setHandlerMode("manual");
-      setManualHandledBy((prev) => prev || handledBy || defaultHandledBy);
-      return;
-    }
-    setHandlerMode("list");
-    setHandledBy(value);
-  }
-
   function onFilterSupportGroupChange(next: string) {
     setFilterSupportGroupId(next);
-    if (handlerMode === "manual") return;
-    const gid = parseMariSupportGroupId(next);
-    const inGroup = filterEmployeesBySupportGroup(employees, gid);
-    const current = (handledBy || defaultHandledBy).trim().toUpperCase();
-    if (inGroup.some((e) => e.employeeNumber === current)) {
-      if (!handledBy && defaultHandledBy) setHandledBy(defaultHandledBy);
-      return;
+  }
+
+  const loadSavedViews = useCallback(async () => {
+    try {
+      const res = await fetch("/api/maringo/ticket-views");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return;
+      setSavedViews(
+        Array.isArray(data.views) ? (data.views as MariTicketSavedViewChip[]) : []
+      );
+    } catch {
+      /* optional */
     }
-    const fallback =
-      inGroup.find((e) => e.employeeNumber === defaultHandledBy) ||
-      inGroup[0];
-    setHandledBy(fallback?.employeeNumber || "");
+  }, []);
+
+  useEffect(() => {
+    if (!filterReady) return;
+    void loadSavedViews();
+  }, [filterReady, loadSavedViews]);
+
+  async function saveCurrentView(label: string, showOnHome: boolean) {
+    const handledBy =
+      handledByList.length > 0
+        ? handledByList
+        : defaultHandledBy
+          ? [defaultHandledBy]
+          : [];
+    const res = await fetch("/api/maringo/ticket-views", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        label,
+        handledBy,
+        statuses,
+        overdueOnly,
+        showOnHome,
+      }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.error || "Speichern fehlgeschlagen");
+    await loadSavedViews();
+  }
+
+  function applySavedView(view: MariTicketSavedViewChip) {
+    setFilterMode("handler");
+    setHandledByList(view.handledBy);
+    setStatuses(view.statuses.length > 0 ? view.statuses : [...WORK_STATUS_IDS]);
+    setOverdueOnly(view.overdueOnly);
+    setWorkspaceTab("tickets");
+    router.replace(view.href);
   }
 
   async function runAnalyze(options?: {
@@ -2243,8 +2288,8 @@ export function MaringoWorkspaceClient() {
           <CardContent className="space-y-3 p-4 text-sm">
             <p>
               {passwordUnreadable
-                ? "Maringo-Passwort ist unlesbar. Unter "
-                : "MARI-Login fehlt. Unter "}
+                ? "MARI-Zugang unvollständig. Unter "
+                : "MARI nicht bereit. Unter "}
               <Link
                 href="/account"
                 className="font-semibold text-orange-900 underline underline-offset-2 dark:text-orange-200"
@@ -2252,8 +2297,8 @@ export function MaringoWorkspaceClient() {
                 Konto
               </Link>
               {passwordUnreadable
-                ? " neu setzen."
-                : " Benutzer, Passwort und Personalnummer hinterlegen."}
+                ? " die Personalnummer setzen; REST-Zugang kommt aus der .env."
+                : " die Personalnummer setzen. URL und REST-Zugang kommen vom Server."}
             </p>
           </CardContent>
         </Card>
@@ -2330,6 +2375,18 @@ export function MaringoWorkspaceClient() {
           </div>
 
           <div className="space-y-1.5 border-b border-border/50 px-3 py-2">
+            {filterMode === "handler" ? (
+              <MariTicketSavedViewsBar
+                views={savedViews}
+                onReload={() => void loadSavedViews()}
+                canSave={
+                  handledByList.length > 0 || Boolean(defaultHandledBy)
+                }
+                onSave={saveCurrentView}
+                onApply={applySavedView}
+                disabled={!configured}
+              />
+            ) : null}
             <div className="flex flex-wrap items-center gap-1.5">
               {filterMode !== "ttv" ? (
                 <>
@@ -2538,71 +2595,24 @@ export function MaringoWorkspaceClient() {
                   </p>
                 </div>
               ) : filterMode === "handler" ? (
-                <MariSupportStaffPicker
-                  variant="filter"
+                <MariHandlerMultiPicker
                   groups={supportGroups}
                   employees={employees}
                   groupId={filterSupportGroupId}
-                  employeeNumber={
-                    handlerMode === "manual"
-                      ? "__manual__"
-                      : handledBy || defaultHandledBy || ""
+                  selected={
+                    handledByList.length > 0
+                      ? handledByList
+                      : defaultHandledBy
+                        ? [defaultHandledBy]
+                        : []
                   }
+                  defaultHandledBy={defaultHandledBy}
                   onGroupChange={onFilterSupportGroupChange}
-                  onEmployeeChange={onHandlerSelectChange}
-                  groupLabel="Supportgruppe"
-                  employeeLabel="Bearbeiter"
-                  groupSelectId="mari-filter-group"
-                  employeeSelectId="mari-handler"
-                  hideGroupLabel
-                  hideEmployeeLabel
+                  onSelectedChange={setHandledByList}
                   onReset={resetHandlerFilters}
                   disabled={!configured}
-                  formatEmployeeOption={(e) =>
-                    `${e.matchcode} (${e.employeeNumber})${
-                      defaultHandledBy && e.employeeNumber === defaultHandledBy
-                        ? " · ich"
-                        : ""
-                    }`
-                  }
-                  extraEmployeeOptions={[
-                    ...(handledBy &&
-                    !employees.some(
-                      (e) =>
-                        e.employeeNumber === handledBy &&
-                        employeeInSupportGroup(
-                          e,
-                          parseMariSupportGroupId(filterSupportGroupId)
-                        )
-                    )
-                      ? [{ value: handledBy, label: handledBy }]
-                      : []),
-                    { value: "__manual__", label: "Andere Nummer…" },
-                  ]}
-                  footer={
-                    <>
-                      {handlerMode === "manual" ? (
-                        <Input
-                          value={manualHandledBy}
-                          onChange={(e) =>
-                            setManualHandledBy(e.target.value.toUpperCase())
-                          }
-                          placeholder="z.B. M2055"
-                          className="h-8 text-xs"
-                          spellCheck={false}
-                          autoComplete="off"
-                        />
-                      ) : null}
-                      {effectiveHandledBy &&
-                      defaultHandledBy &&
-                      effectiveHandledBy !== defaultHandledBy ? (
-                        <p className="text-[0.625rem] text-muted-foreground">
-                          Ansicht: {effectiveHandledBy} (nicht deine Nummer{" "}
-                          {defaultHandledBy})
-                        </p>
-                      ) : null}
-                    </>
-                  }
+                  extraNumber={extraHandledBy}
+                  onExtraNumberChange={setExtraHandledBy}
                 />
               ) : (
                 <div className="space-y-1.5">

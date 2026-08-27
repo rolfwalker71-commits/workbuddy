@@ -9,8 +9,13 @@ import { resolveAppUserId } from "@/lib/users/resolve-user";
 import { ensureInitialized } from "@/lib/db/migrations";
 import { getMariTicketsWatchStateLive } from "@/lib/mari/sync-tickets-if-due";
 import { hasMariConfig } from "@/lib/mari/config";
-import { listMyTickets } from "@/lib/mari/tickets";
+import { countMyTickets, listMyTickets } from "@/lib/mari/tickets";
 import { getMariTicketFilterPrefs } from "@/lib/mari/ticket-filter-prefs";
+import {
+  listMariTicketSavedViews,
+  mariTicketSavedViewHref,
+} from "@/lib/mari/ticket-saved-views";
+import type { HomeTicketSavedViewKpi } from "@/lib/dashboard/home-overview-shared";
 import { ttvInboxDateWindow } from "@/lib/mari/ttv";
 import { zurichYmd } from "@/lib/microsoft/time";
 import type { HomeTicketRow } from "@/lib/dashboard/home-surfaces-shared";
@@ -32,6 +37,7 @@ export async function GET() {
       tickets: null,
       ticketRows: [],
       ttvInboxCount: 0,
+      savedViews: [],
     });
   }
   return runWithRequestSecrets(auth, async () => {
@@ -41,6 +47,16 @@ export async function GET() {
     const tickets = await getMariTicketsWatchStateLive(ownerKey);
     let ticketRows: HomeTicketRow[] = [];
     let ttvInboxCount = 0;
+    let savedViews: HomeTicketSavedViewKpi[] = listMariTicketSavedViews(
+      ownerKey
+    )
+      .filter((v) => v.showOnHome)
+      .map((v) => ({
+        id: v.id,
+        label: v.label,
+        count: null,
+        href: mariTicketSavedViewHref(v),
+      }));
     if (hasMariConfig()) {
       try {
         const [mine, ttv] = await Promise.all([
@@ -67,6 +83,33 @@ export async function GET() {
             overdue: isOverdue(t.dueDate, today),
           }));
         ttvInboxCount = ttv.length;
+        const homeViews = listMariTicketSavedViews(ownerKey).filter(
+          (v) => v.showOnHome
+        );
+        savedViews = await Promise.all(
+          homeViews.map(async (view) => {
+            try {
+              const count = await countMyTickets({
+                employeeNumbers: view.handledBy,
+                statuses: view.statuses,
+                overdueOnly: view.overdueOnly,
+              });
+              return {
+                id: view.id,
+                label: view.label,
+                count,
+                href: mariTicketSavedViewHref(view),
+              };
+            } catch {
+              return {
+                id: view.id,
+                label: view.label,
+                count: null,
+                href: mariTicketSavedViewHref(view),
+              };
+            }
+          })
+        );
       } catch (err) {
         console.warn(
           "[home] ticket rows:",
@@ -74,6 +117,6 @@ export async function GET() {
         );
       }
     }
-    return NextResponse.json({ tickets, ticketRows, ttvInboxCount });
+    return NextResponse.json({ tickets, ticketRows, ttvInboxCount, savedViews });
   });
 }

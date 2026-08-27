@@ -259,11 +259,6 @@ export function updateAppUser(
   } else if (input.mariRestPassword != null && input.mariRestPassword.trim()) {
     mariRestPasswordEnc = encryptSecret(input.mariRestPassword.trim());
   }
-  if (mariRestUsername && (!mariRestPasswordEnc || !mariEmployeeNumber)) {
-    throw new Error(
-      "Für persönliche MARI-Zugangsdaten bitte Benutzer, Passwort und Personalnummer setzen."
-    );
-  }
   if (!mariRestUsername) {
     mariRestPasswordEnc = null;
   }

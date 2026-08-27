@@ -166,6 +166,8 @@ export type ListTicketsOptions = {
   limit?: number;
   /** Override HandledBy (EmployeeNumber, z.B. M2055). Default: konfigurierte Personalnummer. */
   employeeNumber?: string | null;
+  /** Several HandledBy numbers → SQL IN. Takes precedence over employeeNumber. */
+  employeeNumbers?: string[];
   /**
    * Wenn gesetzt (nicht leer): Filter nach CardCode, ohne HandledBy-Einschränkung.
    * Mutually exclusive with employee filter in the API layer.
@@ -198,6 +200,99 @@ export function normalizeMariEmployeeNumber(
   if (!v) return null;
   if (!/^[A-Z0-9]{2,20}$/.test(v)) return null;
   return v;
+}
+
+export function parseEmployeeNumbersParam(
+  raw: string | null | undefined
+): string[] {
+  if (!raw?.trim()) return [];
+  return [
+    ...new Set(
+      raw
+        .split(",")
+        .map((p) => normalizeMariEmployeeNumber(p))
+        .filter((n): n is string => n != null)
+    ),
+  ].slice(0, 40);
+}
+
+function resolveEmployeeNumbers(options: ListTicketsOptions): string[] {
+  const fromList = (options.employeeNumbers || [])
+    .map((n) => normalizeMariEmployeeNumber(n))
+    .filter((n): n is string => n != null);
+  if (fromList.length > 0) return [...new Set(fromList)].slice(0, 40);
+  const single = normalizeMariEmployeeNumber(options.employeeNumber);
+  return single ? [single] : [];
+}
+
+function buildTicketWhereClauses(options: ListTicketsOptions): {
+  ownerClause: string;
+  statusClause: string;
+  overdueClause: string;
+  requestDateClause: string;
+} | null {
+  const ttvInbox = options.ttvInbox === true;
+  const issueIds = [
+    ...new Set(
+      (options.issueIds || []).filter((id) => Number.isInteger(id) && id > 0)
+    ),
+  ].slice(0, 40);
+  const byIssueIds = issueIds.length > 0;
+  const statuses = ttvInbox
+    ? [TTV_INBOX_STATUS_ID]
+    : options.statuses && options.statuses.length > 0
+      ? options.statuses.filter((n) => Number.isInteger(n) && n > 0)
+      : byIssueIds
+        ? []
+        : [...WORK_STATUS_IDS];
+  if (!byIssueIds && statuses.length === 0) return null;
+
+  const cardCodes = [
+    ...new Set(
+      (options.cardCodes || [])
+        .map((c) => (c || "").trim())
+        .filter((c) => c.length > 0 && c.length <= 50)
+    ),
+  ].slice(0, 40);
+  const byCustomer = !ttvInbox && !byIssueIds && cardCodes.length > 0;
+
+  let ownerClause: string;
+  if (ttvInbox) {
+    ownerClause = "1 = 1";
+  } else if (byIssueIds) {
+    ownerClause = `i."IssueID" IN (${issueIds.join(",")})`;
+  } else if (byCustomer) {
+    ownerClause = `i."CardCode" IN (${cardCodes.map(sqlQuote).join(",")})`;
+  } else {
+    const cfg = requireMariConfig();
+    const employees = resolveEmployeeNumbers(options);
+    const fallback = normalizeMariEmployeeNumber(cfg.employeeNumber);
+    const nums = employees.length > 0 ? employees : fallback ? [fallback] : [];
+    if (nums.length === 0) {
+      throw new MariApiError(
+        "Personalnummer fehlt oder ungültig (z.B. M1010).",
+        400
+      );
+    }
+    ownerClause =
+      nums.length === 1
+        ? `i."HandledBy" = ${sqlQuote(nums[0]!)}`
+        : `i."HandledBy" IN (${nums.map(sqlQuote).join(",")})`;
+  }
+
+  const statusClause =
+    statuses.length > 0 ? `AND i."Status" IN (${statuses.join(",")})` : "";
+  const overdueClause =
+    !ttvInbox && !byIssueIds && options.overdueOnly
+      ? ` AND i."DueDate" IS NOT NULL AND i."DueDate" < CURRENT_DATE `
+      : "";
+  const requestDateFrom = ttvInbox
+    ? sanitizeYmd(options.requestDateFrom) || ttvInboxDateWindow().fromYmd
+    : null;
+  const requestDateClause = requestDateFrom
+    ? ` AND i."RequestDate" IS NOT NULL AND CAST(i."RequestDate" AS DATE) >= ${sqlQuote(requestDateFrom)} `
+    : "";
+  return { ownerClause, statusClause, overdueClause, requestDateClause };
 }
 
 export async function listMariEmployees(): Promise<MariEmployeeOption[]> {
@@ -271,6 +366,26 @@ function lineLabel(posType: number): string {
   }
 }
 
+export async function countMyTickets(
+  options: ListTicketsOptions = {}
+): Promise<number> {
+  requireMariConfig();
+  const clauses = buildTicketWhereClauses(options);
+  if (!clauses) return 0;
+  const rows = await mariSql<{ n: number }>(
+    `SELECT COUNT(*) AS n
+FROM "MARISupportIssue" i
+WHERE ${clauses.ownerClause}
+  AND i."EditorType" = 3
+  AND i."HotlineClassType" = ${SUPPORT_HOTLINE_CLASS_TYPE}
+  ${clauses.statusClause}
+  ${clauses.overdueClause}
+  ${clauses.requestDateClause}`
+  );
+  const n = Number(rows[0]?.n);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export async function listMyTickets(
   options: ListTicketsOptions = {}
 ): Promise<MariTicketListItem[]> {
@@ -282,15 +397,6 @@ export async function listMyTickets(
     ),
   ].slice(0, 40);
   const byIssueIds = issueIds.length > 0;
-  const statuses = ttvInbox
-    ? [TTV_INBOX_STATUS_ID]
-    : options.statuses && options.statuses.length > 0
-      ? options.statuses.filter((n) => Number.isInteger(n) && n > 0)
-      : byIssueIds
-        ? []
-        : [...WORK_STATUS_IDS];
-  if (!byIssueIds && statuses.length === 0) return [];
-
   const cardCodes = [
     ...new Set(
       (options.cardCodes || [])
@@ -299,6 +405,10 @@ export async function listMyTickets(
     ),
   ].slice(0, 40);
   const byCustomer = !ttvInbox && !byIssueIds && cardCodes.length > 0;
+  const clauses = buildTicketWhereClauses(options);
+  if (!clauses) return [];
+  const { ownerClause, statusClause, overdueClause, requestDateClause } =
+    clauses;
   const limit = Math.min(
     Math.max(
       options.limit ?? (ttvInbox || byCustomer || byIssueIds ? 200 : 100),
@@ -307,39 +417,6 @@ export async function listMyTickets(
     200
   );
 
-  let ownerClause: string;
-  if (ttvInbox) {
-    ownerClause = "1 = 1";
-  } else if (byIssueIds) {
-    ownerClause = `i."IssueID" IN (${issueIds.join(",")})`;
-  } else if (byCustomer) {
-    ownerClause = `i."CardCode" IN (${cardCodes.map(sqlQuote).join(",")})`;
-  } else {
-    const cfg = requireMariConfig();
-    const empRaw =
-      normalizeMariEmployeeNumber(options.employeeNumber) ||
-      normalizeMariEmployeeNumber(cfg.employeeNumber);
-    if (!empRaw) {
-      throw new MariApiError(
-        "Personalnummer fehlt oder ungültig (z.B. M1010).",
-        400
-      );
-    }
-    ownerClause = `i."HandledBy" = ${sqlQuote(empRaw)}`;
-  }
-
-  const statusClause =
-    statuses.length > 0 ? `AND i."Status" IN (${statuses.join(",")})` : "";
-  const overdueClause =
-    !ttvInbox && !byIssueIds && options.overdueOnly
-      ? ` AND i."DueDate" IS NOT NULL AND i."DueDate" < CURRENT_DATE `
-      : "";
-  const requestDateFrom = ttvInbox
-    ? sanitizeYmd(options.requestDateFrom) || ttvInboxDateWindow().fromYmd
-    : null;
-  const requestDateClause = requestDateFrom
-    ? ` AND i."RequestDate" IS NOT NULL AND CAST(i."RequestDate" AS DATE) >= ${sqlQuote(requestDateFrom)} `
-    : "";
   const orderBy = ttvInbox
     ? `i."RequestDate" DESC, i."IssueID" DESC`
     : `CASE WHEN i."DueDate" IS NULL THEN 1 ELSE 0 END,

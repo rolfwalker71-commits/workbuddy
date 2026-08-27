@@ -9,7 +9,10 @@ import {
   getMicrosoftOauthTenant,
   isMicrosoftOauthConfigured,
 } from "@/lib/microsoft/oauth";
-import { getMariBaseUrl } from "@/lib/mari/settings";
+import {
+  getMariBaseUrl,
+  getMariRestUsername,
+} from "@/lib/mari/settings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,5 +29,7 @@ export async function GET(request: Request) {
     microsoftOauthTenant: getMicrosoftOauthTenant(),
     microsoftOauthRedirectUri: getMicrosoftOauthRedirectUri(request),
     mariBaseUrl: getMariBaseUrl(),
+    mariRestUsernameMasked: maskToken(getMariRestUsername()),
+    mariRestConfigured: Boolean(getMariRestUsername()),
   });
 }

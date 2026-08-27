@@ -30,6 +30,7 @@ import {
   type HomeDetailsPayload,
   type HomeKpiLive,
   type HomeOverviewPayload,
+  type HomeTicketSavedViewKpi,
 } from "@/lib/dashboard/home-overview-shared";
 import type { MariTicketsWatchState } from "@/lib/mari/sync-tickets-if-due";
 import type { HomeTaskItem } from "@/lib/dashboard/home-tasks";
@@ -504,6 +505,7 @@ export function HomeOverview() {
                 tickets?: MariTicketsWatchState | null;
                 ticketRows?: HomeTicketRow[];
                 ttvInboxCount?: number;
+                savedViews?: HomeTicketSavedViewKpi[];
               };
               if (cancelled || !live.tickets) return;
               setData((prev) =>
@@ -511,6 +513,7 @@ export function HomeOverview() {
                   ? mergeHomeMaringoTickets(prev, live.tickets!, {
                       ticketRows: live.ticketRows,
                       ttvInboxCount: live.ttvInboxCount,
+                      savedViews: live.savedViews,
                     })
                   : prev
               );
@@ -950,7 +953,7 @@ export function HomeOverview() {
             <CardContent className="space-y-3">
               {!tickets?.configured ? (
                 <p className="text-sm text-muted-foreground">
-                  Hinterlege dein Maringo-Login unter Konto.
+                  Hinterlege deine Personalnummer unter Konto.
                 </p>
               ) : (
                 <div className="flex items-center gap-3">
@@ -1010,6 +1013,24 @@ export function HomeOverview() {
                   )}
                 </div>
               )}
+              {data.maringo.savedViews && data.maringo.savedViews.length > 0 ? (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {data.maringo.savedViews.map((view) => (
+                    <Link
+                      key={view.id}
+                      href={view.href}
+                      className="rounded-2xl border border-border/70 bg-muted/30 px-3 py-2 no-underline transition-colors hover:bg-muted"
+                    >
+                      <span className="block text-[0.6875rem] font-semibold leading-snug text-foreground">
+                        {view.label}
+                      </span>
+                      <span className="mt-1 block text-xl font-black tabular-nums leading-none text-orange-600 dark:text-orange-400">
+                        {view.count == null ? "—" : view.count}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              ) : null}
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <Link
                   href="/maringo"

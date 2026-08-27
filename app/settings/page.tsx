@@ -16,6 +16,8 @@ type AdminSecrets = {
   microsoftOauthTenant: string;
   microsoftOauthRedirectUri: string;
   mariBaseUrl: string;
+  mariRestUsernameMasked: string | null;
+  mariRestConfigured: boolean;
 };
 
 export default function SettingsPage() {
@@ -61,6 +63,11 @@ export default function SettingsPage() {
             {secrets?.microsoftOauthTenant || "organizations"}
           </p>
           <p>MARI Basis-URL: {secrets?.mariBaseUrl || "—"}</p>
+          <p>
+            MARI REST-Benutzer:{" "}
+            {secrets?.mariRestUsernameMasked ||
+              (secrets?.mariRestConfigured ? "gesetzt" : "nicht gesetzt")}
+          </p>
         </CardContent>
       </Card>
 

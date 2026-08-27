@@ -4,13 +4,13 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-test("MARI config is per-user and ignores global env credentials", async () => {
+test("MARI config uses env credentials and per-user Personalnummer", async () => {
   process.env.WORKBUDDY_SESSION_SECRET =
     "a-secure-test-secret-with-more-than-32-characters";
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "wb-mari-"));
   process.env.DATABASE_PATH = path.join(tmp, "test.sqlite");
-  process.env.MARI_REST_USERNAME = "global-must-not-be-used";
-  process.env.MARI_REST_PASSWORD = "global-pass";
+  process.env.MARI_REST_USERNAME = "shared.rest";
+  process.env.MARI_REST_PASSWORD = "shared-pass";
   process.env.MARI_EMPLOYEE_NUMBER = "M9999";
 
   const { resetDbForTests } = await import("../db/client.ts");
@@ -34,16 +34,17 @@ test("MARI config is per-user and ignores global env credentials", async () => {
   });
   const cfg = resolveMariConfigForUser(user.id);
   assert.ok(cfg);
-  assert.equal(cfg?.username, "max.rest");
-  assert.equal(cfg?.password, "secret");
+  assert.equal(cfg?.username, "shared.rest");
+  assert.equal(cfg?.password, "shared-pass");
   assert.equal(cfg?.employeeNumber, "M1010");
-  assert.notEqual(cfg?.username, process.env.MARI_REST_USERNAME);
+  assert.notEqual(cfg?.employeeNumber, process.env.MARI_EMPLOYEE_NUMBER);
 
   const { getMariSettingsPublic } = await import("./settings.ts");
   const pub = getMariSettingsPublic(user.id);
   assert.equal(pub.mariConfigured, true);
   assert.equal(pub.hasMariPassword, true);
   assert.equal(pub.mariPasswordUnreadable, false);
+  assert.equal(pub.mariSharedLogin, true);
 });
 
 test("MARI ALS enterWith after await is lost; run() keeps the user", async () => {
@@ -51,6 +52,8 @@ test("MARI ALS enterWith after await is lost; run() keeps the user", async () =>
     "a-secure-test-secret-with-more-than-32-characters";
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "wb-mari-als-"));
   process.env.DATABASE_PATH = path.join(tmp, "test.sqlite");
+  process.env.MARI_REST_USERNAME = "shared.rest";
+  process.env.MARI_REST_PASSWORD = "shared-pass";
 
   const { resetDbForTests } = await import("../db/client.ts");
   resetDbForTests();
@@ -68,8 +71,6 @@ test("MARI ALS enterWith after await is lost; run() keeps the user", async () =>
     passwordHash: "hash",
   });
   updateAppUser(user.id, {
-    mariRestUsername: "rwa",
-    mariRestPassword: "secret",
     mariEmployeeNumber: "M1010",
   });
 
@@ -88,22 +89,21 @@ test("MARI ALS enterWith after await is lost; run() keeps the user", async () =>
     return resolveMariConfig();
   });
   assert.ok(cfg);
-  assert.equal(cfg?.username, "rwa");
+  assert.equal(cfg?.username, "shared.rest");
   assert.equal(cfg?.employeeNumber, "M1010");
 });
 
-test("decrypt-fail is unreadable, not silently missing or configured", async () => {
+test("missing env credentials is not configured even with Personalnummer", async () => {
   process.env.WORKBUDDY_SESSION_SECRET =
     "a-secure-test-secret-with-more-than-32-characters";
-  delete process.env.DATA_ENCRYPTION_KEY;
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "wb-mari-dec-"));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "wb-mari-env-"));
   process.env.DATABASE_PATH = path.join(tmp, "test.sqlite");
+  delete process.env.MARI_REST_USERNAME;
+  delete process.env.MARI_REST_PASSWORD;
 
   const { resetDbForTests } = await import("../db/client.ts");
   resetDbForTests();
-  const { createAppUser, updateAppUser, getAppUserById } = await import(
-    "../users/queries.ts"
-  );
+  const { createAppUser, updateAppUser } = await import("../users/queries.ts");
   const { resolveMariConfigForUser, getMariSettingsPublic } = await import(
     "./settings.ts"
   );
@@ -115,22 +115,13 @@ test("decrypt-fail is unreadable, not silently missing or configured", async () 
     passwordHash: "hash",
   });
   updateAppUser(user.id, {
-    mariRestUsername: "rwa",
-    mariRestPassword: "secret",
     mariEmployeeNumber: "M1010",
   });
-  assert.ok(resolveMariConfigForUser(user.id));
-  const enc = getAppUserById(user.id)?.mari_rest_password_enc;
-  assert.ok(enc?.startsWith("wb1:"));
-
-  process.env.DATA_ENCRYPTION_KEY =
-    "a-different-encryption-key-with-more-than-32-chars";
   assert.equal(resolveMariConfigForUser(user.id), null);
 
   const pub = getMariSettingsPublic(user.id);
   assert.equal(pub.mariConfigured, false);
   assert.equal(pub.hasMariPassword, false);
-  assert.equal(pub.mariPasswordUnreadable, true);
-  assert.equal(pub.mariUsername, "rwa");
+  assert.equal(pub.mariSharedLogin, false);
   assert.equal(pub.mariEmployeeNumber, "M1010");
 });

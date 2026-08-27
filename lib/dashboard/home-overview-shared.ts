@@ -63,6 +63,13 @@ export type HomeProviderBlock = {
   teamsEnabled?: boolean;
 };
 
+export type HomeTicketSavedViewKpi = {
+  id: string;
+  label: string;
+  count: number | null;
+  href: string;
+};
+
 export type HomeOverviewPayload = {
   greetingName: string | null;
   today: string;
@@ -76,6 +83,7 @@ export type HomeOverviewPayload = {
     tickets: MariTicketsWatchState;
     ticketRows?: HomeTicketRow[];
     ttvInboxCount?: number;
+    savedViews?: HomeTicketSavedViewKpi[];
   } | null;
   weather: HomeWeatherCard | null;
   ttvDuty: HomeTtvDutyState | null;
@@ -163,7 +171,11 @@ export function mergeHomeKpis(
 export function mergeHomeMaringoTickets(
   overview: HomeOverviewPayload,
   tickets: MariTicketsWatchState,
-  extra?: { ticketRows?: HomeTicketRow[]; ttvInboxCount?: number }
+  extra?: {
+    ticketRows?: HomeTicketRow[];
+    ttvInboxCount?: number;
+    savedViews?: HomeTicketSavedViewKpi[];
+  }
 ): HomeOverviewPayload {
   if (!overview.maringo) return overview;
   return {
@@ -173,6 +185,7 @@ export function mergeHomeMaringoTickets(
       tickets,
       ticketRows: extra?.ticketRows ?? overview.maringo.ticketRows,
       ttvInboxCount: extra?.ttvInboxCount ?? overview.maringo.ttvInboxCount,
+      savedViews: extra?.savedViews ?? overview.maringo.savedViews,
     },
   };
 }

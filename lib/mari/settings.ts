@@ -1,11 +1,7 @@
-import { readStoredSecret } from "@/lib/crypto/secret-box";
 import { getSetting, setSetting } from "@/lib/db/migrations";
 import type { MariConfig } from "@/lib/mari/config";
 import { getMariRequestUserId } from "@/lib/mari/request-context";
-import {
-  getAppUserById,
-  getUserMariPassword,
-} from "@/lib/users/queries";
+import { getAppUserById } from "@/lib/users/queries";
 
 const KEY_BASE = "mari_rest_base_url";
 
@@ -19,10 +15,18 @@ function envOrNull(key: string): string | null {
 
 export function getMariBaseUrl(): string {
   return (
-    getSetting(KEY_BASE) ||
     envOrNull("MARI_REST_BASE_URL") ||
+    getSetting(KEY_BASE) ||
     DEFAULT_MARI_BASE
   ).replace(/\/$/, "");
+}
+
+export function getMariRestUsername(): string | null {
+  return envOrNull("MARI_REST_USERNAME");
+}
+
+export function getMariRestPassword(): string | null {
+  return envOrNull("MARI_REST_PASSWORD");
 }
 
 export function saveMariBaseUrl(value: string | null): void {
@@ -30,8 +34,15 @@ export function saveMariBaseUrl(value: string | null): void {
   setSetting(KEY_BASE, normalized);
 }
 
+function sharedMariLogin(): { username: string; password: string } | null {
+  const username = getMariRestUsername();
+  const password = getMariRestPassword();
+  if (!username || !password) return null;
+  return { username, password };
+}
+
 /**
- * Per-user MARI login only. No global settings / env username fallback.
+ * Shared REST login from env. Personalnummer stays per user.
  */
 export function resolveMariConfigForUser(
   userId: number | null | undefined
@@ -39,13 +50,17 @@ export function resolveMariConfigForUser(
   const baseUrl = getMariBaseUrl();
   if (!baseUrl) return null;
   if (userId == null || userId <= 0) return null;
+  const login = sharedMariLogin();
+  if (!login) return null;
   const user = getAppUserById(userId);
-  const username = user?.mari_rest_username?.trim() || "";
-  if (!username) return null;
-  const password = getUserMariPassword(user!)?.trim() || "";
   const employeeNumber = user?.mari_employee_number?.trim() || "";
-  if (!password || !employeeNumber) return null;
-  return { baseUrl, username, password, employeeNumber };
+  if (!employeeNumber) return null;
+  return {
+    baseUrl,
+    username: login.username,
+    password: login.password,
+    employeeNumber,
+  };
 }
 
 export function resolveMariConfig(): MariConfig | null {
@@ -55,24 +70,28 @@ export function resolveMariConfig(): MariConfig | null {
 export function getMariSettingsPublic(userId: number | null) {
   const resolved = resolveMariConfigForUser(userId);
   const user = userId ? getAppUserById(userId) : null;
-  const passwordRead = readStoredSecret(user?.mari_rest_password_enc);
+  const login = sharedMariLogin();
   return {
     mariBaseUrl: getMariBaseUrl(),
-    mariUsername: user?.mari_rest_username?.trim() || "",
-    hasMariPassword: Boolean(passwordRead.value),
-    mariPasswordUnreadable: passwordRead.unreadable,
+    mariUsername: login?.username || "",
+    hasMariPassword: Boolean(login?.password),
+    mariPasswordUnreadable: false,
     mariEmployeeNumber: user?.mari_employee_number?.trim() || "",
     mariConfigured: Boolean(resolved),
+    mariSharedLogin: Boolean(login),
   };
 }
 
 export function getMariUnconfiguredPublic(userId?: number | null) {
   const pub = getMariSettingsPublic(userId ?? getMariRequestUserId());
+  const login = sharedMariLogin();
   return {
-    error: pub.mariPasswordUnreadable
-      ? "Maringo-Passwort ist unlesbar. Unter Konto neu setzen."
-      : "MARI nicht konfiguriert. Hinterlege dein Maringo-Login unter Konto.",
+    error: !login
+      ? "MARI-Zugang fehlt in der Server-Umgebung (MARI_REST_USERNAME / MARI_REST_PASSWORD)."
+      : "Personalnummer unter Konto hinterlegen.",
     configured: false as const,
-    mariPasswordUnreadable: pub.mariPasswordUnreadable,
+    mariPasswordUnreadable: false,
+    mariSharedLogin: Boolean(login),
+    mariConfigured: pub.mariConfigured,
   };
 }

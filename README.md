@@ -21,7 +21,9 @@ npm run auth:secrets -- 'dein-sicheres-passwort'
    - Delegated scopes: `openid profile email offline_access User.Read Mail.ReadWrite Mail.Send Calendars.ReadWrite Tasks.ReadWrite Chat.Read ChatMessage.Read Team.ReadBasic.All Channel.ReadBasic.All ChannelMessage.Read.All OnlineMeetings.Read OnlineMeetingTranscript.Read.All`
    - `MICROSOFT_OAUTH_CLIENT_ID` / `CLIENT_SECRET` / `TENANT` (default `organizations`) in `.env`
 
-4. `MARI_REST_BASE_URL` setzen (oder Default belassen). **Kein** `OPENAI_API_KEY` in `.env`.
+4. `MARI_REST_BASE_URL`, `MARI_REST_USERNAME` und `MARI_REST_PASSWORD` setzen
+   (URL hat einen Default). Jeder User trägt unter Konto nur die Personalnummer ein.
+   **Kein** `OPENAI_API_KEY` in `.env`.
    Firmen-KI (OpenAI: Key + Modell, oder Custom inkl. URL) legt der Admin unter
    **Einstellungen → Firmen-KI** ab.
    Optionaler Docker-Override: `COMPANY_AI_API_KEY` / `COMPANY_AI_KIND` /

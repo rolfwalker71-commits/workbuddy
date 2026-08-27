@@ -20,9 +20,9 @@ type AccountPayload = {
     mariBaseUrl: string;
     mariUsername: string;
     hasMariPassword: boolean;
-    mariPasswordUnreadable: boolean;
     mariEmployeeNumber: string;
     mariConfigured: boolean;
+    mariSharedLogin?: boolean;
   };
   openai: {
     hasOpenaiKey: boolean;
@@ -52,9 +52,6 @@ export function AccountSecretsPanel() {
   const [chatBaseUrl, setChatBaseUrl] = useState("");
   const [chatModel, setChatModel] = useState("");
 
-  const [mariUser, setMariUser] = useState("");
-  const [mariPassword, setMariPassword] = useState("");
-  const [clearMari, setClearMari] = useState(false);
   const [mariEmp, setMariEmp] = useState("");
 
   async function load() {
@@ -67,7 +64,6 @@ export function AccountSecretsPanel() {
     setChatProvider(json.openai?.chatProvider || "openai");
     setChatBaseUrl(json.openai?.chatBaseUrl || "");
     setChatModel(json.openai?.chatModel || "");
-    setMariUser(json.mari?.mariUsername || "");
     setMariEmp(json.mari?.mariEmployeeNumber || "");
   }
 
@@ -100,9 +96,6 @@ export function AccountSecretsPanel() {
                 chatBaseUrl: chatBaseUrl || null,
                 chatModel: chatModel || null,
               }),
-          mariRestUsername: mariUser || null,
-          mariRestPassword: mariPassword || undefined,
-          clearMariRestPassword: clearMari,
           mariEmployeeNumber: mariEmp || null,
         }),
       });
@@ -110,10 +103,8 @@ export function AccountSecretsPanel() {
       if (!res.ok) throw new Error(json.error || "Speichern fehlgeschlagen");
       setOpenaiKey("");
       setChatKey("");
-      setMariPassword("");
       setClearOpenai(false);
       setClearChat(false);
-      setClearMari(false);
       setStatus("Gespeichert.");
       await load();
     } catch (err) {
@@ -237,38 +228,14 @@ export function AccountSecretsPanel() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Basis-URL kommt vom Server
+            URL und REST-Zugang kommen vom Server
             {data?.mari.mariBaseUrl ? ` (${data.mari.mariBaseUrl})` : ""}.
-            {data?.mari.mariPasswordUnreadable
-              ? " Passwort unlesbar, neu setzen."
-              : data?.mari.mariConfigured
-                ? " Login ist gesetzt."
-                : " Noch nicht vollständig konfiguriert."}
+            {data?.mari.mariConfigured
+              ? " Personalnummer ist gesetzt."
+              : data?.mari.mariSharedLogin || data?.mari.hasMariPassword
+                ? " Noch die Personalnummer eintragen."
+                : " Server-Zugang fehlt (Admin: .env)."}
           </p>
-          <div className="space-y-2">
-            <Label htmlFor="mari-user">REST-Benutzer</Label>
-            <Input
-              id="mari-user"
-              value={mariUser}
-              onChange={(e) => setMariUser(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="mari-pass">Passwort</Label>
-            <Input
-              id="mari-pass"
-              type="password"
-              value={mariPassword}
-              onChange={(e) => setMariPassword(e.target.value)}
-              placeholder={
-                data?.mari.mariPasswordUnreadable
-                  ? "unlesbar — neu setzen"
-                  : data?.mari.hasMariPassword
-                    ? "gesetzt"
-                    : ""
-              }
-            />
-          </div>
           <div className="space-y-2">
             <Label htmlFor="mari-emp">Personalnummer</Label>
             <Input
@@ -276,16 +243,10 @@ export function AccountSecretsPanel() {
               value={mariEmp}
               onChange={(e) => setMariEmp(e.target.value)}
               placeholder="M1010"
+              autoComplete="off"
+              spellCheck={false}
             />
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={clearMari}
-              onChange={(e) => setClearMari(e.target.checked)}
-            />
-            Maringo-Passwort entfernen
-          </label>
         </CardContent>
       </Card>
 
