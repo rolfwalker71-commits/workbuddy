@@ -76,7 +76,7 @@ export function PresenceDelegateDialog({
         onOpenChange(next);
       }}
     >
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
+      <DialogContent className="max-h-[90dvh] min-w-0 overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Für Kollege setzen</DialogTitle>
           <DialogDescription>

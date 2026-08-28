@@ -1,5 +1,6 @@
 "use client";
 
+import { PresenceIsoArt } from "@/components/presence/presence-iso-art";
 import { cn } from "@/lib/utils";
 import {
   organizationLabel,
@@ -26,7 +27,7 @@ export function PresencePersonCard({
     ? PRESENCE_STATUS_LABELS[person.status]
     : "Offen";
   const className = cn(
-    "flex w-full min-h-11 flex-col items-start gap-1 rounded-2xl px-3 py-2.5 text-left shadow-sm ring-1",
+    "relative flex w-full min-h-11 flex-col items-start gap-1 overflow-hidden rounded-2xl px-3 py-2.5 text-left shadow-sm ring-1",
     surface,
     isSelf && "ring-2 ring-primary/70",
     interactive && "transition-shadow hover:shadow-md"
@@ -34,15 +35,16 @@ export function PresencePersonCard({
 
   const body = (
     <>
-      <span className="break-words text-sm font-semibold leading-snug">
+      <PresenceIsoArt status={person.status} variant="watermark" />
+      <span className="relative z-10 break-words pr-10 text-sm font-semibold leading-snug">
         {person.displayName}
         {isSelf ? " · Du" : ""}
       </span>
-      <span className="text-xs leading-snug">
+      <span className="relative z-10 pr-10 text-xs leading-snug">
         {statusLabel}
         {hint ? ` · ${hint}` : ""}
       </span>
-      <span className="text-[0.7rem] leading-snug text-current/70">
+      <span className="relative z-10 pr-10 text-[0.7rem] leading-snug text-current/70">
         {organizationLabel(person.organization)}
       </span>
     </>

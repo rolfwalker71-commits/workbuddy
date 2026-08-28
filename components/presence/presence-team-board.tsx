@@ -35,6 +35,7 @@ import {
   PRESENCE_STATUS_LABELS,
   PRESENCE_STATUS_SURFACE,
   presenceSourceHint,
+  deleteOwnDayStatus,
   putDelegatedDayStatus,
   putOwnDayStatus,
   type PresenceGroupId,
@@ -208,6 +209,21 @@ export function PresenceTeamBoard() {
     const monday = mondayOfWeek(ymd);
     if (!monday) return;
     setYmd(addDaysYmd(monday, deltaWeeks * 7));
+  }
+
+  async function clearOwn(day: string) {
+    setBusy(true);
+    setDialogError(null);
+    try {
+      await deleteOwnDayStatus({ ymd: day });
+      if (view === "day") await loadDay(ymd, org);
+      else await loadWeek(ymd, org);
+      setSelfTarget(null);
+    } catch (err) {
+      setDialogError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function saveOwn(day: string, status: PresenceStatus) {
@@ -470,7 +486,7 @@ export function PresenceTeamBoard() {
                         ? PRESENCE_STATUS_LABELS[person.status]
                         : "Offen"}
                     </span>
-                    {locked ? (
+                    {presenceSourceHint(person?.source ?? null) ? (
                       <span className="text-[0.65rem] leading-snug">
                         {presenceSourceHint(person?.source ?? null)}
                       </span>
@@ -556,6 +572,11 @@ export function PresenceTeamBoard() {
           if (!selfTarget) return;
           void saveOwn(selfTarget.ymd, status);
         }}
+        onClear={
+          selfTarget?.person.source === "self"
+            ? () => void clearOwn(selfTarget.ymd)
+            : undefined
+        }
       />
 
       <PresenceDelegateDialog

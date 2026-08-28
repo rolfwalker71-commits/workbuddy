@@ -6,6 +6,8 @@ import { Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PresenceStatusPills } from "@/components/presence/presence-status-pills";
 import { PresenceDelegateDialog } from "@/components/presence/presence-delegate-dialog";
+import { PresenceIsoArt } from "@/components/presence/presence-iso-art";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import type { HomeAbsenceState } from "@/lib/dashboard/home-surfaces-shared";
@@ -19,6 +21,7 @@ import {
   presenceCounts,
   presenceSourceHint,
   PRESENCE_STATUS_LABELS,
+  deleteOwnDayStatus,
   putDelegatedDayStatus,
   putOwnDayStatus,
   type PresenceTodayResponse,
@@ -82,6 +85,23 @@ export function PresenceHomeBar({
   const showDelegate = canManageOthers(actor);
   const showMorning = Boolean(self && !self.status && !locked);
   const loading = !data && !error;
+  const choosing = showMorning || editing;
+  const artStatus = !choosing ? (self?.status ?? null) : null;
+
+  async function clearOwn() {
+    if (!data) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteOwnDayStatus({ ymd: data.ymd });
+      await load();
+      setEditing(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function setOwn(status: PresenceStatus) {
     if (!data) return;
@@ -121,14 +141,25 @@ export function PresenceHomeBar({
   }
 
   return (
-    <div className="space-y-2.5 rounded-2xl bg-card px-3 py-2.5 shadow-sm ring-1 ring-foreground/10">
+    <div className="relative min-w-0 overflow-hidden rounded-2xl bg-card px-3 py-2.5 shadow-sm ring-1 ring-foreground/10">
+      <div
+        className={cn(
+          "min-w-0 space-y-2.5",
+          artStatus && "pr-[5.25rem] sm:pr-[6.25rem]"
+        )}
+      >
       {loading ? (
         <p className="text-sm text-muted-foreground">Lade Anwesenheit…</p>
       ) : showMorning || editing ? (
-        <div className="space-y-2">
-          <p className="text-sm font-semibold leading-snug">
-            {showMorning ? "Wie arbeitest du heute?" : "Status ändern"}
-          </p>
+        <div className="min-w-0 space-y-2">
+          <div className="flex items-center gap-2">
+            <p className="min-w-0 flex-1 text-sm font-semibold leading-snug">
+              {showMorning ? "Wie arbeitest du heute?" : "Status ändern"}
+            </p>
+            {choosing ? (
+              <PresenceIsoArt status={self?.status} variant="thumb" />
+            ) : null}
+          </div>
           <PresenceStatusPills
             value={self?.status ?? null}
             onChange={(status) => void setOwn(status)}
@@ -136,15 +167,28 @@ export function PresenceHomeBar({
             ariaLabel="Wie arbeitest du heute?"
           />
           {editing ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              disabled={busy}
-              onClick={() => setEditing(false)}
-            >
-              Fertig
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              {self?.source === "self" ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={busy}
+                  onClick={() => void clearOwn()}
+                >
+                  Regel verwenden
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={busy}
+                onClick={() => setEditing(false)}
+              >
+                Fertig
+              </Button>
+            </div>
           ) : null}
         </div>
       ) : (
@@ -223,6 +267,8 @@ export function PresenceHomeBar({
         error={delegateError}
         onSave={(input) => void saveDelegate(input)}
       />
+      </div>
+      <PresenceIsoArt status={artStatus} variant="hero" />
     </div>
   );
 }

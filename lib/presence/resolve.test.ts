@@ -20,18 +20,23 @@ function layer(
   };
 }
 
-test("resolveDayStatus prefers deputy over oof over self", () => {
+test("resolveDayStatus prefers deputy over oof over self over default", () => {
   const deputy = layer("deputy", "sick");
   const oof = layer("oof", "absent");
   const self = layer("self", "home");
-  assert.equal(resolveDayStatus({ deputy, oof, self })?.source, "deputy");
-  assert.equal(resolveDayStatus({ oof, self })?.source, "oof");
-  assert.equal(resolveDayStatus({ self })?.status, "home");
+  const fallback = layer("default", "office");
+  assert.equal(resolveDayStatus({ deputy, oof, self, default: fallback })?.source, "deputy");
+  assert.equal(resolveDayStatus({ oof, self, default: fallback })?.source, "oof");
+  assert.equal(resolveDayStatus({ self, default: fallback })?.source, "self");
+  assert.equal(resolveDayStatus({ default: fallback })?.status, "office");
   assert.equal(resolveDayStatus({}), null);
 });
 
 test("unset is a gap, not silent office", () => {
-  assert.equal(resolveDayStatus({ deputy: null, oof: null, self: null }), null);
+  assert.equal(
+    resolveDayStatus({ deputy: null, oof: null, self: null, default: null }),
+    null
+  );
   assert.equal(resolveStoredDayStatus(null), null);
 });
 

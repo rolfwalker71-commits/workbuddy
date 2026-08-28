@@ -42,7 +42,7 @@ export const PRESENCE_PILL_LABELS: Record<PresenceStatus, string> = {
   office: "Büro",
   home: "Home",
   sick: "Krank",
-  vacation: "Ferien",
+  vacation: "Frei / Ferien",
   absent: "Abwesend",
 };
 
@@ -133,6 +133,7 @@ export function presenceSourceHint(
 ): string | null {
   if (source === "oof") return "Outlook";
   if (source === "deputy") return "Stellvertretung";
+  if (source === "default") return "Regel";
   return null;
 }
 
@@ -193,6 +194,17 @@ export async function fetchPresenceToday(input?: {
     throw new Error(json.error || "Anwesenheit laden fehlgeschlagen");
   }
   return json;
+}
+
+export async function deleteOwnDayStatus(input: {
+  ymd: string;
+}): Promise<void> {
+  const params = new URLSearchParams({ ymd: input.ymd });
+  const res = await fetch(`/api/presence/day?${params}`, { method: "DELETE" });
+  const json = await readResponseJson<{ error?: string }>(res);
+  if (!res.ok) {
+    throw new Error(json.error || "Abweichung löschen fehlgeschlagen");
+  }
 }
 
 export async function putOwnDayStatus(input: {

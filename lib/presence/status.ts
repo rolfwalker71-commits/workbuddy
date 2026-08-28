@@ -12,11 +12,11 @@ export const PRESENCE_STATUS_LABELS: Record<PresenceStatus, string> = {
   office: "Büro",
   home: "Home Office",
   sick: "Krank",
-  vacation: "Ferien",
+  vacation: "Frei / Ferien",
   absent: "Abwesend",
 };
 
-export const PRESENCE_SOURCES = ["self", "deputy", "oof"] as const;
+export const PRESENCE_SOURCES = ["self", "deputy", "oof", "default"] as const;
 
 export type PresenceSource = (typeof PRESENCE_SOURCES)[number];
 
@@ -37,7 +37,12 @@ export function parsePresenceStatus(raw: unknown): PresenceStatus | null {
 }
 
 export function isPresenceSource(raw: unknown): raw is PresenceSource {
-  return raw === "self" || raw === "deputy" || raw === "oof";
+  return (
+    raw === "self" ||
+    raw === "deputy" ||
+    raw === "oof" ||
+    raw === "default"
+  );
 }
 
 export function parsePresenceSource(raw: unknown): PresenceSource | null {

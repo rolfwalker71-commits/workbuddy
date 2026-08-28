@@ -208,3 +208,74 @@ test("env-admin is omitted from the team roster; org admins stay", async () => {
     /kein Teammitglied/
   );
 });
+
+test("default week fills unset weekdays; explicit self wins; clear falls back", async () => {
+  process.env.WORKBUDDY_SESSION_SECRET =
+    "a-secure-test-secret-with-more-than-32-characters";
+  process.env.WORKBUDDY_USERNAME = "admin";
+  process.env.WORKBUDDY_PASSWORD_HASH = "scrypt:x:y";
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "wb-presence-week-"));
+  process.env.DATABASE_PATH = path.join(tmp, "test.sqlite");
+
+  const { resetDbForTests } = await import("../db/client.ts");
+  resetDbForTests();
+  const { createAppUser } = await import("../users/queries.ts");
+  const { setUserPresenceDefaultWeek } = await import("./default-week-store.ts");
+  const {
+    setOwnDayStatus,
+    clearOwnDayStatus,
+    listPresenceToday,
+  } = await import("./day-status.ts");
+
+  const ben = createAppUser({
+    username: "ben",
+    email: "ben@example.com",
+    displayName: "Ben",
+    passwordHash: "hash",
+    organization: "CH",
+  });
+  setUserPresenceDefaultWeek(ben.id, {
+    mon: "office",
+    tue: "home",
+    fri: "office",
+  });
+
+  const monday = listPresenceToday({
+    ymd: "2026-08-24",
+    organization: "CH",
+    viewerUserId: ben.id,
+  });
+  assert.equal(monday.self?.status, "office");
+  assert.equal(monday.self?.source, "default");
+  assert.equal(monday.people.find((p) => p.userId === ben.id)?.status, "office");
+
+  const wednesday = listPresenceToday({
+    ymd: "2026-08-26",
+    organization: "CH",
+    viewerUserId: ben.id,
+  });
+  assert.equal(wednesday.self?.status, null);
+  assert.equal(wednesday.self?.source, null);
+
+  setOwnDayStatus({
+    userId: ben.id,
+    ymd: "2026-08-24",
+    status: "sick",
+  });
+  const mondayOverride = listPresenceToday({
+    ymd: "2026-08-24",
+    organization: "CH",
+    viewerUserId: ben.id,
+  });
+  assert.equal(mondayOverride.self?.status, "sick");
+  assert.equal(mondayOverride.self?.source, "self");
+
+  assert.equal(clearOwnDayStatus(ben.id, "2026-08-24"), true);
+  const mondayAgain = listPresenceToday({
+    ymd: "2026-08-24",
+    organization: "CH",
+    viewerUserId: ben.id,
+  });
+  assert.equal(mondayAgain.self?.status, "office");
+  assert.equal(mondayAgain.self?.source, "default");
+});

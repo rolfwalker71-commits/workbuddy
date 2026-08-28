@@ -60,6 +60,7 @@ function ensureUsersColumns(db: Database.Database): void {
     ["teams_enabled", "INTEGER"],
     ["organization", "TEXT"],
     ["can_manage_presence", "INTEGER NOT NULL DEFAULT 0"],
+    ["presence_default_week", "TEXT"],
   ];
   for (const [name, ddl] of adds) {
     if (!names.has(name)) {

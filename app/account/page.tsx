@@ -8,6 +8,7 @@ import { AccountSecretsPanel } from "@/components/settings/account-secrets-panel
 import { AccountPasswordPanel } from "@/components/settings/account-password-panel";
 import { AccountWeatherPanel } from "@/components/settings/account-weather-panel";
 import { AccountDayClosePanel } from "@/components/settings/account-day-close-panel";
+import { AccountPresenceWeekPanel } from "@/components/settings/account-presence-week-panel";
 import { AccountGoogleSection } from "@/components/settings/account-google-section";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ export default function AccountPage() {
     <div className="space-y-8 pb-28 md:pb-0">
       <PageHeader
         title="Konto"
-        description="Dein Wetter, Tagesabschluss, Anmeldepasswort, Maringo-Personalnummer, Microsoft 365 und Google Workspace — nur für dich."
+        description="Dein Wetter, Standardwoche, Tagesabschluss, Anmeldepasswort, Maringo-Personalnummer, Microsoft 365 und Google Workspace — nur für dich."
         icon={pageVisuals.account.icon}
         tone={pageVisuals.account.tone}
       />
@@ -28,6 +29,15 @@ export default function AccountPage() {
           Standort für das Widget auf der Startseite — gilt nur für dich.
         </p>
         <AccountWeatherPanel />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold tracking-tight">Standardwoche</h2>
+        <p className="text-xs text-muted-foreground">
+          Deine Anwesenheits-Regel für Montag bis Freitag. Abweichungen setzt du
+          auf Team oder Home.
+        </p>
+        <AccountPresenceWeekPanel />
       </section>
 
       <section className="space-y-3">

@@ -17,9 +17,13 @@ import {
   type PresenceSource,
   type PresenceStatus,
 } from "@/lib/presence/status";
-import { resolveStoredDayStatus, type PresenceLayer } from "@/lib/presence/resolve";
+import { resolveDayStatus, layersFromStored, type PresenceLayer } from "@/lib/presence/resolve";
 import { canDelegatePresence } from "@/lib/presence/delegate";
 import { weekdaysMonFri } from "@/lib/presence/week";
+import {
+  defaultStatusForYmd,
+  parsePresenceDefaultWeek,
+} from "@/lib/presence/default-week";
 
 export type UserDayStatus = PresenceLayer & {
   userId: number;
@@ -207,6 +211,17 @@ export function deleteUserDayStatus(userId: number, ymd: string): boolean {
   return result.changes > 0;
 }
 
+export function clearOwnDayStatus(userId: number, ymd: string): boolean {
+  const existing = getUserDayStatus(userId, ymd);
+  if (!existing) return false;
+  if (isProtectedPresenceSource(existing.source)) {
+    throw new Error(
+      "Dieser Tag wurde von einer Stellvertretung oder Outlook gesetzt."
+    );
+  }
+  return deleteUserDayStatus(userId, ymd);
+}
+
 export function setOwnDayStatus(input: {
   userId: number;
   ymd: string;
@@ -303,6 +318,24 @@ export function setDelegatedDayStatus(input: {
   });
 }
 
+function defaultLayerForUser(
+  user: { presence_default_week?: string | null },
+  ymd: string
+): PresenceLayer | null {
+  const status = defaultStatusForYmd(
+    parsePresenceDefaultWeek(user.presence_default_week),
+    ymd
+  );
+  if (!status) return null;
+  return {
+    status,
+    source: "default",
+    setByUserId: null,
+    note: null,
+    updatedAt: "",
+  };
+}
+
 function personFromUser(
   user: {
     id: number;
@@ -310,10 +343,15 @@ function personFromUser(
     username: string;
     organization: UserOrganization | null;
     can_manage_presence: number;
+    presence_default_week?: string | null;
   },
-  row: UserDayStatus | null
+  row: UserDayStatus | null,
+  ymd: string
 ): PresencePerson {
-  const resolved = resolveStoredDayStatus(row);
+  const resolved = resolveDayStatus({
+    ...layersFromStored(row),
+    default: defaultLayerForUser(user, ymd),
+  });
   return {
     userId: user.id,
     displayName: user.display_name?.trim() || user.username,
@@ -323,7 +361,8 @@ function personFromUser(
     source: resolved?.source ?? null,
     setByUserId: resolved?.setByUserId ?? null,
     note: resolved?.note ?? null,
-    updatedAt: resolved?.updatedAt ?? null,
+    updatedAt:
+      resolved?.source === "default" ? null : resolved?.updatedAt ?? null,
   };
 }
 
@@ -350,7 +389,7 @@ export function listPresenceToday(input: {
       if (!orgFilter) return true;
       return parseUserOrganization(user.organization) === orgFilter;
     })
-    .map((user) => personFromUser(user, byUser.get(user.id) ?? null));
+    .map((user) => personFromUser(user, byUser.get(user.id) ?? null, ymd));
 
   const viewer =
     input.viewerUserId != null
@@ -358,7 +397,7 @@ export function listPresenceToday(input: {
         getAppUserById(input.viewerUserId)
       : null;
   const self = viewer
-    ? personFromUser(viewer, byUser.get(viewer.id) ?? null)
+    ? personFromUser(viewer, byUser.get(viewer.id) ?? null, ymd)
     : null;
 
   return {

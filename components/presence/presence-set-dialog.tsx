@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { PresenceStatusPills } from "@/components/presence/presence-status-pills";
 import {
   PRESENCE_STATUS_LABELS,
@@ -25,6 +26,7 @@ export function PresenceSetDialog({
   busy,
   error,
   onSelect,
+  onClear,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -35,10 +37,11 @@ export function PresenceSetDialog({
   busy?: boolean;
   error?: string | null;
   onSelect: (status: PresenceStatus) => void;
+  onClear?: () => void;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="min-w-0 sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>
             {person
@@ -64,7 +67,19 @@ export function PresenceSetDialog({
         {person?.status ? (
           <p className="text-xs text-muted-foreground">
             Aktuell: {PRESENCE_STATUS_LABELS[person.status]}
+            {person.source === "default" ? " · Regel" : ""}
           </p>
+        ) : null}
+        {onClear && !locked ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={busy}
+            onClick={onClear}
+          >
+            Regel verwenden
+          </Button>
         ) : null}
       </DialogContent>
     </Dialog>

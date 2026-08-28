@@ -40,6 +40,7 @@ export type AppUserRow = {
   teams_enabled: number | null;
   organization: UserOrganization | null;
   can_manage_presence: number;
+  presence_default_week: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -130,6 +131,7 @@ function coerceUserRow(row: AppUserRow & { mari_rest_password?: string | null })
         : null,
     organization: parseUserOrganization(row.organization),
     can_manage_presence: row.can_manage_presence ? 1 : 0,
+    presence_default_week: row.presence_default_week ?? null,
   };
 }
 
