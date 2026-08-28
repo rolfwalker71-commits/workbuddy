@@ -82,7 +82,8 @@ function weekdayLong(ymd: string): string {
   return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
-const WEEK_SELF_CHIP = "w-fit max-w-[calc(100%-0.25rem)] px-1.5 py-1";
+const WEEK_SELF_CHIP =
+  "h-auto min-h-0 w-fit max-w-[calc(100%-0.25rem)] px-1.5 py-0.5 leading-none";
 
 function WeekSelfDayCell({
   day,
@@ -103,6 +104,7 @@ function WeekSelfDayCell({
   return (
     <button
       type="button"
+      data-segment="true"
       disabled={!person}
       aria-label={`${weekdayLong(day)}: ${statusLabel}${hint ? ` · ${hint}` : ""}`}
       aria-current={day === today ? "date" : undefined}
@@ -122,18 +124,18 @@ function WeekSelfDayCell({
       {hasArt ? <PresenceIsoArt status={status} variant="soft" /> : null}
       <div className="relative z-10 flex min-h-[6.5rem] flex-col justify-between p-1.5">
         <PresenceGlassPanel className={cn("self-start", WEEK_SELF_CHIP)}>
-          <span className="break-words text-xs font-bold capitalize leading-snug text-foreground">
+          <span className="block truncate text-xs font-bold leading-none text-foreground">
             {weekdayLong(day)}
           </span>
         </PresenceGlassPanel>
         <PresenceGlassPanel
-          className={cn("flex flex-col gap-0.5 self-end text-right", WEEK_SELF_CHIP)}
+          className={cn("flex flex-col justify-center self-end text-right", WEEK_SELF_CHIP)}
         >
-          <span className="break-words text-xs font-bold leading-snug text-foreground">
+          <span className="block truncate text-xs font-bold leading-none text-foreground">
             {statusLabel}
           </span>
           {hint ? (
-            <span className="break-words text-[0.65rem] leading-snug text-foreground">
+            <span className="mt-0.5 block truncate text-[0.65rem] leading-none text-foreground">
               {hint}
             </span>
           ) : null}
