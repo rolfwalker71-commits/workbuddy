@@ -6,6 +6,7 @@ import { Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PresenceStatusPills } from "@/components/presence/presence-status-pills";
 import { PresenceDelegateDialog } from "@/components/presence/presence-delegate-dialog";
+import { PresenceGlassPanel } from "@/components/presence/presence-glass-panel";
 import { PresenceIsoArt } from "@/components/presence/presence-iso-art";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -140,14 +141,8 @@ export function PresenceHomeBar({
     }
   }
 
-  return (
-    <div className="relative min-w-0 overflow-hidden rounded-2xl bg-card px-3 py-2.5 shadow-sm ring-1 ring-foreground/10">
-      <div
-        className={cn(
-          "min-w-0 space-y-2.5",
-          artStatus && "pr-[5.25rem] sm:pr-[6.25rem]"
-        )}
-      >
+  const body = (
+    <>
       {loading ? (
         <p className="text-sm text-muted-foreground">Lade Anwesenheit…</p>
       ) : showMorning || editing ? (
@@ -255,7 +250,26 @@ export function PresenceHomeBar({
           Für Kollege setzen
         </Button>
       ) : null}
+    </>
+  );
 
+  return (
+    <div
+      className={cn(
+        "relative min-w-0 overflow-hidden rounded-2xl shadow-sm ring-1 ring-foreground/10",
+        artStatus ? "bg-zinc-200 dark:bg-zinc-900" : "bg-card px-3 py-2.5"
+      )}
+    >
+      {artStatus ? <PresenceIsoArt status={artStatus} variant="hero" /> : null}
+      {artStatus ? (
+        <div className="relative z-10 flex min-h-[8.25rem] items-end p-2.5 sm:items-center">
+          <PresenceGlassPanel className="w-[min(22rem,calc(100%-3.25rem))] space-y-2 p-2.5">
+            {body}
+          </PresenceGlassPanel>
+        </div>
+      ) : (
+        <div className="min-w-0 space-y-2.5">{body}</div>
+      )}
       <PresenceDelegateDialog
         open={delegateOpen}
         onOpenChange={setDelegateOpen}
@@ -267,8 +281,6 @@ export function PresenceHomeBar({
         error={delegateError}
         onSave={(input) => void saveDelegate(input)}
       />
-      </div>
-      <PresenceIsoArt status={artStatus} variant="hero" />
     </div>
   );
 }

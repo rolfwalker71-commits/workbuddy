@@ -1,5 +1,6 @@
 "use client";
 
+import { PresenceGlassPanel } from "@/components/presence/presence-glass-panel";
 import { PresenceIsoArt } from "@/components/presence/presence-iso-art";
 import { cn } from "@/lib/utils";
 import {
@@ -22,31 +23,54 @@ export function PresencePersonCard({
   onClick?: () => void;
 }) {
   const hint = presenceSourceHint(person.source);
-  const surface = PRESENCE_STATUS_SURFACE[person.status ?? "unset"];
   const statusLabel = person.status
     ? PRESENCE_STATUS_LABELS[person.status]
     : "Offen";
+  const hasArt = Boolean(person.status);
   const className = cn(
-    "relative flex w-full min-h-11 flex-col items-start gap-1 overflow-hidden rounded-2xl px-3 py-2.5 text-left shadow-sm ring-1",
-    surface,
+    "relative flex w-full flex-col items-stretch overflow-hidden rounded-2xl text-left shadow-sm ring-1",
+    hasArt
+      ? "bg-zinc-200 ring-foreground/10 dark:bg-zinc-900"
+      : PRESENCE_STATUS_SURFACE.unset,
     isSelf && "ring-2 ring-primary/70",
     interactive && "transition-shadow hover:shadow-md"
   );
 
-  const body = (
+  const copy = (
     <>
-      <PresenceIsoArt status={person.status} variant="watermark" />
-      <span className="relative z-10 break-words pr-10 text-sm font-semibold leading-snug">
+      <span className="break-words text-sm font-semibold leading-snug">
         {person.displayName}
         {isSelf ? " · Du" : ""}
       </span>
-      <span className="relative z-10 pr-10 text-xs leading-snug">
+      <span className="text-xs leading-snug">
         {statusLabel}
         {hint ? ` · ${hint}` : ""}
       </span>
-      <span className="relative z-10 pr-10 text-[0.7rem] leading-snug text-current/70">
+      <span className="text-[0.7rem] leading-snug text-muted-foreground">
         {organizationLabel(person.organization)}
       </span>
+    </>
+  );
+
+  const body = (
+    <>
+      {hasArt ? <PresenceIsoArt status={person.status} variant="hero" /> : null}
+      <div
+        className={cn(
+          "relative z-10 flex",
+          hasArt
+            ? "min-h-[7.25rem] items-end p-2 sm:items-center"
+            : "min-h-11 flex-col items-start gap-1 px-3 py-2.5"
+        )}
+      >
+        {hasArt ? (
+          <PresenceGlassPanel className="flex w-[min(16.5rem,calc(100%-2.75rem))] flex-col gap-0.5 p-2.5">
+            {copy}
+          </PresenceGlassPanel>
+        ) : (
+          copy
+        )}
+      </div>
     </>
   );
 

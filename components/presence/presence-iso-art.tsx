@@ -32,7 +32,7 @@ export function PresenceIsoArt({
         alt=""
         aria-hidden
         className={cn(
-          "pointer-events-none absolute top-1/2 right-1 h-[4.5rem] w-[4.5rem] -translate-y-1/2 object-contain sm:right-1.5 sm:h-[5.25rem] sm:w-[5.25rem]",
+          "pointer-events-none absolute inset-0 size-full object-cover object-[75%_center] saturate-[1.15] contrast-[1.05]",
           className
         )}
       />
