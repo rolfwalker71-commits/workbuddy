@@ -4,8 +4,11 @@ import type { TeamsChatAnalysis } from "./analyze-teams-chat.ts";
 import {
   buildTeamsInboxCards,
   inboxCardCanApply,
+  inboxCardHasMeeting,
   isTeamsInboxActiveToday,
   matchesTeamsInboxFilter,
+  matchesTeamsInboxQuery,
+  mergeTeamsInboxThreads,
   parseChannelInboxKey,
   scopeTeamsAnalysisToThread,
   type TeamsInboxCard,
@@ -283,6 +286,142 @@ test("scopeTeamsAnalysisToThread keeps cluster identity", () => {
   const empty = scopeTeamsAnalysisToThread(analysis, "missing");
   assert.equal(empty.clusters.length, 0);
   assert.equal(empty.tasks.length, 0);
+});
+
+test("query matches title, preview, or thread key", () => {
+  const row = {
+    title: "Damian Schwegler",
+    preview: "issue in SAP Business One",
+    threadKey: "19:chat-damian",
+  };
+  assert.equal(matchesTeamsInboxQuery(row, "sap"), true);
+  assert.equal(matchesTeamsInboxQuery(row, "Damian"), true);
+  assert.equal(matchesTeamsInboxQuery(row, "chat-damian"), true);
+  assert.equal(matchesTeamsInboxQuery(row, "outlook"), false);
+  assert.equal(matchesTeamsInboxQuery(row, "  "), true);
+});
+
+test("buildTeamsInboxCards applies filter plus query", () => {
+  const cards = buildTeamsInboxCards({
+    todayYmd: today,
+    filter: "today",
+    q: "SAP",
+    chats: [
+      {
+        id: "19:chat-damian",
+        title: "Damian Schwegler",
+        chatType: "oneOnOne",
+        lastUpdatedAt: "2026-08-28T17:51:00.000Z",
+        preview: "issue in SAP",
+        webUrl: null,
+        joinUrl: null,
+      },
+      {
+        id: "19:other",
+        title: "Andere",
+        chatType: "group",
+        lastUpdatedAt: "2026-08-28T12:00:00.000Z",
+        preview: "ok",
+        webUrl: null,
+        joinUrl: null,
+      },
+    ],
+    channels: [],
+    threads: [],
+  });
+  assert.deepEqual(
+    cards.map((c) => c.threadKey),
+    ["19:chat-damian"]
+  );
+});
+
+test("meeting hint from joinUrl, calendar event, or meeting chat type", () => {
+  assert.equal(
+    inboxCardHasMeeting({
+      joinUrl: "https://teams.microsoft.com/l/meetup-join/x",
+      calendarEventId: null,
+      chatType: "oneOnOne",
+    }),
+    true
+  );
+  assert.equal(
+    inboxCardHasMeeting({
+      joinUrl: null,
+      calendarEventId: "AAMk-event",
+      chatType: null,
+    }),
+    true
+  );
+  assert.equal(
+    inboxCardHasMeeting({
+      joinUrl: null,
+      calendarEventId: null,
+      chatType: "meeting",
+    }),
+    true
+  );
+  assert.equal(
+    inboxCardHasMeeting({
+      joinUrl: null,
+      calendarEventId: null,
+      chatType: "group",
+    }),
+    false
+  );
+});
+
+test("mergeTeamsInboxThreads overlays incoming rows", () => {
+  const merged = mergeTeamsInboxThreads(
+    [
+      {
+        threadKey: "19:a",
+        kind: "chat",
+        inbox: "open",
+        title: "Alt",
+        preview: null,
+        lastActiveAt: null,
+        joinUrl: null,
+        calendarEventId: null,
+        issueId: null,
+        appliedTasks: 0,
+        appliedEvents: 0,
+        lastAnalysis: null,
+      },
+    ],
+    [
+      {
+        threadKey: "19:a",
+        kind: "chat",
+        inbox: "done",
+        title: "Neu",
+        preview: "hi",
+        lastActiveAt: "2026-08-28T10:00:00.000Z",
+        joinUrl: null,
+        calendarEventId: null,
+        issueId: null,
+        appliedTasks: 0,
+        appliedEvents: 0,
+        lastAnalysis: null,
+      },
+      {
+        threadKey: "19:b",
+        kind: "chat",
+        inbox: "open",
+        title: "Extra",
+        preview: "SAP",
+        lastActiveAt: null,
+        joinUrl: null,
+        calendarEventId: null,
+        issueId: null,
+        appliedTasks: 0,
+        appliedEvents: 0,
+        lastAnalysis: null,
+      },
+    ]
+  );
+  assert.equal(merged.length, 2);
+  assert.equal(merged.find((t) => t.threadKey === "19:a")?.inbox, "done");
+  assert.equal(merged.find((t) => t.threadKey === "19:b")?.title, "Extra");
 });
 
 test("Zurich today helper and channel key", () => {

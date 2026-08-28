@@ -14,7 +14,7 @@ export const TEAMS_INBOX_STATES = ["open", "later", "done", "ignored"] as const;
 export type TeamsThreadKind = (typeof TEAMS_THREAD_KINDS)[number];
 export type TeamsInboxState = (typeof TEAMS_INBOX_STATES)[number];
 
-/** Persisted Teams inbox row. Search / Home / transcript fields sit here for later UI. */
+/** Persisted Teams inbox row. Search, Home, and transcript read title/preview/join fields. */
 export type TeamsThreadState = {
   userId: number;
   threadKey: string;
@@ -208,6 +208,20 @@ export function countTeamsThreadsByInbox(
     )
     .get(userId, inbox) as { c: number } | undefined;
   return row?.c ?? 0;
+}
+
+/** Home tile subtitle: most recently active open thread. */
+export function getLatestOpenTeamsThread(
+  userId: number
+): Pick<TeamsThreadState, "threadKey" | "title" | "lastActiveAt"> | null {
+  const rows = listTeamsThreadStates(userId, { inbox: "open", limit: 8 });
+  const hit = rows.find((r) => r.title?.trim()) ?? rows[0] ?? null;
+  if (!hit) return null;
+  return {
+    threadKey: hit.threadKey,
+    title: hit.title,
+    lastActiveAt: hit.lastActiveAt,
+  };
 }
 
 export type TeamsThreadStatePatch = {

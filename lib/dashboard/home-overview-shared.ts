@@ -63,6 +63,8 @@ export type HomeProviderBlock = {
   teamsEnabled?: boolean;
   /** Open Teams inbox threads (`teams_thread_state.inbox = open`). */
   teamsOpenCount?: number | null;
+  /** Title of the most recently active open thread — Home tile subtitle. */
+  teamsOpenTitle?: string | null;
 };
 
 export type HomeTicketSavedViewKpi = {

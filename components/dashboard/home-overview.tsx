@@ -585,6 +585,9 @@ export function HomeOverview() {
   const teamsOpenCount = showTeamsCard
     ? data?.microsoft?.teamsOpenCount ?? null
     : null;
+  const teamsOpenTitle = showTeamsCard
+    ? data?.microsoft?.teamsOpenTitle?.trim() || null
+    : null;
   const teamsHref = "/microsoft?tab=teams";
   const anyMailConnected = Boolean(
     data?.microsoft?.connected || data?.google?.connected
@@ -828,17 +831,15 @@ export function HomeOverview() {
                 title={
                   lastTeams?.preview ||
                   lastTeams?.title ||
+                  teamsOpenTitle ||
                   (detailsLoading
                     ? "Nachricht wird geladen…"
                     : "Keine Nachricht")
                 }
                 detail={
-                  lastTeams
+                  teamsOpenTitle || teamsOpenCount != null
                     ? [
-                        lastTeams.title,
-                        lastTeams.lastUpdatedAt
-                          ? formatSwissDateTime(lastTeams.lastUpdatedAt)
-                          : null,
+                        teamsOpenTitle,
                         teamsOpenCount != null
                           ? `${teamsOpenCount} offen`
                           : null,
@@ -847,8 +848,15 @@ export function HomeOverview() {
                         .join(" · ")
                     : detailsLoading
                       ? "Teams"
-                      : teamsOpenCount != null
-                        ? `${teamsOpenCount} offen`
+                      : lastTeams
+                        ? [
+                            lastTeams.title,
+                            lastTeams.lastUpdatedAt
+                              ? formatSwissDateTime(lastTeams.lastUpdatedAt)
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")
                         : "Teams öffnen"
                 }
               />

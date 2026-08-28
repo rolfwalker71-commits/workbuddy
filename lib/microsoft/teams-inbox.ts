@@ -143,6 +143,36 @@ export function inboxStatusLabel(inbox: TeamsInboxStatus): string {
   return "Offen";
 }
 
+export function inboxCardHasMeeting(
+  card: Pick<TeamsInboxCard, "joinUrl" | "calendarEventId" | "chatType">
+): boolean {
+  return Boolean(
+    card.joinUrl || card.calendarEventId || card.chatType === "meeting"
+  );
+}
+
+export function matchesTeamsInboxQuery(
+  card: Pick<TeamsInboxCard, "title" | "preview" | "threadKey">,
+  q: string
+): boolean {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return true;
+  return (
+    card.title.toLowerCase().includes(needle) ||
+    (card.preview || "").toLowerCase().includes(needle) ||
+    card.threadKey.toLowerCase().includes(needle)
+  );
+}
+
+export function mergeTeamsInboxThreads(
+  current: TeamsInboxThreadRow[],
+  incoming: TeamsInboxThreadRow[]
+): TeamsInboxThreadRow[] {
+  const byKey = new Map(current.map((t) => [t.threadKey, t] as const));
+  for (const row of incoming) byKey.set(row.threadKey, row);
+  return [...byKey.values()];
+}
+
 /**
  * Filter rules:
  * - ignored never appears
@@ -257,6 +287,7 @@ export function buildTeamsInboxCards(input: {
   dayThreadKeys?: string[];
   todayYmd: string;
   filter: TeamsInboxFilter;
+  q?: string;
 }): TeamsInboxCard[] {
   const dayKeys = new Set(
     (input.dayThreadKeys || []).map((k) => k.trim()).filter(Boolean)
@@ -277,7 +308,8 @@ export function buildTeamsInboxCards(input: {
         { ...card, inDayScope },
         input.filter,
         input.todayYmd
-      )
+      ) &&
+      matchesTeamsInboxQuery(card, input.q || "")
     ) {
       cards.push(card);
     }

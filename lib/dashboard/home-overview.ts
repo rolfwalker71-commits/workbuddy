@@ -8,7 +8,10 @@ import {
 } from "@/lib/microsoft/oauth";
 import { getLatestTeamsChatSnippet } from "@/lib/microsoft/teams-chats";
 import { isUserTeamsEnabled } from "@/lib/microsoft/teams-prefs";
-import { countTeamsThreadsByInbox } from "@/lib/microsoft/teams-thread-state";
+import {
+  countTeamsThreadsByInbox,
+  getLatestOpenTeamsThread,
+} from "@/lib/microsoft/teams-thread-state";
 import {
   getInboxUnreadCount,
   getTodayMicrosoftMailExcerpt,
@@ -207,6 +210,10 @@ export async function getHomeOverview(
     userId != null && msConnected && teamsEnabled
       ? countTeamsThreadsByInbox(userId, "open")
       : null;
+  const teamsOpenTitle =
+    userId != null && msConnected && teamsEnabled
+      ? getLatestOpenTeamsThread(userId)?.title?.trim() || null
+      : null;
 
   const microsoft: HomeOverviewPayload["microsoft"] = showMs
     ? {
@@ -223,6 +230,7 @@ export async function getHomeOverview(
         lastTeams: null,
         teamsEnabled,
         teamsOpenCount,
+        teamsOpenTitle,
       }
     : null;
 

@@ -65,6 +65,7 @@ test("upsert patches inbox and keeps metadata", async () => {
   const { createAppUser } = await import("../users/queries.ts");
   const {
     countTeamsThreadsByInbox,
+    getLatestOpenTeamsThread,
     getTeamsThreadState,
     incrementTeamsThreadApplied,
     listTeamsThreadStates,
@@ -128,6 +129,7 @@ test("upsert patches inbox and keeps metadata", async () => {
   assert.equal(created.joinUrl?.includes("meetup-join"), true);
   assert.equal(created.lastAnalysis?.tasks[0]?.title, "Issue klären");
   assert.equal(countTeamsThreadsByInbox(user.id, "open"), 1);
+  assert.equal(getLatestOpenTeamsThread(user.id)?.title, "Damian Schwegler");
 
   const later = upsertTeamsThreadState({
     userId: user.id,
@@ -139,6 +141,7 @@ test("upsert patches inbox and keeps metadata", async () => {
   assert.equal(later.issueId, 4711);
   assert.equal(later.lastAnalysis?.summary, "Eine Aufgabe.");
   assert.equal(countTeamsThreadsByInbox(user.id, "open"), 0);
+  assert.equal(getLatestOpenTeamsThread(user.id), null);
 
   const applied = incrementTeamsThreadApplied(user.id, "19:chat-damian", {
     tasks: 1,
