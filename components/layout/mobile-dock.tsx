@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Settings, UserRound } from "lucide-react";
+import { LayoutDashboard, Settings, UserRound, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import {
@@ -32,6 +32,11 @@ export function MobileDock() {
       href: "/",
       label: "Übersicht",
       icon: <LayoutDashboard className="size-4" strokeWidth={APP_ICON_STROKE} />,
+    },
+    {
+      href: "/team",
+      label: "Team",
+      icon: <Users className="size-4" strokeWidth={APP_ICON_STROKE} />,
     },
     {
       href: "/microsoft",

@@ -58,6 +58,8 @@ function ensureUsersColumns(db: Database.Database): void {
     ["google_oauth_client_id", "TEXT"],
     ["google_oauth_client_secret_enc", "TEXT"],
     ["teams_enabled", "INTEGER"],
+    ["organization", "TEXT"],
+    ["can_manage_presence", "INTEGER NOT NULL DEFAULT 0"],
   ];
   for (const [name, ddl] of adds) {
     if (!names.has(name)) {

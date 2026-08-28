@@ -10,6 +10,7 @@ import {
   getAppUserPublic,
   listAppUsers,
 } from "@/lib/users/queries";
+import { parseUserOrganization } from "@/lib/users/organization";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +22,8 @@ const CreateSchema = z.object({
   password: z.string().min(6).max(200),
   active: z.boolean().optional(),
   gender: z.enum(["male", "female"]).nullable().optional(),
+  organization: z.string().optional(),
+  canManagePresence: z.boolean().optional(),
 });
 
 export async function GET() {
@@ -37,6 +40,19 @@ export async function POST(request: Request) {
     if (!parsed.success) {
       return NextResponse.json({ error: "Ungültige Eingabe" }, { status: 400 });
     }
+    const organization = parseUserOrganization(parsed.data.organization);
+    if (!parsed.data.organization?.trim()) {
+      return NextResponse.json(
+        { error: "Organisation ist Pflicht." },
+        { status: 400 }
+      );
+    }
+    if (!organization) {
+      return NextResponse.json(
+        { error: "Organisation ungültig." },
+        { status: 400 }
+      );
+    }
     const passwordHash = await hashPassword(parsed.data.password);
     const user = createAppUser({
       username: parsed.data.username,
@@ -45,6 +61,8 @@ export async function POST(request: Request) {
       passwordHash,
       active: parsed.data.active,
       gender: parsed.data.gender ?? null,
+      organization,
+      canManagePresence: parsed.data.canManagePresence,
     });
     return NextResponse.json({
       ok: true,

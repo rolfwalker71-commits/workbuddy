@@ -52,7 +52,6 @@ import { filterTodayEventsAfterGrace } from "@/lib/workspace/event-grace";
 import { zurichHm, zurichYmd } from "@/lib/microsoft/time";
 import type { WorkspaceTodayEvent } from "@/lib/workspace/merge-today";
 import type {
-  HomeAbsenceState,
   HomeTicketRow,
   HomeTtvDutyState,
 } from "@/lib/dashboard/home-surfaces-shared";
@@ -715,18 +714,13 @@ export function HomeOverview() {
         </div>
       </header>
 
-      {data?.ttvDuty || data?.absence ? (
-        <HomeDutyAbsenceBar
-          ttvDuty={data.ttvDuty}
-          absence={data.absence}
-          onDutyChange={(next: HomeTtvDutyState) =>
-            setData((prev) => (prev ? { ...prev, ttvDuty: next } : prev))
-          }
-          onAbsenceChange={(next: HomeAbsenceState) =>
-            setData((prev) => (prev ? { ...prev, absence: next } : prev))
-          }
-        />
-      ) : null}
+      <HomeDutyAbsenceBar
+        ttvDuty={data?.ttvDuty ?? null}
+        absence={data?.absence ?? null}
+        onDutyChange={(next: HomeTtvDutyState) =>
+          setData((prev) => (prev ? { ...prev, ttvDuty: next } : prev))
+        }
+      />
 
       <HomeNextQueue items={nextQueue} />
 

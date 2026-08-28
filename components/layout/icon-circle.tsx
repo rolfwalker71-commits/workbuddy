@@ -222,6 +222,7 @@ export const pageVisuals = {
   trips: appIcons.trips,
   settings: appIcons.settings,
   account: appIcons.account,
+  team: appIcons.team,
   summaries: appIcons.summaries,
   guides: appIcons.guides,
   microsoft: appIcons.microsoft,

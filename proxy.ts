@@ -57,6 +57,10 @@ function isAlwaysAllowedForLimitedUser(pathname: string): boolean {
   if (pathname === "/" || pathname === "/api/home/overview") {
     return true;
   }
+  if (pathname === "/team" || pathname.startsWith("/team/")) return true;
+  if (pathname === "/api/presence" || pathname.startsWith("/api/presence/")) {
+    return true;
+  }
   if (pathname.startsWith("/api/home/")) return true;
   if (pathname === "/api/dashboard/day-close") return true;
   if (

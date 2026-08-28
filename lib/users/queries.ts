@@ -7,6 +7,10 @@ import {
   type AppModule,
 } from "@/lib/users/modules";
 import { decryptSecret, encryptSecret, secretIsSet } from "@/lib/crypto/secret-box";
+import {
+  parseUserOrganization,
+  type UserOrganization,
+} from "@/lib/users/organization";
 
 export type UserGender = "male" | "female" | null;
 
@@ -34,6 +38,8 @@ export type AppUserRow = {
   google_oauth_client_secret_enc: string | null;
   notification_prefs: string | null;
   teams_enabled: number | null;
+  organization: UserOrganization | null;
+  can_manage_presence: number;
   created_at: string;
   updated_at: string;
 };
@@ -54,6 +60,7 @@ export type AppUserPublic = Omit<
   has_openai_key: boolean;
   has_chat_key: boolean;
   has_google_oauth_client: boolean;
+  canManagePresence: boolean;
 };
 
 function normalizeGender(raw: string | null | undefined): UserGender {
@@ -91,6 +98,9 @@ function mapPublic(row: AppUserRow, modules: AppModule[]): AppUserPublic {
     has_google_oauth_client: secretIsSet(google_oauth_client_secret_enc),
     avatar_url: avatarUrlFromPath(avatar_path),
     modules,
+    organization: parseUserOrganization(row.organization),
+    can_manage_presence: row.can_manage_presence ? 1 : 0,
+    canManagePresence: Boolean(row.can_manage_presence),
   };
 }
 
@@ -118,6 +128,8 @@ function coerceUserRow(row: AppUserRow & { mari_rest_password?: string | null })
       row.teams_enabled === 0 || row.teams_enabled === 1
         ? row.teams_enabled
         : null,
+    organization: parseUserOrganization(row.organization),
+    can_manage_presence: row.can_manage_presence ? 1 : 0,
   };
 }
 
@@ -171,6 +183,8 @@ export function createAppUser(input: {
   active?: boolean;
   gender?: UserGender;
   isAdmin?: boolean;
+  organization?: UserOrganization | null;
+  canManagePresence?: boolean;
 }): AppUserRow {
   const db = getDb();
   const ts = nowIso();
@@ -184,8 +198,8 @@ export function createAppUser(input: {
     const result = db
       .prepare(
         `INSERT INTO users
-           (username, email, password_hash, display_name, gender, avatar_path, avatar_prompt, active, is_admin, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?)`
+           (username, email, password_hash, display_name, gender, avatar_path, avatar_prompt, active, is_admin, organization, can_manage_presence, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         username,
@@ -195,6 +209,8 @@ export function createAppUser(input: {
         input.gender ?? null,
         input.active === false ? 0 : 1,
         input.isAdmin ? 1 : 0,
+        input.organization ?? null,
+        input.canManagePresence ? 1 : 0,
         ts,
         ts
       );
@@ -234,6 +250,8 @@ export function updateAppUser(
     googleOauthClientSecret?: string | null;
     clearGoogleOauthClientSecret?: boolean;
     teamsEnabled?: boolean;
+    organization?: UserOrganization | null;
+    canManagePresence?: boolean;
   }
 ): AppUserRow {
   const existing = getAppUserById(id);
@@ -315,6 +333,8 @@ export function updateAppUser(
          google_oauth_client_id = ?,
          google_oauth_client_secret_enc = ?,
          teams_enabled = ?,
+         organization = ?,
+         can_manage_presence = ?,
          updated_at = ?
        WHERE id = ?`
     ).run(
@@ -353,6 +373,14 @@ export function updateAppUser(
           ? 1
           : 0
         : existing.teams_enabled,
+      input.organization !== undefined
+        ? input.organization
+        : existing.organization,
+      input.canManagePresence !== undefined
+        ? input.canManagePresence
+          ? 1
+          : 0
+        : existing.can_manage_presence,
       nowIso(),
       id
     );
@@ -457,6 +485,17 @@ export function setUserAccess(
 ): AppUserPublic {
   setUserModules(userId, input.modules ?? []);
   return getAppUserPublic(userId)!;
+}
+
+export function listActiveAppUsers(): AppUserRow[] {
+  const db = getDb();
+  const rows = db
+    .prepare(
+      `SELECT * FROM users WHERE active = 1
+       ORDER BY display_name COLLATE NOCASE, username COLLATE NOCASE, id`
+    )
+    .all() as AppUserRow[];
+  return rows.map((row) => coerceUserRow(row));
 }
 
 export function listActiveUsersWithModule(module: AppModule): AppUserRow[] {

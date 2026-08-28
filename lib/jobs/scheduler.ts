@@ -49,6 +49,14 @@ async function tick(): Promise<void> {
     } else {
       state.lastResult = `mari:${mariSync?.reason ?? "idle"}`;
     }
+    const { syncOofPresenceIfDue } = await import("@/lib/presence/oof-sync");
+    const oofSync = await syncOofPresenceIfDue().catch((error) => {
+      console.warn("[scheduler] presence oof:", error);
+      return null;
+    });
+    if (oofSync) {
+      state.lastResult += ` oof:${oofSync.applied}/${oofSync.cleared}`;
+    }
     const { maybeDispatchEveningClose } = await import(
       "@/lib/dashboard/evening-close-push"
     );

@@ -1,12 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Building2, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+import {
+  segmentedTrackClass,
+  segmentedTriggerClass,
+} from "@/components/layout/segmented-control";
+import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
+import {
+  USER_ORGANIZATION_LABELS,
+  USER_ORGANIZATIONS,
+  parseUserOrganization,
+  type UserOrganization,
+} from "@/lib/users/organization";
 
 type AppUser = {
   id: number;
@@ -19,7 +31,48 @@ type AppUser = {
   has_mari_password: boolean;
   has_openai_key: boolean;
   mari_employee_number?: string | null;
+  organization?: UserOrganization | null;
+  can_manage_presence?: number;
+  canManagePresence?: boolean;
 };
+
+function OrganizationPills({
+  id,
+  value,
+  onChange,
+}: {
+  id: string;
+  value: UserOrganization | null;
+  onChange: (next: UserOrganization) => void;
+}) {
+  return (
+    <div
+      id={id}
+      className={cn(segmentedTrackClass, "h-auto")}
+      role="radiogroup"
+      aria-label="Organisation"
+    >
+      {USER_ORGANIZATIONS.map((code) => (
+        <Button
+          key={code}
+          type="button"
+          variant="ghost"
+          role="radio"
+          aria-checked={value === code}
+          className={segmentedTriggerClass(value === code)}
+          onClick={() => onChange(code)}
+        >
+          <Building2
+            className="size-4 shrink-0"
+            strokeWidth={APP_ICON_STROKE}
+            aria-hidden
+          />
+          {USER_ORGANIZATION_LABELS[code]}
+        </Button>
+      ))}
+    </div>
+  );
+}
 
 export function SettingsUsersPanel() {
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -30,11 +83,18 @@ export function SettingsUsersPanel() {
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
+  const [organization, setOrganization] = useState<UserOrganization | null>(
+    null
+  );
+  const [canManagePresence, setCanManagePresence] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [editModules, setEditModules] = useState<string[]>([]);
   const [editActive, setEditActive] = useState(true);
   const [editDisplayName, setEditDisplayName] = useState("");
   const [editPassword, setEditPassword] = useState("");
+  const [editOrganization, setEditOrganization] =
+    useState<UserOrganization | null>(null);
+  const [editCanManagePresence, setEditCanManagePresence] = useState(false);
 
   async function load() {
     const res = await fetch("/api/users");
@@ -59,10 +119,20 @@ export function SettingsUsersPanel() {
       if (password.trim().length < 6) {
         throw new Error("Passwort muss mindestens 6 Zeichen haben.");
       }
+      if (!organization) {
+        throw new Error("Organisation ist Pflicht.");
+      }
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, email, displayName, password }),
+        body: JSON.stringify({
+          username,
+          email,
+          displayName,
+          password,
+          organization,
+          canManagePresence,
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Anlegen fehlgeschlagen");
@@ -70,6 +140,8 @@ export function SettingsUsersPanel() {
       setEmail("");
       setDisplayName("");
       setPassword("");
+      setOrganization(null);
+      setCanManagePresence(false);
       setStatus("User angelegt.");
       await load();
     } catch (err) {
@@ -99,6 +171,8 @@ export function SettingsUsersPanel() {
         body: JSON.stringify({
           displayName: name,
           active: editActive,
+          organization: editOrganization,
+          canManagePresence: editCanManagePresence,
           ...(editPassword.trim() ? { password: editPassword } : {}),
         }),
       });
@@ -192,6 +266,29 @@ export function SettingsUsersPanel() {
             />
           </div>
         </div>
+        <div className="space-y-2">
+          <Label htmlFor="new-organization">Organisation</Label>
+          <OrganizationPills
+            id="new-organization"
+            value={organization}
+            onChange={setOrganization}
+          />
+        </div>
+        <label className="flex items-start gap-2 text-sm leading-relaxed">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={canManagePresence}
+            onChange={(e) => setCanManagePresence(e.target.checked)}
+          />
+          <span>
+            Stati anderer pflegen
+            <span className="mt-0.5 block text-muted-foreground">
+              Darf Anwesenheit von Kolleginnen und Kollegen derselben
+              Organisation setzen
+            </span>
+          </span>
+        </label>
         <Button type="button" className="h-11" disabled={busy} onClick={() => void createUser()}>
           <Plus className="size-4" /> User anlegen
         </Button>
@@ -219,6 +316,20 @@ export function SettingsUsersPanel() {
                     {user.mari_employee_number ? (
                       <Badge>MARI {user.mari_employee_number}</Badge>
                     ) : null}
+                    {parseUserOrganization(user.organization) ? (
+                      <Badge variant="secondary">
+                        {
+                          USER_ORGANIZATION_LABELS[
+                            parseUserOrganization(user.organization)!
+                          ]
+                        }
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline">Ohne Organisation</Badge>
+                    )}
+                    {user.canManagePresence || user.can_manage_presence ? (
+                      <Badge>Stati</Badge>
+                    ) : null}
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -231,6 +342,14 @@ export function SettingsUsersPanel() {
                       setEditActive(Boolean(user.active));
                       setEditDisplayName(user.display_name);
                       setEditPassword("");
+                      setEditOrganization(
+                        parseUserOrganization(user.organization)
+                      );
+                      setEditCanManagePresence(
+                        Boolean(
+                          user.canManagePresence || user.can_manage_presence
+                        )
+                      );
                     }}
                   >
                     Bearbeiten
@@ -266,6 +385,33 @@ export function SettingsUsersPanel() {
                       />
                     </div>
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor={`organization-${user.id}`}>
+                      Organisation
+                    </Label>
+                    <OrganizationPills
+                      id={`organization-${user.id}`}
+                      value={editOrganization}
+                      onChange={setEditOrganization}
+                    />
+                  </div>
+                  <label className="flex items-start gap-2 text-sm leading-relaxed">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={editCanManagePresence}
+                      onChange={(e) =>
+                        setEditCanManagePresence(e.target.checked)
+                      }
+                    />
+                    <span>
+                      Stati anderer pflegen
+                      <span className="mt-0.5 block text-muted-foreground">
+                        Darf Anwesenheit von Kolleginnen und Kollegen derselben
+                        Organisation setzen
+                      </span>
+                    </span>
+                  </label>
                   <label className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"

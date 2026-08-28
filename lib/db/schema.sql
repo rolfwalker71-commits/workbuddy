@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS users (
   google_oauth_client_secret_enc TEXT,
   notification_prefs TEXT,
   teams_enabled INTEGER,
+  organization TEXT,
+  can_manage_presence INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -222,3 +224,17 @@ CREATE TABLE IF NOT EXISTS user_absence (
   updated_at TEXT NOT NULL,
   FOREIGN KEY(user_id) REFERENCES users(id)
 );
+
+CREATE TABLE IF NOT EXISTS user_day_status (
+  user_id INTEGER NOT NULL,
+  ymd TEXT NOT NULL,
+  status TEXT NOT NULL,
+  source TEXT NOT NULL,
+  set_by_user_id INTEGER,
+  note TEXT,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (user_id, ymd),
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY(set_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_user_day_status_ymd ON user_day_status(ymd);

@@ -12,6 +12,7 @@ import {
   getAppUserPublic,
   updateAppUser,
 } from "@/lib/users/queries";
+import { parseUserOrganization } from "@/lib/users/organization";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,6 +32,8 @@ const PatchSchema = z.object({
   mariRestPassword: z.string().max(200).nullable().optional(),
   clearMariRestPassword: z.boolean().optional(),
   clearOpenaiApiKey: z.boolean().optional(),
+  organization: z.string().nullable().optional(),
+  canManagePresence: z.boolean().optional(),
 });
 
 export async function GET(_request: Request, context: Ctx) {
@@ -65,6 +68,20 @@ export async function PATCH(request: Request, context: Ctx) {
     const passwordHash = parsed.data.password
       ? await hashPassword(parsed.data.password)
       : undefined;
+    let organization: ReturnType<typeof parseUserOrganization> | undefined;
+    if (parsed.data.organization !== undefined) {
+      if (parsed.data.organization == null || parsed.data.organization === "") {
+        organization = null;
+      } else {
+        organization = parseUserOrganization(parsed.data.organization);
+        if (!organization) {
+          return NextResponse.json(
+            { error: "Organisation ungültig." },
+            { status: 400 }
+          );
+        }
+      }
+    }
     updateAppUser(id, {
       username: parsed.data.username,
       email: parsed.data.email,
@@ -78,6 +95,8 @@ export async function PATCH(request: Request, context: Ctx) {
       mariRestPassword: parsed.data.mariRestPassword,
       clearMariRestPassword: parsed.data.clearMariRestPassword,
       clearOpenaiApiKey: parsed.data.clearOpenaiApiKey,
+      organization,
+      canManagePresence: parsed.data.canManagePresence,
     });
     const after = getAppUserById(id);
     clearMariTokenCache(before?.mari_rest_username);

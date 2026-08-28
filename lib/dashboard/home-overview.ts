@@ -25,6 +25,7 @@ import {
 } from "@/lib/google/mail-inbox";
 import { getGoogleMailDayCached } from "@/lib/google/mail-day-analysis-job";
 import { zurichYmd } from "@/lib/microsoft/time";
+import { syncOofPresenceForUser } from "@/lib/presence/oof-sync";
 import { getMariTicketsWatchState } from "@/lib/mari/sync-tickets-if-due";
 import type { MariTicketsWatchState } from "@/lib/mari/sync-tickets-if-due";
 import {
@@ -184,6 +185,11 @@ export async function getHomeOverview(
   const msConnected = userId != null && showMs && isMicrosoftConnected(userId);
   const googleConnected =
     userId != null && showGoogle && isGoogleMailConnected(userId);
+  if (userId != null && msConnected) {
+    void syncOofPresenceForUser(userId, today).catch((error) => {
+      console.warn("[presence] oof home sync:", error);
+    });
+  }
   const ownerKey =
     userId != null ? `user:${userId}` : ownerKeyFromAuth(auth);
   const cached = readHomeKpiCache(userId);
