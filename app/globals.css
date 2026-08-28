@@ -188,6 +188,7 @@
   }
   [data-slot="tabs-trigger"],
   [data-slot="tabs-list"] [data-slot="button"],
+  [role="radiogroup"] button,
   [data-segment="true"] {
     min-height: 0;
     min-width: 0;

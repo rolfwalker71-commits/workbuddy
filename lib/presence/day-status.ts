@@ -5,6 +5,7 @@ import {
   getAppUserById,
   listActiveAppUsers,
 } from "@/lib/users/queries";
+import { isEnvAdminUsername } from "@/lib/users/resolve-user";
 import {
   parseUserOrganization,
   type UserOrganization,
@@ -279,6 +280,9 @@ export function setDelegatedDayStatus(input: {
 }): UserDayStatus {
   const target = getAppUserById(input.targetUserId);
   if (!target) throw new Error("Benutzer nicht gefunden");
+  if (isEnvAdminUsername(target.username)) {
+    throw new Error("Dieser Benutzer ist kein Teammitglied.");
+  }
   const allowed = canDelegatePresence(
     {
       isAdmin: input.actor.isAdmin,
@@ -341,6 +345,7 @@ export function listPresenceToday(input: {
   );
   const users = listActiveAppUsers();
   const people = users
+    .filter((user) => !isEnvAdminUsername(user.username))
     .filter((user) => {
       if (!orgFilter) return true;
       return parseUserOrganization(user.organization) === orgFilter;

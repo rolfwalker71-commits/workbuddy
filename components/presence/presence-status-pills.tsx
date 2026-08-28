@@ -7,11 +7,11 @@ import {
   Thermometer,
   UserRoundX,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   segmentedTrackClass,
   segmentedTriggerClass,
+  segmentedTriggerProps,
 } from "@/components/layout/segmented-control";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import {
@@ -44,7 +44,7 @@ export function PresenceStatusPills({
 }) {
   return (
     <div
-      className={cn(segmentedTrackClass, "h-auto min-h-10 w-full max-w-full")}
+      className={cn(segmentedTrackClass, "w-full max-w-full flex-nowrap")}
       role="radiogroup"
       aria-label={ariaLabel}
     >
@@ -52,16 +52,19 @@ export function PresenceStatusPills({
         const Icon = PILL_ICONS[status];
         const active = value === status;
         return (
-          <Button
+          <button
             key={status}
             type="button"
-            variant="ghost"
             role="radio"
             aria-checked={active}
             disabled={disabled}
+            {...segmentedTriggerProps}
             className={cn(
+              "inline-flex min-w-0 flex-1 items-center justify-center outline-none select-none",
+              "focus-visible:ring-2 focus-visible:ring-ring/50",
+              "disabled:pointer-events-none disabled:opacity-50",
               segmentedTriggerClass(active),
-              "min-w-0 flex-1 text-[0.7rem] sm:text-sm",
+              "text-[0.7rem] sm:text-sm",
               active && PRESENCE_STATUS_ACTIVE_PILL[status]
             )}
             onClick={() => onChange(status)}
@@ -71,10 +74,10 @@ export function PresenceStatusPills({
               strokeWidth={APP_ICON_STROKE}
               aria-hidden
             />
-            <span className="break-words leading-snug">
+            <span className="break-words leading-none">
               {PRESENCE_PILL_LABELS[status]}
             </span>
-          </Button>
+          </button>
         );
       })}
     </div>

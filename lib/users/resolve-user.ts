@@ -10,6 +10,19 @@ import {
 import { ALL_APP_MODULES } from "@/lib/users/modules";
 
 /**
+ * Dedicated env/bootstrap admin (`WORKBUDDY_USERNAME`, default `admin`).
+ * Not the same as `users.is_admin` — org admins stay on the team roster.
+ * Password for this account lives in the server env, not Konto.
+ */
+export function isEnvAdminUsername(username: string | null | undefined): boolean {
+  const name = (username ?? "").trim().toLowerCase();
+  if (!name) return false;
+  if (name === "admin") return true;
+  const envUsername = getAuthConfiguration().username.trim().toLowerCase();
+  return Boolean(envUsername) && name === envUsername;
+}
+
+/**
  * App-user id for per-user secrets (OAuth tokens, OpenAI, MARI).
  * Env-admin sessions without userId resolve to / create a matching users row.
  */

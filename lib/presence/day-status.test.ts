@@ -127,3 +127,84 @@ test("own day writes and deputy blocks self overwrite", async () => {
   assert.equal(today.self?.status, "sick");
   assert.equal(today.self?.source, "deputy");
 });
+
+test("env-admin is omitted from the team roster; org admins stay", async () => {
+  process.env.WORKBUDDY_SESSION_SECRET =
+    "a-secure-test-secret-with-more-than-32-characters";
+  process.env.WORKBUDDY_USERNAME = "admin";
+  process.env.WORKBUDDY_PASSWORD_HASH = "scrypt:x:y";
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "wb-presence-admin-"));
+  process.env.DATABASE_PATH = path.join(tmp, "test.sqlite");
+
+  const { resetDbForTests } = await import("../db/client.ts");
+  resetDbForTests();
+  const { createAppUser } = await import("../users/queries.ts");
+  const { listPresenceToday, setDelegatedDayStatus } = await import(
+    "./day-status.ts"
+  );
+
+  const admin = createAppUser({
+    username: "admin",
+    email: "admin@workbuddy.local",
+    displayName: "admin",
+    passwordHash: "hash",
+    active: true,
+    isAdmin: true,
+  });
+  const rolf = createAppUser({
+    username: "rolf",
+    email: "rolf@example.com",
+    displayName: "Rolf Walker",
+    passwordHash: "hash",
+    active: true,
+    isAdmin: true,
+    organization: "CH",
+  });
+  const anna = createAppUser({
+    username: "anna",
+    email: "anna@example.com",
+    displayName: "Anna",
+    passwordHash: "hash",
+    organization: "CH",
+    canManagePresence: true,
+  });
+
+  const allOrgs = listPresenceToday({
+    ymd: "2026-08-28",
+    viewerUserId: anna.id,
+  });
+  assert.deepEqual(
+    allOrgs.people.map((p) => p.displayName).sort(),
+    ["Anna", "Rolf Walker"]
+  );
+  assert.equal(
+    allOrgs.people.some((p) => p.userId === admin.id),
+    false
+  );
+
+  const asAdmin = listPresenceToday({
+    ymd: "2026-08-28",
+    viewerUserId: admin.id,
+  });
+  assert.equal(asAdmin.self?.userId, admin.id);
+  assert.equal(
+    asAdmin.people.some((p) => p.userId === admin.id),
+    false
+  );
+
+  assert.throws(
+    () =>
+      setDelegatedDayStatus({
+        actor: {
+          userId: rolf.id,
+          isAdmin: true,
+          canManagePresence: false,
+          organization: "CH",
+        },
+        targetUserId: admin.id,
+        ymd: "2026-08-28",
+        status: "office",
+      }),
+    /kein Teammitglied/
+  );
+});

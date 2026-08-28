@@ -13,6 +13,7 @@ import { pageVisuals } from "@/components/layout/icon-circle";
 import {
   segmentedTrackClass,
   segmentedTriggerClass,
+  segmentedTriggerProps,
 } from "@/components/layout/segmented-control";
 import { PresencePersonCard } from "@/components/presence/presence-person-card";
 import { PresenceSetDialog } from "@/components/presence/presence-set-dialog";
@@ -281,6 +282,7 @@ export function PresenceTeamBoard() {
             variant="ghost"
             role="tab"
             aria-selected={view === "day"}
+            {...segmentedTriggerProps}
             className={segmentedTriggerClass(view === "day")}
             onClick={() => setView("day")}
           >
@@ -292,6 +294,7 @@ export function PresenceTeamBoard() {
             variant="ghost"
             role="tab"
             aria-selected={view === "week"}
+            {...segmentedTriggerProps}
             className={segmentedTriggerClass(view === "week")}
             onClick={() => setView("week")}
           >
@@ -346,7 +349,7 @@ export function PresenceTeamBoard() {
         </div>
 
         <div
-          className={cn(segmentedTrackClass, "h-auto min-h-10 w-full max-w-full")}
+          className={cn(segmentedTrackClass, "w-full max-w-full flex-nowrap")}
           role="radiogroup"
           aria-label="Organisation"
         >
@@ -355,6 +358,7 @@ export function PresenceTeamBoard() {
             variant="ghost"
             role="radio"
             aria-checked={org === ""}
+            {...segmentedTriggerProps}
             className={cn(segmentedTriggerClass(org === ""), "flex-1")}
             onClick={() => setOrg("")}
           >
@@ -369,6 +373,7 @@ export function PresenceTeamBoard() {
               aria-checked={org === code}
               aria-label={USER_ORGANIZATION_LABELS[code]}
               title={USER_ORGANIZATION_LABELS[code]}
+              {...segmentedTriggerProps}
               className={cn(segmentedTriggerClass(org === code), "flex-1")}
               onClick={() => setOrg(code)}
             >

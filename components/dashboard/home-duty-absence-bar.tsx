@@ -48,7 +48,7 @@ export function HomeDutyAbsenceBar({
   }
 
   return (
-    <section className={ttvDuty ? "grid gap-2 sm:grid-cols-2" : undefined}>
+    <section className="space-y-2">
       {ttvDuty ? (
         <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-orange-50/90 px-3 py-2.5 ring-1 ring-orange-200/80 dark:bg-orange-500/12 dark:ring-orange-400/30">
           <p className="min-w-0 flex-1 text-sm font-semibold leading-snug text-orange-950 dark:text-orange-100">

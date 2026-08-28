@@ -48,7 +48,7 @@ function OrganizationPills({
   return (
     <div
       id={id}
-      className={cn(segmentedTrackClass, "h-auto")}
+      className={cn(segmentedTrackClass, "w-full max-w-full flex-nowrap")}
       role="radiogroup"
       aria-label="Organisation"
     >
@@ -59,7 +59,7 @@ function OrganizationPills({
           variant="ghost"
           role="radio"
           aria-checked={value === code}
-          className={segmentedTriggerClass(value === code)}
+          className={cn(segmentedTriggerClass(value === code), "flex-1 min-w-0")}
           onClick={() => onChange(code)}
         >
           <Building2
