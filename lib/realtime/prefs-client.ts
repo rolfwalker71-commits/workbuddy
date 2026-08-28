@@ -19,6 +19,7 @@ const ALL: NotifyReason[] = [
   "mari_ticket_changed",
   "mail_calendar_patch",
   "microsoft_mail_day",
+  "microsoft_teams_day",
   "google_mail_day",
   "evening_digest",
   "app_status",

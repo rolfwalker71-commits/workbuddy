@@ -81,7 +81,7 @@ export async function collectTeamsDayChatThreads(
     TEAMS_DAY_CHAT_LIMIT
   );
   const threads = (
-    await mapLimit(todays, 4, async (chat) => {
+    await mapLimit(todays, 4, async (chat): Promise<TeamsThreadForAnalysis | null> => {
       try {
         const messages = await listTeamsChatMessages(userId, chat.id, {
           top: TEAMS_DAY_MESSAGES_PER_CHAT,

@@ -73,7 +73,9 @@ export function MariTicketSearchPicker({
           setTickets([]);
           return;
         }
-        const list = Array.isArray(json.tickets) ? json.tickets : [];
+        const list: unknown[] = Array.isArray(json.tickets)
+          ? json.tickets
+          : [];
         setTickets(
           list
             .map(asTicketHit)
