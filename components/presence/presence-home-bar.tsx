@@ -38,6 +38,11 @@ function awayIdsFromAbsence(absence: HomeAbsenceState | null): number[] {
   return ids;
 }
 
+const overlayChip =
+  "w-fit max-w-[min(20rem,calc(100%-5.5rem))] px-2.5 py-1.5";
+
+const overlayActionBtn = "h-11 min-h-11 px-2.5 leading-snug";
+
 export function PresenceHomeBar({
   absence,
 }: {
@@ -88,6 +93,16 @@ export function PresenceHomeBar({
   const loading = !data && !error;
   const choosing = showMorning || editing;
   const artStatus = !choosing ? (self?.status ?? null) : null;
+  const showChange = Boolean(artStatus && !locked);
+  const showActions = showChange || showDelegate;
+
+  const statusTitle = showMorning
+    ? "Wie arbeitest du heute?"
+    : editing
+      ? "Status ändern"
+      : self?.status
+        ? `Du: ${PRESENCE_STATUS_LABELS[self.status]}`
+        : "Du: noch offen";
 
   async function clearOwn() {
     if (!data) return;
@@ -141,116 +156,129 @@ export function PresenceHomeBar({
     }
   }
 
-  const body = (
-    <>
-      {loading ? (
-        <p className="text-sm text-muted-foreground">Lade Anwesenheit…</p>
-      ) : showMorning || editing ? (
-        <div className="min-w-0 space-y-2">
-          <div className="flex items-center gap-2">
-            <p className="min-w-0 flex-1 text-sm font-semibold leading-snug">
-              {showMorning ? "Wie arbeitest du heute?" : "Status ändern"}
-            </p>
-            {choosing ? (
-              <PresenceIsoArt status={self?.status} variant="thumb" />
-            ) : null}
-          </div>
-          <PresenceStatusPills
-            value={self?.status ?? null}
-            onChange={(status) => void setOwn(status)}
-            disabled={busy || locked}
-            ariaLabel="Wie arbeitest du heute?"
-          />
-          {editing ? (
-            <div className="flex flex-wrap items-center gap-2">
-              {self?.source === "self" ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  disabled={busy}
-                  onClick={() => void clearOwn()}
-                >
-                  Regel verwenden
-                </Button>
-              ) : null}
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                disabled={busy}
-                onClick={() => setEditing(false)}
-              >
-                Fertig
-              </Button>
-            </div>
-          ) : null}
-        </div>
-      ) : (
+  const statusLine = (
+    <p className="min-w-0 break-words text-base font-semibold leading-snug">
+      {statusTitle}
+      {!choosing && sourceHint ? (
+        <span className="ml-1 font-normal text-muted-foreground">
+          · {sourceHint}
+        </span>
+      ) : null}
+    </p>
+  );
+
+  const countRow = (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-snug text-muted-foreground">
+      <span className="inline-flex items-center gap-1.5">
+        <span className="size-2 rounded-full bg-orange-500" aria-hidden />
+        {counts.here} da
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <span className="size-2 rounded-full bg-rose-500" aria-hidden />
+        {counts.away} nicht da
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <span className="size-2 rounded-full bg-muted-foreground/50" aria-hidden />
+        {counts.open} offen
+      </span>
+    </div>
+  );
+
+  const teamLink = (
+    <Link
+      href="/team"
+      className="inline-flex min-h-11 items-center gap-1 px-2.5 font-semibold text-foreground underline-offset-2 hover:underline"
+    >
+      <Users className="size-3.5" strokeWidth={APP_ICON_STROKE} />
+      Team
+    </Link>
+  );
+
+  function actionButtons(variant: "ghost" | "outline") {
+    return (
+      <>
+        {showChange ? (
+          <Button
+            type="button"
+            size="sm"
+            variant={variant}
+            disabled={busy}
+            className={overlayActionBtn}
+            onClick={() => setEditing(true)}
+          >
+            Ändern
+          </Button>
+        ) : null}
+        {showDelegate ? (
+          <Button
+            type="button"
+            size="sm"
+            variant={variant}
+            disabled={busy}
+            className={overlayActionBtn}
+            onClick={() => {
+              setDelegateError(null);
+              setDelegateOpen(true);
+            }}
+          >
+            Für Kollege setzen
+          </Button>
+        ) : null}
+      </>
+    );
+  }
+
+  const editor = (
+    <div className="min-w-0 space-y-2">
+      <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">{statusLine}</div>
+        {choosing ? <PresenceIsoArt status={self?.status} variant="thumb" /> : null}
+      </div>
+      <PresenceStatusPills
+        value={self?.status ?? null}
+        onChange={(status) => void setOwn(status)}
+        disabled={busy || locked}
+        ariaLabel="Wie arbeitest du heute?"
+      />
+      {editing ? (
         <div className="flex flex-wrap items-center gap-2">
-          <p className="min-w-0 flex-1 text-sm font-semibold leading-snug">
-            {self?.status
-              ? `Du: ${PRESENCE_STATUS_LABELS[self.status]}`
-              : "Du: noch offen"}
-            {sourceHint ? (
-              <span className="ml-1 font-normal text-muted-foreground">
-                · {sourceHint}
-              </span>
-            ) : null}
-          </p>
-          {!locked ? (
+          {self?.source === "self" ? (
             <Button
               type="button"
               size="sm"
-              variant="outline"
+              variant="ghost"
               disabled={busy}
-              onClick={() => setEditing(true)}
+              onClick={() => void clearOwn()}
             >
-              Ändern
+              Regel verwenden
             </Button>
           ) : null}
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={busy}
+            onClick={() => setEditing(false)}
+          >
+            Fertig
+          </Button>
         </div>
-      )}
-
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
-
-      <div className="flex flex-wrap items-center gap-2 text-xs leading-snug text-muted-foreground">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="size-2 rounded-full bg-orange-500" aria-hidden />
-          {counts.here} da
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="size-2 rounded-full bg-rose-500" aria-hidden />
-          {counts.away} nicht da
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="size-2 rounded-full bg-muted-foreground/50" aria-hidden />
-          {counts.open} offen
-        </span>
-        <Link
-          href="/team"
-          className="ml-auto inline-flex min-h-11 items-center gap-1 font-semibold text-foreground underline-offset-2 hover:underline"
-        >
-          <Users className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-          Team
-        </Link>
-      </div>
-
-      {showDelegate ? (
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={busy}
-          onClick={() => {
-            setDelegateError(null);
-            setDelegateOpen(true);
-          }}
-        >
-          Für Kollege setzen
-        </Button>
       ) : null}
-    </>
+    </div>
+  );
+
+  const dialog = (
+    <PresenceDelegateDialog
+      open={delegateOpen}
+      onOpenChange={setDelegateOpen}
+      people={people}
+      actor={actor}
+      selfUserId={self?.userId ?? me?.userId ?? null}
+      ymd={data?.ymd || zurichYmd()}
+      busy={busy}
+      error={delegateError}
+      onSave={(input) => void saveDelegate(input)}
+    />
   );
 
   return (
@@ -262,25 +290,49 @@ export function PresenceHomeBar({
     >
       {artStatus ? <PresenceIsoArt status={artStatus} variant="hero" /> : null}
       {artStatus ? (
-        <div className="relative z-10 flex min-h-[8.25rem] items-end p-2.5 sm:items-center">
-          <PresenceGlassPanel className="w-[min(22rem,calc(100%-3.25rem))] space-y-2 p-2.5">
-            {body}
-          </PresenceGlassPanel>
+        <div className="relative z-10 flex min-h-[8.25rem] flex-col justify-between gap-2 p-2.5">
+          <div className="flex items-start justify-between gap-2">
+            <PresenceGlassPanel className={cn("space-y-1", overlayChip)}>
+              {statusLine}
+              {countRow}
+              {error ? (
+                <p className="text-sm text-destructive">{error}</p>
+              ) : null}
+            </PresenceGlassPanel>
+            <PresenceGlassPanel className="shrink-0 p-0">{teamLink}</PresenceGlassPanel>
+          </div>
+          {showActions ? (
+            <div className="flex justify-end">
+              <PresenceGlassPanel className="flex flex-wrap items-center gap-1.5 p-0.5">
+                {actionButtons("ghost")}
+              </PresenceGlassPanel>
+            </div>
+          ) : null}
         </div>
       ) : (
-        <div className="min-w-0 space-y-2.5">{body}</div>
+        <div className="min-w-0 space-y-2.5">
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Lade Anwesenheit…</p>
+          ) : showMorning || editing ? (
+            editor
+          ) : (
+            statusLine
+          )}
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          {!loading ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {countRow}
+              <div className="ml-auto">{teamLink}</div>
+            </div>
+          ) : null}
+          {showActions ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {actionButtons("outline")}
+            </div>
+          ) : null}
+        </div>
       )}
-      <PresenceDelegateDialog
-        open={delegateOpen}
-        onOpenChange={setDelegateOpen}
-        people={people}
-        actor={actor}
-        selfUserId={self?.userId ?? me?.userId ?? null}
-        ymd={data?.ymd || zurichYmd()}
-        busy={busy}
-        error={delegateError}
-        onSave={(input) => void saveDelegate(input)}
-      />
+      {dialog}
     </div>
   );
 }
