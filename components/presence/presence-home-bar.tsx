@@ -194,36 +194,45 @@ export function PresenceHomeBar({
     </Link>
   );
 
+  function actionButton(
+    label: string,
+    onClick: () => void,
+    variant: "ghost" | "outline"
+  ) {
+    const button = (
+      <Button
+        type="button"
+        size="sm"
+        variant={variant}
+        disabled={busy}
+        className={overlayActionBtn}
+        onClick={onClick}
+      >
+        {label}
+      </Button>
+    );
+    if (variant === "ghost") {
+      return <PresenceGlassPanel className="p-0">{button}</PresenceGlassPanel>;
+    }
+    return button;
+  }
+
   function actionButtons(variant: "ghost" | "outline") {
     return (
       <>
-        {showChange ? (
-          <Button
-            type="button"
-            size="sm"
-            variant={variant}
-            disabled={busy}
-            className={overlayActionBtn}
-            onClick={() => setEditing(true)}
-          >
-            Ändern
-          </Button>
-        ) : null}
-        {showDelegate ? (
-          <Button
-            type="button"
-            size="sm"
-            variant={variant}
-            disabled={busy}
-            className={overlayActionBtn}
-            onClick={() => {
-              setDelegateError(null);
-              setDelegateOpen(true);
-            }}
-          >
-            Für Kollege setzen
-          </Button>
-        ) : null}
+        {showChange
+          ? actionButton("Ändern", () => setEditing(true), variant)
+          : null}
+        {showDelegate
+          ? actionButton(
+              "Für Kollege setzen",
+              () => {
+                setDelegateError(null);
+                setDelegateOpen(true);
+              },
+              variant
+            )
+          : null}
       </>
     );
   }
@@ -302,10 +311,8 @@ export function PresenceHomeBar({
             <PresenceGlassPanel className="shrink-0 p-0">{teamLink}</PresenceGlassPanel>
           </div>
           {showActions ? (
-            <div className="flex justify-end">
-              <PresenceGlassPanel className="flex flex-wrap items-center gap-1.5 p-0.5">
-                {actionButtons("ghost")}
-              </PresenceGlassPanel>
+            <div className="flex flex-wrap justify-end gap-1.5">
+              {actionButtons("ghost")}
             </div>
           ) : null}
         </div>
