@@ -239,3 +239,26 @@ CREATE TABLE IF NOT EXISTS user_day_status (
   FOREIGN KEY(set_by_user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 CREATE INDEX IF NOT EXISTS idx_user_day_status_ymd ON user_day_status(ymd);
+
+-- Teams work inbox. join_url / calendar_event_id: Meeting+transcript later.
+-- title / preview / thread_key: search later. inbox=open count: Home later.
+CREATE TABLE IF NOT EXISTS teams_thread_state (
+  user_id INTEGER NOT NULL,
+  thread_key TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  inbox TEXT NOT NULL,
+  title TEXT,
+  preview TEXT,
+  last_active_at TEXT,
+  join_url TEXT,
+  calendar_event_id TEXT,
+  issue_id INTEGER,
+  applied_tasks INTEGER NOT NULL DEFAULT 0,
+  applied_events INTEGER NOT NULL DEFAULT 0,
+  last_analysis_json TEXT,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (user_id, thread_key),
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_teams_thread_state_inbox
+  ON teams_thread_state(user_id, inbox, last_active_at DESC);

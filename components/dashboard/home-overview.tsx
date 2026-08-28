@@ -582,9 +582,10 @@ export function HomeOverview() {
   const lastTeams = showTeamsCard
     ? data?.microsoft?.lastTeams ?? null
     : null;
-  const teamsHref = lastTeams
-    ? `/microsoft?tab=teams&chat=${encodeURIComponent(lastTeams.chatId)}`
-    : "/microsoft?tab=teams";
+  const teamsOpenCount = showTeamsCard
+    ? data?.microsoft?.teamsOpenCount ?? null
+    : null;
+  const teamsHref = "/microsoft?tab=teams";
   const anyMailConnected = Boolean(
     data?.microsoft?.connected || data?.google?.connected
   );
@@ -838,12 +839,17 @@ export function HomeOverview() {
                         lastTeams.lastUpdatedAt
                           ? formatSwissDateTime(lastTeams.lastUpdatedAt)
                           : null,
+                        teamsOpenCount != null
+                          ? `${teamsOpenCount} offen`
+                          : null,
                       ]
                         .filter(Boolean)
                         .join(" · ")
                     : detailsLoading
                       ? "Teams"
-                      : "Teams öffnen"
+                      : teamsOpenCount != null
+                        ? `${teamsOpenCount} offen`
+                        : "Teams öffnen"
                 }
               />
             ) : null}

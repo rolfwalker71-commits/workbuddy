@@ -86,6 +86,7 @@ function aiItemArray<T extends z.ZodTypeAny>(itemSchema: T, max: number) {
 export const TeamsAnalysisClusterSchema = z.object({
   sourceChatId: aiNullableString(400).optional(),
   sourceChatTitle: aiStringRequired(200, "Chat"),
+  theme: aiNullableString(200).optional(),
   summary: aiString(2200),
   tasks: aiItemArray(TeamsAnalysisTaskSchema, 6).default([]),
   events: aiItemArray(TeamsAnalysisEventSchema, 4).default([]),
@@ -113,7 +114,12 @@ export type TeamsChatAnalysis = {
 export type TeamsThreadForAnalysis = {
   id: string;
   title: string;
+  kind?: "chat" | "channel";
   messages: Array<Pick<TeamsChatMessage, "from" | "text" | "createdAt">>;
+  lastActiveAt?: string | null;
+  preview?: string | null;
+  joinUrl?: string | null;
+  calendarEventId?: string | null;
 };
 
 export const TEAMS_DAY_CHAT_LIMIT = 12;
@@ -232,6 +238,7 @@ export function sanitizeTeamsAnalysis(
     clusters.push({
       sourceChatId: thread.id || c.sourceChatId || null,
       sourceChatTitle: thread.title || c.sourceChatTitle || "Chat",
+      theme: c.theme?.trim() || null,
       summary: c.summary.trim(),
       tasks,
       events,
@@ -244,6 +251,7 @@ export function sanitizeTeamsAnalysis(
     clusters.push({
       sourceChatId: fallback.id || null,
       sourceChatTitle: fallback.title,
+      theme: null,
       summary,
       tasks: [],
       events: [],
@@ -269,7 +277,9 @@ WICHTIG:
 - kind task: offene Bitten, Zusagen («ich schicke X»), Follow-ups, Action Items. dueDate nur wenn Frist klar.
 - kind event: nur bei klarem Termin/Meeting mit Datum. startTime/endTime als HH:mm wenn genannt, sonst allDay.
 - replies: nur wenn eine kurze Antwort im Chat sinnvoll ist (Zusage, Rückfrage, Bestätigung). body auf Deutsch, höflich und knapp. to = Name der Person, an die die Antwort geht.
-- sourceChatId und sourceChatTitle aus dem jeweiligen Chat exakt echoen.
+- sourceChatId und sourceChatTitle aus dem jeweiligen Chat/Kanal exakt echoen.
+- sourceChatTitle ist der echte Name (Chatname oder «Team · Kanal»). Nie «Teams-Kanal» erfinden.
+- theme optional: kurzes Thema der Unterhaltung. Identität bleibt sourceChatId / sourceChatTitle.
 - Keine Dubletten über Chats hinweg, wenn es dieselbe Aufgabe ist.
 - Antworte NUR als JSON-Objekt.`;
 
@@ -295,7 +305,7 @@ ${body || "(leer)"}`;
   return `Heute (Europe/Zurich): ${todayIso}
 Kontext: ${label}
 
-PFLICHT: Genau ${threads.length} Cluster — einer pro Chat. sourceChatId und sourceChatTitle echoen.
+PFLICHT: Genau ${threads.length} Cluster — einer pro Chat/Kanal. sourceChatId und sourceChatTitle echoen (echter Name, nie «Teams-Kanal»).
 
 ${packed}
 
@@ -306,6 +316,7 @@ JSON:
     {
       "sourceChatId": "exakte Id",
       "sourceChatTitle": "exakter Titel",
+      "theme": "optional kurzes Thema"|null,
       "summary": "2–4 Sätze",
       "tasks": [{ "title": "…", "notes": "…"|null, "dueDate": "YYYY-MM-DD"|null, "reason": "…", "sourceChatId": "…", "sourceChatTitle": "…" }],
       "events": [{ "title": "…", "date": "YYYY-MM-DD", "startTime": "HH:mm"|null, "endTime": "HH:mm"|null, "allDay": false, "location": null, "notes": null, "reason": "…", "sourceChatId": "…", "sourceChatTitle": "…" }],

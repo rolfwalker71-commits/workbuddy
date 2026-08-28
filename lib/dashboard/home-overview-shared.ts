@@ -61,6 +61,8 @@ export type HomeProviderBlock = {
   tasks: HomeTasksBundle;
   lastTeams?: HomeTeamsSnippet | null;
   teamsEnabled?: boolean;
+  /** Open Teams inbox threads (`teams_thread_state.inbox = open`). */
+  teamsOpenCount?: number | null;
 };
 
 export type HomeTicketSavedViewKpi = {

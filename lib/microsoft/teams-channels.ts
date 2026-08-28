@@ -48,6 +48,19 @@ type GraphChannelMessage = {
   body?: { content?: string | null; contentType?: string | null } | null;
 };
 
+/** Display title for a channel cluster/card. Never a hardcoded «Teams-Kanal». */
+export function formatTeamsChannelTitle(
+  teamName: string | null | undefined,
+  channelName: string | null | undefined
+): string {
+  const team = (teamName || "").replace(/\s+/g, " ").trim();
+  const channel = (channelName || "").replace(/\s+/g, " ").trim();
+  if (team && channel) return `${team} · ${channel}`;
+  if (channel) return channel;
+  if (team) return team;
+  return "Kanal";
+}
+
 export function asChannelMembership(
   raw: string | null | undefined
 ): TeamsChannelMembership {
@@ -164,6 +177,61 @@ export async function listJoinedTeamsWithChannels(
     })
   );
   return withChannels;
+}
+
+/** Flattened joined-team channels (not the whole tenant). */
+export async function listTeamsChannels(
+  userId: number,
+  options?: { maxTeams?: number; maxChannels?: number }
+): Promise<TeamsChannelItem[]> {
+  const maxTeams = Math.min(Math.max(options?.maxTeams ?? 20, 1), 40);
+  const maxChannels = Math.min(Math.max(options?.maxChannels ?? 80, 1), 160);
+  const teams = await listJoinedTeams(userId, { top: maxTeams });
+  const out: TeamsChannelItem[] = [];
+  for (const team of teams) {
+    if (out.length >= maxChannels) break;
+    try {
+      const channels = await listTeamChannels(userId, team);
+      for (const channel of channels) {
+        out.push(channel);
+        if (out.length >= maxChannels) break;
+      }
+    } catch (error) {
+      if (
+        error instanceof MicrosoftGraphError &&
+        (error.status === 403 || error.status === 404)
+      ) {
+        continue;
+      }
+      throw error;
+    }
+  }
+  return out;
+}
+
+export async function getTeamChannelTitle(
+  userId: number,
+  teamId: string,
+  channelId: string
+): Promise<string> {
+  const tid = teamId.trim();
+  const cid = channelId.trim();
+  if (!tid || !cid) return formatTeamsChannelTitle(null, null);
+  try {
+    const team = await graphJson<GraphTeam>(
+      userId,
+      graphPath(`/teams/${encodeURIComponent(tid)}`)
+    );
+    const channel = await graphJson<GraphChannel>(
+      userId,
+      graphPath(
+        `/teams/${encodeURIComponent(tid)}/channels/${encodeURIComponent(cid)}`
+      )
+    );
+    return formatTeamsChannelTitle(team.displayName, channel.displayName);
+  } catch {
+    return formatTeamsChannelTitle(null, null);
+  }
 }
 
 export async function listChannelMessages(

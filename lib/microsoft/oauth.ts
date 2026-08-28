@@ -28,6 +28,7 @@ export const MICROSOFT_OAUTH_SCOPES = [
   "Tasks.ReadWrite",
   "Chat.Read",
   "ChatMessage.Read",
+  "ChatMessage.Send",
   "Team.ReadBasic.All",
   "Channel.ReadBasic.All",
   "ChannelMessage.Read.All",
@@ -184,6 +185,13 @@ export function hasMicrosoftChatMessageScope(userId: number | null): boolean {
     hasMicrosoftChatScope(userId) &&
     scopeHas(scopeSet(userId), "ChatMessage.Read")
   );
+}
+
+/** Send a chat message — missing until the user re-consents after this grant. */
+export function hasMicrosoftChatMessageSendScope(
+  userId: number | null
+): boolean {
+  return scopeHas(scopeSet(userId), "ChatMessage.Send");
 }
 
 export function hasMicrosoftTeamScope(userId: number | null): boolean {

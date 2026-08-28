@@ -2,10 +2,20 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   asChannelMembership,
+  formatTeamsChannelTitle,
   mapGraphChannel,
   mapGraphChannelMessage,
   mapGraphTeam,
 } from "./teams-channels.ts";
+
+test("formatTeamsChannelTitle is Team · Kanal, never Teams-Kanal", () => {
+  assert.equal(formatTeamsChannelTitle("Support", "Allgemein"), "Support · Allgemein");
+  assert.equal(formatTeamsChannelTitle("  IT  ", "  Infra  "), "IT · Infra");
+  assert.equal(formatTeamsChannelTitle("", "Allgemein"), "Allgemein");
+  assert.equal(formatTeamsChannelTitle("Support", ""), "Support");
+  assert.equal(formatTeamsChannelTitle(null, null), "Kanal");
+  assert.notEqual(formatTeamsChannelTitle(null, null), "Teams-Kanal");
+});
 
 test("mapGraphTeam requires id and displayName", () => {
   assert.equal(mapGraphTeam({}), null);

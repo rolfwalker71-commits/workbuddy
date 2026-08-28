@@ -31,6 +31,7 @@ test("mergeHomeOverviewDetails keeps unread KPIs and fills lists", () => {
       unreadCount: 12,
       mailDay: null,
       tasks: emptyTasks(),
+      teamsOpenCount: 4,
     },
     google: {
       enabled: true,
@@ -117,6 +118,7 @@ test("mergeHomeOverviewDetails keeps unread KPIs and fills lists", () => {
   assert.equal(merged.todayEvents[0]?.title, "Standup");
   assert.equal(merged.todayMail[0]?.subject, "Hallo");
   assert.equal(merged.microsoft?.lastTeams?.title, "Anna");
+  assert.equal(merged.microsoft?.teamsOpenCount, 4);
 });
 
 test("mergeHomeMaringoTickets updates bagel counts without dropping modules", () => {

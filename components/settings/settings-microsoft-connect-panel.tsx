@@ -22,6 +22,7 @@ type Connection = {
   hasCalendarScope: boolean;
   hasTasksScope?: boolean;
   hasChatScope?: boolean;
+  hasChatMessageSendScope?: boolean;
   hasTeamScope?: boolean;
   hasChannelScope?: boolean;
   hasChannelListScopes?: boolean;
@@ -208,7 +209,7 @@ export function SettingsMicrosoftConnectPanel() {
           </span>
           ). Getrennt von Google — Tokens nur für dich. Welche Kalender Buddy
           zeigt, wählst du unten unter «Microsoft 365-Kalender». Nach neuen
-          Teams-Rechten (Kanäle) einmal «Neu verbinden».
+          Teams-Rechten (Kanäle, Antworten senden) einmal «Neu verbinden».
         </p>
 
         {loading ? (
@@ -293,12 +294,18 @@ export function SettingsMicrosoftConnectPanel() {
                     OnlineMeetingTranscript.Read.All, Team.ReadBasic.All,
                     Channel.ReadBasic.All).
                   </p>
+                ) : !data.hasChatMessageSendScope ? (
+                  <p className="text-xs text-amber-800">
+                    Teams-Antworten senden braucht ChatMessage.Send — bitte
+                    «Neu verbinden», damit das Token das neue Recht bekommt.
+                  </p>
                 ) : (
                   <p className="text-xs text-muted-foreground">
                     Mail und Kalender aktiv
                     {data.hasMailSendScope ? " (inkl. Senden)" : ""}
                     {data.hasTasksScope ? " · To Do" : ""}
                     {data.hasChatScope ? " · Teams-Chats" : ""}
+                    {data.hasChatMessageSendScope ? " · Teams senden" : ""}
                     {data.hasChannelListScopes ? " · Teams-Kanäle" : ""}
                     {data.hasTranscriptScope ? " · Transkripte" : ""}.
                     {!data.hasTasksScope

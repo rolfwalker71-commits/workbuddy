@@ -26,6 +26,7 @@ export function bootstrapDatabase(db: Database.Database): void {
   ensureUsersColumns(db);
   ensureMailAnalysesProvider(db);
   ensureMariCalendarStampOwner(db);
+  ensureTeamsThreadState(db);
 }
 
 function tableColumnNames(
@@ -112,4 +113,49 @@ function ensureMariCalendarStampOwner(db: Database.Database): void {
     END
     WHERE owner_key IS NULL OR owner_key = ''
   `);
+}
+
+function ensureTeamsThreadState(db: Database.Database): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS teams_thread_state (
+      user_id INTEGER NOT NULL,
+      thread_key TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      inbox TEXT NOT NULL,
+      title TEXT,
+      preview TEXT,
+      last_active_at TEXT,
+      join_url TEXT,
+      calendar_event_id TEXT,
+      issue_id INTEGER,
+      applied_tasks INTEGER NOT NULL DEFAULT 0,
+      applied_events INTEGER NOT NULL DEFAULT 0,
+      last_analysis_json TEXT,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, thread_key),
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_teams_thread_state_inbox
+      ON teams_thread_state(user_id, inbox, last_active_at DESC);
+  `);
+  const names = tableColumnNames(db, "teams_thread_state");
+  const adds: Array<[string, string]> = [
+    ["kind", "TEXT NOT NULL DEFAULT 'chat'"],
+    ["inbox", "TEXT NOT NULL DEFAULT 'open'"],
+    ["title", "TEXT"],
+    ["preview", "TEXT"],
+    ["last_active_at", "TEXT"],
+    ["join_url", "TEXT"],
+    ["calendar_event_id", "TEXT"],
+    ["issue_id", "INTEGER"],
+    ["applied_tasks", "INTEGER NOT NULL DEFAULT 0"],
+    ["applied_events", "INTEGER NOT NULL DEFAULT 0"],
+    ["last_analysis_json", "TEXT"],
+    ["updated_at", "TEXT NOT NULL DEFAULT ''"],
+  ];
+  for (const [name, ddl] of adds) {
+    if (!names.has(name)) {
+      db.exec(`ALTER TABLE teams_thread_state ADD COLUMN ${name} ${ddl}`);
+    }
+  }
 }

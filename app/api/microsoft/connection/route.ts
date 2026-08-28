@@ -9,6 +9,7 @@ import {
   hasMicrosoftCalendarScope,
   hasMicrosoftChannelListScopes,
   hasMicrosoftChannelScope,
+  hasMicrosoftChatMessageSendScope,
   hasMicrosoftChatScope,
   hasMicrosoftMailScope,
   hasMicrosoftMailSendScope,
@@ -44,6 +45,9 @@ export async function GET(request: Request) {
     hasCalendarScope: connected ? hasMicrosoftCalendarScope(userId) : false,
     hasTasksScope: connected ? hasMicrosoftTasksScope(userId) : false,
     hasChatScope: connected ? hasMicrosoftChatScope(userId) : false,
+    hasChatMessageSendScope: connected
+      ? hasMicrosoftChatMessageSendScope(userId)
+      : false,
     hasTeamScope: connected ? hasMicrosoftTeamScope(userId) : false,
     hasChannelScope: connected ? hasMicrosoftChannelScope(userId) : false,
     hasChannelListScopes: connected

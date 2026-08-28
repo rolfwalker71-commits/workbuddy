@@ -76,6 +76,36 @@ test("sanitizeTeamsAnalysis drops empty events and attaches source chat", () => 
   assert.match(analysis.summary, /Offerte/);
 });
 
+test("sanitizeTeamsAnalysis keeps theme and real channel title", () => {
+  const analysis = sanitizeTeamsAnalysis(
+    {
+      summary: "Kanal heute",
+      clusters: [
+        {
+          sourceChatId: "team-1:ch-1",
+          sourceChatTitle: "Teams-Kanal",
+          theme: "Release",
+          summary: "Release-Fragen.",
+          tasks: [],
+          events: [],
+          replies: [],
+        },
+      ],
+    },
+    [
+      {
+        id: "team-1:ch-1",
+        title: "Support · Allgemein",
+        kind: "channel",
+        messages: [],
+      },
+    ]
+  );
+  assert.equal(analysis.clusters[0]?.sourceChatTitle, "Support · Allgemein");
+  assert.equal(analysis.clusters[0]?.theme, "Release");
+  assert.notEqual(analysis.clusters[0]?.sourceChatTitle, "Teams-Kanal");
+});
+
 test("emptyTeamsAnalysis has no suggestions", () => {
   const empty = emptyTeamsAnalysis("Keine Nachrichten zum Analysieren.");
   assert.equal(empty.tasks.length, 0);

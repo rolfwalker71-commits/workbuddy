@@ -18,7 +18,7 @@ npm run auth:secrets -- 'dein-sicheres-passwort'
 
 3. Entra-App (eine Registration für alle User):
    - Redirect URI: `{APP_PUBLIC_URL}/api/microsoft/oauth/callback`
-   - Delegated scopes: `openid profile email offline_access User.Read Mail.ReadWrite Mail.Send Calendars.ReadWrite Tasks.ReadWrite Chat.Read ChatMessage.Read Team.ReadBasic.All Channel.ReadBasic.All ChannelMessage.Read.All OnlineMeetings.Read OnlineMeetingTranscript.Read.All`
+   - Delegated scopes: `openid profile email offline_access User.Read Mail.ReadWrite Mail.Send Calendars.ReadWrite Tasks.ReadWrite Chat.Read ChatMessage.Read ChatMessage.Send Team.ReadBasic.All Channel.ReadBasic.All ChannelMessage.Read.All OnlineMeetings.Read OnlineMeetingTranscript.Read.All`
    - `MICROSOFT_OAUTH_CLIENT_ID` / `CLIENT_SECRET` / `TENANT` (default `organizations`) in `.env`
 
 4. `MARI_REST_BASE_URL`, `MARI_REST_USERNAME` und `MARI_REST_PASSWORD` setzen
