@@ -17,8 +17,6 @@ import {
 } from "@/components/layout/segmented-control";
 import { PresenceGlassPanel } from "@/components/presence/presence-glass-panel";
 import { PresenceIsoArt } from "@/components/presence/presence-iso-art";
-import { PresenceGlassPanel } from "@/components/presence/presence-glass-panel";
-import { PresenceIsoArt } from "@/components/presence/presence-iso-art";
 import { PresencePersonCard } from "@/components/presence/presence-person-card";
 import { PresenceSetDialog } from "@/components/presence/presence-set-dialog";
 import { PresenceDelegateDialog } from "@/components/presence/presence-delegate-dialog";
@@ -77,10 +75,11 @@ function weekdayShort(ymd: string): string {
 }
 
 function weekdayLong(ymd: string): string {
-  return new Intl.DateTimeFormat("de-CH", {
+  const raw = new Intl.DateTimeFormat("de-CH", {
     timeZone: "UTC",
     weekday: "long",
   }).format(new Date(`${ymd}T12:00:00Z`));
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
 const WEEK_SELF_CHIP = "w-fit max-w-[calc(100%-0.25rem)] px-1.5 py-1";
@@ -105,6 +104,8 @@ function WeekSelfDayCell({
     <button
       type="button"
       disabled={!person}
+      aria-label={`${weekdayLong(day)}: ${statusLabel}${hint ? ` · ${hint}` : ""}`}
+      aria-current={day === today ? "date" : undefined}
       onClick={() => {
         if (!person) return;
         onOpen();
@@ -118,7 +119,7 @@ function WeekSelfDayCell({
         person && "transition-shadow hover:shadow-md"
       )}
     >
-      {hasArt ? <PresenceIsoArt status={status} variant="hero" /> : null}
+      {hasArt ? <PresenceIsoArt status={status} variant="soft" /> : null}
       <div className="relative z-10 flex min-h-[6.5rem] flex-col justify-between p-1.5">
         <PresenceGlassPanel className={cn("self-start", WEEK_SELF_CHIP)}>
           <span className="break-words text-xs font-bold capitalize leading-snug text-foreground">
@@ -140,14 +141,6 @@ function WeekSelfDayCell({
       </div>
     </button>
   );
-}
-
-function weekdayLong(ymd: string): string {
-  const raw = new Intl.DateTimeFormat("de-CH", {
-    timeZone: "UTC",
-    weekday: "long",
-  }).format(new Date(`${ymd}T12:00:00Z`));
-  return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
 async function fetchAbsenceToday(): Promise<HomeAbsenceState | null> {
@@ -537,55 +530,18 @@ export function PresenceTeamBoard() {
             <div className="grid grid-cols-5 gap-1.5">
               {weekDays.map((day) => {
                 const person = weekSelfByYmd[day];
-                const locked = isOwnDayLocked(person?.source ?? null);
-                const hasArt = Boolean(person?.status);
-                const hint = presenceSourceHint(person?.source ?? null);
-                const statusLabel = person?.status
-                  ? PRESENCE_STATUS_LABELS[person.status]
-                  : "Offen";
                 return (
-                  <button
+                  <WeekSelfDayCell
                     key={day}
-                    type="button"
-                    disabled={!person}
-                    onClick={() => {
+                    day={day}
+                    today={today}
+                    person={person}
+                    onOpen={() => {
                       if (!person) return;
                       setDialogError(null);
                       setSelfTarget({ ymd: day, person });
                     }}
-                    className={cn(
-                      "relative flex min-h-[6.75rem] flex-col overflow-hidden rounded-2xl text-left shadow-sm ring-1",
-                      hasArt
-                        ? "bg-zinc-200/80 ring-foreground/10 dark:bg-zinc-900"
-                        : PRESENCE_STATUS_SURFACE.unset,
-                      day === today && "ring-2 ring-primary/70",
-                      locked && "opacity-95"
-                    )}
-                  >
-                    {hasArt ? (
-                      <PresenceIsoArt
-                        status={person?.status}
-                        variant="soft"
-                      />
-                    ) : null}
-                    <div className="relative z-10 flex min-h-[6.75rem] flex-col justify-between p-1.5">
-                      <PresenceGlassPanel className="w-fit max-w-full self-start px-2 py-1">
-                        <span className="block truncate text-sm font-bold leading-snug">
-                          {weekdayLong(day)}
-                        </span>
-                      </PresenceGlassPanel>
-                      <PresenceGlassPanel className="flex w-fit max-w-full flex-col items-end self-end px-2 py-1 text-right">
-                        <span className="block truncate text-sm font-bold leading-snug">
-                          {statusLabel}
-                        </span>
-                        {hint ? (
-                          <span className="text-[0.65rem] font-semibold leading-snug text-muted-foreground">
-                            {hint}
-                          </span>
-                        ) : null}
-                      </PresenceGlassPanel>
-                    </div>
-                  </button>
+                  />
                 );
               })}
             </div>
