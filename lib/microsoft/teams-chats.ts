@@ -504,7 +504,7 @@ async function resolveChatMe(userId: number): Promise<MicrosoftMe | null> {
 
 function meEmails(me: MicrosoftMe | null): string[] {
   if (!me) return [];
-  return [me.mail, me.userPrincipalName];
+  return [me.mail, me.userPrincipalName].filter((v): v is string => Boolean(v));
 }
 
 async function pagedFindChat(
