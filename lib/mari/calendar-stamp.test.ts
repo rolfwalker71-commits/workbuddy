@@ -223,3 +223,50 @@ test("booked occurrence keeps series pin and does not mark siblings booked", asy
   assert.equal(tuesday.projectNumber, "P100");
   assert.equal(tuesday.bookingPinned, true);
 });
+
+test("booked stamp is found when Graph occurrence id changes", async () => {
+  process.env.WORKBUDDY_SESSION_SECRET =
+    "a-secure-test-secret-with-more-than-32-characters";
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "wb-stamp-idchg-"));
+  process.env.DATABASE_PATH = path.join(tmp, "test.sqlite");
+
+  const { resetDbForTests } = await import("../db/client.ts");
+  resetDbForTests();
+  const { markMariCalendarEventBooked, resolveMariCalendarStampForEvent } =
+    await import("./calendar-stamp.ts");
+
+  markMariCalendarEventBooked({
+    userId: 1,
+    eventId: "occurrence-old-id",
+    seriesKey: "master-weekly",
+    eventDate: "2026-08-12",
+    startHm: "08:00",
+    endHm: "08:25",
+    title: "MorgenCall",
+    hours: 0.42,
+    hoursBillable: 0,
+    customerName: "Intern",
+    projectNumber: "P100",
+    contractVisible: null,
+    contractId: 0,
+  });
+
+  const found = resolveMariCalendarStampForEvent(
+    1,
+    "occurrence-new-id",
+    "master-weekly",
+    "2026-08-12"
+  );
+  assert.ok(found);
+  assert.equal(found.status, "booked");
+  assert.equal(found.hours, 0.42);
+  assert.equal(found.projectNumber, "P100");
+
+  const otherDay = resolveMariCalendarStampForEvent(
+    1,
+    "occurrence-new-id",
+    "master-weekly",
+    "2026-08-13"
+  );
+  assert.equal(otherDay?.status === "booked", false);
+});

@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { isAuthError, requireModule } from "@/lib/auth/current-user";
+import {
+  isAuthError,
+  requireModule,
+  runWithRequestSecrets,
+} from "@/lib/auth/current-user";
 import { ensureInitialized } from "@/lib/db/migrations";
 import { listGoogleEventsToday } from "@/lib/google/calendar-review";
 import {
@@ -32,32 +36,34 @@ export async function GET(request: Request) {
   if (!parsed.ok) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
-  try {
-    const today = zurichYmd();
-    const day = parsed.date;
-    const raw = await listGoogleEventsToday(userId, request, day);
-    const withRitual =
-      day === today
-        ? await attachDayCloseRitualGoogle(userId, today, raw)
-        : raw;
-    // Full day for Kalender — do not drop past items (overview grace is Home-only).
-    const events = await attachMariToEvents(
-      userId,
-      withRitual.map((e) => ({
-        ...e,
-        provider: "google" as const,
-      }))
-    );
-    const cloud = events.filter((e) => !isDayCloseRitualId(e.id));
-    return NextResponse.json({
-      events,
-      openCount: cloud.filter((e) => !e.done).length,
-      doneCount: cloud.filter((e) => e.done).length,
-    });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
-      { status: 502 }
-    );
-  }
+  return runWithRequestSecrets(auth, async () => {
+    try {
+      const today = zurichYmd();
+      const day = parsed.date;
+      const raw = await listGoogleEventsToday(userId, request, day);
+      const withRitual =
+        day === today
+          ? await attachDayCloseRitualGoogle(userId, today, raw)
+          : raw;
+      // Full day for Kalender — do not drop past items (overview grace is Home-only).
+      const events = await attachMariToEvents(
+        userId,
+        withRitual.map((e) => ({
+          ...e,
+          provider: "google" as const,
+        }))
+      );
+      const cloud = events.filter((e) => !isDayCloseRitualId(e.id));
+      return NextResponse.json({
+        events,
+        openCount: cloud.filter((e) => !e.done).length,
+        doneCount: cloud.filter((e) => e.done).length,
+      });
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : String(error) },
+        { status: 502 }
+      );
+    }
+  });
 }

@@ -61,12 +61,19 @@ import { AdhocEventDialog } from "@/components/calendar/adhoc-event-dialog";
 import { EventArtCard } from "@/components/calendar/event-art-card";
 import { EventHoursBookDialog } from "@/components/calendar/event-hours-book-dialog";
 import { EventMariBlock } from "@/components/calendar/event-mari-block";
-import type { EventBookingRef } from "@/lib/mari/event-booking-ref";
+import {
+  classifyEventMeetingKind,
+  type EventBookingRef,
+} from "@/lib/mari/event-booking-ref";
 import {
   EventDetailDialog,
   type EventEditValues,
 } from "@/components/calendar/event-detail-dialog";
-import type { WorkspaceEventMari } from "@/lib/workspace/event-mari-shared";
+import {
+  mariAfterHoursBooked,
+  type HoursBookedStampLike,
+  type WorkspaceEventMari,
+} from "@/lib/workspace/event-mari-shared";
 import { MicrosoftMailComposeDialog } from "@/components/microsoft/microsoft-mail-compose-dialog";
 import { WorkspaceTasksPanel } from "@/components/workspace/workspace-tasks-panel";
 import { MicrosoftTeamsPanel } from "@/components/microsoft/microsoft-teams-panel";
@@ -668,6 +675,26 @@ export function WorkspaceDayClient({
               statusName: e.mari?.statusName ?? null,
               booking,
             },
+          }
+        : e;
+    setEvents((prev) => prev.map(patch));
+    setDetailEvent((prev) => (prev ? patch(prev) : prev));
+    setHoursBookEvent((prev) => (prev ? patch(prev) : prev));
+  }
+
+  function applyEventHoursBooked(
+    eventId: string,
+    stamp: HoursBookedStampLike
+  ) {
+    const patch = (e: WorkspaceCalEvent): WorkspaceCalEvent =>
+      e.id === eventId
+        ? {
+            ...e,
+            mari: mariAfterHoursBooked(
+              e.mari,
+              stamp,
+              classifyEventMeetingKind(e.attendeeEmails)
+            ),
           }
         : e;
     setEvents((prev) => prev.map(patch));
@@ -1937,7 +1964,7 @@ export function WorkspaceDayClient({
                     <Input
                       id="wb-cal-day"
                       type="date"
-                      className="h-9 w-auto min-w-[9.5rem]"
+                      className="h-7 min-h-7 w-auto min-w-[9.5rem] py-0 leading-none text-sm [&::-webkit-datetime-edit]:p-0 [&::-webkit-datetime-edit]:leading-none"
                       value={calDate}
                       min={calendarDayLookbackFrom(zurichYmdClient())}
                       max={zurichYmdClient()}
@@ -2129,7 +2156,9 @@ export function WorkspaceDayClient({
                 onOpenChange={(next) => {
                   if (!next) setHoursBookEvent(null);
                 }}
-                onBooked={() => {
+                onBooked={(stamp) => {
+                  const id = hoursBookEvent?.id;
+                  if (stamp && id) applyEventHoursBooked(id, stamp);
                   setHoursBookEvent(null);
                   void loadCalendar();
                 }}

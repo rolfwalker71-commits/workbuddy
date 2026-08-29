@@ -32,6 +32,7 @@ export type {
 
 export type EventMariLinkSource = {
   id: string;
+  date?: string | null;
   provider?: WorkspaceProvider | string | null;
   description?: string | null;
   categories?: string[] | null;
@@ -47,10 +48,11 @@ function issueIdFromEvent(event: EventMariLinkSource): number | null {
 }
 
 async function ticketsByIssueIds(
-  ids: number[]
+  ids: number[],
+  userId?: number | null
 ): Promise<Map<number, MariTicketListItem>> {
   const unique = [...new Set(ids.filter((id) => Number.isInteger(id) && id > 0))];
-  if (unique.length === 0 || !hasMariConfig()) return new Map();
+  if (unique.length === 0 || !hasMariConfig(userId ?? undefined)) return new Map();
   try {
     const rows = await listMyTickets({ issueIds: unique, limit: unique.length });
     return new Map(rows.map((t) => [t.issueId, t]));
@@ -87,21 +89,27 @@ export async function attachMariToEvents<T extends EventMariLinkSource>(
   userId: number | null,
   events: T[]
 ): Promise<Array<T & { mari: WorkspaceEventMari | null }>> {
-  if (userId == null || events.length === 0 || !hasMariConfig()) {
+  // Stamps live in SQLite — do not gate on MARI REST / request ALS.
+  if (userId == null || events.length === 0) {
     return events.map((event) => ({ ...event, mari: null }));
   }
 
   const stamps: Array<MariCalendarStamp | null> = events.map((event) => {
     if (event.provider && event.provider !== "microsoft") return null;
     try {
+      const seriesKey = eventBookingSeriesKey({
+        eventId: event.id,
+        seriesMasterId: event.seriesMasterId,
+        iCalUId: event.iCalUId,
+      });
+      const ical = (event.iCalUId || "").trim();
+      const icalKey = ical ? `ical:${ical}` : null;
       return resolveMariCalendarStampForEvent(
         userId,
         event.id,
-        eventBookingSeriesKey({
-          eventId: event.id,
-          seriesMasterId: event.seriesMasterId,
-          iCalUId: event.iCalUId,
-        })
+        seriesKey,
+        event.date,
+        icalKey && icalKey !== seriesKey ? icalKey : null
       );
     } catch {
       return null;
@@ -114,7 +122,8 @@ export async function attachMariToEvents<T extends EventMariLinkSource>(
     return issueIdFromEvent(event);
   });
   const tickets = await ticketsByIssueIds(
-    issueIds.filter((id): id is number => id != null)
+    issueIds.filter((id): id is number => id != null),
+    userId
   );
 
   return events.map((event, i) => {
@@ -166,7 +175,7 @@ export async function listHomePendingStamps(
   userId: number,
   todayYmd: string
 ): Promise<HomePendingStamp[]> {
-  if (!hasMariConfig()) return [];
+  if (!hasMariConfig(userId)) return [];
   let stamps: MariCalendarStamp[] = [];
   try {
     stamps = listPendingMariCalendarStamps(userId, {

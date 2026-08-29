@@ -3,7 +3,11 @@
  * No db / Graph imports.
  */
 
-import type { EventBookingRef } from "@/lib/mari/event-booking-ref";
+import {
+  applyMeetingKind,
+  type EventBookingRef,
+  type EventMeetingKind,
+} from "@/lib/mari/event-booking-ref";
 
 export type { EventBookingRef };
 
@@ -20,6 +24,62 @@ export type WorkspaceEventMari = {
   /** Ticket/pin/graph combo for Stunden buchen — guess is filled on the card. */
   booking?: EventBookingRef | null;
 };
+
+/** Client patch after a successful Stunden-buchen stamp write. */
+export type HoursBookedStampLike = {
+  hours?: number | null;
+  hoursBillable?: number | null;
+  memo?: string | null;
+  issueId?: number | null;
+  cardCode?: string | null;
+  customerName?: string | null;
+  projectNumber?: string | null;
+  projectLabel?: string | null;
+  contractId?: number | null;
+  contractVisible?: string | null;
+};
+
+export function mariAfterHoursBooked(
+  current: WorkspaceEventMari | null | undefined,
+  stamp: HoursBookedStampLike,
+  meetingKind: EventMeetingKind
+): WorkspaceEventMari {
+  const booking = applyMeetingKind(
+    {
+      cardCode: stamp.cardCode || current?.booking?.cardCode || null,
+      customerName: stamp.customerName || current?.booking?.customerName || null,
+      projectNumber:
+        stamp.projectNumber || current?.booking?.projectNumber || null,
+      projectLabel: stamp.projectLabel || current?.booking?.projectLabel || null,
+      contractId:
+        stamp.contractId != null
+          ? stamp.contractId
+          : current?.booking?.contractId ?? null,
+      contractVisible:
+        stamp.contractVisible || current?.booking?.contractVisible || null,
+      source: "pinned",
+      meetingKind,
+      contractOptional: meetingKind === "internal",
+    },
+    meetingKind
+  );
+  const issueId =
+    stamp.issueId != null && stamp.issueId > 0
+      ? stamp.issueId
+      : current?.issueId ?? 0;
+  return {
+    issueId,
+    stampStatus: "booked",
+    hours: stamp.hours ?? current?.hours ?? null,
+    hoursBillable: stamp.hoursBillable ?? current?.hoursBillable ?? null,
+    memo: stamp.memo ?? current?.memo ?? null,
+    cardCode: booking?.cardCode ?? current?.cardCode ?? null,
+    briefDescription: current?.briefDescription ?? null,
+    status: current?.status ?? null,
+    statusName: current?.statusName ?? null,
+    booking,
+  };
+}
 
 function roundStampHours(n: number): number {
   return Math.round(n * 100) / 100;

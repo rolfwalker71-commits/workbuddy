@@ -72,7 +72,7 @@ export function bookingRefFromStamp(
     meetingKind,
     contractOptional: false,
   });
-  if (!stamp.bookingPinned && !coded) {
+  if (!stamp.bookingPinned && !coded && stamp.status !== "booked") {
     return null;
   }
   return applyMeetingKind(

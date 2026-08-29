@@ -13,6 +13,7 @@ import {
   type TimeBookFormValues,
 } from "@/components/maringo/maringo-time-book-form";
 import type { MariEmailPartnerSuggestion } from "@/lib/mari/customers";
+import type { HoursBookedStampLike } from "@/lib/workspace/event-mari-shared";
 
 export type CalendarBookStampInput = {
   eventId: string;
@@ -56,7 +57,7 @@ export function MaringoTimeBookDialog({
   submitLabel?: string;
   /** Wenn gesetzt: PUT statt POST (löschen + neu in MARI). */
   editLineId?: number | null;
-  onBooked?: () => void;
+  onBooked?: (stamp?: HoursBookedStampLike | null) => void;
   /** Nach erfolgreicher Buchung Stempel `booked` schreiben. */
   calendarEvent?: CalendarBookStampInput | null;
   attendeeEmails?: string[] | null;
@@ -83,7 +84,7 @@ export function MaringoTimeBookDialog({
     }
     if (calendarEvent && !editLineId) {
       const lineId = Number(data.line?.lineId);
-      await fetch("/api/maringo/timekeeping/suggestions", {
+      const stampRes = await fetch("/api/maringo/timekeeping/suggestions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -112,7 +113,17 @@ export function MaringoTimeBookDialog({
           contractVisible:
             values.contractVisible || calendarEvent.contractVisible || null,
         }),
-      }).catch(() => undefined);
+      });
+      const stampData = await stampRes.json().catch(() => ({}));
+      if (!stampRes.ok) {
+        throw new Error(
+          stampData.error ||
+            "Stunden gebucht, Kalender-Stempel fehlgeschlagen. Bitte neu laden."
+        );
+      }
+      onOpenChange(false);
+      onBooked?.(stampData.stamp ?? null);
+      return;
     }
     onOpenChange(false);
     onBooked?.();

@@ -277,36 +277,86 @@ function stampHasBookingCodes(stamp: MariCalendarStamp | null): boolean {
 }
 
 /**
+ * Booked row for this day of a series — Graph occurrence ids can change.
+ * Never returns a sibling day's booking.
+ */
+export function getMariCalendarStampBookedOnDate(
+  userId: number,
+  eventDate: string,
+  keys: Array<string | null | undefined>
+): MariCalendarStamp | null {
+  requireUserId(userId);
+  ensureMariCalendarStampsTable();
+  const date = (eventDate || "").trim();
+  const unique = [
+    ...new Set(keys.map((k) => (k || "").trim()).filter(Boolean)),
+  ];
+  if (!date || unique.length === 0) return null;
+  const placeholders = unique.map(() => "?").join(",");
+  const row = getDb()
+    .prepare(
+      `SELECT * FROM mari_calendar_stamps
+       WHERE user_id = ? AND event_provider = 'microsoft'
+         AND event_date = ? AND status = 'booked'
+         AND (event_id IN (${placeholders}) OR series_key IN (${placeholders}))
+       ORDER BY updated_at DESC
+       LIMIT 1`
+    )
+    .get(userId, date, ...unique, ...unique) as
+    | Record<string, unknown>
+    | undefined;
+  return row ? mapStampRow(row) : null;
+}
+
+/**
  * Occurrence booked status + series pin (Kunde/Projekt/Vertrag).
  * A sibling occurrence's booked row never wins.
  */
 export function resolveMariCalendarStampForEvent(
   userId: number,
   eventId: string,
-  seriesKey?: string | null
+  seriesKey?: string | null,
+  eventDate?: string | null,
+  altSeriesKey?: string | null
 ): MariCalendarStamp | null {
   requireUserId(userId);
   ensureMariCalendarStampsTable();
   const occurrenceId = (eventId || "").trim();
   const series = (seriesKey || "").trim();
+  const alt = (altSeriesKey || "").trim();
   const occurrence = occurrenceId
     ? getMariCalendarStamp(userId, "microsoft", occurrenceId)
     : null;
   const seriesStamp =
     series && series !== occurrenceId
       ? getMariCalendarStampForEvent(userId, occurrenceId, series)
-      : null;
-  if (!occurrence && !seriesStamp) return null;
-  if (!seriesStamp || occurrence?.eventId === seriesStamp.eventId) {
-    return occurrence || seriesStamp;
+      : alt && alt !== occurrenceId
+        ? getMariCalendarStampForEvent(userId, occurrenceId, alt)
+        : null;
+  const bookedByDate = getMariCalendarStampBookedOnDate(
+    userId,
+    eventDate || "",
+    [occurrenceId, series, alt]
+  );
+  if (!occurrence && !seriesStamp && !bookedByDate) return null;
+  const booked =
+    occurrence?.status === "booked"
+      ? occurrence
+      : bookedByDate?.status === "booked"
+        ? bookedByDate
+        : null;
+  if (!seriesStamp && !booked) {
+    return occurrence;
   }
-  const booked = occurrence?.status === "booked" ? occurrence : null;
   const pin = stampHasBookingCodes(occurrence)
     ? occurrence
     : stampHasBookingCodes(seriesStamp)
       ? seriesStamp
-      : occurrence || seriesStamp;
-  const base = booked || occurrence || seriesStamp;
+      : stampHasBookingCodes(booked)
+        ? booked
+        : occurrence || seriesStamp || booked;
+  const base = booked || occurrence || seriesStamp || bookedByDate;
+  if (!base) return null;
   return {
     ...base,
     status: booked ? "booked" : base.status,
@@ -320,7 +370,7 @@ export function resolveMariCalendarStampForEvent(
     contractId: pin?.contractId ?? base.contractId,
     contractVisible: pin?.contractVisible ?? base.contractVisible,
     bookingPinned: Boolean(pin?.bookingPinned || base.bookingPinned),
-    seriesKey: base.seriesKey || seriesStamp.seriesKey || series || null,
+    seriesKey: base.seriesKey || seriesStamp?.seriesKey || series || alt || null,
   };
 }
 

@@ -10,7 +10,10 @@ import {
   eventBookingRefHasCodes,
 } from "@/lib/mari/event-booking-ref";
 import { formatMariProjectLabel } from "@/lib/mari/timekeeping-shared";
-import type { WorkspaceEventMari } from "@/lib/workspace/event-mari-shared";
+import type {
+  HoursBookedStampLike,
+  WorkspaceEventMari,
+} from "@/lib/workspace/event-mari-shared";
 import type { WorkspaceProvider } from "@/lib/workspace/merge-today";
 
 export type HoursBookableEvent = {
@@ -41,7 +44,7 @@ export function EventHoursBookDialog({
   event: HoursBookableEvent | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onBooked?: () => void;
+  onBooked?: (stamp?: HoursBookedStampLike | null) => void;
 }) {
   const [defaults, setDefaults] = useState<TimeBookFormDefaults | null>(null);
   const [subjectSuggestions, setSubjectSuggestions] = useState<

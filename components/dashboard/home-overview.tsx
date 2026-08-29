@@ -46,7 +46,14 @@ import { EventArtCard } from "@/components/calendar/event-art-card";
 import { EventDetailDialog } from "@/components/calendar/event-detail-dialog";
 import { EventHoursBookDialog } from "@/components/calendar/event-hours-book-dialog";
 import { EventMariBlock } from "@/components/calendar/event-mari-block";
-import type { EventBookingRef } from "@/lib/mari/event-booking-ref";
+import {
+  classifyEventMeetingKind,
+  type EventBookingRef,
+} from "@/lib/mari/event-booking-ref";
+import {
+  mariAfterHoursBooked,
+  type HoursBookedStampLike,
+} from "@/lib/workspace/event-mari-shared";
 import { HomeDutyAbsenceBar } from "@/components/dashboard/home-duty-absence-bar";
 import { HomeNextQueue } from "@/components/dashboard/home-next-queue";
 import { buildHomeNextQueue } from "@/lib/dashboard/home-next-queue";
@@ -472,6 +479,33 @@ export function HomeOverview() {
               statusName: e.mari?.statusName ?? null,
               booking,
             },
+          }
+        : e;
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            todayEvents: prev.todayEvents.map(patch),
+          }
+        : prev
+    );
+    setDetailEvent((prev) => (prev ? patch(prev) : prev));
+    setHoursBookEvent((prev) => (prev ? patch(prev) : prev));
+  }
+
+  function applyEventHoursBooked(
+    eventId: string,
+    stamp: HoursBookedStampLike
+  ) {
+    const patch = (e: WorkspaceTodayEvent): WorkspaceTodayEvent =>
+      e.id === eventId
+        ? {
+            ...e,
+            mari: mariAfterHoursBooked(
+              e.mari,
+              stamp,
+              classifyEventMeetingKind(e.attendeeEmails)
+            ),
           }
         : e;
     setData((prev) =>
@@ -950,7 +984,9 @@ export function HomeOverview() {
                   onOpenChange={(next) => {
                     if (!next) setHoursBookEvent(null);
                   }}
-                  onBooked={() => {
+                  onBooked={(stamp) => {
+                    const id = hoursBookEvent?.id;
+                    if (stamp && id) applyEventHoursBooked(id, stamp);
                     setHoursBookEvent(null);
                     void fetch("/api/home/details")
                       .then(async (res) => {
