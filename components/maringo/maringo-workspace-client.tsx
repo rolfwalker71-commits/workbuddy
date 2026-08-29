@@ -64,6 +64,7 @@ import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import {
   ALL_STATUS_IDS,
   STATUS_LABELS,
+  TICKET_EDIT_STATUS_IDS,
   WORK_STATUS_IDS,
   parseStatusIdsParam,
   resolveRecommendedStatusId,
@@ -73,6 +74,11 @@ import {
 } from "@/lib/mari/status";
 import { cn } from "@/lib/utils";
 import { showActionFeedback } from "@/lib/ui/action-feedback";
+import { formatTicketIdList } from "@/lib/mari/ticket-bulk";
+import {
+  MariTicketBulkBar,
+  MariTicketSelectCheckbox,
+} from "@/components/maringo/mari-ticket-bulk-bar";
 import { formatSwissDate, formatSwissDateTime } from "@/lib/utils/dates";
 import type {
   MariTicketAnalysis,
@@ -799,6 +805,11 @@ export function MaringoWorkspaceClient() {
     ...DEFAULT_MARI_LIST_META_FIELDS,
   ]);
   const [tickets, setTickets] = useState<MariTicketListItem[]>([]);
+  const [selectedIssueIds, setSelectedIssueIds] = useState<Set<number>>(
+    () => new Set()
+  );
+  const [bulkDueDraft, setBulkDueDraft] = useState("");
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [ticketFlyoutOpen, setTicketFlyoutOpen] = useState(false);
   const [secondaryFlyouts, setSecondaryFlyouts] = useState<
@@ -934,6 +945,31 @@ export function MaringoWorkspaceClient() {
     });
     return items;
   }, [tickets, listSort]);
+
+  const visibleIssueIds = useMemo(
+    () => sortedTickets.map((t) => t.issueId),
+    [sortedTickets]
+  );
+  const allVisibleSelected =
+    visibleIssueIds.length > 0 &&
+    visibleIssueIds.every((id) => selectedIssueIds.has(id));
+  const someVisibleSelected = visibleIssueIds.some((id) =>
+    selectedIssueIds.has(id)
+  );
+
+  useEffect(() => {
+    setSelectedIssueIds((prev) => {
+      if (prev.size === 0) return prev;
+      const visible = new Set(visibleIssueIds);
+      let changed = false;
+      const next = new Set<number>();
+      for (const id of prev) {
+        if (visible.has(id)) next.add(id);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [visibleIssueIds]);
 
   const akteFilterCustomers = useMemo(() => {
     const seen = new Map<
@@ -2158,6 +2194,142 @@ export function MaringoWorkspaceClient() {
     });
   }
 
+  function toggleTicketSelected(issueId: number, checked: boolean) {
+    setSelectedIssueIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(issueId);
+      else next.delete(issueId);
+      return next;
+    });
+  }
+
+  function toggleSelectAllVisible(checked: boolean) {
+    setSelectedIssueIds((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        for (const id of visibleIssueIds) next.add(id);
+      } else {
+        for (const id of visibleIssueIds) next.delete(id);
+      }
+      return next;
+    });
+  }
+
+  async function runBulkAction(
+    action: "delete" | "status" | "dueDate",
+    extra?: { status?: number; dueDate?: string | null }
+  ) {
+    const issueIds = [...selectedIssueIds];
+    if (issueIds.length === 0) return;
+    setBulkBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/maringo/tickets/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          issueIds,
+          action,
+          status: extra?.status,
+          dueDate: extra?.dueDate,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 400 || res.status === 503) {
+        throw new Error(data.error || "Änderung fehlgeschlagen");
+      }
+      const succeeded = Array.isArray(data.succeeded)
+        ? (data.succeeded as number[])
+        : [];
+      const failed = Array.isArray(data.failed)
+        ? (data.failed as { issueId: number; error: string }[])
+        : [];
+      if (succeeded.length === 0 && failed.length === 0 && !res.ok) {
+        throw new Error(data.error || "Änderung fehlgeschlagen");
+      }
+
+      if (
+        action === "delete" &&
+        selectedId != null &&
+        succeeded.includes(selectedId)
+      ) {
+        closeTicketFlyout();
+      }
+
+      if (failed.length === 0) {
+        setSelectedIssueIds(new Set());
+        if (action === "dueDate") setBulkDueDraft("");
+      } else {
+        setSelectedIssueIds((prev) => {
+          const next = new Set(prev);
+          for (const id of succeeded) next.delete(id);
+          return next;
+        });
+      }
+
+      await loadList();
+      if (selectedId != null && succeeded.includes(selectedId) && action !== "delete") {
+        await loadDetail(selectedId);
+      }
+
+      const idLabel = formatTicketIdList(succeeded, 8);
+      const failHint =
+        failed.length > 0
+          ? `Fehler bei ${formatTicketIdList(
+              failed.map((f) => f.issueId),
+              4
+            )}: ${failed[0]?.error || "unbekannt"}`
+          : null;
+
+      if (action === "delete") {
+        showActionFeedback({
+          headline:
+            failed.length === 0
+              ? `${succeeded.length} Ticket${succeeded.length === 1 ? "" : "s"} gelöscht`
+              : `${succeeded.length} von ${issueIds.length} Tickets gelöscht`,
+          detail: failHint || idLabel,
+          tone: failed.length === 0 ? "success" : "error",
+        });
+        return;
+      }
+      if (action === "status") {
+        const label =
+          extra?.status != null
+            ? STATUS_LABELS[extra.status] || `Status ${extra.status}`
+            : "Status";
+        showActionFeedback({
+          headline:
+            failed.length === 0
+              ? `Status auf ${succeeded.length} Ticket${succeeded.length === 1 ? "" : "s"} gesetzt`
+              : `Status bei ${succeeded.length} von ${issueIds.length} gesetzt`,
+          detail: failHint || label,
+          tone: failed.length === 0 ? "success" : "error",
+        });
+        return;
+      }
+      showActionFeedback({
+        headline:
+          failed.length === 0
+            ? `Stichtag auf ${succeeded.length} Ticket${succeeded.length === 1 ? "" : "s"} gesetzt`
+            : `Stichtag bei ${succeeded.length} von ${issueIds.length} gesetzt`,
+        detail:
+          failHint ||
+          (extra?.dueDate ? formatSwissDate(extra.dueDate) : idLabel),
+        tone: failed.length === 0 ? "success" : "error",
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+      showActionFeedback({
+        headline: "Sammelaktion fehlgeschlagen",
+        detail: message,
+        tone: "error",
+      });
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   async function saveTicketKopf(values: {
     projectNumber: string;
     contractId: number | null;
@@ -2344,13 +2516,24 @@ export function MaringoWorkspaceClient() {
         {/* List pane */}
         <section className="flex min-h-0 flex-col">
           <div className="flex items-center justify-between gap-2 border-b border-border/50 px-3 py-2">
-            <div className="min-w-0">
-              <p className="text-[0.8125rem] font-black tracking-tight">Tickets</p>
-              <p className="text-[0.6875rem] text-muted-foreground">
-                {filterMode === "ttv"
-                  ? `${tickets.length} neu (${ttvLookbackLabel(ttvLookbackDays)})`
-                  : `${tickets.length} Ticket${tickets.length === 1 ? "" : "s"}`}
-              </p>
+            <div className="flex min-w-0 items-center gap-0.5">
+              <MariTicketSelectCheckbox
+                checked={allVisibleSelected}
+                indeterminate={someVisibleSelected && !allVisibleSelected}
+                disabled={visibleIssueIds.length === 0 || bulkBusy}
+                label="Alle sichtbaren Tickets auswählen"
+                onCheckedChange={toggleSelectAllVisible}
+              />
+              <div className="min-w-0">
+                <p className="text-[0.8125rem] font-black tracking-tight">Tickets</p>
+                <p className="text-[0.6875rem] text-muted-foreground">
+                  {selectedIssueIds.size > 0
+                    ? `${selectedIssueIds.size} von ${tickets.length} ausgewählt`
+                    : filterMode === "ttv"
+                      ? `${tickets.length} neu (${ttvLookbackLabel(ttvLookbackDays)})`
+                      : `${tickets.length} Ticket${tickets.length === 1 ? "" : "s"}`}
+                </p>
+              </div>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
               <TicketReviewToggle
@@ -2373,6 +2556,22 @@ export function MaringoWorkspaceClient() {
               </Button>
             </div>
           </div>
+
+          {selectedIssueIds.size > 0 ? (
+            <MariTicketBulkBar
+              selectedIds={[...selectedIssueIds]}
+              busy={bulkBusy}
+              dueDraft={bulkDueDraft}
+              onDueDraftChange={setBulkDueDraft}
+              onApplyStatus={(statusId) =>
+                void runBulkAction("status", { status: statusId })
+              }
+              onApplyDue={() =>
+                void runBulkAction("dueDate", { dueDate: bulkDueDraft || null })
+              }
+              onDelete={() => void runBulkAction("delete")}
+            />
+          ) : null}
 
           <div className="space-y-1.5 border-b border-border/50 px-3 py-2">
             {filterMode === "handler" ? (
@@ -2803,6 +3002,7 @@ export function MaringoWorkspaceClient() {
                 listMetaFields
               );
               const stamp = listCalendarStamps[t.issueId] || null;
+              const selected = selectedIssueIds.has(t.issueId);
               const rowFill = active
                 ? "bg-orange-50 dark:bg-orange-950"
                 : zebra
@@ -2811,8 +3011,20 @@ export function MaringoWorkspaceClient() {
               return (
                 <li
                   key={t.issueId}
-                  className={cn("flex items-stretch", rowFill)}
+                  className={cn(
+                    "flex items-stretch",
+                    rowFill,
+                    selected && !active && "bg-orange-50 dark:bg-orange-950/50"
+                  )}
                 >
+                  <MariTicketSelectCheckbox
+                    checked={selected}
+                    disabled={bulkBusy}
+                    label={`Ticket #${t.issueId} auswählen`}
+                    onCheckedChange={(checked) =>
+                      toggleTicketSelected(t.issueId, checked)
+                    }
+                  />
                   <span
                     aria-hidden
                     className="my-1 ml-1.5 flex w-10 shrink-0 items-center justify-center self-stretch rounded-md border-2 border-white bg-orange-500 text-[1.25rem] font-black tabular-nums leading-none text-white shadow-sm dark:bg-orange-600"
@@ -2826,6 +3038,7 @@ export function MaringoWorkspaceClient() {
                     className={cn(
                       "relative h-auto min-w-0 flex-1 items-start justify-start gap-2 rounded-none border-l-2 px-2.5 py-1.5 text-left",
                       rowFill,
+                      selected && !active && "bg-orange-50 dark:bg-orange-950/50",
                       active
                         ? "border-l-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950"
                         : "border-l-transparent hover:bg-muted dark:hover:bg-muted"
@@ -3041,7 +3254,7 @@ export function MaringoWorkspaceClient() {
                           <DropdownMenuContent align="end" className="w-52">
                             <DropdownMenuGroup>
                               <DropdownMenuLabel>Status setzen</DropdownMenuLabel>
-                              {[11, 1, 3, 6, 7, 13, 14, 2, 5].map((id) => (
+                              {TICKET_EDIT_STATUS_IDS.map((id) => (
                                 <DropdownMenuItem
                                   key={id}
                                   disabled={patching || detail.status === id}

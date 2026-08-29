@@ -34,6 +34,11 @@ export const ALL_STATUS_IDS = [
 
 export type StatusId = (typeof ALL_STATUS_IDS)[number];
 
+/** Status, die Kopf/Detail und Mehrfachauswahl setzen dürfen. */
+export const TICKET_EDIT_STATUS_IDS = [11, 1, 3, 6, 7, 13, 14, 2, 5] as const;
+
+export type TicketEditStatusId = (typeof TICKET_EDIT_STATUS_IDS)[number];
+
 export const CLOSED_STATUS_IDS = new Set<number>([2, 5, 8, 12]);
 
 /** Offene Tickets für Home-Widget (inkl. On Hold / Nachfassen). */

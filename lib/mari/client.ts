@@ -282,3 +282,12 @@ export async function mariGetIssue(
 ): Promise<Record<string, unknown>> {
   return mariJson<Record<string, unknown>>(`/api/SupportIssue/${issueId}`);
 }
+
+/** DELETE /api/SupportIssue/{id} — hartes Löschen inkl. Anhänge (Swagger). */
+export async function mariDeleteIssue(
+  issueId: number
+): Promise<MariPatchResult | null> {
+  return mariJson<MariPatchResult | null>(`/api/SupportIssue/${issueId}`, {
+    method: "DELETE",
+  });
+}

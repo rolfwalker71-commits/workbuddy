@@ -4,7 +4,7 @@ import { withMariModule } from "@/lib/mari/with-module";
 import { MariApiError } from "@/lib/mari/client";
 import { hasMariConfig } from "@/lib/mari/config";
 import { getPrimaryMariCalendarStampForIssue } from "@/lib/mari/calendar-stamp";
-import { getTicketDetail, patchTicketFields } from "@/lib/mari/tickets";
+import { deleteTicket, getTicketDetail, patchTicketFields } from "@/lib/mari/tickets";
 import { zurichYmd } from "@/lib/microsoft/time";
 
 export const runtime = "nodejs";
@@ -126,5 +126,36 @@ export async function PATCH(request: Request, context: Ctx) {
     const status = err instanceof MariApiError ? err.status || 502 : 502;
     return NextResponse.json({ error: message }, { status });
   }
+  });
+}
+
+export async function DELETE(_request: Request, context: Ctx) {
+  return withMariModule(async () => {
+    if (!hasMariConfig()) {
+      return NextResponse.json(
+        { error: "MARI nicht konfiguriert." },
+        { status: 503 }
+      );
+    }
+
+    const { id: raw } = await context.params;
+    const id = parseId(raw);
+    if (!id) {
+      return NextResponse.json({ error: "Ungültige Ticket-ID" }, { status: 400 });
+    }
+
+    try {
+      await deleteTicket(id);
+      return NextResponse.json({ ok: true, issueId: id });
+    } catch (err) {
+      const message =
+        err instanceof MariApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : String(err);
+      const status = err instanceof MariApiError ? err.status || 502 : 502;
+      return NextResponse.json({ error: message }, { status });
+    }
   });
 }

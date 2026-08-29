@@ -1,4 +1,5 @@
 import {
+  mariDeleteIssue,
   mariGetIssue,
   mariPatchIssue,
   mariSql,
@@ -1364,6 +1365,26 @@ export async function patchTicketFields(
     );
   }
   return getTicketDetail(issueId);
+}
+
+/** Hartes Löschen via DELETE /api/SupportIssue/{id} (inkl. Anhänge). */
+export async function deleteTicket(issueId: number): Promise<void> {
+  if (!Number.isInteger(issueId) || issueId <= 0) {
+    throw new MariApiError("Ticket-ID ungültig.", 400);
+  }
+  const result = await mariDeleteIssue(issueId);
+  if (
+    result &&
+    typeof result === "object" &&
+    result.IMPORT_Feedback &&
+    result.IMPORT_Feedback !== 0
+  ) {
+    throw new MariApiError(
+      result.IMPORT_ErrorMessage || "MARI DELETE fehlgeschlagen",
+      400,
+      result
+    );
+  }
 }
 
 export { htmlToPlain };
