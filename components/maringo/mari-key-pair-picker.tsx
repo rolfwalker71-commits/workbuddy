@@ -17,19 +17,24 @@ export function MariKeyPairPicker({
   id,
   label,
   value,
+  valueLabel,
   options,
   placeholder,
   emptyLabel,
   disabled,
+  listClassName,
   onChange,
 }: {
   id?: string;
   label: string;
   value: string;
+  /** Shown while options are still loading or the id is not in the list. */
+  valueLabel?: string | null;
   options: MariKeyPair[];
   placeholder: string;
   emptyLabel?: string;
   disabled?: boolean;
+  listClassName?: string;
   onChange: (next: string) => void;
 }) {
   const autoId = useId();
@@ -56,11 +61,9 @@ export function MariKeyPairPicker({
   const selected = options.find((o) => o.keyInternal === value);
   const display = selected
     ? formatKeyPair(selected)
-    : options.length === 0
-      ? emptyLabel || placeholder
-      : value
-        ? value
-        : placeholder;
+    : value
+      ? (valueLabel || "").trim() || value
+      : emptyLabel || placeholder;
 
   return (
     <div ref={rootRef} className="relative space-y-1">
@@ -92,7 +95,10 @@ export function MariKeyPairPicker({
       {open ? (
         <ul
           role="listbox"
-          className="absolute left-0 z-40 mt-1 max-h-64 w-max min-w-full max-w-[min(42rem,calc(100vw-1.5rem))] overflow-auto rounded-lg border border-border bg-background py-1 shadow-lg"
+          className={cn(
+            "absolute left-0 z-40 mt-1 max-h-48 w-max min-w-full max-w-[min(42rem,calc(100vw-1.5rem))] overflow-auto rounded-lg border border-border bg-background py-1 shadow-lg",
+            listClassName
+          )}
         >
           <li role="option" aria-selected={!value}>
             <Button

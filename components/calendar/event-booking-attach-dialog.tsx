@@ -34,6 +34,48 @@ export type EventBookingAttachTarget = {
 
 type CustomerHit = { cardCode: string; name: string };
 
+type CustomerProjectHit = {
+  cardCode: string;
+  name: string;
+  projectNumber: string | null;
+  projectLabel: string | null;
+  contractId: number | null;
+};
+
+function customerFieldLabel(name: string, code: string): string {
+  const n = name.trim();
+  const c = code.trim();
+  if (n && c && n !== c) return `${n} · ${c}`;
+  return n || c;
+}
+
+function suggestionToKeyPair(s: CustomerProjectHit): MariKeyPair | null {
+  const pn = (s.projectNumber || "").trim();
+  if (!pn) return null;
+  return {
+    keyInternal: pn,
+    keyVisible: pn,
+    matchcode: (s.projectLabel || s.name || pn).trim(),
+    indent: 0,
+    indentParent: false,
+  };
+}
+
+function mergeProjectLists(
+  preferred: MariKeyPair[],
+  extra: MariKeyPair[]
+): MariKeyPair[] {
+  const seen = new Set<string>();
+  const out: MariKeyPair[] = [];
+  for (const p of [...preferred, ...extra]) {
+    const key = p.keyInternal || p.keyVisible;
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(p);
+  }
+  return out;
+}
+
 export function EventBookingAttachDialog({
   open,
   onOpenChange,
@@ -51,39 +93,76 @@ export function EventBookingAttachDialog({
 }) {
   const internal = meetingKind === "internal";
   const [customerQuery, setCustomerQuery] = useState("");
+  const [customerSearching, setCustomerSearching] = useState(false);
   const [customers, setCustomers] = useState<CustomerHit[]>([]);
-  const [cardCode, setCardCode] = useState(initial?.cardCode || "");
-  const [customerName, setCustomerName] = useState(initial?.customerName || "");
+  const [cardCode, setCardCode] = useState(() => (initial?.cardCode || "").trim());
+  const [customerName, setCustomerName] = useState(
+    () => (initial?.customerName || "").trim()
+  );
   const [projectQuery, setProjectQuery] = useState("");
   const [projects, setProjects] = useState<MariKeyPair[]>([]);
   const [projectOpen, setProjectOpen] = useState(false);
-  const [projectNumber, setProjectNumber] = useState(initial?.projectNumber || "");
-  const [projectLabel, setProjectLabel] = useState(initial?.projectLabel || "");
+  const [projectNumber, setProjectNumber] = useState(
+    () => (initial?.projectNumber || "").trim()
+  );
+  const [projectLabel, setProjectLabel] = useState(() =>
+    (initial?.projectLabel || initial?.projectNumber || "").trim()
+  );
   const [contracts, setContracts] = useState<MariKeyPair[]>([]);
-  const [contractId, setContractId] = useState(
+  const [contractId, setContractId] = useState(() =>
     initial?.contractId != null && initial.contractId > 0
       ? String(initial.contractId)
       : ""
+  );
+  const [contractVisible, setContractVisible] = useState(() =>
+    (
+      initial?.contractVisible ||
+      (initial?.contractId != null && initial.contractId > 0
+        ? String(initial.contractId)
+        : "")
+    ).trim()
   );
   const [favorites, setFavorites] = useState<MariTimeBookFavorite[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const selectedCustomer = customerFieldLabel(customerName, cardCode);
+  const selectedProject =
+    projectLabel ||
+    formatMariProjectLabel(projectNumber, projectLabel || null);
+
   useEffect(() => {
     if (!open) return;
-    setCardCode(initial?.cardCode || "");
-    setCustomerName(initial?.customerName || "");
-    setProjectNumber(initial?.projectNumber || "");
-    setProjectLabel(initial?.projectLabel || initial?.projectNumber || "");
-    setContractId(
+    const nextCode = (initial?.cardCode || "").trim();
+    const nextName = (initial?.customerName || "").trim();
+    const nextPn = (initial?.projectNumber || "").trim();
+    const nextPl = (initial?.projectLabel || nextPn).trim();
+    const nextCid =
       initial?.contractId != null && initial.contractId > 0
         ? String(initial.contractId)
-        : ""
-    );
+        : "";
+    const nextCv = (initial?.contractVisible || "").trim();
+    setCardCode(nextCode);
+    setCustomerName(nextName);
+    setProjectNumber(nextPn);
+    setProjectLabel(nextPl || nextPn);
+    setContractId(nextCid);
+    setContractVisible(nextCv || nextCid);
     setCustomerQuery("");
+    setCustomerSearching(false);
+    setCustomers([]);
     setProjectQuery("");
+    setProjectOpen(false);
     setError(null);
-  }, [open, initial]);
+  }, [
+    open,
+    initial?.cardCode,
+    initial?.customerName,
+    initial?.projectNumber,
+    initial?.projectLabel,
+    initial?.contractId,
+    initial?.contractVisible,
+  ]);
 
   useEffect(() => {
     if (!open) return;
@@ -102,7 +181,7 @@ export function EventBookingAttachDialog({
   }, [open]);
 
   useEffect(() => {
-    if (!open || internal) return;
+    if (!open || !customerSearching) return;
     const q = customerQuery.trim();
     if (q.length < 2) {
       setCustomers([]);
@@ -117,24 +196,70 @@ export function EventBookingAttachDialog({
         .catch(() => setCustomers([]));
     }, 220);
     return () => window.clearTimeout(t);
-  }, [customerQuery, open, internal]);
+  }, [customerQuery, customerSearching, open]);
 
   useEffect(() => {
     if (!open) return;
     const q = projectQuery.trim();
     if (!projectOpen && !q) return;
     const t = window.setTimeout(() => {
-      void fetch(
-        `/api/maringo/timekeeping/projects?q=${encodeURIComponent(q)}`
-      )
-        .then((r) => r.json())
-        .then((data) => {
+      void (async () => {
+        try {
+          if (cardCode && !q) {
+            const [custRes, tkRes] = await Promise.all([
+              fetch(
+                `/api/maringo/customers?cardCode=${encodeURIComponent(cardCode)}`
+              ),
+              fetch("/api/maringo/timekeeping/projects"),
+            ]);
+            const custData = await custRes.json().catch(() => ({}));
+            const tkData = await tkRes.json().catch(() => ({}));
+            const suggestions = (custData.suggestions ||
+              []) as CustomerProjectHit[];
+            const allowed = new Set(
+              suggestions
+                .map((s) => (s.projectNumber || "").trim())
+                .filter(Boolean)
+            );
+            if (projectNumber) allowed.add(projectNumber);
+            const fromCustomer = suggestions
+              .map(suggestionToKeyPair)
+              .filter((p): p is MariKeyPair => p != null);
+            const fromTk = ((tkData.projects || []) as MariKeyPair[]).filter(
+              (p) => allowed.has(p.keyInternal) || allowed.has(p.keyVisible)
+            );
+            const merged = mergeProjectLists(fromTk, fromCustomer);
+            if (
+              projectNumber &&
+              !merged.some(
+                (p) =>
+                  p.keyInternal === projectNumber ||
+                  p.keyVisible === projectNumber
+              )
+            ) {
+              merged.unshift({
+                keyInternal: projectNumber,
+                keyVisible: projectNumber,
+                matchcode: projectLabel || projectNumber,
+                indent: 0,
+                indentParent: false,
+              });
+            }
+            setProjects(merged);
+            return;
+          }
+          const res = await fetch(
+            `/api/maringo/timekeeping/projects?q=${encodeURIComponent(q)}`
+          );
+          const data = await res.json().catch(() => ({}));
           setProjects((data.projects || []) as MariKeyPair[]);
-        })
-        .catch(() => setProjects([]));
+        } catch {
+          setProjects([]);
+        }
+      })();
     }, 220);
     return () => window.clearTimeout(t);
-  }, [projectQuery, projectOpen, open]);
+  }, [projectQuery, projectOpen, open, cardCode, projectNumber, projectLabel]);
 
   useEffect(() => {
     if (!open || !projectNumber) {
@@ -163,7 +288,30 @@ export function EventBookingAttachDialog({
     setContractId(
       fav.contractId != null && fav.contractId > 0 ? String(fav.contractId) : ""
     );
+    setContractVisible(
+      fav.contractId != null && fav.contractId > 0 ? String(fav.contractId) : ""
+    );
     setProjectOpen(false);
+    setProjectQuery("");
+    setError(null);
+  }
+
+  function selectCustomer(c: CustomerHit) {
+    const same = c.cardCode === cardCode;
+    setCardCode(c.cardCode);
+    setCustomerName(c.name);
+    setCustomerQuery("");
+    setCustomerSearching(false);
+    setCustomers([]);
+    if (!same) {
+      setProjectNumber("");
+      setProjectLabel("");
+      setProjectQuery("");
+      setContractId("");
+      setContractVisible("");
+      setContracts([]);
+    }
+    setProjectOpen(true);
     setError(null);
   }
 
@@ -171,6 +319,8 @@ export function EventBookingAttachDialog({
     setProjectNumber(p.keyInternal);
     setProjectLabel(formatMariProjectLabel(p.keyInternal, p.matchcode));
     setContractId("");
+    setContractVisible("");
+    setProjectQuery("");
     setProjectOpen(false);
   }
 
@@ -198,7 +348,7 @@ export function EventBookingAttachDialog({
           projectNumber: projectNumber || null,
           projectLabel: projectLabel || projectNumber || null,
           contractId: cid,
-          contractVisible: null,
+          contractVisible: contractVisible || null,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -212,21 +362,30 @@ export function EventBookingAttachDialog({
     }
   }
 
+  const hasCustomer = Boolean(
+    cardCode ||
+      customerName ||
+      initial?.cardCode ||
+      initial?.customerName
+  );
+  const title =
+    internal && !hasCustomer
+      ? "Internes Projekt merken"
+      : "Kunde / Projekt / Vertrag";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
+      <DialogContent className="flex max-h-[min(90vh,42rem)] min-h-[min(70vh,36rem)] w-full flex-col overflow-hidden sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>
-            {internal ? "Internes Projekt merken" : "Kunde / Projekt / Vertrag"}
-          </DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            {internal
+            {internal && !hasCustomer
               ? "Für spätere Stundenbuchung: internes Projekt, in der Regel ohne Vertrag. Bei Serie gilt das für alle Folgetermine."
               : "Für spätere Stundenbuchung merken. Bei Serie gilt das für alle Folgetermine."}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
           {error ? (
             <p className="rounded-lg bg-rose-50 px-2.5 py-2 text-xs text-rose-950 ring-1 ring-rose-200 dark:bg-rose-500/12 dark:text-rose-100 dark:ring-rose-400/30">
               {error}
@@ -256,72 +415,82 @@ export function EventBookingAttachDialog({
             </div>
           ) : null}
 
-          {!internal ? (
-            <div className="space-y-1">
-              <Label htmlFor="eb-kunde">Kunde</Label>
-              <Input
-                id="eb-kunde"
-                value={customerQuery || customerName}
-                onChange={(e) => {
-                  setCustomerQuery(e.target.value);
-                  setCustomerName(e.target.value);
-                }}
-                placeholder="Kunde suchen (Name oder CardCode)"
-                autoComplete="off"
-              />
-              {customers.length > 0 ? (
-                <ul className="max-h-40 overflow-auto rounded-lg border border-border bg-background shadow-sm">
-                  {customers.slice(0, 8).map((c) => (
-                    <li key={c.cardCode}>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="h-auto w-full justify-between px-2.5 py-1.5 text-left text-xs font-normal"
-                        onClick={() => {
-                          setCardCode(c.cardCode);
-                          setCustomerName(c.name);
-                          setCustomerQuery("");
-                          setCustomers([]);
-                          setProjectQuery(c.name);
-                          setProjectOpen(true);
-                        }}
-                      >
-                        <span className="font-medium">{c.name}</span>
-                        <span className="text-muted-foreground">{c.cardCode}</span>
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
-          ) : null}
+          <div className="space-y-1">
+            <Label htmlFor="eb-kunde">Kunde</Label>
+            <Input
+              id="eb-kunde"
+              value={customerSearching ? customerQuery : selectedCustomer}
+              onChange={(e) => {
+                setCustomerSearching(true);
+                setCustomerQuery(e.target.value);
+                if (!e.target.value.trim()) {
+                  setCardCode("");
+                  setCustomerName("");
+                }
+              }}
+              onFocus={() => {
+                setCustomerSearching(true);
+                if (!customerQuery) setCustomerQuery(selectedCustomer);
+              }}
+              placeholder="Kunde suchen (Name oder CardCode)"
+              autoComplete="off"
+            />
+            {customerSearching && customers.length > 0 ? (
+              <ul className="max-h-48 overflow-auto rounded-lg border border-border bg-background shadow-sm">
+                {customers.slice(0, 40).map((c) => (
+                  <li key={c.cardCode}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="h-auto w-full justify-between px-2.5 py-1.5 text-left text-xs font-normal"
+                      onClick={() => selectCustomer(c)}
+                    >
+                      <span className="min-w-0 break-words font-medium leading-snug">
+                        {c.name}
+                      </span>
+                      <span className="shrink-0 text-muted-foreground">
+                        {c.cardCode}
+                      </span>
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
 
           <div className="space-y-1">
             <Label htmlFor="eb-project">Projekt</Label>
             <Input
               id="eb-project"
-              value={projectOpen ? projectQuery : projectLabel || projectQuery}
+              value={
+                projectOpen && projectQuery
+                  ? projectQuery
+                  : selectedProject || projectQuery
+              }
               onChange={(e) => {
                 setProjectQuery(e.target.value);
                 setProjectOpen(true);
               }}
               onFocus={() => {
                 setProjectOpen(true);
-                setProjectQuery("");
               }}
               placeholder={
-                internal ? "Internes Projekt oder Favorit" : "Suche z.B. Werk oder P200000"
+                internal && !hasCustomer
+                  ? "Internes Projekt oder Favorit"
+                  : "Suche z.B. Werk oder P200000"
               }
               autoComplete="off"
             />
             {projectOpen ? (
-              <ul className="max-h-40 overflow-auto rounded-lg border border-border bg-background shadow-sm">
+              <ul className="max-h-48 overflow-auto rounded-lg border border-border bg-background shadow-sm">
                 {projects.length === 0 ? (
                   <li className="px-2.5 py-2 text-xs text-muted-foreground">
-                    Keine Treffer
+                    {cardCode && !projectQuery.trim()
+                      ? "Keine Projekte zu diesem Kunden"
+                      : "Keine Treffer"}
                   </li>
                 ) : (
-                  projects.slice(0, 40).map((p) => (
+                  projects.slice(0, 80).map((p) => (
                     <li key={`${p.keyInternal}-${p.matchcode}`}>
                       <Button
                         type="button"
@@ -329,7 +498,9 @@ export function EventBookingAttachDialog({
                         className="h-auto w-full flex-col items-start px-2.5 py-1.5 text-left text-xs font-normal"
                         onClick={() => selectProject(p)}
                       >
-                        <span className="font-medium">{p.matchcode}</span>
+                        <span className="font-medium leading-snug break-words">
+                          {p.matchcode}
+                        </span>
                         <span className="text-muted-foreground">
                           {p.keyVisible || p.keyInternal}
                         </span>
@@ -345,11 +516,16 @@ export function EventBookingAttachDialog({
             id="eb-contract"
             label="Vertrag"
             value={contractId}
+            valueLabel={contractVisible || contractId || null}
             options={contracts}
             placeholder="Vertrag wählen…"
             emptyLabel="Kein Vertrag nötig"
             disabled={!projectNumber}
-            onChange={setContractId}
+            onChange={(next) => {
+              setContractId(next);
+              const row = contracts.find((o) => o.keyInternal === next);
+              setContractVisible(row?.keyVisible || next);
+            }}
           />
         </div>
 
