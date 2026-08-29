@@ -7,6 +7,7 @@ import {
   segmentedTriggerClass,
 } from "@/components/layout/segmented-control";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/i18n/locale-provider";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 
 export type MailWorkspaceView = "chronik" | "tagesanalysen";
@@ -31,6 +32,7 @@ export function MailWorkspaceSubnav({
   accent?: MailWorkspaceAccent;
   className?: string;
 }) {
+  const t = useT();
   return (
     <div
       className={cn(
@@ -41,7 +43,7 @@ export function MailWorkspaceSubnav({
       <div
         className={segmentedTrackClass}
         role="tablist"
-        aria-label="Mail-Ansicht"
+        aria-label={t("mail.viewAria")}
       >
         <Button
           type="button"
@@ -53,7 +55,7 @@ export function MailWorkspaceSubnav({
           onClick={() => onChange("chronik")}
         >
           <History className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} aria-hidden />
-          Chronik
+          {t("workspace.chronicle")}
         </Button>
         <Button
           type="button"
@@ -65,16 +67,16 @@ export function MailWorkspaceSubnav({
           onClick={() => onChange("tagesanalysen")}
         >
           <Sparkles className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} aria-hidden />
-          Tagesanalysen
+          {t("workspace.dayAnalyses")}
         </Button>
       </div>
       {view === "chronik" ? (
         <p className="px-1 text-xs leading-relaxed text-muted-foreground">
-          Eingang und Gesendet gemischt, chronologisch
+          {t("mail.chronikHint")}
         </p>
       ) : (
         <p className="px-1 text-xs leading-relaxed text-muted-foreground">
-          Gespeicherte AI-Tagesbilder und neue Analyse
+          {t("mail.dayAnalysesHint")}
         </p>
       )}
     </div>

@@ -14,6 +14,7 @@ import type {
   HoursBookedStampLike,
   WorkspaceEventMari,
 } from "@/lib/workspace/event-mari-shared";
+import { useT } from "@/components/i18n/locale-provider";
 import type { WorkspaceProvider } from "@/lib/workspace/merge-today";
 
 export type HoursBookableEvent = {
@@ -32,9 +33,6 @@ export type HoursBookableEvent = {
   mari?: WorkspaceEventMari | null;
 };
 
-const HOURS_HINT =
-  "Vorlage aus der Termindauer: Geleistet und Verrechenbar = Dauer. Geleistet füllt Verrechenbar mit, bis Sie Verrechenbar ändern — der Outlook-Termin bleibt unverändert.";
-
 export function EventHoursBookDialog({
   event,
   open,
@@ -46,6 +44,7 @@ export function EventHoursBookDialog({
   onOpenChange: (open: boolean) => void;
   onBooked?: (stamp?: HoursBookedStampLike | null) => void;
 }) {
+  const t = useT();
   const [defaults, setDefaults] = useState<TimeBookFormDefaults | null>(null);
   const [subjectSuggestions, setSubjectSuggestions] = useState<
     MariEmailPartnerSuggestion[]
@@ -138,9 +137,9 @@ export function EventHoursBookDialog({
       if (preferStored) {
         titleHint =
           stored.source === "pinned"
-            ? "Gespeicherte Zuordnung aus dem Termin — nicht neu erraten."
+            ? t("calendarUi.storedMapping")
             : stored.meetingKind === "internal"
-              ? "Interner Termin — Projekt prüfen, Vertrag in der Regel nicht nötig."
+              ? t("calendarUi.internalEventHint")
               : null;
       } else {
       try {
@@ -205,13 +204,13 @@ export function EventHoursBookDialog({
       defaults={defaults}
       title={
         issueId
-          ? `Stunden aus Termin · Ticket #${issueId}`
+          ? t("calendarUi.hoursFromTicket", { id: issueId })
           : event
-            ? `Stunden aus Termin · ${event.title}`
-            : "Stunden buchen"
+            ? t("calendarUi.hoursFromEvent", { title: event.title })
+            : t("home.bookHours")
       }
-      description={HOURS_HINT}
-      submitLabel={issueId ? "Auf Ticket buchen" : "Stunden buchen"}
+      description={t("calendarUi.hoursHint")}
+      submitLabel={issueId ? t("timekeeping.bookOnTicket") : t("home.bookHours")}
       calendarEvent={
         event && event.provider === "microsoft"
           ? {

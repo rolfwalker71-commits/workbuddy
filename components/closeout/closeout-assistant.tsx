@@ -30,6 +30,42 @@ import {
   type CloseoutStepId,
 } from "@/lib/closeout/steps";
 import { cn } from "@/lib/utils";
+import { useLocale, useT } from "@/components/i18n/locale-provider";
+import type { MessageKey } from "@/lib/i18n";
+
+function closeoutStepText(
+  t: (key: MessageKey, params?: Record<string, string | number | null | undefined>) => string,
+  stepId: CloseoutStepId,
+  provider: CloseoutProvider
+) {
+  const label = provider === "google" ? "Gmail" : "Outlook";
+  switch (stepId) {
+    case "calendar":
+      return {
+        title: t("closeout.checkOpenEvents"),
+        hint: t("closeout.checkOpenEventsHint"),
+        cta: t("closeout.checkEventsCta"),
+      };
+    case "day-analysis":
+      return {
+        title: t("closeout.dayAnalysis", { label }),
+        hint: t("closeout.dayAnalysisHint"),
+        cta: t("closeout.dayAnalysisCta"),
+      };
+    case "ticket-hours":
+      return {
+        title: t("closeout.bookTicketHours"),
+        hint: t("closeout.bookTicketHoursHint"),
+        cta: t("closeout.bookTicketHoursCta"),
+      };
+    default:
+      return {
+        title: t("closeout.confirmDone"),
+        hint: t("closeout.confirmDoneHint"),
+        cta: t("closeout.toOverview"),
+      };
+  }
+}
 
 export const CLOSEOUT_OPEN_EVENT = "buddy:closeout-open";
 
@@ -102,7 +138,9 @@ function StepVisual({
         : stepId === "ticket-hours"
           ? ClipboardList
           : Check;
-  const micros = microChecksFor(stepId);
+  const t = useT();
+  const { locale } = useLocale();
+  const micros = microChecksFor(stepId, locale);
   return (
     <div className="space-y-2 rounded-2xl bg-muted px-3 py-2.5 ring-1 ring-foreground/10">
       <div className="flex items-center gap-3">
@@ -123,31 +161,31 @@ function StepVisual({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-muted-foreground">
-              Wegleitung
+              {t("closeout.guide")}
             </p>
             {here ? (
               <span className="rounded-full bg-teal-100 px-1.5 py-0.5 text-[0.5625rem] font-bold uppercase tracking-wide text-teal-800">
-                Du bist hier
+                {t("closeout.youAreHere")}
               </span>
             ) : null}
             {done ? (
               <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[0.5625rem] font-bold uppercase tracking-wide text-emerald-800">
-                Erledigt
+                {t("closeout.completed")}
               </span>
             ) : (
               <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[0.5625rem] font-bold uppercase tracking-wide text-orange-800">
-                Noch offen
+                {t("closeout.stillOpen")}
               </span>
             )}
           </div>
           <p className="text-[0.8125rem] font-semibold leading-snug text-foreground">
             {stepId === "calendar"
-              ? "Kalender öffnen und offene Termine abarbeiten"
+              ? t("closeout.leadCalendar")
               : stepId === "day-analysis"
-                ? "Tagesanalyse starten und Resultate übernehmen"
+                ? t("closeout.leadAnalysis")
                 : stepId === "ticket-hours"
-                  ? "Stunden-Vorschläge aus Ticket-Terminen buchen"
-                  : "Alle Schritte erledigt — guter Feierabend"}
+                  ? t("closeout.leadHours")
+                  : t("closeout.goodEvening")}
           </p>
         </div>
       </div>
@@ -183,6 +221,8 @@ const FLOAT_POS =
   "right-[max(0.75rem,env(safe-area-inset-right))] bottom-[max(5.5rem,calc(4.5rem+env(safe-area-inset-bottom)))] md:right-6 md:bottom-6";
 
 export function CloseoutAssistant() {
+  const t = useT();
+  const { locale } = useLocale();
   const { me, loading } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
@@ -235,7 +275,7 @@ export function CloseoutAssistant() {
     try {
       const res = await fetch("/api/dashboard/day-close");
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Status laden fehlgeschlagen");
+      if (!res.ok) throw new Error(data.error || t("closeout.loadFailed"));
       setStatus(data as CloseoutStatusPayload);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -277,8 +317,9 @@ export function CloseoutAssistant() {
     () =>
       closeoutStepsFor(provider, {
         includeMariHours: status?.maringoModule ?? false,
+        locale,
       }),
-    [provider, status?.maringoModule]
+    [provider, status?.maringoModule, locale]
   );
 
   useEffect(() => {
@@ -375,7 +416,7 @@ export function CloseoutAssistant() {
           "fixed z-40 h-auto min-h-11 gap-2 rounded-2xl border-border/70 bg-card px-3 py-2 text-xs font-semibold shadow-[0_8px_28px_rgba(15,23,42,0.14)] ring-1 ring-foreground/10 hover:bg-muted",
           FLOAT_POS
         )}
-        title="Tagesabschluss-Assistent"
+        title={t("closeout.assistant")}
       >
         <Sparkles
           className="size-3.5 text-orange-600"
@@ -383,7 +424,7 @@ export function CloseoutAssistant() {
           absoluteStrokeWidth
           aria-hidden
         />
-        Abschluss
+        {t("closeout.shortTitle")}
         {remaining > 0 ? (
           <span className="rounded-full bg-orange-500 px-1.5 py-0.5 text-[0.625rem] text-white">
             {remaining}
@@ -430,17 +471,22 @@ export function CloseoutAssistant() {
         FLOAT_POS
       )}
       role="dialog"
-      aria-label="Tagesabschluss-Assistent"
+      aria-label={t("closeout.assistant")}
     >
       <div className="flex items-center gap-2 bg-slate-800 px-3 py-2.5 text-white">
         <Sparkles className="size-4 text-orange-400" aria-hidden />
         <div className="min-w-0 flex-1">
           <p className="break-words text-[0.8125rem] font-bold leading-snug tracking-tight">
-            Tagesabschluss · {provider === "google" ? "Google" : "Outlook"}
+            {t("closeout.headingWithProvider", {
+              provider: provider === "google" ? "Google" : "Outlook",
+            })}
           </p>
           <p className="text-[0.625rem] text-white/70">
-            Schritt {activeIndex + 1} von {steps.length}
-            {busy ? " · aktualisiert…" : ""}
+            {t("closeout.stepOf", {
+              current: activeIndex + 1,
+              total: steps.length,
+            })}
+            {busy ? ` · ${t("closeout.updating")}` : ""}
           </p>
         </div>
         <Button
@@ -448,7 +494,7 @@ export function CloseoutAssistant() {
           variant="ghost"
           size="icon-sm"
           className="rounded-md text-white hover:bg-white/10"
-          title="Minimieren"
+          title={t("closeout.minimize")}
           onClick={() => persist({ minimized: true })}
         >
           <Minimize2 className="size-3.5" aria-hidden />
@@ -458,7 +504,7 @@ export function CloseoutAssistant() {
           variant="ghost"
           size="icon-sm"
           className="rounded-md text-white hover:bg-white/10"
-          title="Schliessen"
+          title={t("common.close")}
           onClick={() =>
             persist({
               open: false,
@@ -528,7 +574,7 @@ export function CloseoutAssistant() {
 
         {allClear ? (
           <div className="rounded-2xl bg-emerald-50 px-3 py-2.5 text-[0.8125rem] font-semibold text-emerald-900 ring-1 ring-emerald-200">
-            Alles erledigt für heute — guter Feierabend.
+            {t("closeout.allDoneToday")}
           </div>
         ) : null}
 
@@ -576,7 +622,7 @@ export function CloseoutAssistant() {
                   <span className="min-w-0 flex-1">
                     <span className="flex items-start justify-between gap-2">
                       <span className="break-words text-[0.8125rem] font-semibold leading-snug tracking-tight">
-                        {step.title}
+                        {closeoutStepText(t, step.id, provider).title}
                       </span>
                       {status ? (
                         <span
@@ -586,14 +632,14 @@ export function CloseoutAssistant() {
                           )}
                         >
                           {skipped
-                            ? "Übersprungen"
-                            : stepDetail(step.id, provider, status)}
+                            ? t("closeout.skipped")
+                            : stepDetail(step.id, provider, status, locale)}
                         </span>
                       ) : null}
                     </span>
                     {current ? (
                       <span className="mt-0.5 block text-[0.6875rem] text-muted-foreground">
-                        {step.hint}
+                        {closeoutStepText(t, step.id, provider).hint}
                       </span>
                     ) : null}
                   </span>
@@ -610,13 +656,13 @@ export function CloseoutAssistant() {
               className="min-h-11 min-w-0 flex-1 gap-1.5 bg-orange-500 text-white hover:bg-orange-600"
               onClick={() => leadToStep(activeIndex)}
             >
-              {active.cta} →
+              {closeoutStepText(t, active.id, provider).cta} →
             </Button>
             <Button
               type="button"
               variant="outline"
               className="min-h-11 shrink-0"
-              title="Schritt für heute überspringen"
+              title={t("closeout.skipToday")}
               onClick={() => {
                 const skipped = Array.from(
                   new Set([...stored.skipped, active.id])
@@ -626,7 +672,7 @@ export function CloseoutAssistant() {
                 leadToStep(nextIdx, { minimize: false });
               }}
             >
-              Skip
+              {t("common.skip")}
             </Button>
           </div>
         ) : null}
@@ -641,7 +687,7 @@ export function CloseoutAssistant() {
           disabled={activeIndex <= 0}
           onClick={() => leadToStep(Math.max(0, activeIndex - 1), { minimize: false })}
         >
-          Zurück
+          {t("common.back")}
         </Button>
         <label className="flex cursor-pointer items-center gap-1 text-[0.625rem] text-muted-foreground">
           <input
@@ -650,7 +696,7 @@ export function CloseoutAssistant() {
             checked={stored.autoAdvance}
             onChange={(e) => persist({ autoAdvance: e.target.checked })}
           />
-          Auto
+          {t("common.auto")}
         </label>
         <div className="flex-1" />
         <Button
@@ -665,7 +711,7 @@ export function CloseoutAssistant() {
             })
           }
         >
-          Später
+          {t("closeout.later")}
         </Button>
         <Button
           type="button"
@@ -683,13 +729,15 @@ export function CloseoutAssistant() {
             leadToStep(activeIndex + 1, { minimize: false });
           }}
         >
-          {activeIndex >= steps.length - 1 || allClear ? "Fertig" : "Weiter"}
+          {activeIndex >= steps.length - 1 || allClear
+            ? t("common.done")
+            : t("common.next")}
           <ChevronDown className="size-3.5 rotate-[-90deg]" aria-hidden />
         </Button>
       </div>
 
       <p className="bg-muted/30 px-3 pb-2 text-center text-[0.625rem] text-muted-foreground">
-        Läuft mit während du arbeitest ·{" "}
+        {t("closeout.runsAlong")}{" "}
         <Button
           type="button"
           variant="link"
@@ -697,11 +745,11 @@ export function CloseoutAssistant() {
           className="h-auto p-0 text-[0.625rem] underline underline-offset-2"
           onClick={() => void load()}
         >
-          Refresh
+          {t("closeout.refresh")}
         </Button>
         {" · "}
         <Link href="/" className="underline underline-offset-2">
-          Übersicht
+          {t("nav.overview")}
         </Link>
       </p>
     </div>

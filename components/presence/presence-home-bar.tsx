@@ -21,13 +21,14 @@ import {
   isOwnDayLocked,
   presenceCounts,
   presenceSourceHint,
-  PRESENCE_STATUS_LABELS,
   deleteOwnDayStatus,
   putDelegatedDayStatus,
   putOwnDayStatus,
   type PresenceTodayResponse,
 } from "@/lib/presence/client";
 import type { PresenceStatus } from "@/lib/presence/status";
+import { useLocale, useT } from "@/components/i18n/locale-provider";
+import { presenceDisplayLabel } from "@/lib/i18n/display";
 
 function awayIdsFromAbsence(absence: HomeAbsenceState | null): number[] {
   if (!absence) return [];
@@ -49,6 +50,8 @@ export function PresenceHomeBar({
   absence: HomeAbsenceState | null;
 }) {
   const { me } = useAuth();
+  const t = useT();
+  const { locale } = useLocale();
   const [data, setData] = useState<PresenceTodayResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -82,7 +85,7 @@ export function PresenceHomeBar({
   );
   const counts = useMemo(() => presenceCounts(people), [people]);
   const locked = isOwnDayLocked(self?.source ?? null);
-  const sourceHint = presenceSourceHint(self?.source ?? null);
+  const sourceHint = presenceSourceHint(self?.source ?? null, locale);
   const actor = {
     isAdmin: Boolean(me?.isAdmin),
     canManagePresence: Boolean(self?.canManagePresence || me?.isAdmin),
@@ -97,12 +100,14 @@ export function PresenceHomeBar({
   const showActions = showChange || showDelegate;
 
   const statusTitle = showMorning
-    ? "Wie arbeitest du heute?"
+    ? t("presence.howToday")
     : editing
-      ? "Status ändern"
+      ? t("presence.changeStatus")
       : self?.status
-        ? `Du: ${PRESENCE_STATUS_LABELS[self.status]}`
-        : "Du: noch offen";
+        ? t("presence.youStatus", {
+            status: presenceDisplayLabel(self.status, locale),
+          })
+        : t("presence.youStillOpen");
 
   async function clearOwn() {
     if (!data) return;
@@ -171,15 +176,15 @@ export function PresenceHomeBar({
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-snug text-muted-foreground">
       <span className="inline-flex items-center gap-1.5">
         <span className="size-2 rounded-full bg-orange-500" aria-hidden />
-        {counts.here} da
+        {t("presence.hereCount", { count: counts.here })}
       </span>
       <span className="inline-flex items-center gap-1.5">
         <span className="size-2 rounded-full bg-rose-500" aria-hidden />
-        {counts.away} nicht da
+        {t("presence.awayCount", { count: counts.away })}
       </span>
       <span className="inline-flex items-center gap-1.5">
         <span className="size-2 rounded-full bg-muted-foreground/50" aria-hidden />
-        {counts.open} offen
+        {t("presence.openCount", { count: counts.open })}
       </span>
     </div>
   );
@@ -190,7 +195,7 @@ export function PresenceHomeBar({
       className="inline-flex min-h-11 items-center gap-1 px-2.5 font-semibold text-foreground underline-offset-2 hover:underline"
     >
       <Users className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-      Team
+      {t("nav.team")}
     </Link>
   );
 
@@ -221,11 +226,11 @@ export function PresenceHomeBar({
     return (
       <>
         {showChange
-          ? actionButton("Ändern", () => setEditing(true), variant)
+          ? actionButton(t("presence.change"), () => setEditing(true), variant)
           : null}
         {showDelegate
           ? actionButton(
-              "Für Kollege setzen",
+              t("presence.setForColleague"),
               () => {
                 setDelegateError(null);
                 setDelegateOpen(true);
@@ -247,7 +252,7 @@ export function PresenceHomeBar({
         value={self?.status ?? null}
         onChange={(status) => void setOwn(status)}
         disabled={busy || locked}
-        ariaLabel="Wie arbeitest du heute?"
+        ariaLabel={t("presence.howToday")}
       />
       {editing ? (
         <div className="flex flex-wrap items-center gap-2">
@@ -259,7 +264,7 @@ export function PresenceHomeBar({
               disabled={busy}
               onClick={() => void clearOwn()}
             >
-              Regel verwenden
+              {t("presence.useRule")}
             </Button>
           ) : null}
           <Button
@@ -269,7 +274,7 @@ export function PresenceHomeBar({
             disabled={busy}
             onClick={() => setEditing(false)}
           >
-            Fertig
+            {t("common.done")}
           </Button>
         </div>
       ) : null}
@@ -319,7 +324,7 @@ export function PresenceHomeBar({
       ) : (
         <div className="min-w-0 space-y-2.5">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Lade Anwesenheit…</p>
+            <p className="text-sm text-muted-foreground">{t("presence.loading")}</p>
           ) : showMorning || editing ? (
             editor
           ) : (

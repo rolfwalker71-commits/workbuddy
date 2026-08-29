@@ -14,12 +14,13 @@ import { cn } from "@/lib/utils";
 import {
   canOverridePerson,
   organizationLabel,
-  PRESENCE_STATUS_LABELS,
   type PresencePersonView,
 } from "@/lib/presence/client";
 import type { UserOrganization } from "@/lib/users/organization";
 import type { PresenceStatus } from "@/lib/presence/status";
 import { formatSwissDate } from "@/lib/utils/dates";
+import { useLocale, useT } from "@/components/i18n/locale-provider";
+import { presenceDisplayLabel } from "@/lib/i18n/display";
 
 export function PresenceDelegateDialog({
   open,
@@ -48,6 +49,8 @@ export function PresenceDelegateDialog({
   error?: string | null;
   onSave: (input: { userId: number; status: PresenceStatus }) => void;
 }) {
+  const t = useT();
+  const { locale } = useLocale();
   const candidates = useMemo(
     () =>
       people.filter(
@@ -78,15 +81,15 @@ export function PresenceDelegateDialog({
     >
       <DialogContent className="max-h-[90dvh] min-w-0 overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Für Kollege setzen</DialogTitle>
+          <DialogTitle>{t("presence.setForColleague")}</DialogTitle>
           <DialogDescription>
-            Status für {formatSwissDate(ymd)} in deiner Organisation.
+            {t("presence.forColleagueHint", { date: formatSwissDate(ymd) })}
           </DialogDescription>
         </DialogHeader>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         {candidates.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Keine Kolleginnen oder Kollegen, für die du den Status setzen darfst.
+            {t("presence.nobodyDelegate")}
           </p>
         ) : (
           <div className="space-y-3">
@@ -111,10 +114,10 @@ export function PresenceDelegateDialog({
                           {person.displayName}
                         </span>
                         <span className="mt-0.5 block text-xs text-muted-foreground">
-                          {organizationLabel(person.organization)}
+                          {organizationLabel(person.organization, locale)}
                           {person.status
-                            ? ` · ${PRESENCE_STATUS_LABELS[person.status]}`
-                            : " · Offen"}
+                            ? ` · ${presenceDisplayLabel(person.status, locale)}`
+                            : ` · ${t("presence.open")}`}
                         </span>
                       </span>
                     </button>
@@ -126,7 +129,7 @@ export function PresenceDelegateDialog({
               value={status}
               onChange={setStatus}
               disabled={busy || !selected}
-              ariaLabel="Status für Kollege"
+              ariaLabel={t("presence.statusForColleague")}
             />
             <Button
               type="button"
@@ -137,7 +140,7 @@ export function PresenceDelegateDialog({
                 onSave({ userId: selected.userId, status });
               }}
             >
-              Speichern
+              {t("common.save")}
             </Button>
           </div>
         )}

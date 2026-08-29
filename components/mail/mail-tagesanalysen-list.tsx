@@ -8,6 +8,7 @@ import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { formatSwissDateRange, formatSwissDateTime } from "@/lib/utils/dates";
 import type { MailDayCachedSummary } from "@/lib/mail/mail-day-cache-summary";
 import type { MailWorkspaceAccent } from "@/components/mail/mail-workspace-subnav";
+import { useT } from "@/components/i18n/locale-provider";
 import { ProviderBadge } from "@/components/workspace/provider-badge";
 
 function finishedLabel(iso: string): string {
@@ -31,11 +32,12 @@ export function MailTagesanalysenList({
   emptyHint?: string;
   accent?: MailWorkspaceAccent;
 }) {
+  const t = useT();
   if (entries.length === 0) {
     return (
       <p className="rounded-2xl border border-dashed border-border/70 bg-card px-4 py-8 text-center text-sm text-muted-foreground shadow-sm">
         {emptyHint ||
-          "Noch keine Tagesanalysen gespeichert. Starte eine neue AI-Tagesanalyse."}
+          t("mail.emptyAnalyses")}
       </p>
     );
   }
@@ -89,7 +91,7 @@ export function MailTagesanalysenList({
                   </span>
                 </p>
                 <p className="flex flex-wrap items-center gap-2 text-[0.9375rem] font-black tracking-tight">
-                  AI · Tagesbild
+                  {t("workspace.aiDayImage")}
                   {e.provider ? (
                     <ProviderBadge
                       provider={e.provider}
@@ -100,18 +102,34 @@ export function MailTagesanalysenList({
                 </p>
                 <p className="line-clamp-2 text-[0.8125rem] leading-snug text-muted-foreground">
                   {e.daySummary ||
-                    `Analyse von Posteingang und Gesendet. ${e.clusterCount} Cluster, ${e.taskCount} Aufgabe(n).`}
+                    t("mail.analysisFallback", {
+                      clusters: e.clusterCount,
+                      tasks: e.taskCount,
+                    })}
                 </p>
                 <div className="flex flex-wrap gap-1.5 pt-0.5">
                   <Badge variant="outline" className="h-5 text-[0.625rem]">
-                    {e.clusterCount} Cluster
+                    {t(
+                      e.clusterCount === 1
+                        ? "mail.clusterCount"
+                        : "mail.clusterCountPlural",
+                      { count: e.clusterCount }
+                    )}
                   </Badge>
                   <Badge variant="outline" className="h-5 text-[0.625rem]">
-                    {e.taskCount} Aufgabe{e.taskCount === 1 ? "" : "n"}
+                    {t(
+                      e.taskCount === 1 ? "mail.taskCount" : "mail.taskCountPlural",
+                      { count: e.taskCount }
+                    )}
                   </Badge>
                   {e.replyCount > 0 ? (
                     <Badge variant="outline" className="h-5 text-[0.625rem]">
-                      {e.replyCount} Antwort{e.replyCount === 1 ? "" : "en"}
+                      {t(
+                        e.replyCount === 1
+                          ? "mail.replyCount"
+                          : "mail.replyCountPlural",
+                        { count: e.replyCount }
+                      )}
                     </Badge>
                   ) : null}
                   {e.model ? (
@@ -129,7 +147,7 @@ export function MailTagesanalysenList({
               <div className="flex shrink-0 flex-col items-end gap-2 self-stretch pt-0.5">
                 <Badge className="h-6 gap-1 rounded-full border-transparent bg-emerald-100 px-2 text-[0.6875rem] font-semibold text-emerald-900 hover:bg-emerald-100">
                   <Check className="size-3" aria-hidden />
-                  Fertig
+                  {t("common.done")}
                 </Badge>
                 <ChevronRight
                   className="mt-auto size-4 text-muted-foreground/70"

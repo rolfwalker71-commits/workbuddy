@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Check, ListTodo, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
+import { useT } from "@/components/i18n/locale-provider";
 import { cn } from "@/lib/utils";
 
 export type SuggestedTask = {
@@ -21,8 +22,8 @@ export function MicrosoftTaskSuggestions({
   error,
   onSuggest,
   onApply,
-  suggestLabel = "Aufgaben vorschlagen",
-  emptyHint = "Keine offenen Punkte erkannt.",
+  suggestLabel,
+  emptyHint,
 }: {
   suggestions: SuggestedTask[];
   usedAi?: boolean;
@@ -34,6 +35,9 @@ export function MicrosoftTaskSuggestions({
   suggestLabel?: string;
   emptyHint?: string;
 }) {
+  const t = useT();
+  const resolvedSuggest = suggestLabel ?? t("microsoft.suggestTasks");
+  const resolvedEmpty = emptyHint ?? t("microsoft.noOpenPoints");
   const [picked, setPicked] = useState<Set<number>>(new Set());
 
   function toggle(i: number) {
@@ -61,7 +65,7 @@ export function MicrosoftTaskSuggestions({
           }}
         >
           <Sparkles className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-          {loading ? "Prüft Chat…" : suggestLabel}
+          {loading ? t("microsoft.checkingChat") : resolvedSuggest}
         </Button>
         {suggestions.length > 0 ? (
           <Button
@@ -72,13 +76,15 @@ export function MicrosoftTaskSuggestions({
           >
             <ListTodo className="size-3.5" strokeWidth={APP_ICON_STROKE} />
             {applying
-              ? "Legt an…"
-              : `Aufgaben übernehmen${selected.length ? ` (${selected.length})` : ""}`}
+              ? t("microsoft.creating")
+              : selected.length
+                ? t("microsoft.applyTasksN", { count: selected.length })
+                : t("microsoft.applyTasks")}
           </Button>
         ) : null}
         {usedAi ? (
           <span className="text-[0.6875rem] text-muted-foreground">
-            Firmen-KI
+            {t("common.companyAi")}
           </span>
         ) : null}
       </div>
@@ -88,7 +94,7 @@ export function MicrosoftTaskSuggestions({
         </p>
       ) : null}
       {suggestions.length === 0 && !loading ? (
-        <p className="text-xs text-muted-foreground">{emptyHint}</p>
+        <p className="text-xs text-muted-foreground">{resolvedEmpty}</p>
       ) : null}
       {suggestions.length > 0 ? (
         <ul className="space-y-2">

@@ -3,6 +3,7 @@
 import { MessagesSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
+import { useT } from "@/components/i18n/locale-provider";
 import type { MailThreadCoverage } from "@/lib/mail/mail-threads";
 
 /**
@@ -21,26 +22,30 @@ export function MailAnalysisThreadHint({
   /** Smaller inline line under the analysis card title. */
   compact?: boolean;
 }) {
+  const t = useT();
   const hasCoverage = coverage && coverage.total > 0;
   const stats =
     hasCoverage &&
-    `${coverage.inRange} im Zeitraum` +
+    t("mail.inRange", { count: coverage.inRange }) +
       (coverage.context > 0
-        ? ` · ${coverage.context} Kontext ausserhalb`
-        : " · kein Extra-Kontext") +
-      ` · ${coverage.threads} Thread${coverage.threads === 1 ? "" : "s"}` +
+        ? t("mail.extraContext", { count: coverage.context })
+        : t("mail.noExtraContext")) +
+      t(
+        coverage.threads === 1 ? "mail.threadCount" : "mail.threadCountPlural",
+        { count: coverage.threads }
+      ) +
       (coverage.threadsWithContext > 0
-        ? ` (${coverage.threadsWithContext} mit Verlauf ausserhalb)`
+        ? t("mail.threadsWithHistory", { count: coverage.threadsWithContext })
         : "");
 
   const clusterLine =
     typeof clusterCount === "number" && hasCoverage
-      ? `${clusterCount} Cluster` +
+      ? t("mail.clusterCountPlural", { count: clusterCount }) +
         (coverage.threads > 0
-          ? ` · Ziel ~${coverage.threads} (ein Cluster pro Thread)`
+          ? t("mail.clusterTarget", { count: coverage.threads })
           : "")
       : typeof clusterCount === "number"
-        ? `${clusterCount} Cluster`
+        ? t("mail.clusterCountPlural", { count: clusterCount })
         : null;
 
   if (compact) {
@@ -51,10 +56,10 @@ export function MailAnalysisThreadHint({
           className
         )}
       >
-        <span className="font-medium text-foreground">Threads:</span> kompletter
-        Verlauf, ein Cluster pro Gespräch
-        {stats ? <> — {stats}</> : null}
-        {clusterLine ? <> · {clusterLine}</> : null}.
+        {t("mail.threadsCompact", {
+          stats: stats ? ` — ${stats}` : "",
+          clusters: clusterLine ? ` · ${clusterLine}` : "",
+        })}
       </p>
     );
   }
@@ -74,30 +79,23 @@ export function MailAnalysisThreadHint({
       />
       <div className="min-w-0 space-y-1">
         <p className="font-semibold tracking-tight">
-          Vollständige Threads · ein Cluster pro Gespräch
+          {t("mail.threadsTitle")}
         </p>
         <p className="text-xs text-sky-950/85">
-          Zu jeder Mail im Von–Bis-Zeitraum wird der{" "}
-          <strong className="font-semibold">gesamte Gesprächsverlauf</strong>{" "}
-          nachgeladen. Die AI legt{" "}
-          <strong className="font-semibold">
-            pro Thread (bzw. Einzelmail) einen eigenen Cluster
-          </strong>{" "}
-          an — inkl. FYI/Newsletter und erledigter Themen. Mails mit
-          Betreff «[SYSTEM INFOBOARD]» oder «[Monitoring]» sowie deine
-          Absender-Blacklist fehlen in Chronik und Analyse.
-          Offene Handlungen stehen zuerst; der Rest hinter «Alle Threads zeigen».
-          Frühere Analysen blenden nichts aus.
+          {t("mail.threadsBody")}
         </p>
         {stats ? (
           <p className="text-xs font-medium tabular-nums text-sky-900">
-            Geladen: {stats}
-            {clusterLine ? ` · Analyse: ${clusterLine}` : ""}
+            {t("mail.loadedStats", {
+              stats,
+              analysis: clusterLine
+                ? t("mail.analysisColon", { line: clusterLine })
+                : "",
+            })}
           </p>
         ) : (
           <p className="text-xs text-sky-900/70">
-            Nach «Aktualisieren» oder Analyse start erscheinen hier die
-            Thread-Zahlen.
+            {t("mail.waitForStats")}
           </p>
         )}
       </div>

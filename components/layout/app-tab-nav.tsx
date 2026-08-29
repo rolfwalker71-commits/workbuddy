@@ -5,6 +5,7 @@ import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { IconTone } from "@/components/layout/icon-circle";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/components/i18n/locale-provider";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -78,6 +79,7 @@ export function AppTabNav<T extends string>({
   /** Secondary actions in «…» — keep primary row ≤4 for PWA thumb reach. */
   overflowItems?: AppTabOverflowItem[];
 }) {
+  const t = useT();
   const activeText = accentActive[accent];
   const solid = accentSolid[accent];
   const hasOverflow = Boolean(overflowItems && overflowItems.length > 0);
@@ -106,7 +108,7 @@ export function AppTabNav<T extends string>({
                       overflowActive ? "text-foreground" : "text-foreground/55"
                     )
               }
-              aria-label="Weitere Aktionen"
+              aria-label={t("common.moreActions")}
             />
           }
         >
@@ -191,7 +193,7 @@ export function AppTabNav<T extends string>({
           !alwaysBottom && "md:hidden",
           className
         )}
-        aria-label="Bereiche"
+        aria-label={t("common.areas")}
       >
         <div className="pointer-events-auto mx-3 mb-[max(0.5rem,env(safe-area-inset-bottom))] rounded-xl border border-border/60 bg-card px-1.5 pt-1.5 pb-1.5 shadow-[0_8px_32px_rgba(20,32,28,0.14)]">
           <div className="mx-auto flex max-w-lg items-stretch justify-between gap-0.5">

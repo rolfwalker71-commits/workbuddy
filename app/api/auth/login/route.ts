@@ -27,6 +27,7 @@ import {
   getAppUserByEmail,
   getAppUserByUsername,
 } from "@/lib/users/queries";
+import { tRequest } from "@/lib/i18n/request-locale";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,8 +50,7 @@ export async function POST(request: Request) {
   if (!config.configured) {
     return NextResponse.json(
       {
-        error:
-          "Die Anmeldung ist auf dem Server noch nicht vollständig konfiguriert.",
+        error: await tRequest("auth.notConfigured"),
       },
       { status: 503 }
     );
@@ -62,8 +62,7 @@ export async function POST(request: Request) {
   if (!rateLimit.allowed) {
     return NextResponse.json(
       {
-        error:
-          "Zu viele fehlgeschlagene Anmeldeversuche. Bitte später erneut versuchen.",
+        error: await tRequest("auth.tooManyTries"),
       },
       {
         status: 429,
@@ -76,7 +75,7 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     recordLoginFailure(address);
     return NextResponse.json(
-      { error: "Benutzername oder Passwort ist falsch." },
+      { error: await tRequest("auth.badCredentials") },
       { status: 401 }
     );
   }
@@ -130,7 +129,7 @@ export async function POST(request: Request) {
   if (!token) {
     recordLoginFailure(address);
     return NextResponse.json(
-      { error: "Benutzername oder Passwort ist falsch." },
+      { error: await tRequest("auth.badCredentials") },
       { status: 401 }
     );
   }

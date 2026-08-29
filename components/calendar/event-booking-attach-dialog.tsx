@@ -18,6 +18,7 @@ import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import type { EventBookingRef, EventMeetingKind } from "@/lib/mari/event-booking-ref";
 import type { MariTimeBookFavorite } from "@/lib/mari/time-book-favorites";
 import type { MariKeyPair } from "@/lib/mari/timekeeping-shared";
+import { useT } from "@/components/i18n/locale-provider";
 import { formatMariProjectLabel } from "@/lib/mari/timekeeping-shared";
 
 export type EventBookingAttachTarget = {
@@ -91,6 +92,7 @@ export function EventBookingAttachDialog({
   meetingKind: EventMeetingKind;
   onSaved?: (booking: EventBookingRef) => void;
 }) {
+  const t = useT();
   const internal = meetingKind === "internal";
   const [customerQuery, setCustomerQuery] = useState("");
   const [customerSearching, setCustomerSearching] = useState(false);
@@ -352,7 +354,7 @@ export function EventBookingAttachDialog({
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Speichern fehlgeschlagen");
+      if (!res.ok) throw new Error(data.error || t("common.saveFailed"));
       onSaved?.(data.booking as EventBookingRef);
       onOpenChange(false);
     } catch (err) {
@@ -370,8 +372,8 @@ export function EventBookingAttachDialog({
   );
   const title =
     internal && !hasCustomer
-      ? "Internes Projekt merken"
-      : "Kunde / Projekt / Vertrag";
+      ? t("calendarUi.rememberInternal")
+      : t("calendarUi.customerProjectContract");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -380,8 +382,8 @@ export function EventBookingAttachDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
             {internal && !hasCustomer
-              ? "Für spätere Stundenbuchung: internes Projekt, in der Regel ohne Vertrag. Bei Serie gilt das für alle Folgetermine."
-              : "Für spätere Stundenbuchung merken. Bei Serie gilt das für alle Folgetermine."}
+              ? t("calendarUi.bookingInternalHint")
+              : t("calendarUi.bookingHint")}
           </DialogDescription>
         </DialogHeader>
 
@@ -396,7 +398,7 @@ export function EventBookingAttachDialog({
             <div className="space-y-1.5">
               <div className="flex items-center gap-1.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-muted-foreground">
                 <Star className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-                Favoriten
+                {t("common.favorites")}
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {favorites.map((fav) => (
@@ -416,7 +418,7 @@ export function EventBookingAttachDialog({
           ) : null}
 
           <div className="space-y-1">
-            <Label htmlFor="eb-kunde">Kunde</Label>
+            <Label htmlFor="eb-kunde">{t("workspace.customer")}</Label>
             <Input
               id="eb-kunde"
               value={customerSearching ? customerQuery : selectedCustomer}
@@ -432,7 +434,7 @@ export function EventBookingAttachDialog({
                 setCustomerSearching(true);
                 if (!customerQuery) setCustomerQuery(selectedCustomer);
               }}
-              placeholder="Kunde suchen (Name oder CardCode)"
+              placeholder={t("calendarUi.searchCustomer")}
               autoComplete="off"
             />
             {customerSearching && customers.length > 0 ? (
@@ -459,7 +461,7 @@ export function EventBookingAttachDialog({
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="eb-project">Projekt</Label>
+            <Label htmlFor="eb-project">{t("common.project")}</Label>
             <Input
               id="eb-project"
               value={
@@ -476,8 +478,8 @@ export function EventBookingAttachDialog({
               }}
               placeholder={
                 internal && !hasCustomer
-                  ? "Internes Projekt oder Favorit"
-                  : "Suche z.B. Werk oder P200000"
+                  ? t("calendarUi.internalProjectOrFav")
+                  : t("calendarUi.searchProject")
               }
               autoComplete="off"
             />
@@ -486,8 +488,8 @@ export function EventBookingAttachDialog({
                 {projects.length === 0 ? (
                   <li className="px-2.5 py-2 text-xs text-muted-foreground">
                     {cardCode && !projectQuery.trim()
-                      ? "Keine Projekte zu diesem Kunden"
-                      : "Keine Treffer"}
+                      ? t("calendarUi.noProjectsForCustomer")
+                      : t("common.noResults")}
                   </li>
                 ) : (
                   projects.slice(0, 80).map((p) => (
@@ -514,12 +516,12 @@ export function EventBookingAttachDialog({
 
           <MariKeyPairPicker
             id="eb-contract"
-            label="Vertrag"
+            label={t("timekeeping.contract")}
             value={contractId}
             valueLabel={contractVisible || contractId || null}
             options={contracts}
-            placeholder="Vertrag wählen…"
-            emptyLabel="Kein Vertrag nötig"
+            placeholder={t("calendarUi.chooseContract")}
+            emptyLabel={t("calendarUi.noContractNeeded")}
             disabled={!projectNumber}
             onChange={(next) => {
               setContractId(next);
@@ -535,10 +537,10 @@ export function EventBookingAttachDialog({
             variant="outline"
             onClick={() => onOpenChange(false)}
           >
-            Abbrechen
+            {t("common.cancel")}
           </Button>
           <Button type="button" disabled={busy} onClick={() => void save()}>
-            Speichern
+            {t("common.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

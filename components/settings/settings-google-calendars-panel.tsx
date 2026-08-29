@@ -22,6 +22,8 @@ import {
   type IcsCalendarType,
 } from "@/lib/calendar/ics-types";
 import { cn } from "@/lib/utils";
+import { useLocale, useT } from "@/components/i18n/locale-provider";
+import { icsTypeDisplayLabel } from "@/lib/i18n/display";
 
 type CalType = IcsCalendarType;
 
@@ -71,6 +73,8 @@ type DraftRow = {
 };
 
 export function SettingsGoogleCalendarsPanel() {
+  const t = useT();
+  const { locale } = useLocale();
   const [calendars, setCalendars] = useState<GoogleCal[]>([]);
   const [types, setTypes] = useState<TypeMeta[]>(FALLBACK_TYPES);
   const [connected, setConnected] = useState(false);
@@ -93,7 +97,7 @@ export function SettingsGoogleCalendarsPanel() {
       const json = await gRes.json();
       const icsJson = await icsRes.json().catch(() => ({}));
       if (!gRes.ok && !json.calendars) {
-        throw new Error(json.error || "Google-Kalender laden fehlgeschlagen");
+        throw new Error(json.error || t("settings.gCalLoadFailed"));
       }
       if (Array.isArray(icsJson.types) && icsJson.types.length > 0) {
         setTypes(icsJson.types as TypeMeta[]);
@@ -119,7 +123,7 @@ export function SettingsGoogleCalendarsPanel() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -167,7 +171,7 @@ export function SettingsGoogleCalendarsPanel() {
         body: JSON.stringify({ selections }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Speichern fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("common.saveFailed"));
       const list = (json.calendars || []) as GoogleCal[];
       setCalendars(list);
       const next: Record<string, DraftRow> = {};
@@ -181,9 +185,7 @@ export function SettingsGoogleCalendarsPanel() {
         };
       }
       setDraft(next);
-      setStatus(
-        `${selections.length} Google-Kalender für Buddy gespeichert.`
-      );
+      setStatus(t("settings.gCalSaved", { count: selections.length }));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -215,12 +217,12 @@ export function SettingsGoogleCalendarsPanel() {
   );
 
   const collapsedHint = loading
-    ? "Lädt…"
+    ? t("settings.calLoading")
     : !connected
-      ? "Nicht verbunden"
+      ? t("closeout.notConnected")
       : !hasCalendarScope
-        ? "Recht fehlt"
-        : `${activeCount} aktiv`;
+        ? t("settings.rightMissing")
+        : t("settings.activeCount", { count: activeCount });
 
   return (
     <Card>
@@ -234,7 +236,7 @@ export function SettingsGoogleCalendarsPanel() {
         >
           <CardTitle className="flex min-w-0 flex-1 items-center gap-3">
             <IconCircle icon={CalendarRange} tone="teal" size="sm" />
-            <span className="min-w-0 flex-1 truncate">Google-Kalender</span>
+            <span className="min-w-0 flex-1 truncate">{t("settings.gCalendars")}</span>
             {!open ? (
               <span className="shrink-0 text-sm font-normal text-muted-foreground">
                 {collapsedHint}
@@ -253,38 +255,35 @@ export function SettingsGoogleCalendarsPanel() {
       {open ? (
       <CardContent className="space-y-4 pt-0">
         <p className="text-sm text-muted-foreground">
-          Kalender aus deinem Google-Konto anhaken und Typ/Farbe setzen.
-          «Relevant für Terminplanung» steuert, ob Termine den Fokus «nächster
-          Termin» und Konflikte beeinflussen (z.&nbsp;B. Partner-Dienstplan =
-          aus).
+          {t("settings.gCalHint")}
         </p>
 
         {loading ? (
-          <p className="text-sm text-muted-foreground">Lade…</p>
+          <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
         ) : !connected ? (
           <div className="space-y-2">
             <p className="text-sm text-amber-800">
-              Noch kein Google-Konto verbunden.
+              {t("settings.noGoogleYet")}
             </p>
             <a
               href="/api/google/oauth/start"
               className={cn(buttonVariants({ variant: "outline" }), "gap-1.5")}
             >
               <Link2 className="size-3.5" />
-              Google verbinden
+              {t("settings.connectGoogleShort")}
             </a>
           </div>
         ) : !hasCalendarScope ? (
           <div className="space-y-2">
             <p className="text-sm text-amber-800">
-              Verbindung ohne Kalender-Recht — bitte neu verbinden.
+              {t("settings.noCalScope")}
             </p>
             <a
               href="/api/google/oauth/start"
               className={cn(buttonVariants({ variant: "outline" }), "gap-1.5")}
             >
               <Link2 className="size-3.5" />
-              Neu verbinden (Kalender)
+              {t("settings.reconnectCal")}
             </a>
           </div>
         ) : (
@@ -302,7 +301,7 @@ export function SettingsGoogleCalendarsPanel() {
 
             {calendars.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Keine Kalender von Google erhalten.
+                {t("settings.noCalsFromGoogle")}
               </p>
             ) : (
               <ul className="space-y-3">
@@ -331,7 +330,7 @@ export function SettingsGoogleCalendarsPanel() {
                           onChange={(e) =>
                             patchDraft(c.id, { on: e.target.checked })
                           }
-                          aria-label={`${c.name} in Buddy zeigen`}
+                          aria-label={t("settings.showInBuddy", { name: c.name })}
                         />
                         <div className="min-w-0 flex-1 space-y-2">
                           <div className="flex flex-wrap items-center gap-2">
@@ -341,12 +340,12 @@ export function SettingsGoogleCalendarsPanel() {
                                 variant="secondary"
                                 className="text-[0.625rem]"
                               >
-                                Primär
+                                {t("common.primary")}
                               </Badge>
                             ) : null}
                             {d.on && !d.planningRelevant ? (
                               <Badge variant="outline" className="text-[0.625rem]">
-                                Nur Referenz
+                                {t("settings.referenceOnly")}
                               </Badge>
                             ) : null}
                           </div>
@@ -354,7 +353,7 @@ export function SettingsGoogleCalendarsPanel() {
                             <div className="space-y-3">
                               <div className="grid gap-3 sm:grid-cols-2">
                               <div className="space-y-1">
-                                <Label className="text-xs">Typ</Label>
+                                <Label className="text-xs">{t("common.type")}</Label>
                                 <Select
                                   value={d.type}
                                   onValueChange={(v) =>
@@ -369,14 +368,14 @@ export function SettingsGoogleCalendarsPanel() {
                                   <SelectContent>
                                     {types.map((t) => (
                                       <SelectItem key={t.id} value={t.id}>
-                                        {t.label}
+                                        {icsTypeDisplayLabel(t.id, locale, t.label)}
                                       </SelectItem>
                                     ))}
                                   </SelectContent>
                                 </Select>
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs">Farbe</Label>
+                                <Label className="text-xs">{t("common.color")}</Label>
                                 <div className="flex flex-wrap items-center gap-1.5">
                                   {PRESET_COLORS.map((hex) => (
                                     <Button
@@ -423,10 +422,9 @@ export function SettingsGoogleCalendarsPanel() {
                                   }
                                 />
                                 <span>
-                                  Relevant für Terminplanung
+                                  {t("settings.planningRelevant")}
                                   <span className="mt-0.5 block text-[0.6875rem] text-muted-foreground/90">
-                                    Aus = nur Referenz: sichtbar, ohne Fokus /
-                                    Konflikte
+                                    {t("settings.planningOffHint")}
                                   </span>
                                 </span>
                               </label>
@@ -435,10 +433,10 @@ export function SettingsGoogleCalendarsPanel() {
                           {d.on && isWorkCalendarType(d.type) ? (
                             <p className="text-[0.6875rem] text-muted-foreground">
                               {d.type === "work_rolf"
-                                ? "Arbeit Rolf: AI-Bilder mit Mann."
+                                ? t("settings.workRolfHint")
                                 : d.type === "work_valentyna"
-                                  ? "Arbeit Valentyna: AI-Bilder mit Frau."
-                                  : "Arbeit: AI-Bilder standardmässig mit Mann (außer Valentyna im Kalendernamen)."}
+                                  ? t("settings.workValentynaHint")
+                                  : t("settings.workHint")}
                             </p>
                           ) : null}
                         </div>
@@ -455,7 +453,7 @@ export function SettingsGoogleCalendarsPanel() {
                 disabled={saving || !dirty}
                 onClick={() => void save()}
               >
-                Auswahl speichern
+                {t("settings.saveSelection")}
               </Button>
               <Button
                 type="button"
@@ -463,7 +461,7 @@ export function SettingsGoogleCalendarsPanel() {
                 disabled={saving}
                 onClick={() => void load()}
               >
-                Neu laden
+                {t("common.reload")}
               </Button>
             </div>
           </>

@@ -1,3 +1,6 @@
+import { translate, type Locale } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n/messages/types";
+
 export const ACTIVITY_EVENT_VALUES = [
   "login",
   "logout",
@@ -53,21 +56,37 @@ function isFailed(detail: Record<string, unknown>): boolean {
   return false;
 }
 
+const ACTIVITY_MESSAGE: Record<ActivityEventValue, MessageKey> = {
+  login: "activity.login",
+  logout: "activity.logout",
+  session_expired: "activity.sessionExpired",
+  ticket_analysis: "activity.ticketAnalysis",
+  mail_day_analysis: "activity.mailDayAnalysis",
+};
+
 /** Kurzdetail: `Ticket #144647` or `28.08.–29.08. · Outlook`. */
 export function formatActivityDetail(input: {
   event: string;
   detail: ActivityDetailRecord;
+  locale?: Locale | string;
 }): string {
+  const locale = input.locale ?? "de";
   const detail = input.detail;
-  if (!detail) return "—";
+  if (!detail) return translate(locale, "common.dash");
 
   if (input.event === "ticket_analysis") {
     const id =
       asString(detail.issueId) ||
       asString(detail.ticketId) ||
       asString(detail.id);
-    if (!id) return isFailed(detail) ? "fehlgeschlagen" : "—";
-    return isFailed(detail) ? `Ticket #${id} · fehlgeschlagen` : `Ticket #${id}`;
+    if (!id) {
+      return isFailed(detail)
+        ? translate(locale, "activity.failed")
+        : translate(locale, "common.dash");
+    }
+    return isFailed(detail)
+      ? translate(locale, "activity.ticketFailed", { id })
+      : translate(locale, "activity.ticketNum", { id });
   }
 
   if (input.event === "mail_day_analysis") {
@@ -83,17 +102,18 @@ export function formatActivityDetail(input: {
     const parts = [
       range || null,
       provider,
-      isFailed(detail) ? "fehlgeschlagen" : null,
+      isFailed(detail) ? translate(locale, "activity.failed") : null,
     ].filter(Boolean);
-    return parts.length ? parts.join(" · ") : "—";
+    return parts.length ? parts.join(" · ") : translate(locale, "common.dash");
   }
 
-  return "—";
+  return translate(locale, "common.dash");
 }
 
-export function activityEventLabel(event: string): string {
-  if (event in ACTIVITY_EVENT_LABELS) {
-    return ACTIVITY_EVENT_LABELS[event as ActivityEventValue];
-  }
-  return event;
+export function activityEventLabel(
+  event: string,
+  locale: Locale | string = "de"
+): string {
+  const key = ACTIVITY_MESSAGE[event as ActivityEventValue];
+  return key ? translate(locale, key) : event;
 }

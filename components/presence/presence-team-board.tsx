@@ -8,7 +8,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/layout/page-primitives";
+import { TranslatedPageHeader } from "@/components/layout/translated-page-header";
 import { pageVisuals } from "@/components/layout/icon-circle";
 import {
   segmentedTrackClass,
@@ -33,8 +33,6 @@ import {
   groupPresencePeople,
   isOwnDayLocked,
   organizationLabel,
-  PRESENCE_GROUP_LABELS,
-  PRESENCE_STATUS_LABELS,
   PRESENCE_STATUS_SURFACE,
   presenceSourceHint,
   deleteOwnDayStatus,
@@ -45,21 +43,32 @@ import {
   type PresenceTodayResponse,
 } from "@/lib/presence/client";
 import {
-  USER_ORGANIZATION_LABELS,
   USER_ORGANIZATIONS,
   type UserOrganization,
 } from "@/lib/users/organization";
 import type { HomeAbsenceState } from "@/lib/dashboard/home-surfaces-shared";
 import type { PresenceStatus } from "@/lib/presence/status";
 import { formatSwissDateRange } from "@/lib/utils/dates";
+import { useLocale, useT } from "@/components/i18n/locale-provider";
+import {
+  organizationDisplayLabel,
+  presenceDisplayLabel,
+} from "@/lib/i18n/display";
+import type { MessageKey } from "@/lib/i18n";
 
 type OrgFilter = "" | UserOrganization;
 type BoardView = "day" | "week";
 
 const GROUP_ORDER: PresenceGroupId[] = ["here", "away", "open"];
 
-function formatLongDeDate(ymd: string): string {
-  return new Intl.DateTimeFormat("de-CH", {
+const GROUP_KEYS: Record<PresenceGroupId, MessageKey> = {
+  here: "presence.here",
+  away: "presence.away",
+  open: "presence.open",
+};
+
+function formatLongDate(ymd: string, intl: string): string {
+  return new Intl.DateTimeFormat(intl, {
     timeZone: "Europe/Zurich",
     weekday: "long",
     day: "numeric",
@@ -68,15 +77,15 @@ function formatLongDeDate(ymd: string): string {
   }).format(new Date(`${ymd}T12:00:00Z`));
 }
 
-function weekdayShort(ymd: string): string {
-  return new Intl.DateTimeFormat("de-CH", {
+function weekdayShort(ymd: string, intl: string): string {
+  return new Intl.DateTimeFormat(intl, {
     timeZone: "UTC",
     weekday: "short",
   }).format(new Date(`${ymd}T12:00:00Z`));
 }
 
-function weekdayLong(ymd: string): string {
-  const raw = new Intl.DateTimeFormat("de-CH", {
+function weekdayLong(ymd: string, intl: string): string {
+  const raw = new Intl.DateTimeFormat(intl, {
     timeZone: "UTC",
     weekday: "long",
   }).format(new Date(`${ymd}T12:00:00Z`));
@@ -101,17 +110,22 @@ function WeekSelfDayCell({
   person: PresencePersonView | null;
   onOpen: () => void;
 }) {
+  const t = useT();
+  const { locale, intlLocale } = useLocale();
   const status = person?.status ?? null;
   const hasArt = Boolean(status);
-  const hint = presenceSourceHint(person?.source ?? null);
-  const statusLabel = status ? PRESENCE_STATUS_LABELS[status] : "Offen";
+  const hint = presenceSourceHint(person?.source ?? null, locale);
+  const statusLabel = status
+    ? presenceDisplayLabel(status, locale)
+    : t("presence.open");
+  const dayName = weekdayLong(day, intlLocale);
 
   return (
     <button
       type="button"
       data-segment="true"
       disabled={!person}
-      aria-label={`${weekdayLong(day)}: ${statusLabel}${hint ? ` · ${hint}` : ""}`}
+      aria-label={`${dayName}: ${statusLabel}${hint ? ` · ${hint}` : ""}`}
       aria-current={day === today ? "date" : undefined}
       onClick={() => {
         if (!person) return;
@@ -130,7 +144,7 @@ function WeekSelfDayCell({
       <div className="relative z-10 flex min-h-[6.5rem] flex-col justify-between p-1.5">
         <PresenceGlassPanel className={cn("self-start", WEEK_SELF_CHIP)}>
           <span className="block truncate text-xs font-bold leading-none text-foreground">
-            {weekdayLong(day)}
+            {dayName}
           </span>
         </PresenceGlassPanel>
         <PresenceGlassPanel
@@ -162,6 +176,8 @@ async function fetchAbsenceToday(): Promise<HomeAbsenceState | null> {
 
 export function PresenceTeamBoard() {
   const { me } = useAuth();
+  const t = useT();
+  const { locale, intlLocale } = useLocale();
   const today = zurichYmd();
   const [view, setView] = useState<BoardView>("day");
   const [ymd, setYmd] = useState(today);
@@ -275,9 +291,9 @@ export function PresenceTeamBoard() {
       }
     }
     return [...byId.values()].sort((a, b) =>
-      a.displayName.localeCompare(b.displayName, "de")
+      a.displayName.localeCompare(b.displayName, locale)
     );
-  }, [weekByYmd, weekDays]);
+  }, [locale, weekByYmd, weekDays]);
 
   function shiftDay(delta: number) {
     setYmd((prev) => addDaysYmd(prev, delta));
@@ -358,9 +374,9 @@ export function PresenceTeamBoard() {
 
   return (
     <div className="space-y-6 pb-28 md:pb-0">
-      <PageHeader
-        title="Team"
-        description="Wer ist da, wer nicht — nach Organisation und Tag."
+      <TranslatedPageHeader
+        titleKey="team.title"
+        descriptionKey="team.description"
         icon={pageVisuals.team.icon}
         tone={pageVisuals.team.tone}
       />
@@ -369,7 +385,7 @@ export function PresenceTeamBoard() {
         <div
           className={cn(segmentedTrackClass, "w-fit")}
           role="tablist"
-          aria-label="Ansicht"
+          aria-label={t("common.view")}
         >
           <Button
             type="button"
@@ -381,7 +397,7 @@ export function PresenceTeamBoard() {
             onClick={() => setView("day")}
           >
             <Calendar className="size-4" strokeWidth={APP_ICON_STROKE} />
-            Tag
+            {t("common.day")}
           </Button>
           <Button
             type="button"
@@ -393,7 +409,7 @@ export function PresenceTeamBoard() {
             onClick={() => setView("week")}
           >
             <CalendarRange className="size-4" strokeWidth={APP_ICON_STROKE} />
-            Woche
+            {t("common.week")}
           </Button>
         </div>
 
@@ -403,7 +419,9 @@ export function PresenceTeamBoard() {
             variant="outline"
             size="icon"
             className="size-10"
-            aria-label={view === "week" ? "Vorherige Woche" : "Vorheriger Tag"}
+            aria-label={
+              view === "week" ? t("presence.previousWeek") : t("presence.previousDay")
+            }
             onClick={() =>
               view === "week" ? shiftWeek(-1) : shiftDay(-1)
             }
@@ -414,11 +432,11 @@ export function PresenceTeamBoard() {
             <p className="break-words text-base font-semibold capitalize leading-snug">
               {view === "week"
                 ? formatSwissDateRange(weekDays[0], weekDays[4])
-                : formatLongDeDate(ymd)}
+                : formatLongDate(ymd, intlLocale)}
             </p>
             {view === "week" ? (
               <p className="text-xs text-muted-foreground">
-                Montag bis Freitag
+                {t("presence.monFri")}
               </p>
             ) : null}
           </div>
@@ -427,7 +445,9 @@ export function PresenceTeamBoard() {
             variant="outline"
             size="icon"
             className="size-10"
-            aria-label={view === "week" ? "Nächste Woche" : "Nächster Tag"}
+            aria-label={
+              view === "week" ? t("presence.nextWeek") : t("presence.nextDay")
+            }
             onClick={() => (view === "week" ? shiftWeek(1) : shiftDay(1))}
           >
             <ChevronRight className="size-4" />
@@ -439,7 +459,7 @@ export function PresenceTeamBoard() {
               size="sm"
               onClick={() => setYmd(today)}
             >
-              Heute
+              {t("common.today")}
             </Button>
           ) : null}
         </div>
@@ -447,7 +467,7 @@ export function PresenceTeamBoard() {
         <div
           className={cn(segmentedTrackClass, "w-full max-w-full flex-nowrap")}
           role="radiogroup"
-          aria-label="Organisation"
+          aria-label={t("common.organization")}
         >
           <Button
             type="button"
@@ -458,7 +478,7 @@ export function PresenceTeamBoard() {
             className={cn(segmentedTriggerClass(org === ""), "flex-1")}
             onClick={() => setOrg("")}
           >
-            Alle
+            {t("common.all")}
           </Button>
           {USER_ORGANIZATIONS.map((code) => (
             <Button
@@ -467,8 +487,8 @@ export function PresenceTeamBoard() {
               variant="ghost"
               role="radio"
               aria-checked={org === code}
-              aria-label={USER_ORGANIZATION_LABELS[code]}
-              title={USER_ORGANIZATION_LABELS[code]}
+              aria-label={organizationDisplayLabel(code, locale)}
+              title={organizationDisplayLabel(code, locale)}
               {...segmentedTriggerProps}
               className={cn(segmentedTriggerClass(org === code), "flex-1")}
               onClick={() => setOrg(code)}
@@ -479,14 +499,14 @@ export function PresenceTeamBoard() {
         </div>
         {org ? (
           <p className="text-xs text-muted-foreground">
-            {USER_ORGANIZATION_LABELS[org]}
+            {organizationDisplayLabel(org, locale)}
           </p>
         ) : null}
       </div>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       {!dayData && view === "day" && !error ? (
-        <p className="text-sm text-muted-foreground">Lade Team…</p>
+        <p className="text-sm text-muted-foreground">{t("presence.loadingTeam")}</p>
       ) : null}
 
       {view === "day" && dayData ? (
@@ -494,13 +514,13 @@ export function PresenceTeamBoard() {
           {GROUP_ORDER.map((groupId) => (
             <section key={groupId} className="space-y-2">
               <h2 className="text-sm font-bold tracking-tight">
-                {PRESENCE_GROUP_LABELS[groupId]}
+                {t(GROUP_KEYS[groupId])}
                 <span className="ml-1.5 font-medium text-muted-foreground">
                   {groups[groupId].length}
                 </span>
               </h2>
               {groups[groupId].length === 0 ? (
-                <p className="text-sm text-muted-foreground">Niemand</p>
+                <p className="text-sm text-muted-foreground">{t("common.nobody")}</p>
               ) : (
                 <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                   {groups[groupId].map((person) => {
@@ -532,9 +552,9 @@ export function PresenceTeamBoard() {
       {view === "week" ? (
         <div className="space-y-4">
           <section className="space-y-2">
-            <h2 className="text-sm font-bold tracking-tight">Deine Woche</h2>
+            <h2 className="text-sm font-bold tracking-tight">{t("presence.yourWeek")}</h2>
             <p className="text-xs text-muted-foreground">
-              Tippe einen Tag, um ihn zu setzen.
+              {t("presence.tapDay")}
             </p>
             <div className={cn(WEEK_DAY_GRID, WEEK_DAY_INSET)}>
               {weekDays.map((day) => {
@@ -557,10 +577,10 @@ export function PresenceTeamBoard() {
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-sm font-bold tracking-tight">Kolleginnen und Kollegen</h2>
+            <h2 className="text-sm font-bold tracking-tight">{t("presence.colleagues")}</h2>
             {weekPeople.filter((p) => p.userId !== self?.userId).length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Niemand in diesem Filter.
+                {t("presence.nobodyInFilter")}
               </p>
             ) : (
               <ul className="space-y-2">
@@ -575,7 +595,7 @@ export function PresenceTeamBoard() {
                         {person.displayName}
                       </p>
                       <p className="mb-2 text-[0.7rem] text-muted-foreground">
-                        {organizationLabel(person.organization)}
+                        {organizationLabel(person.organization, locale)}
                       </p>
                       <div className={WEEK_DAY_GRID}>
                         {weekDays.map((day) => {
@@ -593,12 +613,12 @@ export function PresenceTeamBoard() {
                               )}
                             >
                               <p className="text-[0.65rem] font-semibold uppercase">
-                                {weekdayShort(day)}
+                                {weekdayShort(day, intlLocale)}
                               </p>
                               <p className="break-words text-[0.7rem] leading-snug">
                                 {cell?.status
-                                  ? PRESENCE_STATUS_LABELS[cell.status]
-                                  : "Offen"}
+                                  ? presenceDisplayLabel(cell.status, locale)
+                                  : t("presence.open")}
                               </p>
                             </div>
                           );
@@ -621,8 +641,13 @@ export function PresenceTeamBoard() {
         ymd={selfTarget?.ymd || ymd}
         locked={isOwnDayLocked(selfTarget?.person.source ?? null)}
         lockedReason={
-          presenceSourceHint(selfTarget?.person.source ?? null)
-            ? `Dieser Tag wurde über ${presenceSourceHint(selfTarget?.person.source ?? null)} gesetzt.`
+          presenceSourceHint(selfTarget?.person.source ?? null, locale)
+            ? t("presence.lockedVia", {
+                source: presenceSourceHint(
+                  selfTarget?.person.source ?? null,
+                  locale
+                ),
+              })
             : null
         }
         busy={busy}

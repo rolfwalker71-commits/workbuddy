@@ -18,6 +18,7 @@ import {
 } from "@/lib/ui/action-feedback";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/components/i18n/locale-provider";
 
 type ToastItem = {
   id: string;
@@ -72,6 +73,7 @@ function sourceLabel(n: AppNotifyPayload): string {
  * Dismiss: X, click outside, Escape. Prefs from /api/me/notification-prefs.
  */
 export function RealtimeToasts() {
+  const t = useT();
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [prefs, setPrefs] = useState<UserNotificationPrefs>(() =>
     mergeNotificationPrefs(null)
@@ -209,10 +211,10 @@ export function RealtimeToasts() {
         reason: "mail_calendar_patch",
         headline:
           tone === "error"
-            ? "Fehler"
+            ? t("common.error")
             : tone === "info"
-              ? "Hinweis"
-              : "Aktion bestätigt",
+              ? t("common.notice")
+              : t("common.actionConfirmed"),
         detail: raw.detail || null,
         title: raw.headline,
         href: null,
@@ -274,7 +276,7 @@ export function RealtimeToasts() {
       <Button
         type="button"
         variant="ghost"
-        aria-label="Benachrichtigungen schliessen"
+        aria-label={t("realtime.closeToasts")}
         className="fixed inset-0 z-[79] h-auto w-auto cursor-default rounded-none border-0 bg-transparent p-0 hover:bg-transparent"
         onClick={() => dismissAll()}
       />
@@ -329,11 +331,11 @@ export function RealtimeToasts() {
                   >
                     {n.headline}
                     <span className="ml-1.5 font-normal normal-case tracking-normal text-muted-foreground">
-                      · {toast.local ? "Aufgabe" : sourceLabel(n)}
+                      · {toast.local ? t("common.task") : sourceLabel(n)}
                     </span>
                   </p>
                   <p className="mt-0.5 truncate text-sm font-semibold leading-snug">
-                    {n.title || "Aktualisierung"}
+                    {n.title || t("common.update")}
                   </p>
                   {n.meta ? (
                     <p className="mt-0.5 truncate text-xs text-muted-foreground">
@@ -351,7 +353,7 @@ export function RealtimeToasts() {
                       className="mt-2 inline-block text-xs font-medium text-[var(--brand-docs)] underline-offset-2 hover:underline"
                       onClick={() => dismiss(toast.id)}
                     >
-                      Öffnen
+                      {t("common.open")}
                     </Link>
                   ) : null}
                 </div>
@@ -361,7 +363,7 @@ export function RealtimeToasts() {
                 variant="ghost"
                 size="icon-sm"
                 className="absolute right-1.5 top-1.5 z-10 rounded-full text-muted-foreground"
-                aria-label="Schliessen"
+                aria-label={t("common.close")}
                 onClick={() => dismiss(toast.id)}
               >
                 <X className="size-4" />
@@ -377,7 +379,7 @@ export function RealtimeToasts() {
             className="h-auto rounded-full border-border/60 bg-background/90 px-3 py-1.5 text-[0.6875rem] text-muted-foreground shadow-sm backdrop-blur"
             onClick={() => dismissAll()}
           >
-            Alle schliessen
+            {t("common.closeAll")}
           </Button>
           {prefs.enabled ? (
             <Button
@@ -386,10 +388,10 @@ export function RealtimeToasts() {
               size="sm"
               className="h-auto rounded-full border-border/60 bg-background/90 px-3 py-1.5 text-[0.6875rem] text-muted-foreground shadow-sm backdrop-blur"
               onClick={() => void disableNotifications()}
-              title="Live-Benachrichtigungen ausschalten"
+              title={t("realtime.muteTitle")}
             >
               <BellOff className="size-3" />
-              Benachrichtigungen aus
+              {t("realtime.notificationsOff")}
             </Button>
           ) : null}
         </div>

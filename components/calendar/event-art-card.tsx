@@ -9,6 +9,7 @@ import {
   type WorkspaceEventMari,
 } from "@/lib/workspace/event-mari-shared";
 import type { WorkspaceProvider } from "@/lib/workspace/merge-today";
+import { useT } from "@/components/i18n/locale-provider";
 import { cn } from "@/lib/utils";
 
 export type EventArtCardModel = EventArtSubject & {
@@ -23,10 +24,11 @@ export type EventArtCardModel = EventArtSubject & {
 };
 
 function EventArtCardHeader({ event }: { event: EventArtCardModel }) {
+  const t = useT();
   const art = resolveEventArt(event);
   const when = event.isAllDay
-    ? "Ganztägig"
-    : [event.time, event.endTime].filter(Boolean).join("–") || "Heute";
+    ? t("calendarUi.allDay")
+    : [event.time, event.endTime].filter(Boolean).join("–") || t("common.today");
   const booked = event.mari?.stampStatus === "booked";
   const split = booked
     ? hoursSplitFromStamp(event.mari?.hours, event.mari?.hoursBillable)

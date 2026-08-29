@@ -17,7 +17,9 @@ import type { MariTicketListItem } from "@/lib/mari/tickets";
 import type { MariCustomerOption } from "@/lib/mari/customers";
 import type { MariCalendarStamp } from "@/lib/mari/calendar-stamp";
 import { STATUS_LABELS } from "@/lib/mari/status";
+import { statusDisplayLabel } from "@/lib/i18n/display";
 import { formatSwissDate, toSwissTime } from "@/lib/utils/dates";
+import { useLocale, useT } from "@/components/i18n/locale-provider";
 
 export type AkteFilterCustomer = MariCustomerOption & {
   ticketCount: number;
@@ -72,6 +74,8 @@ function AkteDetailGrid({
   onAdhoc: (ticket: MariTicketListItem | null) => void;
   firstOpen: MariTicketListItem | null;
 }) {
+  const t = useT();
+  const { locale } = useLocale();
   return (
     <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
       <article className={panelCardClass}>
@@ -85,7 +89,7 @@ function AkteDetailGrid({
                   strokeWidth={APP_ICON_STROKE}
                 />
                 <span className="min-w-0 wrap-break-word">
-                  Überblick · {data.name}
+                  {t("tickets.overviewNamed", { name: data.name })}
                 </span>
               </p>
               <p className="text-xs text-muted-foreground">{data.cardCode}</p>
@@ -94,19 +98,19 @@ function AkteDetailGrid({
         ) : (
           <h4 className="flex items-center gap-1.5 text-sm font-bold">
             <FolderOpen className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
-            Überblick
+            {t("tickets.overview")}
           </h4>
         )}
         <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
           <div className="rounded-xl bg-muted px-2 py-2">
             <dt className="text-[0.625rem] uppercase tracking-wide text-muted-foreground">
-              Offen
+              {t("presence.open")}
             </dt>
             <dd className="text-lg font-black tabular-nums">{data.openCount}</dd>
           </div>
           <div className="rounded-xl bg-muted px-2 py-2">
             <dt className="text-[0.625rem] uppercase tracking-wide text-muted-foreground">
-              Diese Woche
+              {t("tickets.thisWeek")}
             </dt>
             <dd className="text-lg font-black tabular-nums">
               {data.hoursThisWeek.toFixed(2)} h
@@ -114,7 +118,7 @@ function AkteDetailGrid({
           </div>
           <div className="rounded-xl bg-muted px-2 py-2">
             <dt className="text-[0.625rem] uppercase tracking-wide text-muted-foreground">
-              Gesamt
+              {t("common.total")}
             </dt>
             <dd className="text-lg font-black tabular-nums">
               {data.hoursTotal.toFixed(2)} h
@@ -129,12 +133,12 @@ function AkteDetailGrid({
             onClick={() => onAdhoc(firstOpen)}
           >
             <CalendarPlus className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-            Termin
+            {t("tickets.appointment")}
           </Button>
           {firstOpen ? (
             <Button type="button" size="sm" onClick={() => onBook(firstOpen)}>
               <Clock3 className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-              Buchen
+              {t("common.book")}
             </Button>
           ) : null}
         </div>
@@ -143,24 +147,28 @@ function AkteDetailGrid({
       <article className={panelCardClass}>
         <h4 className="flex items-center gap-1.5 text-sm font-bold">
           <Ticket className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
-          Offene Tickets
+          {t("tickets.openTickets")}
         </h4>
         {data.tickets.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">Keine Tickets.</p>
+          <p className="mt-3 text-sm text-muted-foreground">{t("tickets.noTickets")}</p>
         ) : (
           <ul className="mt-3 max-h-[20rem] space-y-2 overflow-y-auto">
-            {data.tickets.slice(0, 20).map((t) => (
-              <li key={t.issueId}>
+            {data.tickets.slice(0, 20).map((ticket) => (
+              <li key={ticket.issueId}>
                 <button
                   type="button"
-                  onClick={() => onOpenTicket(t.issueId)}
+                  onClick={() => onOpenTicket(ticket.issueId)}
                   className={innerItemClass}
                 >
                   <span className="min-w-0 text-sm font-semibold leading-snug wrap-break-word line-clamp-2">
-                    #{t.issueId} {t.briefDescription}
+                    #{ticket.issueId} {ticket.briefDescription}
                   </span>
                   <span className="shrink-0 text-xs text-muted-foreground">
-                    {t.statusName || STATUS_LABELS[t.status] || t.status}
+                    {statusDisplayLabel(
+                      ticket.status,
+                      locale,
+                      ticket.statusName || STATUS_LABELS[ticket.status]
+                    )}
                   </span>
                 </button>
               </li>
@@ -172,11 +180,11 @@ function AkteDetailGrid({
       <article className={panelCardClass}>
         <h4 className="flex items-center gap-1.5 text-sm font-bold">
           <Clock3 className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
-          Stunden
+          {t("tickets.hours")}
         </h4>
         {data.lastLines.length === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">
-            Keine Stundenbuchungen.
+            {t("tickets.noHourBookingsDot")}
           </p>
         ) : (
           <ul className="mt-3 max-h-[20rem] space-y-2 overflow-y-auto">
@@ -209,11 +217,11 @@ function AkteDetailGrid({
             className="size-4 shrink-0"
             strokeWidth={APP_ICON_STROKE}
           />
-          Termine
+          {t("tickets.appointments")}
         </h4>
         {data.upcomingStamps.length === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">
-            Keine anstehenden Termine.
+            {t("tickets.noUpcomingAppointments")}
           </p>
         ) : (
           <ul className="mt-3 max-h-[20rem] space-y-2 overflow-y-auto">
@@ -259,6 +267,7 @@ export function CustomerWorkspacePanel({
   ) => void;
   refreshKey?: number;
 }) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<MariCustomerOption[]>([]);
   const [data, setData] = useState<Workspace | null>(null);
@@ -278,7 +287,7 @@ export function CustomerWorkspacePanel({
     )
       .then(async (res) => {
         const json = await res.json();
-        if (!res.ok) throw new Error(json.error || "Akte laden fehlgeschlagen");
+        if (!res.ok) throw new Error(json.error || t("tickets.loadAkteFailed"));
         if (!cancelled) setData(json as Workspace);
       })
       .catch((err) => {
@@ -323,13 +332,13 @@ export function CustomerWorkspacePanel({
     <div className="space-y-4">
       <div className="space-y-2">
         <label htmlFor="akte-search" className="sr-only">
-          Kunde suchen
+          {t("tickets.searchCustomer")}
         </label>
         <Input
           id="akte-search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Kunde suchen (Name oder CardCode)"
+          placeholder={t("tickets.searchCustomerCardPh")}
         />
         {hits.length > 0 ? (
           <ul className="space-y-2">
@@ -359,36 +368,39 @@ export function CustomerWorkspacePanel({
 
       {ticketsLoading && filterCustomers.length === 0 && !cardCode ? (
         <p className="text-sm text-muted-foreground">
-          Lade Kunden aus dem Ticketfilter…
+          {t("tickets.loadingCustomersFilter")}
         </p>
       ) : filterCustomers.length === 0 && !cardCode ? (
         <div className="rounded-2xl bg-card px-4 py-8 text-center shadow-sm ring-1 ring-foreground/10">
-          <p className="text-sm font-semibold">Keine Akten im Filter</p>
+          <p className="text-sm font-semibold">{t("tickets.noAktenInFilter")}</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Im aktuellen Ticketfilter gibt es keine Tickets mit Kundenakte.
-            Filter auf Tickets anpassen oder einen Kunden suchen.
+            {t("tickets.noAktenInFilterHint")}
           </p>
         </div>
       ) : null}
 
       {filterCustomers.length === 0 && cardCode ? (
         <p className="text-sm text-muted-foreground">
-          Keine Kunden im aktuellen Ticketfilter — gewählte Akte bleibt offen.
+          {t("tickets.noCustomersFilterOpen")}
         </p>
       ) : filterCustomers.length === 1 ? (
         <p className="text-xs text-muted-foreground">
-          1 Kunde mit Tickets im aktuellen Filter
+          {t("tickets.oneCustomerInFilter")}
         </p>
       ) : null}
 
       {showFilterList ? (
         <section className="space-y-2">
           <div>
-            <h3 className="text-sm font-bold">Kunden im Ticketfilter</h3>
+            <h3 className="text-sm font-bold">{t("tickets.customersInFilter")}</h3>
             <p className="text-xs text-muted-foreground">
-              {filterCustomers.length}{" "}
-              {filterCustomers.length === 1 ? "Kunde" : "Kunden"} mit Tickets
-              im aktuellen Filter
+              {filterCustomers.length === 1
+                ? t("tickets.customersWithTickets", {
+                    count: filterCustomers.length,
+                  })
+                : t("tickets.customersWithTicketsPlural", {
+                    count: filterCustomers.length,
+                  })}
             </p>
           </div>
           <ul
@@ -420,15 +432,16 @@ export function CustomerWorkspacePanel({
                       </span>
                     </span>
                     <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                      {c.ticketCount}{" "}
-                      {c.ticketCount === 1 ? "Ticket" : "Tickets"}
+                      {c.ticketCount === 1
+                        ? t("tickets.ticketCount", { count: c.ticketCount })
+                        : t("tickets.ticketCountPlural", { count: c.ticketCount })}
                     </span>
                   </button>
                   {selected ? (
                     <div className="mt-2">
                       {loading ? (
                         <p className="text-sm text-muted-foreground">
-                          Lade Akte…
+                          {t("tickets.loadingAkte")}
                         </p>
                       ) : error ? (
                         <p className="text-sm text-destructive">{error}</p>
@@ -453,10 +466,10 @@ export function CustomerWorkspacePanel({
 
       {!cardCode && !ticketsLoading && filterCustomers.length > 0 ? (
         <p className="text-sm text-muted-foreground">
-          Kunde wählen, um Tickets, Stunden und Termine in einer Akte zu sehen.
+          {t("tickets.pickCustomerToSee")}
         </p>
       ) : !cardCode ? null : showFilterList && selectedInFilter ? null : loading ? (
-        <p className="text-sm text-muted-foreground">Lade Akte…</p>
+        <p className="text-sm text-muted-foreground">{t("tickets.loadingAkte")}</p>
       ) : error ? (
         <p className="text-sm text-destructive">{error}</p>
       ) : data ? (

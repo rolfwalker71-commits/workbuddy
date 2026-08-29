@@ -21,6 +21,7 @@ import {
   filterVisibleSupportGroups,
   parseMariSupportGroupId,
 } from "@/lib/mari/support-group-staff";
+import { useT } from "@/components/i18n/locale-provider";
 
 const FILTER_SELECT_CLASS =
   "h-10 min-h-10 w-full rounded-lg border border-border/70 bg-background px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40";
@@ -53,6 +54,7 @@ export function MariHandlerMultiPicker({
   /** Digit-only input is a ticket number, not a Personalnummer. */
   onTicketNumber?: (issueId: number) => void;
 }) {
+  const t = useT();
   const parsedGroupId = parseMariSupportGroupId(groupId);
   const visibleGroups = filterVisibleSupportGroups(groups);
   const staff = filterEmployeesBySupportGroup(employees, parsedGroupId);
@@ -93,7 +95,7 @@ export function MariHandlerMultiPicker({
       <div className="flex flex-wrap items-end gap-1.5">
         <div className="min-w-[7.5rem] flex-1 space-y-1">
           <Label htmlFor="mari-filter-group" className="sr-only">
-            Supportgruppe
+            {t("tickets.supportGroup")}
           </Label>
           <select
             id="mari-filter-group"
@@ -102,7 +104,7 @@ export function MariHandlerMultiPicker({
             disabled={disabled}
             onChange={(e) => onGroupChange(e.target.value)}
           >
-            <option value="">— Supportgruppe —</option>
+            <option value="">{t("tickets.supportGroupPlaceholder")}</option>
             {visibleGroups.map((g) => (
               <option key={g.groupId} value={g.groupId}>
                 {g.description}
@@ -119,7 +121,7 @@ export function MariHandlerMultiPicker({
           className="h-10 rounded-lg px-2.5 text-xs font-semibold"
         >
           <Users className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-          Gruppe
+          {t("tickets.takeGroup")}
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger
@@ -133,11 +135,11 @@ export function MariHandlerMultiPicker({
               />
             }
           >
-            Bearbeiter · {selected.length}
+            {t("tickets.handlerCount", { count: selected.length })}
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="max-h-80 w-64 overflow-y-auto">
             <DropdownMenuGroup>
-              <DropdownMenuLabel>Mehrfachauswahl</DropdownMenuLabel>
+              <DropdownMenuLabel>{t("tickets.multiSelect")}</DropdownMenuLabel>
               {staff.map((e) => (
                 <DropdownMenuCheckboxItem
                   key={e.employeeNumber}
@@ -146,7 +148,7 @@ export function MariHandlerMultiPicker({
                 >
                   {e.matchcode} ({e.employeeNumber})
                   {defaultHandledBy && e.employeeNumber === defaultHandledBy
-                    ? " · ich"
+                    ? ` · ${t("tickets.meShort")}`
                     : ""}
                 </DropdownMenuCheckboxItem>
               ))}
@@ -160,7 +162,7 @@ export function MariHandlerMultiPicker({
             size="icon"
             disabled={disabled}
             onClick={onReset}
-            aria-label="Reset"
+            aria-label={t("tickets.reset")}
             className="size-10"
           >
             <RotateCcw className="size-4" strokeWidth={APP_ICON_STROKE} />
@@ -175,13 +177,13 @@ export function MariHandlerMultiPicker({
               type="button"
               variant="outline"
               size="sm"
-              title="Abwählen"
+              title={t("tickets.deselect")}
               disabled={disabled || selected.length === 1}
               onClick={() => toggle(n)}
               className="h-auto rounded-full px-2 py-0.5 text-[0.625rem] font-semibold"
             >
               {n}
-              {n === defaultHandledBy ? " · ich" : ""}
+              {n === defaultHandledBy ? ` · ${t("tickets.meShort")}` : ""}
             </Button>
           ))}
         </div>
@@ -190,7 +192,7 @@ export function MariHandlerMultiPicker({
         <Input
           value={extraNumber}
           onChange={(e) => onExtraNumberChange(e.target.value.toUpperCase())}
-          placeholder="Personalnr. (M2055) oder Ticket-Nr."
+          placeholder={t("tickets.extraHandlerPh")}
           className="h-8 text-xs"
           spellCheck={false}
           autoComplete="off"
@@ -210,7 +212,7 @@ export function MariHandlerMultiPicker({
           disabled={disabled}
           onClick={addExtra}
         >
-          Dazu
+          {t("tickets.addExtra")}
         </Button>
       </div>
     </div>

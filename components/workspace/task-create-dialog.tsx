@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useT } from "@/components/i18n/locale-provider";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 
 export type TaskListOption = {
@@ -37,6 +38,7 @@ export function TaskCreateDialog({
   const [notes, setNotes] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [listId, setListId] = useState("");
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,7 +55,7 @@ export function TaskCreateDialog({
   async function submit() {
     const trimmed = title.trim();
     if (!trimmed) {
-      setError("Bitte einen Titel angeben.");
+      setError(t("common.titleRequired"));
       return;
     }
     setBusy(true);
@@ -77,7 +79,7 @@ export function TaskCreateDialog({
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(json.error || "Aufgabe anlegen fehlgeschlagen");
+        throw new Error(json.error || t("workspace.createTaskFailed"));
       }
       onCreated?.();
       onOpenChange(false);
@@ -99,12 +101,12 @@ export function TaskCreateDialog({
               absoluteStrokeWidth
               aria-hidden
             />
-            Neue Aufgabe
+            {t("workspace.newTask")}
           </DialogTitle>
           <DialogDescription>
             {provider === "google"
-              ? "In Google Tasks anlegen."
-              : "In Microsoft To Do anlegen."}
+              ? t("workspace.createInGoogleTasks")
+              : t("workspace.createInToDo")}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -115,12 +117,12 @@ export function TaskCreateDialog({
           }}
         >
           <div className="space-y-1.5">
-            <Label htmlFor="task-title">Titel</Label>
+            <Label htmlFor="task-title">{t("common.title")}</Label>
             <Input
               id="task-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Was ist zu tun?"
+              placeholder={t("workspace.whatToDo")}
               maxLength={200}
               disabled={busy}
               autoFocus
@@ -128,7 +130,7 @@ export function TaskCreateDialog({
           </div>
           {lists.length > 0 ? (
             <div className="space-y-1.5">
-              <Label htmlFor="task-list">Liste</Label>
+              <Label htmlFor="task-list">{t("common.list")}</Label>
               <select
                 id="task-list"
                 className="h-11 w-full rounded-xl border border-border/70 bg-background px-3 text-sm"
@@ -145,7 +147,7 @@ export function TaskCreateDialog({
             </div>
           ) : null}
           <div className="space-y-1.5">
-            <Label htmlFor="task-due">Fällig (optional)</Label>
+            <Label htmlFor="task-due">{t("common.dueOptional")}</Label>
             <Input
               id="task-due"
               type="date"
@@ -155,7 +157,7 @@ export function TaskCreateDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="task-notes">Notiz (optional)</Label>
+            <Label htmlFor="task-notes">{t("common.notesOptional")}</Label>
             <Textarea
               id="task-notes"
               value={notes}
@@ -175,7 +177,7 @@ export function TaskCreateDialog({
             {busy ? (
               <Loader2 className="size-4 animate-spin" aria-hidden />
             ) : null}
-            Aufgabe anlegen
+            {t("workspace.createTask")}
           </Button>
         </form>
       </DialogContent>

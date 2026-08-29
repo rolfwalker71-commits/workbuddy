@@ -22,6 +22,8 @@ import {
   employeeInSupportGroup,
   parseMariSupportGroupId,
 } from "@/lib/mari/support-group-staff";
+import { priorityDisplayLabel } from "@/lib/i18n/display";
+import { useLocale, useT } from "@/components/i18n/locale-provider";
 
 export type TicketKopfDefaults = {
   projectNumber?: string | null;
@@ -96,6 +98,8 @@ export function MaringoTicketKopfForm({
   onSubmit: (values: TicketKopfValues) => Promise<void>;
   className?: string;
 }) {
+  const t = useT();
+  const { locale } = useLocale();
   const initialContact = splitContactPerson(defaults.contactPerson);
   const initialProjectNumber =
     sanitizeMariProjectNumber(defaults.projectNumber) || "";
@@ -210,7 +214,7 @@ export function MaringoTicketKopfForm({
           const data = await res.json().catch(() => ({}));
           if (cancelled) return;
           if (!res.ok) {
-            throw new Error(data.error || "Projekte laden fehlgeschlagen");
+            throw new Error(data.error || t("tickets.loadProjectsFailed"));
           }
           setProjects((data.projects || []) as MariKeyPair[]);
         } catch (err) {
@@ -244,7 +248,7 @@ export function MaringoTicketKopfForm({
         const data = await res.json().catch(() => ({}));
         if (cancelled) return;
         if (!res.ok) {
-          throw new Error(data.error || "Verträge laden fehlgeschlagen");
+          throw new Error(data.error || t("tickets.loadContractsFailed"));
         }
         setContracts((data.contracts || []) as MariKeyPair[]);
       } catch (err) {
@@ -274,7 +278,7 @@ export function MaringoTicketKopfForm({
         const data = await res.json().catch(() => ({}));
         if (cancelled) return;
         if (!res.ok) {
-          throw new Error(data.error || "Positionen laden fehlgeschlagen");
+          throw new Error(data.error || t("tickets.loadPositionsFailed"));
         }
         const next = (data.positions || []) as MariKeyPair[];
         setPositions(next);
@@ -315,17 +319,17 @@ export function MaringoTicketKopfForm({
     const pn = sanitizeMariProjectNumber(projectNumber);
     if (!pn) {
       setError(
-        "Projektnummer fehlt — bitte ein Projekt aus der Liste wählen (nicht den Kundennamen)."
+        t("tickets.projectNumberMissing")
       );
       return;
     }
     const act = activity.trim();
     if (!act) {
-      setError("Aktivität / Betreff fehlt.");
+      setError(t("tickets.activityMissing"));
       return;
     }
     if (stdFreigabeRaw.trim() && parseStdFreigabe(stdFreigabeRaw) == null) {
-      setError("Freigegebene Std. muss eine ganze Zahl ≥ 0 sein.");
+      setError(t("tickets.releasedHoursInvalid"));
       return;
     }
     setBusy(true);
@@ -347,7 +351,7 @@ export function MaringoTicketKopfForm({
         priority: priority ? Number(priority) || null : null,
         medium: medium ? Number(medium) || null : null,
       });
-      setHint("Ticket-Kopf gespeichert.");
+      setHint(t("tickets.kopfSaved"));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -372,38 +376,37 @@ export function MaringoTicketKopfForm({
       ) : null}
 
       <p className="text-[0.6875rem] leading-relaxed text-muted-foreground">
-        Ansprechpartner, Supportgruppe, Zuständig, Priorität und Kanal sowie
-        Projekt / Vertrag / Betreff in MARI.
+        {t("tickets.kopfHint")}
       </p>
 
       <div className="space-y-2 rounded-xl border border-border/60 bg-muted/15 p-3">
         <p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">
-          Organisation
+          {t("tickets.kopfOrg")}
         </p>
         <div className="space-y-1">
-          <Label htmlFor="tk-kopf-contact">Ansprechpartner</Label>
+          <Label htmlFor="tk-kopf-contact">{t("tickets.contact")}</Label>
           <Input
             id="tk-kopf-contact"
             value={contactName}
             onChange={(e) => setContactName(e.target.value)}
-            placeholder="z.B. Herr Lucas Castro"
+            placeholder={t("tickets.contactPh")}
             maxLength={200}
             autoComplete="off"
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="tk-kopf-contact-email">E-Mail</Label>
+          <Label htmlFor="tk-kopf-contact-email">{t("common.email")}</Label>
           <Input
             id="tk-kopf-contact-email"
             type="email"
             value={contactEmail}
             onChange={(e) => setContactEmail(e.target.value)}
-            placeholder="name@firma.ch"
+            placeholder={t("mail.toPlaceholder")}
             maxLength={120}
             autoComplete="off"
           />
           <p className="text-[0.625rem] text-muted-foreground">
-            Wird mit dem Namen als «Name; E-Mail» in ContactPerson gespeichert.
+            {t("tickets.contactEmailHint")}
           </p>
         </div>
         <MariSupportStaffPicker
@@ -422,11 +425,11 @@ export function MaringoTicketKopfForm({
             }
           }}
           onEmployeeChange={setHandledBy}
-          groupLabel="Supportgruppe"
-          employeeLabel="Zuständig"
+          groupLabel={t("tickets.supportGroup")}
+          employeeLabel={t("tickets.assigned")}
           groupSelectId="tk-kopf-group"
           employeeSelectId="tk-kopf-handled"
-          emptyGroupLabel="— keine —"
+          emptyGroupLabel={t("tickets.noneGroup")}
           currentGroupLabel={defaults.supportGroupName}
           extraEmployeeOptions={
             handledBy &&
@@ -444,30 +447,30 @@ export function MaringoTicketKopfForm({
         />
         <div className="grid gap-2 sm:grid-cols-2">
           <div className="space-y-1">
-            <Label htmlFor="tk-kopf-prio">Priorität</Label>
+            <Label htmlFor="tk-kopf-prio">{t("tickets.priority")}</Label>
             <select
               id="tk-kopf-prio"
               className="flex h-9 w-full rounded-md border border-input bg-background px-2.5 text-[0.8125rem]"
               value={priority}
               onChange={(e) => setPriority(e.target.value)}
             >
-              <option value="">— wählen —</option>
+              <option value="">{t("tickets.emptyEmployee")}</option>
               {priorities.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.label}
+                  {priorityDisplayLabel(p.id, locale)}
                 </option>
               ))}
             </select>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="tk-kopf-medium">Kommunikationskanal</Label>
+            <Label htmlFor="tk-kopf-medium">{t("tickets.channel")}</Label>
             <select
               id="tk-kopf-medium"
               className="flex h-9 w-full rounded-md border border-input bg-background px-2.5 text-[0.8125rem]"
               value={medium}
               onChange={(e) => setMedium(e.target.value)}
             >
-              <option value="">— wählen —</option>
+              <option value="">{t("tickets.emptyEmployee")}</option>
               {media.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.label}
@@ -479,7 +482,7 @@ export function MaringoTicketKopfForm({
       </div>
 
       <div className="space-y-1">
-        <Label htmlFor="tk-kopf-project">Projekt</Label>
+        <Label htmlFor="tk-kopf-project">{t("common.project")}</Label>
         <div className="relative">
           <Input
             id="tk-kopf-project"
@@ -492,18 +495,18 @@ export function MaringoTicketKopfForm({
               setProjectOpen(true);
               setProjectQuery("");
             }}
-            placeholder="Suche z.B. Werk oder P200000"
+            placeholder={t("timekeeping.searchProjectPh")}
             autoComplete="off"
           />
           {projectOpen ? (
             <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-border bg-background shadow-lg">
               {loadingProjects ? (
                 <p className="px-2.5 py-2 text-xs text-muted-foreground">
-                  Lade…
+                  {t("common.loading")}
                 </p>
               ) : projects.length === 0 ? (
                 <p className="px-2.5 py-2 text-xs text-muted-foreground">
-                  Keine Treffer
+                  {t("common.noResults")}
                 </p>
               ) : (
                 <ul>
@@ -532,11 +535,11 @@ export function MaringoTicketKopfForm({
       <div className="space-y-3">
         <MariKeyPairPicker
           id="tk-kopf-contract"
-          label="Vertrag"
+          label={t("timekeeping.contract")}
           value={contractId}
           options={contracts}
-          placeholder="Vertrag wählen…"
-          emptyLabel="Kein Vertrag nötig"
+          placeholder={t("timekeeping.chooseContract")}
+          emptyLabel={t("timekeeping.noContractNeeded")}
           disabled={!projectNumber}
           onChange={(next) => {
             setContractId(next);
@@ -546,44 +549,44 @@ export function MaringoTicketKopfForm({
         {positions.length > 0 ? (
           <MariKeyPairPicker
             id="tk-kopf-pos"
-            label="Vertragsposition"
+            label={t("timekeeping.contractPosition")}
             value={contractPositionId}
             options={positions}
-            placeholder="Position wählen…"
+            placeholder={t("timekeeping.choosePosition")}
             onChange={setContractPositionId}
           />
         ) : null}
       </div>
 
       <div className="space-y-1">
-        <Label htmlFor="tk-kopf-activity">Aktivität / Betreff</Label>
+        <Label htmlFor="tk-kopf-activity">{t("tickets.activitySubject")}</Label>
         <Input
           id="tk-kopf-activity"
           value={activity}
           onChange={(e) => setActivity(e.target.value)}
           maxLength={250}
-          placeholder="Kurzbeschreibung / Aktivitäts-Vorlage"
+          placeholder={t("tickets.activityPh")}
           required
         />
       </div>
 
       <div className="space-y-1">
-        <Label htmlFor="tk-kopf-std">Freigegebene Std. Kunde</Label>
+        <Label htmlFor="tk-kopf-std">{t("tickets.releasedHoursCustomer")}</Label>
         <Input
           id="tk-kopf-std"
           inputMode="numeric"
           className="tabular-nums"
           value={stdFreigabeRaw}
           onChange={(e) => setStdFreigabeRaw(e.target.value)}
-          placeholder="z.B. 8"
+          placeholder={t("tickets.hoursExample")}
         />
         <p className="text-[0.625rem] text-muted-foreground">
-          USER_U_Std_Freigegeben_Kunde — ganze Stunden (leer = löschen)
+          {t("tickets.releasedHoursHint")}
         </p>
       </div>
 
       <Button type="submit" disabled={busy} className="w-full sm:w-auto">
-        {busy ? "Speichere…" : "Ticket-Kopf speichern"}
+        {busy ? t("common.saving") : t("tickets.saveKopf")}
       </Button>
     </form>
   );

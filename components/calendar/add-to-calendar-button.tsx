@@ -6,6 +6,7 @@ import {
   downloadIcs,
   type CalendarEvent,
 } from "@/lib/utils/ics";
+import { useT } from "@/components/i18n/locale-provider";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -21,12 +22,14 @@ type Props = {
 export function AddToCalendarButton({
   events,
   filename,
-  label = "In Kalender",
+  label,
   className,
   variant = "outline",
   size = "sm",
   disabled,
 }: Props) {
+  const t = useT();
+  const resolvedLabel = label ?? t("calendarUi.addToCalendar");
   const canExport = events.some((e) => Boolean(e.startDate));
   const iconOnly = size === "icon" || size === "icon-sm";
 
@@ -40,17 +43,17 @@ export function AddToCalendarButton({
       title={
         canExport
           ? iconOnly
-            ? "Diesen Termin in den Kalender"
-            : "Als .ics-Datei speichern"
-          : "Kein Datum vorhanden"
+            ? t("calendarUi.addThisEvent")
+            : t("calendarUi.saveIcs")
+          : t("calendarUi.noDate")
       }
       aria-label={
-        iconOnly ? "Diesen Termin in den Kalender" : label || "In Kalender"
+        iconOnly ? t("calendarUi.addThisEvent") : resolvedLabel
       }
       onClick={() => downloadIcs(filename, events.filter((e) => e.startDate))}
     >
       <CalendarPlus className={cn(iconOnly ? "h-3.5 w-3.5" : "h-4 w-4")} />
-      {iconOnly ? null : <span className="ml-1.5">{label}</span>}
+      {iconOnly ? null : <span className="ml-1.5">{resolvedLabel}</span>}
     </Button>
   );
 }

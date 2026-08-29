@@ -11,6 +11,7 @@ import {
   type EventMeetingKind,
 } from "@/lib/mari/event-booking-ref";
 import { type WorkspaceEventMari } from "@/lib/workspace/event-mari-shared";
+import { useT } from "@/components/i18n/locale-provider";
 import type { WorkspaceProvider } from "@/lib/workspace/merge-today";
 
 const guessCache = new Map<string, Promise<EventBookingRef | null>>();
@@ -54,6 +55,7 @@ export function EventBookingHint({
   event: EventBookingHintEvent;
   onBookingSaved?: (booking: EventBookingRef) => void;
 }) {
+  const t = useT();
   const provider = event.provider;
   const hide =
     provider === "google" ||
@@ -117,7 +119,7 @@ export function EventBookingHint({
     return (
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         <span className="inline-flex h-7 items-center rounded-full bg-emerald-100 px-2.5 text-sm font-semibold text-emerald-950 dark:bg-emerald-500/25 dark:text-emerald-50">
-          Zeiterfassung
+          {t("calendarUi.timekeeping")}
         </span>
         {line ? (
           <p className="min-w-0 text-sm leading-snug text-muted-foreground">
@@ -132,7 +134,7 @@ export function EventBookingHint({
     <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
       {quiet ? (
         <span className="text-xs leading-snug text-muted-foreground">
-          Nichts erkannt
+          {t("calendarUi.nothingRecognised")}
         </span>
       ) : (
         <button
@@ -150,7 +152,7 @@ export function EventBookingHint({
         className="h-auto min-h-0 px-0 py-0 text-xs font-medium"
         onClick={() => setOverlayOpen(true)}
       >
-        Ändern
+        {t("common.change")}
       </Button>
       <EventBookingAttachDialog
         open={overlayOpen}

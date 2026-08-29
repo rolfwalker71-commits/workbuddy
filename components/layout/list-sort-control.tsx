@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/components/i18n/locale-provider";
 import {
   type SortDir,
   readListSortDir,
@@ -28,6 +29,7 @@ export function ListSortControl({
   onDirChange?: (dir: SortDir) => void;
   className?: string;
 }) {
+  const t = useT();
   const [internalDir, setInternalDir] = useState<SortDir>(defaultDir);
   const dir = controlledDir ?? internalDir;
 
@@ -44,7 +46,7 @@ export function ListSortControl({
 
   const Arrow = dir === "asc" ? ArrowUp : ArrowDown;
   const hint =
-    dir === "asc" ? "Älteste / nächste zuerst" : "Neueste / späteste zuerst";
+    dir === "asc" ? t("sort.oldestFirst") : t("sort.newestFirst");
 
   return (
     <Button
@@ -52,8 +54,8 @@ export function ListSortControl({
       variant="outline"
       size="sm"
       className={className}
-      title={`Sortierung umkehren (${hint})`}
-      aria-label={`${label}: ${hint}. Sortierung umkehren`}
+      title={t("sort.reverse", { hint })}
+      aria-label={t("sort.aria", { label, hint })}
       onClick={() => setDir(toggleSortDir(dir))}
     >
       <span>{label}</span>

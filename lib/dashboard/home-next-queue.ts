@@ -7,6 +7,7 @@ import type { HomePendingStamp } from "@/lib/workspace/event-mari-shared";
 import type { HomeTaskItem } from "@/lib/dashboard/home-tasks";
 import type { HomeTicketRow } from "@/lib/dashboard/home-surfaces-shared";
 import type { WorkspaceTodayEvent } from "@/lib/workspace/merge-today";
+import { DEFAULT_LOCALE, translate, type Locale } from "@/lib/i18n";
 
 export type HomeNextQueueKind =
   | "event-soon"
@@ -41,7 +42,9 @@ export function buildHomeNextQueue(input: {
   tasks: HomeTaskItem[];
   ttvInboxCount: number;
   iAmTtv: boolean;
+  locale?: Locale;
 }): HomeNextQueueItem[] {
+  const locale = input.locale ?? DEFAULT_LOCALE;
   const items: HomeNextQueueItem[] = [];
 
   const soonEvent = input.events
@@ -67,8 +70,8 @@ export function buildHomeNextQueue(input: {
       kind: "event-soon",
       title: `${event.time} ${ticket}`,
       detail: event.mari
-        ? `Termin in ${until} Min · Ticket · Akte`
-        : `Termin in ${until} Min`,
+        ? translate(locale, "home.eventInMinTicket", { count: until })
+        : translate(locale, "home.eventInMin", { count: until }),
       href: event.mari?.cardCode
         ? `/maringo?view=kunde&card=${encodeURIComponent(event.mari.cardCode)}`
         : href,
@@ -83,8 +86,8 @@ export function buildHomeNextQueue(input: {
       kind: "ticket-overdue",
       title: `#${ticket.issueId} ${ticket.briefDescription}`,
       detail: ticket.overdue
-        ? `${ticket.statusName} · überfällig`
-        : `${ticket.statusName} · heute fällig`,
+        ? translate(locale, "home.ticketOverdue", { status: ticket.statusName })
+        : translate(locale, "home.ticketDueToday", { status: ticket.statusName }),
       href: `/maringo?open=${ticket.issueId}`,
       rank: KIND_RANK["ticket-overdue"] + (ticket.overdue ? 0 : 2),
     });
@@ -100,7 +103,9 @@ export function buildHomeNextQueue(input: {
     });
     if (!ended) continue;
     const hours =
-      stamp.hours != null ? `${stamp.hours.toFixed(2)} h buchen` : "Stunden buchen";
+      stamp.hours != null
+        ? translate(locale, "home.bookHoursAmount", { hours: stamp.hours.toFixed(2) })
+        : translate(locale, "home.bookHours");
     items.push({
       id: `hours:${stamp.eventId}`,
       kind: "hours-pending",
@@ -115,10 +120,12 @@ export function buildHomeNextQueue(input: {
     items.push({
       id: "ttv-inbox",
       kind: "ttv-inbox",
-      title: "TTV-Inbox",
+      title: translate(locale, "home.ttvInbox"),
       detail: input.iAmTtv
-        ? `${input.ttvInboxCount} neue Tickets`
-        : `${input.ttvInboxCount} neue Tickets (Fallback-Filter)`,
+        ? translate(locale, "home.ttvNewTickets", { count: input.ttvInboxCount })
+        : translate(locale, "home.ttvNewTicketsFallback", {
+            count: input.ttvInboxCount,
+          }),
       href: "/maringo?filter=ttv",
       rank: KIND_RANK["ttv-inbox"] - (input.iAmTtv ? 5 : 0),
     });
@@ -130,7 +137,9 @@ export function buildHomeNextQueue(input: {
       id: `task:${task.key}`,
       kind: "task-overdue",
       title: task.title,
-      detail: `${task.subtitle || task.accountLabel} · überfällig`,
+      detail: translate(locale, "home.taskOverdue", {
+        label: task.subtitle || task.accountLabel,
+      }),
       href: task.href,
       rank: KIND_RANK["task-overdue"],
     });
@@ -139,7 +148,7 @@ export function buildHomeNextQueue(input: {
   return items
     .sort((a, b) => {
       if (a.rank !== b.rank) return a.rank - b.rank;
-      return a.title.localeCompare(b.title, "de");
+      return a.title.localeCompare(b.title, locale === "en" ? "en" : "de");
     })
     .slice(0, 6);
 }

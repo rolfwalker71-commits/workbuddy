@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { showActionFeedback } from "@/lib/ui/action-feedback";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
+import { useT } from "@/components/i18n/locale-provider";
 
 type Colleague = {
   key: string;
@@ -37,6 +38,7 @@ export function TicketColleaguePingDialog({
   issueId: number;
   ticketLabel: string;
 }) {
+  const t = useT();
   const [colleagues, setColleagues] = useState<Colleague[]>([]);
   const [query, setQuery] = useState("");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -77,16 +79,16 @@ export function TicketColleaguePingDialog({
       }
       if (!ok) {
         setNeedsReconnect(status === 400 || status === 403);
-        throw new Error(json.error || "Kollegen laden fehlgeschlagen.");
+        throw new Error(json.error || t("tickets.loadColleaguesFailed"));
       }
     }
 
     function loadErrorMessage(err: unknown): string {
       if (err instanceof DOMException && err.name === "AbortError") {
-        return "Kollegen laden hat zu lange gedauert. Bitte Microsoft 365 prüfen oder später erneut versuchen.";
+        return t("tickets.loadColleaguesTimeout");
       }
       if (err instanceof Error && err.message.trim()) return err.message;
-      return "Kollegen laden fehlgeschlagen.";
+      return t("tickets.loadColleaguesFailed");
     }
 
     void fetch("/api/microsoft/colleagues", { signal: loadCtrl.signal })
@@ -167,18 +169,18 @@ export function TicketColleaguePingDialog({
       };
       if (!res.ok) {
         setNeedsReconnect(Boolean(json.needsReconnect));
-        throw new Error(json.error || "Senden fehlgeschlagen");
+        throw new Error(json.error || t("tickets.sendFailed"));
       }
       showActionFeedback({
-        headline: "Kollege informiert",
+        headline: t("tickets.colleagueInformed"),
         detail: json.created
-          ? "Neuer Teams-Chat, Nachricht gesendet."
-          : "Nachricht im bestehenden Chat gesendet.",
+          ? t("tickets.newTeamsChat")
+          : t("tickets.existingChatSent"),
         tone: "success",
       });
       onOpenChange(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Senden fehlgeschlagen");
+      setError(err instanceof Error ? err.message : t("tickets.sendFailed"));
     } finally {
       setSending(false);
     }
@@ -188,32 +190,34 @@ export function TicketColleaguePingDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90dvh] min-w-0 overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Kollege informieren</DialogTitle>
+          <DialogTitle>{t("tickets.pingTitle")}</DialogTitle>
           <DialogDescription>
-            Teams-Nachricht zu Ticket #{issueId}
-            {ticketLabel ? ` — ${ticketLabel}` : ""}.
+            {ticketLabel
+              ? t("tickets.pingDescNamed", { id: issueId, label: ticketLabel })
+              : t("tickets.pingDesc", { id: issueId })}
           </DialogDescription>
         </DialogHeader>
 
         {needsReconnect ? (
           <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-950 ring-1 ring-amber-200/80 dark:bg-amber-500/15 dark:text-amber-100 dark:ring-amber-400/30">
-            Chat.Create oder ChatMessage.Send fehlt. Unter{" "}
+            {t("tickets.reconnectLead")}{" "}
             <a href="/account" className="underline underline-offset-2">
-              Konto
+              {t("common.account")}
             </a>{" "}
-            Microsoft 365 <strong>Neu verbinden</strong>.
+            {t("tickets.reconnectAfter")}{" "}
+            <strong>{t("tickets.reconnectStrong")}</strong>.
           </p>
         ) : null}
 
         <label className="sr-only" htmlFor="ticket-ping-colleague-q">
-          Kollege suchen
+          {t("tickets.searchColleague")}
         </label>
         <Input
           id="ticket-ping-colleague-q"
           name="colleague-search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Name oder E-Mail"
+          placeholder={t("tickets.nameOrEmail")}
           autoComplete="off"
           data-1p-ignore="true"
           data-lpignore="true"
@@ -226,13 +230,13 @@ export function TicketColleaguePingDialog({
               className="size-4 animate-spin"
               strokeWidth={APP_ICON_STROKE}
             />
-            Lade Kollegen…
+            {t("tickets.loadingColleagues")}
           </p>
         ) : filtered.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             {colleagues.length === 0
-              ? "Keine Kollegen mit verbundenem Microsoft-Konto. Nur Personen, die WorkBuddy mit Microsoft verbunden haben (oder mit denen du schon einen 1:1-Chat hast)."
-              : "Keine Treffer."}
+              ? t("tickets.noColleaguesMs")
+              : t("common.noResults")}
           </p>
         ) : (
           <ul className="flex max-h-[min(20rem,50dvh)] flex-col gap-2 overflow-y-auto p-0.5">
@@ -255,9 +259,9 @@ export function TicketColleaguePingDialog({
                     </span>
                     <span className="text-xs leading-snug text-muted-foreground break-words">
                       {c.source === "self"
-                        ? "Testhilfe · Nachricht an dich selbst"
-                        : c.email || "Microsoft verbunden"}
-                      {c.source === "chat" ? " · bestehender Chat" : ""}
+                        ? t("tickets.selfTestHelp")
+                        : c.email || t("tickets.msConnected")}
+                      {c.source === "chat" ? t("tickets.existingChat") : ""}
                     </span>
                   </button>
                 </li>
@@ -278,7 +282,7 @@ export function TicketColleaguePingDialog({
             variant="outline"
             onClick={() => onOpenChange(false)}
           >
-            Abbrechen
+            {t("common.cancel")}
           </Button>
           <Button
             type="button"
@@ -293,7 +297,7 @@ export function TicketColleaguePingDialog({
             ) : (
               <Bell className="size-4" strokeWidth={APP_ICON_STROKE} />
             )}
-            {sending ? "Sende…" : "In Teams senden"}
+            {sending ? t("tickets.sending") : t("tickets.sendInTeams")}
           </Button>
         </DialogFooter>
       </DialogContent>

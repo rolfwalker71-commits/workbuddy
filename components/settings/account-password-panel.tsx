@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/components/i18n/locale-provider";
 
 export function AccountPasswordPanel() {
+  const t = useT();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -21,7 +23,7 @@ export function AccountPasswordPanel() {
     setStatus(null);
     try {
       if (newPassword !== confirmPassword) {
-        throw new Error("Neues Passwort und Bestätigung stimmen nicht überein.");
+        throw new Error(t("account.passwordMismatch"));
       }
       const res = await fetch("/api/account/password", {
         method: "POST",
@@ -30,12 +32,12 @@ export function AccountPasswordPanel() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(json.error || "Passwort ändern fehlgeschlagen");
+        throw new Error(json.error || t("account.passwordChangeFailed"));
       }
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      setStatus("Passwort gespeichert.");
+      setStatus(t("account.passwordChanged"));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -46,16 +48,15 @@ export function AccountPasswordPanel() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Anmeldepasswort</CardTitle>
+        <CardTitle className="text-base">{t("account.password")}</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={(e) => void save(e)} className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Nur für dein WorkBuddy-Login. Der Admin kann im Notfall weiter ein
-            Passwort setzen.
+            {t("account.passwordAdminHint")}
           </p>
           <div className="space-y-2">
-            <Label htmlFor="account-current-password">Aktuelles Passwort</Label>
+            <Label htmlFor="account-current-password">{t("account.passwordCurrent")}</Label>
             <Input
               id="account-current-password"
               type="password"
@@ -67,7 +68,7 @@ export function AccountPasswordPanel() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="account-new-password">Neues Passwort</Label>
+            <Label htmlFor="account-new-password">{t("common.newPassword")}</Label>
             <Input
               id="account-new-password"
               type="password"
@@ -80,7 +81,7 @@ export function AccountPasswordPanel() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="account-confirm-password">Neues Passwort bestätigen</Label>
+            <Label htmlFor="account-confirm-password">{t("account.passwordConfirm")}</Label>
             <Input
               id="account-confirm-password"
               type="password"
@@ -92,7 +93,7 @@ export function AccountPasswordPanel() {
               required
             />
           </div>
-          <p className="text-xs text-muted-foreground">Mindestens 6 Zeichen.</p>
+          <p className="text-xs text-muted-foreground">{t("account.passwordMin")}</p>
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
           {status ? (
             <p className="text-sm text-emerald-700 dark:text-emerald-400">
@@ -100,7 +101,7 @@ export function AccountPasswordPanel() {
             </p>
           ) : null}
           <Button type="submit" disabled={busy} className="h-11">
-            {busy ? "Speichere…" : "Passwort ändern"}
+            {busy ? t("common.saving") : t("account.passwordChange")}
           </Button>
         </form>
       </CardContent>

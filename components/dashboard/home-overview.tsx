@@ -65,6 +65,9 @@ import type {
   HomeTtvDutyState,
 } from "@/lib/dashboard/home-surfaces-shared";
 import { mariDonutColor } from "@/lib/mari/donut-colors";
+import { useLocale, useT } from "@/components/i18n/locale-provider";
+import { LocaleSwitcher } from "@/components/i18n/locale-switcher";
+import { greetingWord } from "@/lib/i18n/display";
 
 const ASIDE_WIDGET_CLASS =
   "rounded-2xl border border-border/70 bg-card shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_3px_10px_rgba(15,23,42,0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_4px_14px_rgba(0,0,0,0.28)]";
@@ -103,21 +106,23 @@ function MailUnreadKpi({
   count,
   logo,
   caption,
+  unreadUnknown,
+  unreadKnown,
+  captionLine,
 }: {
   href: string;
   count: number | null;
   logo: ReactNode;
   caption: string;
+  unreadUnknown: string;
+  unreadKnown: string;
+  captionLine: string;
 }) {
   return (
     <Link
       href={href}
       className={HERO_KPI_CLASS}
-      aria-label={
-        count == null
-          ? `Ungelesene ${caption}-Mails`
-          : `${count} ungelesene ${caption}-Mails`
-      }
+      aria-label={count == null ? unreadUnknown : unreadKnown}
     >
       <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 dark:bg-sky-500/15">
         {logo}
@@ -127,27 +132,20 @@ function MailUnreadKpi({
           {count ?? "—"}
         </span>
         <span className="mt-1 block text-xs leading-snug text-muted-foreground">
-          {caption} · Ungelesene Mails
+          {captionLine}
         </span>
       </span>
     </Link>
   );
 }
 
-function formatLongDeDate(d = new Date()): string {
-  return new Intl.DateTimeFormat("de-CH", {
+function formatLongDate(intl: string, d = new Date()): string {
+  return new Intl.DateTimeFormat(intl, {
     timeZone: "Europe/Zurich",
     weekday: "long",
     day: "numeric",
     month: "long",
   }).format(d);
-}
-
-function greetingWord(): string {
-  const hour = new Date().getHours();
-  if (hour < 11) return "Guten Morgen";
-  if (hour < 18) return "Guten Tag";
-  return "Guten Abend";
 }
 
 function FocusTile({
@@ -192,9 +190,11 @@ function FocusTile({
 function MariStatusDonut({
   segments,
   size = 100,
+  ariaLabel,
 }: {
   segments: Array<{ statusId: number; label: string; count: number }>;
   size?: number;
+  ariaLabel: string;
 }) {
   const total = segments.reduce((s, x) => s + x.count, 0);
   const cx = size / 2;
@@ -237,7 +237,7 @@ function MariStatusDonut({
       viewBox={`0 0 ${size} ${size}`}
       className="block"
       role="img"
-      aria-label="Ticket-Status"
+      aria-label={ariaLabel}
     >
       {slices.map((s) => {
         const labelPos = polarDeg(cx, cy, r, s.mid);
@@ -271,10 +271,18 @@ function MariStatusDonut({
   );
 }
 
-function TaskGroupList({ items }: { items: HomeTaskItem[] }) {
+function TaskGroupList({
+  items,
+  emptyLabel,
+  overdueLabel,
+}: {
+  items: HomeTaskItem[];
+  emptyLabel: string;
+  overdueLabel: string;
+}) {
   if (items.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">Keine offenen Aufgaben in den nächsten Tagen.</p>
+      <p className="text-sm text-muted-foreground">{emptyLabel}</p>
     );
   }
   return (
@@ -301,7 +309,7 @@ function TaskGroupList({ items }: { items: HomeTaskItem[] }) {
             </span>
             <span className="shrink-0 text-xs text-muted-foreground">
               {task.overdue
-                ? "Überfällig"
+                ? overdueLabel
                 : task.dueDate
                   ? formatSwissDate(task.dueDate)
                   : ""}
@@ -326,6 +334,7 @@ function TasksCard({
   display: MsTaskDisplayPrefs;
   onDisplayChange: (next: MsTaskDisplayPrefs) => void;
 }) {
+  const t = useT();
   const showPlanner = showMicrosoft && display.planner;
   const showTodo = showMicrosoft && display.todo;
   const planner = items.filter((t) => t.source === "planner").slice(0, 5);
@@ -370,11 +379,15 @@ function TasksCard({
                   href="/microsoft?tab=planner"
                   className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
                 >
-                  Öffnen
+                  {t("common.open")}
                   <ChevronRight className="size-3.5" />
                 </Link>
               </div>
-              <TaskGroupList items={planner} />
+              <TaskGroupList
+                items={planner}
+                emptyLabel={t("home.noOpenTasksSoon")}
+                overdueLabel={t("common.overdue")}
+              />
             </section>
           </>
         ) : null}
@@ -390,11 +403,15 @@ function TasksCard({
                   href="/microsoft?tab=planner"
                   className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
                 >
-                  Öffnen
+                  {t("common.open")}
                   <ChevronRight className="size-3.5" />
                 </Link>
               </div>
-              <TaskGroupList items={todo} />
+              <TaskGroupList
+                items={todo}
+                emptyLabel={t("home.noOpenTasksSoon")}
+                overdueLabel={t("common.overdue")}
+              />
             </section>
           </>
         ) : null}
@@ -414,11 +431,15 @@ function TasksCard({
                 href="/google?tab=planner"
                 className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
               >
-                Öffnen
+                {t("common.open")}
                 <ChevronRight className="size-3.5" />
               </Link>
             </div>
-            <TaskGroupList items={google} />
+            <TaskGroupList
+              items={google}
+              emptyLabel={t("home.noOpenTasksSoon")}
+              overdueLabel={t("common.overdue")}
+            />
           </section>
         ) : null}
       </CardContent>
@@ -427,6 +448,8 @@ function TasksCard({
 }
 
 export function HomeOverview() {
+  const t = useT();
+  const { locale, intlLocale } = useLocale();
   const [data, setData] = useState<HomeOverviewPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -529,7 +552,7 @@ export function HomeOverview() {
           error?: string;
         };
         if (!res.ok) {
-          throw new Error(json.error || "Übersicht laden fehlgeschlagen");
+          throw new Error(json.error || t("home.loadFailed"));
         }
         if (cancelled) return;
         setData(json);
@@ -663,6 +686,7 @@ export function HomeOverview() {
         tasks: uniqueTasks,
         ttvInboxCount: data?.maringo?.ttvInboxCount || 0,
         iAmTtv: Boolean(data?.ttvDuty?.isMe),
+        locale,
       }),
     [data, todayEvents, uniqueTasks, zurichNow]
   );
@@ -694,23 +718,24 @@ export function HomeOverview() {
           <div className="flex flex-col gap-4 @[36rem]:flex-row @[36rem]:items-start @[36rem]:justify-between @[36rem]:gap-6">
             <div className="min-w-0 flex-1">
               <h1 className="text-[1.75rem] font-extrabold leading-snug tracking-tight drop-shadow-sm">
-                {greetingWord()}
+                {greetingWord(locale)}
                 {data?.greetingName ? `, ${data.greetingName}` : ""}
               </h1>
               <p className="mt-1 text-sm capitalize text-muted-foreground">
-                {formatLongDeDate()}
+                {formatLongDate(intlLocale)}
               </p>
               {data && data.modules.length === 0 ? (
                 <p className="mt-3 text-sm text-muted-foreground">
-                  Dir sind noch keine Module zugewiesen. Bitte den Admin unter Einstellungen.
+                  {t("home.noModules")}
                 </p>
               ) : null}
             </div>
-            {loading && !data ? null : (
-              <div className="w-full min-w-0 @[36rem]:w-[20rem] @[36rem]:shrink-0">
+            <div className="flex w-full min-w-0 flex-col gap-3 @[36rem]:w-[20rem] @[36rem]:shrink-0">
+              <LocaleSwitcher className="self-start @[36rem]:self-end" />
+              {loading && !data ? null : (
                 <HomeWeatherWidget weather={data?.weather ?? null} />
-              </div>
-            )}
+              )}
+            </div>
           </div>
           {data &&
           (showOutlookUnread || showGoogleUnread || data.maringo) ? (
@@ -721,6 +746,12 @@ export function HomeOverview() {
                   count={data.microsoft?.unreadCount ?? null}
                   logo={<MicrosoftLogo className="size-5" title="Microsoft" />}
                   caption="Outlook"
+                  unreadUnknown={t("home.unreadMailsUnknown", { caption: "Outlook" })}
+                  unreadKnown={t("home.unreadMails", {
+                    count: data.microsoft?.unreadCount ?? 0,
+                    caption: "Outlook",
+                  })}
+                  captionLine={t("home.unreadMailsCaption", { caption: "Outlook" })}
                 />
               ) : null}
               {showGoogleUnread ? (
@@ -729,6 +760,12 @@ export function HomeOverview() {
                   count={data.google?.unreadCount ?? null}
                   logo={<GoogleLogo className="size-5" title="Google" />}
                   caption="Gmail"
+                  unreadUnknown={t("home.unreadMailsUnknown", { caption: "Gmail" })}
+                  unreadKnown={t("home.unreadMails", {
+                    count: data.google?.unreadCount ?? 0,
+                    caption: "Gmail",
+                  })}
+                  captionLine={t("home.unreadMailsCaption", { caption: "Gmail" })}
                 />
               ) : null}
               {data.maringo ? (
@@ -737,6 +774,7 @@ export function HomeOverview() {
                     <MariStatusDonut
                       segments={positiveCounts}
                       size={56}
+                      ariaLabel={t("home.ticketStatus")}
                     />
                     <BagelHoleLabel className="text-sm font-black tabular-nums">
                       {tickets?.configured ? tickets.total : "—"}
@@ -744,18 +782,18 @@ export function HomeOverview() {
                   </span>
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold leading-snug">
-                      Tickets
+                      {t("home.tickets")}
                     </span>
                     <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">
                       {!tickets?.configured
-                        ? "Maringo unter Konto hinterlegen"
+                        ? t("home.ticketsNeedSetup")
                         : waitingOnMe > 0
-                          ? `${waitingOnMe} warten auf dich`
+                          ? t("home.ticketsWaitingOnYou", { count: waitingOnMe })
                           : tickets.total > 0
-                            ? `${tickets.total} offen`
+                            ? t("home.ticketsOpen", { count: tickets.total })
                             : tickets.lastPollAt
-                              ? "Keine offenen Tickets"
-                              : "Noch kein Poll"}
+                              ? t("home.ticketsNoneOpen")
+                              : t("home.ticketsNoPoll")}
                     </span>
                   </span>
                 </Link>
@@ -777,17 +815,17 @@ export function HomeOverview() {
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       {loading && !data ? (
-        <p className="text-sm text-muted-foreground">Lade Übersicht…</p>
+        <p className="text-sm text-muted-foreground">{t("home.loadingOverview")}</p>
       ) : null}
 
       {data?.microsoft || data?.google ? (
         <section className="space-y-3">
           <h2 className="text-sm font-bold tracking-tight">
             {data.microsoft && data.google
-              ? "Heute · Microsoft & Google"
+              ? t("home.todayMsGoogle")
               : data.google
-                ? "Google Workspace"
-                : "Microsoft 365"}
+                ? t("nav.google")
+                : t("nav.microsoft")}
           </h2>
           <div
             className={cn(
@@ -803,18 +841,18 @@ export function HomeOverview() {
               <FocusTile
                 href={calendarHref}
                 icon={CalendarDays}
-                eyebrow="Kalender"
+                eyebrow={t("home.calendar")}
                 title={
                   detailsLoading
-                    ? "Termine werden geladen…"
-                    : "Keine Termine"
+                    ? t("home.eventsLoading")
+                    : t("home.noEvents")
                 }
                 detail={
                   detailsLoading
-                    ? "Kalender"
+                    ? t("home.calendar")
                     : anyMailConnected
-                      ? "Kalender öffnen"
-                      : "Konto verbinden"
+                      ? t("home.openCalendar")
+                      : t("home.connectAccount")
                 }
               />
             ) : null}
@@ -834,40 +872,51 @@ export function HomeOverview() {
               }
               eyebrow={
                 data.microsoft && data.google
-                  ? "Posteingang"
+                  ? t("home.inbox")
                   : data.google
                     ? "Gmail"
-                    : "Outlook Mail"
+                    : t("home.outlookMail")
               }
               title={
                 mailSample?.subject ||
-                (detailsLoading ? "Mails werden geladen…" : "Posteingang")
+                (detailsLoading ? t("home.mailsLoading") : t("home.inbox"))
               }
               detail={
                 mailSample
                   ? mailSample.from
                   : detailsLoading
-                    ? "Posteingang"
+                    ? t("home.inbox")
                     : anyMailConnected
-                      ? `${data.todayMail.length} Mails heute`
-                      : "Konto verbinden"
+                      ? t("home.mailsToday", { count: data.todayMail.length })
+                      : t("home.connectAccount")
               }
             />
             <FocusTile
               href={analysisHref}
               icon={ListChecks}
-              eyebrow="Tagesanalyse"
+              eyebrow={t("home.dayAnalysis")}
               title={
                 data.microsoft?.mailDay?.headline ||
                 data.google?.mailDay?.headline ||
                 (data.microsoft?.mailDay || data.google?.mailDay
-                  ? `${(data.microsoft?.mailDay || data.google?.mailDay)?.inboxCount} Posteingang`
-                  : "Noch keine Analyse")
+                  ? t("home.inboxCount", {
+                      count:
+                        (data.microsoft?.mailDay || data.google?.mailDay)
+                          ?.inboxCount ?? 0,
+                    })
+                  : t("home.noAnalysisYet"))
               }
               detail={
                 data.microsoft?.mailDay || data.google?.mailDay
-                  ? `${(data.microsoft?.mailDay || data.google?.mailDay)?.inboxCount} rein · ${(data.microsoft?.mailDay || data.google?.mailDay)?.sentCount} raus`
-                  : "Analyse im Mail-Tab starten"
+                  ? t("home.analysisCounts", {
+                      inbox:
+                        (data.microsoft?.mailDay || data.google?.mailDay)
+                          ?.inboxCount ?? 0,
+                      sent:
+                        (data.microsoft?.mailDay || data.google?.mailDay)
+                          ?.sentCount ?? 0,
+                    })
+                  : t("home.startAnalysisInMail")
               }
             />
             {showTeamsCard ? (
@@ -880,15 +929,15 @@ export function HomeOverview() {
                   lastTeams?.title ||
                   teamsOpenTitle ||
                   (detailsLoading
-                    ? "Nachricht wird geladen…"
-                    : "Keine Nachricht")
+                    ? t("home.messageLoading")
+                    : t("home.noMessage"))
                 }
                 detail={
                   teamsOpenTitle || teamsOpenCount != null
                     ? [
                         teamsOpenTitle,
                         teamsOpenCount != null
-                          ? `${teamsOpenCount} offen`
+                          ? t("home.teamsOpen", { count: teamsOpenCount })
                           : null,
                       ]
                         .filter(Boolean)
@@ -904,7 +953,7 @@ export function HomeOverview() {
                           ]
                             .filter(Boolean)
                             .join(" · ")
-                        : "Teams öffnen"
+                        : t("home.openTeams")
                 }
               />
             ) : null}
@@ -913,7 +962,7 @@ export function HomeOverview() {
           {todayEvents.length > 0 ? (
             <Card className={ASIDE_WIDGET_CLASS}>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base font-bold">Heute im Kalender</CardTitle>
+                <CardTitle className="text-base font-bold">{t("home.todayInCalendar")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2">
@@ -997,17 +1046,25 @@ export function HomeOverview() {
             {data.microsoft ? (
               <span className="inline-flex items-center gap-1.5">
                 <MicrosoftLogo className="size-3.5" />
-                O365 {data.microsoft.connected ? "verbunden" : "nicht verbunden"}
+                {t("home.o365", {
+                  state: data.microsoft.connected
+                    ? t("common.connected")
+                    : t("common.notConnected"),
+                })}
               </span>
             ) : null}
             {data.google ? (
               <span className="inline-flex items-center gap-1.5">
                 <GoogleLogo className="size-3.5" />
-                Google {data.google.connected ? "verbunden" : "nicht verbunden"}
+                {t("home.googleState", {
+                  state: data.google.connected
+                    ? t("common.connected")
+                    : t("common.notConnected"),
+                })}
               </span>
             ) : null}
             <Link href="/account" className="font-medium text-foreground hover:underline">
-              Konto
+              {t("common.account")}
             </Link>
           </p>
         </section>
@@ -1021,13 +1078,13 @@ export function HomeOverview() {
               <div className="flex items-start justify-between gap-2">
                 <CardTitle className="flex items-center gap-2 text-base font-bold">
                   <MaringoLogo className="size-5" />
-                  Tickets von mir
+                  {t("home.myTickets")}
                 </CardTitle>
                 <Link
                   href="/maringo"
                   className="inline-flex items-center gap-1 text-xs font-semibold text-orange-600 hover:underline dark:text-orange-400"
                 >
-                  Zu Maringo
+                  {t("home.toMaringo")}
                   <ExternalLink className="size-3.5" />
                 </Link>
               </div>
@@ -1038,7 +1095,7 @@ export function HomeOverview() {
             <CardContent className="space-y-3">
               {!tickets?.configured ? (
                 <p className="text-sm text-muted-foreground">
-                  Hinterlege deine Personalnummer unter Konto.
+                  {t("home.setEmployeeNumber")}
                 </p>
               ) : (
                 <div className="flex items-center gap-3">
@@ -1047,20 +1104,24 @@ export function HomeOverview() {
                       {tickets.total}
                     </span>
                     <span className="mt-1 text-[0.65rem] font-medium uppercase tracking-wide text-muted-foreground">
-                      Gesamt
+                      {t("common.total")}
                     </span>
                   </div>
                   {positiveCounts.length > 0 ? (
                     <>
                       <div className="shrink-0">
-                        <MariStatusDonut segments={positiveCounts} size={100} />
+                        <MariStatusDonut
+                          segments={positiveCounts}
+                          size={100}
+                          ariaLabel={t("home.ticketStatus")}
+                        />
                       </div>
                       <ul className="min-w-0 flex-1">
                         {positiveCounts.map((c, i) => {
                           const pct =
                             tickets.total > 0
                               ? ((c.count / tickets.total) * 100).toLocaleString(
-                                  "de-CH",
+                                  intlLocale,
                                   { maximumFractionDigits: 1 }
                                 )
                               : "0";
@@ -1092,8 +1153,8 @@ export function HomeOverview() {
                   ) : (
                     <p className="text-sm text-muted-foreground">
                       {tickets.lastPollAt
-                        ? "Keine offenen Tickets."
-                        : "Noch kein Poll — Scheduler lädt gleich."}
+                        ? t("home.ticketsNoneOpenDot")
+                        : t("home.ticketsNoPollScheduler")}
                     </p>
                   )}
                 </div>
@@ -1101,7 +1162,7 @@ export function HomeOverview() {
               {data.maringo.savedViews && data.maringo.savedViews.length > 0 ? (
                 <div className="space-y-1.5">
                 <p className="text-xs font-semibold text-muted-foreground">
-                  Gespeicherte Sichten
+                  {t("home.savedViews")}
                 </p>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {data.maringo.savedViews.map((view) => (
@@ -1126,11 +1187,13 @@ export function HomeOverview() {
                   href="/maringo"
                   className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-orange-600 hover:underline"
                 >
-                  Meine offenen Tickets anzeigen
+                  {t("home.showMyOpenTickets")}
                   <ExternalLink className="size-3.5" aria-hidden />
                 </Link>
                 <p className="text-[0.625rem] text-muted-foreground">
-                  {pollLabel ? `Zuletzt geprüft: ${pollLabel}` : "Noch nicht geprüft"}
+                  {pollLabel
+                    ? t("home.lastChecked", { when: pollLabel })
+                    : t("home.notCheckedYet")}
                 </p>
               </div>
             </CardContent>

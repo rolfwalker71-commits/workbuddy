@@ -22,6 +22,8 @@ import {
   type IcsCalendarType,
 } from "@/lib/calendar/ics-types";
 import { cn } from "@/lib/utils";
+import { useLocale, useT } from "@/components/i18n/locale-provider";
+import { icsTypeDisplayLabel } from "@/lib/i18n/display";
 
 type CalType = IcsCalendarType;
 
@@ -71,6 +73,8 @@ type DraftRow = {
 };
 
 export function SettingsMicrosoftCalendarsPanel() {
+  const t = useT();
+  const { locale } = useLocale();
   const [calendars, setCalendars] = useState<MsCal[]>([]);
   const [types, setTypes] = useState<TypeMeta[]>(FALLBACK_TYPES);
   const [connected, setConnected] = useState(false);
@@ -93,7 +97,7 @@ export function SettingsMicrosoftCalendarsPanel() {
       const json = await gRes.json();
       const icsJson = await icsRes.json().catch(() => ({}));
       if (!gRes.ok && !json.calendars) {
-        throw new Error(json.error || "Microsoft 365-Kalender laden fehlgeschlagen");
+        throw new Error(json.error || t("settings.msCalLoadFailed"));
       }
       if (Array.isArray(icsJson.types) && icsJson.types.length > 0) {
         setTypes(icsJson.types as TypeMeta[]);
@@ -167,7 +171,7 @@ export function SettingsMicrosoftCalendarsPanel() {
         body: JSON.stringify({ selections }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Speichern fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("common.saveFailed"));
       const list = (json.calendars || []) as MsCal[];
       setCalendars(list);
       const next: Record<string, DraftRow> = {};
@@ -181,9 +185,7 @@ export function SettingsMicrosoftCalendarsPanel() {
         };
       }
       setDraft(next);
-      setStatus(
-        `${selections.length} Microsoft 365-Kalender für Buddy gespeichert.`
-      );
+      setStatus(t("settings.msCalSaved", { count: selections.length }));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -215,12 +217,12 @@ export function SettingsMicrosoftCalendarsPanel() {
   );
 
   const collapsedHint = loading
-    ? "Lädt…"
+    ? t("settings.calLoading")
     : !connected
-      ? "Nicht verbunden"
+      ? t("closeout.notConnected")
       : !hasCalendarScope
-        ? "Recht fehlt"
-        : `${activeCount} aktiv`;
+        ? t("settings.rightMissing")
+        : t("settings.activeCount", { count: activeCount });
 
   return (
     <Card>
@@ -235,7 +237,7 @@ export function SettingsMicrosoftCalendarsPanel() {
           <CardTitle className="flex min-w-0 flex-1 items-center gap-3">
             <IconCircle icon={CalendarRange} tone="blue" size="sm" />
             <span className="min-w-0 flex-1 truncate">
-              Microsoft 365-Kalender
+              {t("settings.msCalendars")}
             </span>
             {!open ? (
               <span className="shrink-0 text-sm font-normal text-muted-foreground">
@@ -255,39 +257,35 @@ export function SettingsMicrosoftCalendarsPanel() {
       {open ? (
       <CardContent className="space-y-4 pt-0">
         <p className="text-sm text-muted-foreground">
-          Kalender aus deinem Microsoft 365-Konto anhaken und Typ/Farbe setzen.
-          «Relevant für Terminplanung» steuert, ob Termine den Fokus «nächster
-          Termin» und Konflikte beeinflussen (z.&nbsp;B. Partner-Dienstplan =
-          aus). Danach kannst du den entsprechenden ICS-Link entfernen —
-          Outlook ist die Quelle.
+          {t("settings.msCalHint")}
         </p>
 
         {loading ? (
-          <p className="text-sm text-muted-foreground">Lade…</p>
+          <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
         ) : !connected ? (
           <div className="space-y-2">
             <p className="text-sm text-amber-800">
-              Noch kein Microsoft 365-Konto verbunden.
+              {t("settings.noMsYet")}
             </p>
             <a
               href="/api/microsoft/oauth/start"
               className={cn(buttonVariants({ variant: "outline" }), "gap-1.5")}
             >
               <Link2 className="size-3.5" />
-              Microsoft 365 verbinden
+              {t("settings.connectMsShort")}
             </a>
           </div>
         ) : !hasCalendarScope ? (
           <div className="space-y-2">
             <p className="text-sm text-amber-800">
-              Verbindung ohne Kalender-Recht — bitte neu verbinden.
+              {t("settings.noCalScope")}
             </p>
             <a
               href="/api/microsoft/oauth/start"
               className={cn(buttonVariants({ variant: "outline" }), "gap-1.5")}
             >
               <Link2 className="size-3.5" />
-              Neu verbinden (Kalender)
+              {t("settings.reconnectCal")}
             </a>
           </div>
         ) : (
@@ -305,7 +303,7 @@ export function SettingsMicrosoftCalendarsPanel() {
 
             {calendars.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Keine Kalender von Microsoft erhalten.
+                {t("settings.noCalsFromMs")}
               </p>
             ) : (
               <ul className="space-y-3">
@@ -334,7 +332,7 @@ export function SettingsMicrosoftCalendarsPanel() {
                           onChange={(e) =>
                             patchDraft(c.id, { on: e.target.checked })
                           }
-                          aria-label={`${c.name} in Buddy zeigen`}
+                          aria-label={t("settings.showInBuddy", { name: c.name })}
                         />
                         <div className="min-w-0 flex-1 space-y-2">
                           <div className="flex flex-wrap items-center gap-2">
@@ -344,12 +342,12 @@ export function SettingsMicrosoftCalendarsPanel() {
                                 variant="secondary"
                                 className="text-[0.625rem]"
                               >
-                                Primär
+                                {t("common.primary")}
                               </Badge>
                             ) : null}
                             {d.on && !d.planningRelevant ? (
                               <Badge variant="outline" className="text-[0.625rem]">
-                                Nur Referenz
+                                {t("settings.referenceOnly")}
                               </Badge>
                             ) : null}
                           </div>
@@ -357,7 +355,7 @@ export function SettingsMicrosoftCalendarsPanel() {
                             <div className="space-y-3">
                               <div className="grid gap-3 sm:grid-cols-2">
                               <div className="space-y-1">
-                                <Label className="text-xs">Typ</Label>
+                                <Label className="text-xs">{t("common.type")}</Label>
                                 <Select
                                   value={d.type}
                                   onValueChange={(v) =>
@@ -372,7 +370,7 @@ export function SettingsMicrosoftCalendarsPanel() {
                                   <SelectContent>
                                     {types.map((t) => (
                                       <SelectItem key={t.id} value={t.id}>
-                                        {t.label}
+                                        {icsTypeDisplayLabel(typeRow.id, locale, typeRow.label)}
                                       </SelectItem>
                                     ))}
                                   </SelectContent>

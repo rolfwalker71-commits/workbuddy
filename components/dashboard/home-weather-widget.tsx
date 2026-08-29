@@ -1,7 +1,13 @@
-import { weekdayShortDe } from "@/lib/utils/weekday";
-import { windDirectionDe } from "@/lib/weather/labels";
+"use client";
+
+import { weekdayShort } from "@/lib/utils/weekday";
 import type { HomeWeatherCard } from "@/lib/weather/fetch";
 import { cn } from "@/lib/utils";
+import { useLocale, useT } from "@/components/i18n/locale-provider";
+import {
+  weatherCodeDisplayLabel,
+  windDirectionDisplayLabel,
+} from "@/lib/i18n/display";
 
 const WIDGET_CLASS =
   "w-full min-w-0 rounded-2xl border border-border/70 bg-card px-3.5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_3px_10px_rgba(15,23,42,0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_4px_14px_rgba(0,0,0,0.28)] sm:px-4 sm:py-3.5";
@@ -11,12 +17,14 @@ export function HomeWeatherWidget({
 }: {
   weather: HomeWeatherCard | null;
 }) {
+  const t = useT();
+  const { locale, intlLocale } = useLocale();
   if (!weather) {
     return (
       <div className={WIDGET_CLASS}>
-        <p className="text-sm font-semibold tracking-tight">Wetter</p>
+        <p className="text-sm font-semibold tracking-tight">{t("weather.title")}</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Wetter derzeit nicht verfügbar.
+          {t("weather.unavailable")}
         </p>
       </div>
     );
@@ -24,7 +32,7 @@ export function HomeWeatherWidget({
 
   const windDir =
     weather.windDirectionDeg != null && Number.isFinite(weather.windDirectionDeg)
-      ? windDirectionDe(weather.windDirectionDeg)
+      ? windDirectionDisplayLabel(weather.windDirectionDeg, locale)
       : null;
   const meta = [
     windDir && weather.windSpeedKmh != null
@@ -53,7 +61,7 @@ export function HomeWeatherWidget({
                 {weather.placeLabel}
               </p>
               <p className="text-xs capitalize text-muted-foreground">
-                {weather.weatherLabelDe}
+                {weatherCodeDisplayLabel(weather.weatherCode, locale)}
               </p>
             </div>
             <p className="shrink-0 text-[1.75rem] font-bold tabular-nums leading-none tracking-tight text-foreground">
@@ -62,7 +70,7 @@ export function HomeWeatherWidget({
           </div>
           {weather.temperatureMinC != null || weather.temperatureMaxC != null ? (
             <p className="mt-1 text-xs tabular-nums text-muted-foreground">
-              Heute{" "}
+              {t("weather.todayRange")}{" "}
               <span className="font-medium text-foreground">
                 {weather.temperatureMinC ?? "—"}°
               </span>
@@ -84,7 +92,7 @@ export function HomeWeatherWidget({
           style={{
             gridTemplateColumns: `repeat(${Math.min(7, Math.max(1, week.length))}, minmax(0, 1fr))`,
           }}
-          aria-label="Wetter Woche"
+          aria-label={t("weather.week")}
         >
           {week.map((day, i) => (
             <li
@@ -93,10 +101,10 @@ export function HomeWeatherWidget({
                 "flex min-w-0 flex-col items-center rounded-md px-0.5 py-1 text-center",
                 i === 0 && "bg-sky-50 dark:bg-sky-500/15"
               )}
-              title={`${weekdayShortDe(day.date)}: ${day.weatherLabelDe}, ${day.temperatureMinC}–${day.temperatureMaxC}°`}
+              title={`${weekdayShort(day.date, intlLocale)}: ${weatherCodeDisplayLabel(day.weatherCode, locale)}, ${day.temperatureMinC}–${day.temperatureMaxC}°`}
             >
               <span className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">
-                {i === 0 ? "Heute" : weekdayShortDe(day.date)}
+                {i === 0 ? t("common.today") : weekdayShort(day.date, intlLocale)}
               </span>
               <span className="mt-0.5 text-[1.05rem] leading-none" aria-hidden>
                 {day.icon}

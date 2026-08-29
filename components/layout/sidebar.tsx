@@ -27,12 +27,14 @@ import { WorkBuddyWordmark } from "@/components/brand/wordmark";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
+import { useT } from "@/components/i18n/locale-provider";
+import type { MessageKey } from "@/lib/i18n";
 
 const SIDEBAR_COLLAPSED_KEY = "workbuddy.sidebar.collapsed";
 
 type NavItem = {
   href: string;
-  label: string;
+  labelKey: MessageKey;
   module?: "microsoft" | "maringo" | "google";
   adminOnly?: boolean;
   logo?: React.ReactNode;
@@ -42,46 +44,46 @@ type NavItem = {
 const NAV: NavItem[] = [
   {
     href: "/",
-    label: "Übersicht",
+    labelKey: "nav.overview",
     icon: <LayoutDashboard className="size-4" strokeWidth={APP_ICON_STROKE} />,
   },
   {
     href: "/team",
-    label: "Team",
+    labelKey: "nav.team",
     icon: <Users className="size-4" strokeWidth={APP_ICON_STROKE} />,
   },
   {
     href: "/microsoft",
-    label: "Microsoft 365",
+    labelKey: "nav.microsoft",
     module: "microsoft",
     logo: <MicrosoftLogo className="size-4" />,
   },
   {
     href: "/google",
-    label: "Google Workspace",
+    labelKey: "nav.google",
     module: "google",
     logo: <GoogleLogo className="size-4" />,
   },
   {
     href: "/maringo",
-    label: "Maringo Support",
+    labelKey: "nav.maringo",
     module: "maringo",
     logo: <MaringoLogo className="size-4" />,
   },
   {
     href: "/account",
-    label: "Konto",
+    labelKey: "nav.account",
     icon: <UserRound className="size-4" strokeWidth={APP_ICON_STROKE} />,
   },
   {
     href: "/activity",
-    label: "Aktivitätslog",
+    labelKey: "nav.activity",
     adminOnly: true,
     icon: <ScrollText className="size-4" strokeWidth={APP_ICON_STROKE} />,
   },
   {
     href: "/settings",
-    label: "Einstellungen",
+    labelKey: "nav.settings",
     adminOnly: true,
     icon: <Settings className="size-4" strokeWidth={APP_ICON_STROKE} />,
   },
@@ -97,6 +99,7 @@ export function Sidebar({
   const pathname = usePathname() || "/";
   const router = useRouter();
   const { me } = useAuth();
+  const t = useT();
   const isLimitedUser = me != null && !me.isAdmin;
   const [collapsedPref, setCollapsedPref] = useState(false);
   const collapsed = Boolean(collapsedPref && !onNavigate);
@@ -156,7 +159,7 @@ export function Sidebar({
           variant="ghost"
           size="icon"
           onClick={toggleCollapsed}
-          title={collapsed ? "Navigation ausklappen" : "Navigation einklappen"}
+          title={collapsed ? t("common.expandNav") : t("common.collapseNav")}
           className={cn(
             "absolute z-10 size-8 text-sidebar-foreground/80 hover:bg-sidebar-accent",
             collapsed ? "top-3 right-2.5" : "top-3.5 right-3.5"
@@ -197,7 +200,7 @@ export function Sidebar({
             {!collapsed ? (
               <div className="min-w-0 flex-1">
                 <p className="text-[0.7rem] font-medium leading-none text-sidebar-foreground/65">
-                  Angemeldet als
+                  {t("common.signedInAs")}
                 </p>
                 <p className="mt-1.5 break-words text-sm font-semibold leading-snug tracking-tight">
                   {me.displayName}
@@ -226,7 +229,7 @@ export function Sidebar({
               )}
             >
               {item.logo || item.icon}
-              {!collapsed ? <span>{item.label}</span> : null}
+              {!collapsed ? <span>{t(item.labelKey)}</span> : null}
             </Link>
           );
         })}
@@ -243,7 +246,7 @@ export function Sidebar({
           )}
         >
           <LogOut className="size-4" />
-          {!collapsed ? "Abmelden" : null}
+          {!collapsed ? t("common.signOut") : null}
         </Button>
         {!collapsed ? (
           <p className="px-2 text-[0.7rem] text-sidebar-foreground/50">

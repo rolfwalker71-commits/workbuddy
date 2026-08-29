@@ -1,5 +1,7 @@
 "use client";
 
+"use client";
+
 import Link from "next/link";
 import {
   CalendarDays,
@@ -10,6 +12,7 @@ import {
 } from "lucide-react";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import type { HomeNextQueueItem } from "@/lib/dashboard/home-next-queue";
+import { useT } from "@/components/i18n/locale-provider";
 
 const ICONS = {
   "event-soon": CalendarDays,
@@ -20,10 +23,11 @@ const ICONS = {
 } as const;
 
 export function HomeNextQueue({ items }: { items: HomeNextQueueItem[] }) {
+  const t = useT();
   if (items.length === 0) return null;
   return (
     <section className="space-y-2">
-      <h2 className="text-sm font-bold tracking-tight">Was als Nächstes?</h2>
+      <h2 className="text-sm font-bold tracking-tight">{t("home.nextUp")}</h2>
       <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
         {items.map((item) => {
           const Icon = ICONS[item.kind];

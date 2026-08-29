@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { weekdayLabel } from "@/lib/utils/weekday";
 import { formatSwissDate } from "@/lib/utils/dates";
+import { useLocale, useT } from "@/components/i18n/locale-provider";
 
 type FreeSlot = {
   date: string;
@@ -75,6 +76,8 @@ export function AdhocEventDialog({
       primary: boolean;
     }>
   >([]);
+  const t = useT();
+  const { intlLocale } = useLocale();
   const [targetKey, setTargetKey] = useState<string>("");
 
   const isMari = mariIssueId != null && mariIssueId > 0;
@@ -173,7 +176,7 @@ export function AdhocEventDialog({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || "Slots suchen fehlgeschlagen");
+        throw new Error(data.error || t("common.searchSlotsFailed"));
       }
       const next = (data.slots || []) as FreeSlot[];
       setSlots(next);
@@ -186,8 +189,11 @@ export function AdhocEventDialog({
       setProviderLabel(prov);
       setMsg(
         next.length
-          ? `${next.length} freie Slots (heute–+7 Tage, 08–18)${prov ? ` · ${prov}` : ""}.`
-          : "Keine freien Slots gefunden."
+          ? t("calendarUi.freeSlotsFound", {
+              count: next.length,
+              provider: prov ? ` · ${prov}` : "",
+            })
+          : t("common.noFreeSlots")
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -199,7 +205,7 @@ export function AdhocEventDialog({
   async function createInSlot(slot: FreeSlot) {
     const trimmed = title.trim();
     if (!trimmed) {
-      setError("Bitte einen Titel angeben.");
+      setError(t("common.titleRequired"));
       return;
     }
     setBusy(true);
@@ -226,20 +232,24 @@ export function AdhocEventDialog({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || "Termin anlegen fehlgeschlagen");
+        throw new Error(data.error || t("calendarUi.createFailed"));
       }
       const prov =
         data.provider === "google"
           ? "Google"
           : data.provider === "microsoft"
             ? "Outlook"
-            : "Kalender";
+            : t("workspace.calendar");
       const teamsHint =
         data.provider === "microsoft" && data.teamsMeeting
-          ? " · Teams-Meeting"
+          ? t("calendarUi.teamsMeetingHint")
           : "";
       setMsg(
-        `Eingetragen (${prov}${teamsHint}): ${trimmed} · ${formatSwissDate(slot.date)} ${slot.startHm}–${slot.endHm}`
+        t("calendarUi.inserted", {
+          provider: `${prov}${teamsHint}`,
+          title: trimmed,
+          when: `${formatSwissDate(slot.date)} ${slot.startHm}–${slot.endHm}`,
+        })
       );
       onCreated?.();
       onOpenChange(false);
@@ -254,15 +264,15 @@ export function AdhocEventDialog({
   async function createManual() {
     const trimmed = title.trim();
     if (!trimmed) {
-      setError("Bitte einen Titel angeben.");
+      setError(t("common.titleRequired"));
       return;
     }
     if (!date) {
-      setError("Bitte ein Datum wählen.");
+      setError(t("common.dateRequired"));
       return;
     }
     if (!allDay && (!startHm || !endHm)) {
-      setError("Start- und Endzeit wählen oder ganztägig markieren.");
+      setError(t("calendarUi.chooseTimesOrAllDay"));
       return;
     }
     setBusy(true);
@@ -289,7 +299,7 @@ export function AdhocEventDialog({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || "Termin anlegen fehlgeschlagen");
+        throw new Error(data.error || t("calendarUi.createFailed"));
       }
       onCreated?.();
       onOpenChange(false);
@@ -320,37 +330,37 @@ export function AdhocEventDialog({
             />
             {dialogTitle ||
               (isMari
-                ? `Termin · Ticket #${mariIssueId}`
-                : "Ad-hoc einplanen")}
+                ? t("calendarUi.ticketEvent", { id: mariIssueId })
+                : t("calendarUi.planAdhoc"))}
           </DialogTitle>
           <DialogDescription>
             {dialogDescription ||
               (isMari
-                ? "Termin direkt eintragen oder freien Slot suchen — Stempel für Abend-Stundenbuchung."
-                : "Titel, Zeit und Ort setzen — oder einen freien Slot wählen.")}
+                ? t("calendarUi.mariHint")
+                : t("calendarUi.adhocHint"))}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="adhoc-title">Titel</Label>
+            <Label htmlFor="adhoc-title">{t("common.title")}</Label>
             <Input
               id="adhoc-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="z. B. Ticket #1230 nachfassen"
+              placeholder={t("calendarUi.titlePlaceholder")}
               maxLength={200}
               disabled={busy}
             />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="adhoc-location">Ort (optional)</Label>
+            <Label htmlFor="adhoc-location">{t("common.locationOptional")}</Label>
             <Input
               id="adhoc-location"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
-              placeholder="z. B. Büro Regensdorf"
+              placeholder={t("calendarUi.locationPlaceholder")}
               maxLength={300}
               disabled={busy}
             />
@@ -358,7 +368,7 @@ export function AdhocEventDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="adhoc-date">Datum</Label>
+              <Label htmlFor="adhoc-date">{t("common.date")}</Label>
               <Input
                 id="adhoc-date"
                 type="date"
@@ -375,14 +385,14 @@ export function AdhocEventDialog({
                 disabled={busy}
                 onChange={(e) => setAllDay(e.target.checked)}
               />
-              Ganztägig
+              {t("calendarUi.allDay")}
             </label>
           </div>
 
           {!allDay ? (
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="adhoc-start">Von</Label>
+                <Label htmlFor="adhoc-start">{t("common.from")}</Label>
                 <Input
                   id="adhoc-start"
                   type="time"
@@ -392,7 +402,7 @@ export function AdhocEventDialog({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="adhoc-end">Bis</Label>
+                <Label htmlFor="adhoc-end">{t("common.until")}</Label>
                 <Input
                   id="adhoc-end"
                   type="time"
@@ -414,19 +424,19 @@ export function AdhocEventDialog({
             {busy ? (
               <Loader2 className="size-4 animate-spin" aria-hidden />
             ) : null}
-            Termin eintragen
+            {t("calendarUi.insertEvent")}
           </Button>
 
           <div className="space-y-1.5">
             <Label htmlFor="adhoc-notes">
-              {isMari ? "Beschreibung / Memo" : "Notiz (optional)"}
+              {isMari ? t("common.descriptionMemo") : t("common.notesOptional")}
             </Label>
             {isMari ? (
               <Textarea
                 id="adhoc-notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Ticketzusammenfassung für den Termin"
+                placeholder={t("calendarUi.ticketSummaryPlaceholder")}
                 maxLength={4000}
                 rows={5}
                 disabled={busy}
@@ -437,7 +447,7 @@ export function AdhocEventDialog({
                 id="adhoc-notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Kurzbeschreibung"
+                placeholder={t("calendarUi.shortDescription")}
                 maxLength={500}
                 disabled={busy}
               />
@@ -446,7 +456,7 @@ export function AdhocEventDialog({
 
           {targets.length > 0 ? (
             <div className="space-y-1.5">
-              <Label htmlFor="adhoc-calendar">Zielkalender</Label>
+              <Label htmlFor="adhoc-calendar">{t("calendarUi.targetCalendar")}</Label>
               <select
                 id="adhoc-calendar"
                 className="h-11 w-full rounded-xl border border-border/70 bg-background px-3 text-sm"
@@ -458,12 +468,12 @@ export function AdhocEventDialog({
                   setMsg(null);
                 }}
               >
-                {targets.map((t) => (
-                  <option key={`${t.provider}:${t.id}`} value={`${t.provider}:${t.id}`}>
-                    {t.provider === "google" ? "Google" : "Outlook"}
+                {targets.map((cal) => (
+                  <option key={`${cal.provider}:${cal.id}`} value={`${cal.provider}:${cal.id}`}>
+                    {cal.provider === "google" ? "Google" : "Outlook"}
                     {" · "}
-                    {t.name}
-                    {t.primary ? " (primär)" : ""}
+                    {cal.name}
+                    {cal.primary ? ` ${t("common.primaryParen")}` : ""}
                   </option>
                 ))}
               </select>
@@ -471,7 +481,7 @@ export function AdhocEventDialog({
           ) : null}
 
           <div className="space-y-1.5">
-            <Label>Dauer</Label>
+            <Label>{t("common.duration")}</Label>
             <div className="flex flex-wrap gap-1.5">
               {SLOT_DURATION_PRESETS.map((m) => (
                 <Button
@@ -487,7 +497,7 @@ export function AdhocEventDialog({
                     setMsg(null);
                   }}
                 >
-                  {m} Min
+                  {t("common.minutes", { count: m })}
                 </Button>
               ))}
             </div>
@@ -495,11 +505,7 @@ export function AdhocEventDialog({
 
           {selectedTarget?.provider !== "google" && !allDay ? (
             <p className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5 text-[0.6875rem] leading-snug text-muted-foreground">
-              Outlook legt den Termin als{" "}
-              <span className="font-semibold text-foreground">
-                Teams-Meeting
-              </span>{" "}
-              an (Link + Schalter aktiv).
+              {t("calendarUi.outlookTeamsHint")}
             </p>
           ) : null}
 
@@ -512,21 +518,22 @@ export function AdhocEventDialog({
             {busy ? (
               <Loader2 className="size-4 animate-spin" aria-hidden />
             ) : null}
-            Freie Slots suchen
+            {t("common.searchSlots")}
           </Button>
 
           {slots.length > 0 ? (
             <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-2">
               <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-muted-foreground">
-                Slot wählen
-                {providerLabel ? ` → ${providerLabel}` : ""} ({duration} Min · 7
-                Tage)
+                {t("calendarUi.chooseSlotDays", {
+                  provider: providerLabel ? ` → ${providerLabel}` : "",
+                  duration,
+                })}
               </p>
               <div className="max-h-56 space-y-2.5 overflow-y-auto">
                 {groupFreeSlotsByDate(slots).map(({ date, slots: daySlots }) => (
                   <div key={date} className="space-y-1">
                     <p className="text-xs font-semibold text-foreground">
-                      {weekdayLabel(date)} · {formatSwissDate(date)}
+                      {weekdayLabel(date, intlLocale)} · {formatSwissDate(date)}
                     </p>
                     <ul className="flex flex-col gap-1">
                       {daySlots.map((s) => (
@@ -544,7 +551,7 @@ export function AdhocEventDialog({
                               {s.startHm}–{s.endHm}
                             </span>
                             <span className="text-[0.6875rem] font-medium text-foreground">
-                              Eintragen
+                              {t("common.insert")}
                             </span>
                           </Button>
                         </li>

@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useT } from "@/components/i18n/locale-provider";
 
 const OPENAI_MODELS = ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"];
 
@@ -38,6 +39,7 @@ type AccountPayload = {
 };
 
 export function AccountSecretsPanel() {
+  const t = useT();
   const [data, setData] = useState<AccountPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -58,7 +60,7 @@ export function AccountSecretsPanel() {
     setError(null);
     const res = await fetch("/api/account");
     const json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Konto laden fehlgeschlagen");
+    if (!res.ok) throw new Error(json.error || t("account.secretsLoadFailed"));
     setData(json);
     setOpenaiModel(json.openai?.openaiModel || "gpt-4o-mini");
     setChatProvider(json.openai?.chatProvider || "openai");
@@ -100,12 +102,12 @@ export function AccountSecretsPanel() {
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Speichern fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("common.saveFailed"));
       setOpenaiKey("");
       setChatKey("");
       setClearOpenai(false);
       setClearChat(false);
-      setStatus("Gespeichert.");
+      setStatus(t("common.savedPeriod"));
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -118,23 +120,27 @@ export function AccountSecretsPanel() {
     <div className="space-y-4">
       {data && usingCompanyAi ? (
         <p className="text-sm text-muted-foreground">
-          Firmen-KI gilt für alle
-          {data.openai.companyModel ? ` (${data.openai.companyModel})` : ""}.
-          Persönliche Keys werden nicht genutzt.
+          {t("account.companyAiActive", {
+            model: data.openai.companyModel
+              ? t("account.companyAiModelParen", {
+                  model: data.openai.companyModel,
+                })
+              : "",
+          })}
         </p>
       ) : data ? (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">OpenAI (Pflicht für KI)</CardTitle>
+            <CardTitle className="text-base">{t("account.openaiTitle")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
               {data.openai.hasOpenaiKey
-                ? "Ein OpenAI-Key ist gesetzt (nicht sichtbar)."
-                : "Kein Key hinterlegt — KI-Funktionen sind deaktiviert, ausser der Admin hinterlegt eine Firmen-KI."}
+                ? t("account.openaiKeySet")
+                : t("account.openaiKeyMissing")}
             </p>
             <div className="space-y-2">
-              <Label htmlFor="openai-key">Neuer OpenAI-Key</Label>
+              <Label htmlFor="openai-key">{t("account.openaiNewKey")}</Label>
               <Input
                 id="openai-key"
                 type="password"
@@ -150,10 +156,10 @@ export function AccountSecretsPanel() {
                 checked={clearOpenai}
                 onChange={(e) => setClearOpenai(e.target.checked)}
               />
-              Key entfernen
+              {t("account.removeKey")}
             </label>
             <div className="space-y-2">
-              <Label>Modell</Label>
+              <Label>{t("account.model")}</Label>
               <Select
                 value={openaiModel}
                 onValueChange={(v) => {
@@ -173,7 +179,7 @@ export function AccountSecretsPanel() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Optional: Chat-Provider (Compose)</Label>
+              <Label>{t("account.chatProvider")}</Label>
               <Select
                 value={chatProvider}
                 onValueChange={(v) => {
@@ -194,17 +200,17 @@ export function AccountSecretsPanel() {
               <>
                 <Input
                   type="password"
-                  placeholder="Chat-API-Key"
+                  placeholder={t("account.chatApiKey")}
                   value={chatKey}
                   onChange={(e) => setChatKey(e.target.value)}
                 />
                 <Input
-                  placeholder="Base-URL"
+                  placeholder={t("account.chatBaseUrl")}
                   value={chatBaseUrl}
                   onChange={(e) => setChatBaseUrl(e.target.value)}
                 />
                 <Input
-                  placeholder="Chat-Modell"
+                  placeholder={t("account.chatModel")}
                   value={chatModel}
                   onChange={(e) => setChatModel(e.target.value)}
                 />
@@ -214,7 +220,7 @@ export function AccountSecretsPanel() {
                     checked={clearChat}
                     onChange={(e) => setClearChat(e.target.checked)}
                   />
-                  Chat-Key entfernen
+                  {t("account.removeChatKey")}
                 </label>
               </>
             ) : null}
@@ -224,11 +230,11 @@ export function AccountSecretsPanel() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Maringo / MARI</CardTitle>
+          <CardTitle className="text-base">{t("account.mariTitle")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="mari-emp">Personalnummer</Label>
+            <Label htmlFor="mari-emp">{t("account.employeeNumber")}</Label>
             <Input
               id="mari-emp"
               value={mariEmp}
@@ -244,7 +250,7 @@ export function AccountSecretsPanel() {
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       {status ? <p className="text-sm text-muted-foreground">{status}</p> : null}
       <Button type="button" onClick={() => void save()} disabled={busy} className="h-11">
-        {busy ? "Speichern…" : "Konto speichern"}
+        {busy ? t("common.saving") : t("account.saveAccount")}
       </Button>
     </div>
   );

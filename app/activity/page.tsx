@@ -1,4 +1,4 @@
-import { PageHeader } from "@/components/layout/page-primitives";
+import { TranslatedPageHeader } from "@/components/layout/translated-page-header";
 import { pageVisuals } from "@/components/layout/icon-circle";
 import { SettingsActivityPanel } from "@/components/settings/settings-activity-panel";
 
@@ -11,9 +11,9 @@ export const metadata = {
 export default function ActivityPage() {
   return (
     <div className="space-y-8 pb-28 md:pb-0">
-      <PageHeader
-        title="Aktivitätslog"
-        description="Anmeldungen, Abmeldungen, abgelaufene Sessions und abgeschlossene Analysen (nur Admin)."
+      <TranslatedPageHeader
+        titleKey="activity.title"
+        descriptionKey="activity.description"
         icon={pageVisuals.activity.icon}
         tone={pageVisuals.activity.tone}
       />

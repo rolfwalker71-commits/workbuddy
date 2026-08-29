@@ -14,11 +14,12 @@ import {
 } from "@/components/layout/segmented-control";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import {
-  USER_ORGANIZATION_LABELS,
   USER_ORGANIZATIONS,
   parseUserOrganization,
   type UserOrganization,
 } from "@/lib/users/organization";
+import { useLocale, useT } from "@/components/i18n/locale-provider";
+import { organizationDisplayLabel } from "@/lib/i18n/display";
 
 type AppUser = {
   id: number;
@@ -45,12 +46,14 @@ function OrganizationPills({
   value: UserOrganization | null;
   onChange: (next: UserOrganization) => void;
 }) {
+  const t = useT();
+  const { locale } = useLocale();
   return (
     <div
       id={id}
       className={cn(segmentedTrackClass, "w-full max-w-full flex-nowrap")}
       role="radiogroup"
-      aria-label="Organisation"
+      aria-label={t("common.organization")}
     >
       {USER_ORGANIZATIONS.map((code) => (
         <Button
@@ -67,7 +70,7 @@ function OrganizationPills({
             strokeWidth={APP_ICON_STROKE}
             aria-hidden
           />
-          {USER_ORGANIZATION_LABELS[code]}
+          {organizationDisplayLabel(code, locale)}
         </Button>
       ))}
     </div>
@@ -75,6 +78,8 @@ function OrganizationPills({
 }
 
 export function SettingsUsersPanel() {
+  const t = useT();
+  const { locale } = useLocale();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -99,7 +104,7 @@ export function SettingsUsersPanel() {
   async function load() {
     const res = await fetch("/api/users");
     const json = await res.json();
-    if (!res.ok) throw new Error(json.error || "User laden fehlgeschlagen");
+    if (!res.ok) throw new Error(json.error || t("settings.usersLoadFailed"));
     setUsers(json.users || []);
   }
 
@@ -114,13 +119,13 @@ export function SettingsUsersPanel() {
     setError(null);
     try {
       if (!username.trim() || !email.trim() || !password.trim()) {
-        throw new Error("Benutzername, E-Mail und Passwort sind Pflicht.");
+        throw new Error(t("settings.requiredFields"));
       }
       if (password.trim().length < 6) {
-        throw new Error("Passwort muss mindestens 6 Zeichen haben.");
+        throw new Error(t("settings.passwordMin6"));
       }
       if (!organization) {
-        throw new Error("Organisation ist Pflicht.");
+        throw new Error(t("settings.orgRequired"));
       }
       const res = await fetch("/api/users", {
         method: "POST",
@@ -135,14 +140,14 @@ export function SettingsUsersPanel() {
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Anlegen fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("common.createFailed"));
       setUsername("");
       setEmail("");
       setDisplayName("");
       setPassword("");
       setOrganization(null);
       setCanManagePresence(false);
-      setStatus("User angelegt.");
+      setStatus(t("settings.userCreated"));
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -157,14 +162,14 @@ export function SettingsUsersPanel() {
     setError(null);
     try {
       const name = editDisplayName.trim();
-      if (!name) throw new Error("Anzeigename darf nicht leer sein.");
+      if (!name) throw new Error(t("settings.displayNameEmpty"));
       const res = await fetch(`/api/users/${editId}/access`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ modules: editModules }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Module speichern fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("settings.modulesSaveFailed"));
       const patchRes = await fetch(`/api/users/${editId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -178,9 +183,9 @@ export function SettingsUsersPanel() {
       });
       const patchJson = await patchRes.json();
       if (!patchRes.ok) {
-        throw new Error(patchJson.error || "Benutzer speichern fehlgeschlagen");
+        throw new Error(patchJson.error || t("settings.userSaveFailed"));
       }
-      setStatus("Benutzer gespeichert.");
+      setStatus(t("settings.userSaved"));
       setEditId(null);
       setEditPassword("");
       await load();
@@ -192,7 +197,7 @@ export function SettingsUsersPanel() {
   }
 
   async function resetSecrets(id: number) {
-    if (!confirm("OpenAI-Key dieses Users entfernen?")) return;
+    if (!confirm(t("settings.confirmClearOpenai"))) return;
     setBusy(true);
     try {
       const res = await fetch(`/api/users/${id}`, {
@@ -203,8 +208,8 @@ export function SettingsUsersPanel() {
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Reset fehlgeschlagen");
-      setStatus("Secrets zurückgesetzt.");
+      if (!res.ok) throw new Error(json.error || t("settings.resetFailed"));
+      setStatus(t("settings.secretsResetDone"));
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -214,7 +219,7 @@ export function SettingsUsersPanel() {
   }
 
   async function removeUser(id: number) {
-    if (!confirm("User wirklich löschen?")) return;
+    if (!confirm(t("settings.confirmDeleteUser"))) return;
     await fetch(`/api/users/${id}`, { method: "DELETE" });
     await load();
   }
@@ -228,46 +233,44 @@ export function SettingsUsersPanel() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Benutzer</CardTitle>
+        <CardTitle className="text-base">{t("settings.usersTitle")}</CardTitle>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Nur Admins legen Konten an und vergeben Passwort sowie Anzeigename
-          (Seitenleiste). Microsoft 365 verbindet jede Person selbst unter
-          Konto — nach der Anmeldung mit Benutzername und Passwort.
+          {t("settings.usersHint")}
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label>Benutzername</Label>
+            <Label>{t("common.username")}</Label>
             <Input value={username} onChange={(e) => setUsername(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label>E-Mail</Label>
+            <Label>{t("common.email")}</Label>
             <Input value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="new-display-name">Anzeigename</Label>
+            <Label htmlFor="new-display-name">{t("common.displayName")}</Label>
             <Input
               id="new-display-name"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Wie in der Seitenleiste"
+              placeholder={t("settings.displayNamePh")}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="new-password">Passwort</Label>
+            <Label htmlFor="new-password">{t("common.password")}</Label>
             <Input
               id="new-password"
               type="password"
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Mindestens 6 Zeichen"
+              placeholder={t("settings.passwordPh")}
             />
           </div>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="new-organization">Organisation</Label>
+          <Label htmlFor="new-organization">{t("common.organization")}</Label>
           <OrganizationPills
             id="new-organization"
             value={organization}
@@ -282,15 +285,14 @@ export function SettingsUsersPanel() {
             onChange={(e) => setCanManagePresence(e.target.checked)}
           />
           <span>
-            Stati anderer pflegen
+            {t("settings.manageOthers")}
             <span className="mt-0.5 block text-muted-foreground">
-              Darf Anwesenheit von Kolleginnen und Kollegen derselben
-              Organisation setzen
+              {t("settings.manageOthersHint")}
             </span>
           </span>
         </label>
         <Button type="button" className="h-11" disabled={busy} onClick={() => void createUser()}>
-          <Plus className="size-4" /> User anlegen
+          <Plus className="size-4" /> {t("settings.createUser")}
         </Button>
 
         <div className="space-y-3">
@@ -311,24 +313,23 @@ export function SettingsUsersPanel() {
                         {m}
                       </Badge>
                     ))}
-                    {user.active ? null : <Badge variant="destructive">inaktiv</Badge>}
+                    {user.active ? null : <Badge variant="destructive">{t("common.inactive")}</Badge>}
                     {user.has_openai_key ? <Badge>OpenAI</Badge> : null}
                     {user.mari_employee_number ? (
                       <Badge>MARI {user.mari_employee_number}</Badge>
                     ) : null}
                     {parseUserOrganization(user.organization) ? (
                       <Badge variant="secondary">
-                        {
-                          USER_ORGANIZATION_LABELS[
-                            parseUserOrganization(user.organization)!
-                          ]
-                        }
+                        {organizationDisplayLabel(
+                          parseUserOrganization(user.organization)!,
+                          locale
+                        )}
                       </Badge>
                     ) : (
-                      <Badge variant="outline">Ohne Organisation</Badge>
+                      <Badge variant="outline">{t("presence.noOrganization")}</Badge>
                     )}
                     {user.canManagePresence || user.can_manage_presence ? (
-                      <Badge>Stati</Badge>
+                      <Badge>{t("settings.stati")}</Badge>
                     ) : null}
                   </div>
                 </div>
@@ -352,10 +353,10 @@ export function SettingsUsersPanel() {
                       );
                     }}
                   >
-                    Bearbeiten
+                    {t("common.edit")}
                   </Button>
                   <Button type="button" variant="outline" onClick={() => void resetSecrets(user.id)}>
-                    Secrets reset
+                    {t("settings.secretsReset")}
                   </Button>
                   <Button type="button" variant="ghost" onClick={() => void removeUser(user.id)}>
                     <Trash2 className="size-4" />
@@ -366,7 +367,7 @@ export function SettingsUsersPanel() {
                 <div className="mt-3 space-y-3 border-t border-border/60 pt-3">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor={`display-name-${user.id}`}>Anzeigename</Label>
+                      <Label htmlFor={`display-name-${user.id}`}>{t("common.displayName")}</Label>
                       <Input
                         id={`display-name-${user.id}`}
                         value={editDisplayName}
@@ -374,20 +375,20 @@ export function SettingsUsersPanel() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor={`password-${user.id}`}>Neues Passwort</Label>
+                      <Label htmlFor={`password-${user.id}`}>{t("common.newPassword")}</Label>
                       <Input
                         id={`password-${user.id}`}
                         type="password"
                         autoComplete="new-password"
                         value={editPassword}
                         onChange={(e) => setEditPassword(e.target.value)}
-                        placeholder="Leer lassen, um behalten"
+                        placeholder={t("settings.keepPassword")}
                       />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor={`organization-${user.id}`}>
-                      Organisation
+                      {t("common.organization")}
                     </Label>
                     <OrganizationPills
                       id={`organization-${user.id}`}
@@ -405,10 +406,9 @@ export function SettingsUsersPanel() {
                       }
                     />
                     <span>
-                      Stati anderer pflegen
+                      {t("settings.manageOthers")}
                       <span className="mt-0.5 block text-muted-foreground">
-                        Darf Anwesenheit von Kolleginnen und Kollegen derselben
-                        Organisation setzen
+                        {t("settings.manageOthersHint")}
                       </span>
                     </span>
                   </label>
@@ -442,10 +442,10 @@ export function SettingsUsersPanel() {
                       checked={editActive}
                       onChange={(e) => setEditActive(e.target.checked)}
                     />
-                    Aktiv
+                    {t("common.active")}
                   </label>
                   <Button type="button" onClick={() => void saveAccess()} disabled={busy}>
-                    Speichern
+                    {t("common.save")}
                   </Button>
                 </div>
               ) : null}

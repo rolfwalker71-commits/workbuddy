@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/components/i18n/locale-provider";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -22,11 +23,12 @@ export function AiImagePreview({
   imageClassName?: string;
   className?: string;
 }) {
+  const t = useT();
   return (
     <Button
       type="button"
       variant="ghost"
-      title="Tippen zum Vergrössern"
+      title={t("layout.tapToZoom")}
       className={cn(
         "relative h-auto w-auto shrink-0 overflow-hidden rounded-lg border border-border/50 p-0 shadow-sm",
         className

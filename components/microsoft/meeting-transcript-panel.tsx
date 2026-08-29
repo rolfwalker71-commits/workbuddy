@@ -7,6 +7,7 @@ import {
   MicrosoftTaskSuggestions,
   type SuggestedTask,
 } from "@/components/microsoft/microsoft-task-suggestions";
+import { useT } from "@/components/i18n/locale-provider";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 
 type TranscriptPayload = {
@@ -46,6 +47,7 @@ export function MeetingTranscriptPanel({
   const [suggesting, setSuggesting] = useState(false);
   const [applying, setApplying] = useState(false);
   const [taskError, setTaskError] = useState<string | null>(null);
+  const t = useT();
   const [taskStatus, setTaskStatus] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -70,7 +72,7 @@ export function MeetingTranscriptPanel({
         setData(null);
         return;
       }
-      if (!res.ok) throw new Error(json.error || "Transkript fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("microsoft.transcriptFailed"));
       const transcript = json.transcript as TranscriptPayload & {
         needsReconnect?: boolean;
       };
@@ -81,7 +83,7 @@ export function MeetingTranscriptPanel({
     } finally {
       setLoading(false);
     }
-  }, [calendarId, chatId, eventId, issueId, joinUrl]);
+  }, [calendarId, chatId, eventId, issueId, joinUrl, t]);
 
   useEffect(() => {
     void load();
@@ -103,7 +105,7 @@ export function MeetingTranscriptPanel({
         }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || "Vorschläge fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("microsoft.suggestionsFailed"));
       setSuggestions((json.suggestions || []) as SuggestedTask[]);
       setUsedAi(Boolean(json.usedAi));
     } catch (err) {
@@ -129,11 +131,11 @@ export function MeetingTranscriptPanel({
           }),
         });
         const json = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(json.error || "To Do anlegen fehlgeschlagen");
+        if (!res.ok) throw new Error(json.error || t("microsoft.createToDoFailed"));
         ok += 1;
       }
       setTaskStatus(
-        ok === 1 ? "1 Aufgabe in To Do übernommen." : `${ok} Aufgaben in To Do übernommen.`
+        ok === 1 ? t("microsoft.oneTaskApplied") : t("microsoft.tasksApplied", { count: ok })
       );
     } catch (err) {
       setTaskError(err instanceof Error ? err.message : String(err));
@@ -152,22 +154,13 @@ export function MeetingTranscriptPanel({
     <div className="space-y-2 rounded-2xl bg-muted/40 px-3 py-3">
       <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         <FileText className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-        Meeting-Transkript
+        {t("microsoft.meetingTranscript")}
       </p>
       {loading ? (
-        <p className="text-sm text-muted-foreground">Suche Transkript…</p>
+        <p className="text-sm text-muted-foreground">{t("microsoft.searchingTranscript")}</p>
       ) : needsReconnect && !data?.text && !chatFallback.length ? (
         <p className="text-sm text-amber-900 dark:text-amber-100">
-          Im Token fehlen OnlineMeetings.Read oder
-          OnlineMeetingTranscript.Read.All. Unter{" "}
-          <Link
-            href="/account"
-            className="font-medium underline underline-offset-2"
-          >
-            Konto
-          </Link>{" "}
-          Microsoft 365 neu verbinden (Zustimmungsdialog). Die Azure-Freigabe
-          allein reicht nicht.
+          {t("microsoft.reconnectTranscript", { account: t("common.account") })}
         </p>
       ) : error ? (
         <p className="text-sm text-destructive">{error}</p>
@@ -181,13 +174,13 @@ export function MeetingTranscriptPanel({
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">
             {data?.hint ||
-              "Kein Transkript. Nur vorhanden, wenn die Aufnahme/Transkription im Meeting lief und fertig ist."}
+              t("microsoft.noTranscript")}
           </p>
           {chatFallback.length > 0 ? (
             <ul className={cnList(compact)}>
               {chatFallback.map((m) => (
                 <li key={m.id} className="text-sm leading-snug">
-                  <span className="font-medium">{m.from || "Unbekannt"}: </span>
+                  <span className="font-medium">{m.from || t("common.unknown")}: </span>
                   {m.text}
                 </li>
               ))}
@@ -204,8 +197,8 @@ export function MeetingTranscriptPanel({
           error={taskError}
           onSuggest={() => void suggest()}
           onApply={(sel) => void applyTasks(sel)}
-          suggestLabel="Restarbeit vorschlagen"
-          emptyHint="Keine Restarbeit erkannt — oder noch nicht geprüft."
+          suggestLabel={t("microsoft.leftoverWork")}
+          emptyHint={t("microsoft.leftoverEmpty")}
         />
       ) : null}
       {taskStatus ? (

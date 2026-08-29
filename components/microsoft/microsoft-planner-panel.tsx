@@ -17,6 +17,7 @@ import {
   readMsTaskDisplayPrefs,
   writeMsTaskDisplayPrefs,
 } from "@/lib/microsoft/task-display-prefs";
+import { useT } from "@/components/i18n/locale-provider";
 import { TaskCreateDialog } from "@/components/workspace/task-create-dialog";
 
 type PlannerTask = {
@@ -57,6 +58,7 @@ type TodoList = {
 };
 
 export function MicrosoftPlannerPanel() {
+  const t = useT();
   const [plannerTasks, setPlannerTasks] = useState<PlannerTask[]>([]);
   const [todoTasks, setTodoTasks] = useState<TodoTask[]>([]);
   const [todoLists, setTodoLists] = useState<TodoList[]>([]);
@@ -88,14 +90,14 @@ export function MicrosoftPlannerPanel() {
         setPlannerTasks((plannerJson.tasks || []) as PlannerTask[]);
       } else {
         setPlannerTasks([]);
-        parts.push(plannerJson.error || "Planner laden fehlgeschlagen");
+        parts.push(plannerJson.error || t("microsoft.loadPlannerFailed"));
       }
       if (todoRes.ok) {
         setTodoTasks((todoJson.tasks || []) as TodoTask[]);
         setTodoLists((todoJson.lists || []) as TodoList[]);
       } else {
         setTodoTasks([]);
-        parts.push(todoJson.error || "To Do laden fehlgeschlagen");
+        parts.push(todoJson.error || t("microsoft.loadToDoFailed"));
       }
       if (parts.length) setError(parts.join(" · "));
     } catch (err) {
@@ -103,7 +105,7 @@ export function MicrosoftPlannerPanel() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     const prefs = readMsTaskDisplayPrefs();
@@ -153,7 +155,7 @@ export function MicrosoftPlannerPanel() {
       `/api/microsoft/planner/tasks?planId=${encodeURIComponent(planId)}`
     );
     const json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Buckets laden fehlgeschlagen");
+    if (!res.ok) throw new Error(json.error || t("microsoft.loadBucketsFailed"));
     const buckets = (json.buckets || []) as PlannerBucket[];
     setBucketsByPlan((prev) => ({ ...prev, [planId]: buckets }));
     return buckets;
@@ -182,23 +184,26 @@ export function MicrosoftPlannerPanel() {
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Update fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("microsoft.updateFailed"));
       const updated = json.task as PlannerTask;
       setPlannerTasks((prev) =>
-        prev.map((t) => (t.id === updated.id ? { ...t, ...updated } : t))
+        prev.map((row) => (row.id === updated.id ? { ...row, ...updated } : row))
       );
-      let msg = `«${task.title}» aktualisiert.`;
+      let msg = t("microsoft.updatedNamed", { title: task.title });
       if (typeof patch.percentComplete === "number") {
         msg =
           patch.percentComplete >= 100
-            ? `«${task.title}» ist erledigt.`
-            : `«${task.title}» wieder geöffnet.`;
+            ? t("microsoft.completedNamed", { title: task.title })
+            : t("microsoft.reopenedNamed", { title: task.title });
       } else if (patch.dueDate !== undefined) {
         msg = patch.dueDate
-          ? `«${task.title}» neu terminiert auf ${toSwissDate(patch.dueDate) || patch.dueDate}.`
-          : `Termin bei «${task.title}» entfernt.`;
+          ? t("microsoft.rescheduledNamed", {
+              title: task.title,
+              date: toSwissDate(patch.dueDate) || patch.dueDate,
+            })
+          : t("microsoft.dueRemoved", { title: task.title });
       } else if (patch.bucketId) {
-        msg = `«${task.title}» in anderen Bucket verschoben.`;
+        msg = t("microsoft.movedBucket", { title: task.title });
       }
       setNotice(msg);
       showActionFeedback({
@@ -210,7 +215,7 @@ export function MicrosoftPlannerPanel() {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
       showActionFeedback({
-        headline: "Planner-Update fehlgeschlagen",
+        headline: t("microsoft.plannerUpdateFailed"),
         detail: message,
         tone: "error",
       });
@@ -244,29 +249,40 @@ export function MicrosoftPlannerPanel() {
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Update fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("microsoft.updateFailed"));
       const updated = json.task as TodoTask;
       const moved = Boolean(patch.moveToListId && patch.moveToListId !== task.listId);
       setTodoTasks((prev) => {
         if (moved) {
           return prev
-            .filter((t) => !(t.id === task.id && t.listId === task.listId))
+            .filter((row) => !(row.id === task.id && row.listId === task.listId))
             .concat(updated);
         }
-        return prev.map((t) =>
-          t.id === task.id && t.listId === task.listId ? { ...t, ...updated } : t
+        return prev.map((row) =>
+          row.id === task.id && row.listId === task.listId
+            ? { ...row, ...updated }
+            : row
         );
       });
-      let msg = `«${task.title}» aktualisiert.`;
-      if (patch.status === "completed") msg = `«${task.title}» ist erledigt.`;
-      else if (patch.status === "notStarted") msg = `«${task.title}» wieder geöffnet.`;
-      else if (patch.title) msg = `«${task.title}» umbenannt.`;
+      let msg = t("microsoft.updatedNamed", { title: task.title });
+      if (patch.status === "completed")
+        msg = t("microsoft.completedNamed", { title: task.title });
+      else if (patch.status === "notStarted")
+        msg = t("microsoft.reopenedNamed", { title: task.title });
+      else if (patch.title)
+        msg = t("microsoft.renamedNamed", { title: task.title });
       else if (patch.dueDate !== undefined) {
         msg = patch.dueDate
-          ? `«${updated.title}» neu terminiert auf ${toSwissDate(patch.dueDate) || patch.dueDate}.`
-          : `Termin bei «${updated.title}» entfernt.`;
+          ? t("microsoft.rescheduledNamed", {
+              title: updated.title,
+              date: toSwissDate(patch.dueDate) || patch.dueDate,
+            })
+          : t("microsoft.dueRemoved", { title: updated.title });
       } else if (moved) {
-        msg = `«${updated.title}» in «${updated.listTitle}» verschoben.`;
+        msg = t("microsoft.movedToList", {
+          title: updated.title,
+          list: updated.listTitle,
+        });
       }
       setNotice(msg);
       showActionFeedback({
@@ -278,7 +294,7 @@ export function MicrosoftPlannerPanel() {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
       showActionFeedback({
-        headline: "To-Do-Update fehlgeschlagen",
+        headline: t("microsoft.todoUpdateFailed"),
         detail: message,
         tone: "error",
       });
@@ -292,11 +308,15 @@ export function MicrosoftPlannerPanel() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-sm font-medium">Aufgaben</p>
+          <p className="text-sm font-medium">{t("workspace.tasks")}</p>
           <p className="text-xs text-muted-foreground">
-            {showTodo ? `${openTodo} To Do offen` : "To Do ausgeblendet"}
+            {showTodo
+              ? t("microsoft.todoOpen", { count: openTodo })
+              : t("microsoft.todoHidden")}
             {" · "}
-            {showPlanner ? `${openPlanner} Planner offen` : "Planner ausgeblendet"}
+            {showPlanner
+              ? t("microsoft.plannerOpen", { count: openPlanner })
+              : t("microsoft.plannerHidden")}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -326,7 +346,7 @@ export function MicrosoftPlannerPanel() {
               checked={showDone}
               onChange={(e) => setShowDone(e.target.checked)}
             />
-            Erledigte zeigen
+            {t("common.showCompleted")}
           </label>
           <Button
             type="button"
@@ -334,7 +354,7 @@ export function MicrosoftPlannerPanel() {
             onClick={() => setCreateOpen(true)}
           >
             <ListPlus className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-            Neue Aufgabe
+            {t("workspace.newTask")}
           </Button>
           <Button
             type="button"
@@ -347,7 +367,7 @@ export function MicrosoftPlannerPanel() {
               className={cn("size-3.5", loading && "animate-spin")}
               strokeWidth={APP_ICON_STROKE}
             />
-            Aktualisieren
+            {t("common.refresh")}
           </Button>
         </div>
       </div>
@@ -358,7 +378,7 @@ export function MicrosoftPlannerPanel() {
         provider="microsoft"
         lists={todoLists.map((l) => ({ id: l.id, title: l.displayName }))}
         onCreated={() => {
-          setNotice("Aufgabe angelegt.");
+          setNotice(t("common.createdTask"));
           void load();
         }}
       />
@@ -378,13 +398,13 @@ export function MicrosoftPlannerPanel() {
       ) : null}
 
       {loading && visiblePlanner.length === 0 && visibleTodo.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Lade Aufgaben…</p>
+        <p className="text-sm text-muted-foreground">{t("common.loadingTasks")}</p>
       ) : null}
 
       {!showTodo && !showPlanner ? (
         <Card>
           <CardContent className="p-5 text-sm text-muted-foreground">
-            To Do und Planner sind ausgeblendet. Oben wieder aktivieren.
+            {t("microsoft.bothHidden")}
           </CardContent>
         </Card>
       ) : null}
@@ -398,13 +418,15 @@ export function MicrosoftPlannerPanel() {
             <MicrosoftToDoLogo className="size-4" />
             To Do
             <span className="text-xs font-normal text-muted-foreground">
-              {openTodo} offen
+              {t("common.openCountLower", { count: openTodo })}
             </span>
           </h3>
           {!loading && visibleTodo.length === 0 ? (
             <Card>
               <CardContent className="p-5 text-sm text-muted-foreground">
-                Keine {showDone ? "" : "offenen "}To-Do-Aufgaben.
+                {showDone
+                  ? t("microsoft.noTodoTasks")
+                  : t("microsoft.noOpenTodoTasks")}
               </CardContent>
             </Card>
           ) : null}
@@ -447,15 +469,17 @@ export function MicrosoftPlannerPanel() {
                             });
                           });
                         }}
-                        title="Titel bearbeiten"
+                        title={t("common.editTitle")}
                       />
                       <p className="text-[0.6875rem] text-muted-foreground">
                         {[
-                          task.listTitle || "Liste",
+                          task.listTitle || t("common.list"),
                           task.dueDate
-                            ? `fällig ${toSwissDate(task.dueDate)}`
-                            : "ohne Datum",
-                          task.overdue ? "überfällig" : null,
+                            ? t("common.dueOn", {
+                                date: toSwissDate(task.dueDate),
+                              })
+                            : t("common.noDate"),
+                          task.overdue ? t("common.overdueLower") : null,
                         ]
                           .filter(Boolean)
                           .join(" · ")}
@@ -465,7 +489,9 @@ export function MicrosoftPlannerPanel() {
                       variant={task.status === "done" ? "secondary" : "outline"}
                       className="text-[0.625rem]"
                     >
-                      {task.status === "done" ? "Erledigt" : "Offen"}
+                      {task.status === "done"
+                        ? t("workspace.statusDone")
+                        : t("workspace.statusOpen")}
                     </Badge>
                   </div>
 
@@ -484,7 +510,7 @@ export function MicrosoftPlannerPanel() {
                           className="size-3.5"
                           strokeWidth={APP_ICON_STROKE}
                         />
-                        Erledigen
+                        {t("microsoft.complete")}
                       </Button>
                     ) : (
                       <Button
@@ -496,7 +522,7 @@ export function MicrosoftPlannerPanel() {
                           void patchTodo(task, { status: "notStarted" })
                         }
                       >
-                        Wieder öffnen
+                        {t("common.reopen")}
                       </Button>
                     )}
 
@@ -510,7 +536,7 @@ export function MicrosoftPlannerPanel() {
                         if (dueDate === (task.dueDate || null)) return;
                         void patchTodo(task, { dueDate });
                       }}
-                      title="Fälligkeit neu setzen"
+                      title={t("common.dueReset")}
                     />
 
                     <div className="inline-flex items-center gap-1.5">
@@ -528,11 +554,11 @@ export function MicrosoftPlannerPanel() {
                             return;
                           void patchTodo(task, { moveToListId });
                         }}
-                        title="In andere Liste verschieben"
+                        title={t("common.moveList")}
                       >
                         {todoLists.length === 0 ? (
                           <option value={task.listId}>
-                            {task.listTitle || "Liste"}
+                            {task.listTitle || t("common.list")}
                           </option>
                         ) : (
                           todoLists.map((l) => (
@@ -554,7 +580,7 @@ export function MicrosoftPlannerPanel() {
                         className="size-3"
                         strokeWidth={APP_ICON_STROKE}
                       />
-                      In To Do
+                      {t("microsoft.inToDo")}
                     </a>
                   </div>
                 </CardContent>
@@ -575,13 +601,15 @@ export function MicrosoftPlannerPanel() {
             <MicrosoftPlannerLogo className="size-4" />
             Planner
             <span className="text-xs font-normal text-muted-foreground">
-              {openPlanner} offen
+              {t("common.openCountLower", { count: openPlanner })}
             </span>
           </h3>
           {!loading && visiblePlanner.length === 0 ? (
             <Card>
               <CardContent className="p-5 text-sm text-muted-foreground">
-                Keine {showDone ? "" : "offenen "}Planner-Aufgaben.
+                {showDone
+                  ? t("microsoft.noPlannerTasks")
+                  : t("microsoft.noOpenPlannerTasks")}
               </CardContent>
             </Card>
           ) : null}
@@ -601,10 +629,12 @@ export function MicrosoftPlannerPanel() {
                         </p>
                         <p className="mt-0.5 text-[0.6875rem] text-muted-foreground">
                           {[
-                            task.planTitle || "Plan",
+                            task.planTitle || t("common.plan"),
                             task.bucketName,
                             task.dueDate
-                              ? `fällig ${toSwissDate(task.dueDate)}`
+                              ? t("common.dueOn", {
+                                  date: toSwissDate(task.dueDate),
+                                })
                               : null,
                           ]
                             .filter(Boolean)
@@ -618,7 +648,7 @@ export function MicrosoftPlannerPanel() {
                         className="text-[0.625rem]"
                       >
                         {task.status === "done"
-                          ? "Erledigt"
+                          ? t("workspace.statusDone")
                           : `${task.percentComplete}%`}
                       </Badge>
                     </div>
@@ -638,7 +668,7 @@ export function MicrosoftPlannerPanel() {
                             className="size-3.5"
                             strokeWidth={APP_ICON_STROKE}
                           />
-                          Erledigen
+                          {t("microsoft.complete")}
                         </Button>
                       ) : (
                         <Button
@@ -650,7 +680,7 @@ export function MicrosoftPlannerPanel() {
                             void patchPlanner(task, { percentComplete: 0 })
                           }
                         >
-                          Wieder öffnen
+                          {t("common.reopen")}
                         </Button>
                       )}
 
@@ -664,7 +694,7 @@ export function MicrosoftPlannerPanel() {
                           if (dueDate === (task.dueDate || null)) return;
                           void patchPlanner(task, { dueDate });
                         }}
-                        title="Fälligkeit neu setzen"
+                        title={t("common.dueReset")}
                       />
 
                       <div className="inline-flex items-center gap-1.5">
@@ -691,7 +721,7 @@ export function MicrosoftPlannerPanel() {
                         >
                           {buckets.length === 0 ? (
                             <option value={task.bucketId || ""}>
-                              {task.bucketName || "Bucket laden…"}
+                              {task.bucketName || t("common.loadBuckets")}
                             </option>
                           ) : (
                             buckets.map((b) => (
@@ -713,7 +743,7 @@ export function MicrosoftPlannerPanel() {
                           className="size-3"
                           strokeWidth={APP_ICON_STROKE}
                         />
-                        In Planner
+                        {t("microsoft.inPlanner")}
                       </a>
                     </div>
                   </CardContent>

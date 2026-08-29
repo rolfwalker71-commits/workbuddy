@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
+import { useT } from "@/components/i18n/locale-provider";
 import { showActionFeedback } from "@/lib/ui/action-feedback";
 
 type AiAction = "suggest" | "shorter" | "formal" | "toDe" | "toEn";
@@ -47,6 +48,7 @@ export function MicrosoftMailComposeDialog({
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState<AiAction | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const t = useT();
   const [usageLine, setUsageLine] = useState<string | null>(null);
 
   useEffect(() => {
@@ -82,7 +84,7 @@ export function MicrosoftMailComposeDialog({
 
   async function runAi(action: AiAction) {
     if (action !== "suggest" && !body.trim()) {
-      setError("Zuerst Text eingeben oder «Vorschlagen» nutzen.");
+      setError(t("microsoft.enterTextFirst"));
       return;
     }
     setAiBusy(action);
@@ -104,7 +106,7 @@ export function MicrosoftMailComposeDialog({
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(
-          (json as { error?: string }).error || "Mail-AI fehlgeschlagen"
+          (json as { error?: string }).error || t("microsoft.mailAiFailed")
         );
       }
       if (typeof json.subject === "string") setSubject(json.subject);
@@ -112,13 +114,13 @@ export function MicrosoftMailComposeDialog({
       setUsageLine(
         typeof json.usageLine === "string" && json.usageLine
           ? `DeepSeek · ${json.usageLine}`
-          : "DeepSeek · Token-Kosten unbekannt"
+          : t("microsoft.tokenCostUnknown")
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
       showActionFeedback({
-        headline: "Mail-AI fehlgeschlagen",
+        headline: t("microsoft.mailAiFailed"),
         detail: message,
         tone: "error",
       });
@@ -146,11 +148,11 @@ export function MicrosoftMailComposeDialog({
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(
-          (json as { error?: string }).error || "Senden fehlgeschlagen"
+          (json as { error?: string }).error || t("microsoft.sendFailed")
         );
       }
       showActionFeedback({
-        headline: send ? "Mail gesendet" : "Entwurf in Outlook",
+        headline: send ? t("microsoft.mailSent") : t("microsoft.draftInOutlook"),
         detail: subject || "Outlook",
         tone: "success",
       });
@@ -160,7 +162,7 @@ export function MicrosoftMailComposeDialog({
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
       showActionFeedback({
-        headline: "Mail fehlgeschlagen",
+        headline: t("microsoft.mailFailed"),
         detail: message,
         tone: "error",
       });
@@ -176,12 +178,12 @@ export function MicrosoftMailComposeDialog({
       <DialogContent className="flex max-h-[90dvh] w-[min(96vw,36rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
         <DialogHeader className="shrink-0 space-y-1 border-b border-border/60 px-4 py-3 pr-12 text-left">
           <DialogTitle className="text-base">
-            {mode === "reply" ? "Antwort senden" : "Neue Mail"}
+            {mode === "reply" ? t("microsoft.sendReply") : t("mail.compose")}
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Outlook-Versand
-            {hasSignature ? " · Buddy-Signatur" : ""}
-            {" · "}AI über DeepSeek
+            {t("microsoft.outlookSend")}
+            {hasSignature ? t("microsoft.buddySignature") : ""}
+            {" · "}{t("microsoft.aiViaDeepSeek")}
           </DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
@@ -191,17 +193,17 @@ export function MicrosoftMailComposeDialog({
             </p>
           ) : null}
           <div className="space-y-1">
-            <Label htmlFor="ms-mail-to">An</Label>
+            <Label htmlFor="ms-mail-to">{t("mail.to")}</Label>
             <Input
               id="ms-mail-to"
               value={to}
               onChange={(e) => setTo(e.target.value)}
-              placeholder="name@firma.ch"
+              placeholder={t("microsoft.toPlaceholder")}
               disabled={blocked}
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="ms-mail-subject">Betreff</Label>
+            <Label htmlFor="ms-mail-subject">{t("mail.subject")}</Label>
             <Input
               id="ms-mail-subject"
               value={subject}
@@ -210,18 +212,18 @@ export function MicrosoftMailComposeDialog({
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="ms-mail-hint">Hinweis an AI (optional)</Label>
+            <Label htmlFor="ms-mail-hint">{t("microsoft.aiHint")}</Label>
             <Input
               id="ms-mail-hint"
               value={hint}
               onChange={(e) => setHint(e.target.value)}
-              placeholder="z. B. Termin nächste Woche vorschlagen"
+              placeholder={t("microsoft.aiHintPlaceholder")}
               disabled={blocked}
             />
           </div>
           <div className="space-y-1">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <Label htmlFor="ms-mail-body">Text</Label>
+              <Label htmlFor="ms-mail-body">{t("mail.body")}</Label>
               <div className="flex flex-wrap gap-1">
                 <Button
                   type="button"
@@ -235,7 +237,7 @@ export function MicrosoftMailComposeDialog({
                     className="size-3"
                     strokeWidth={APP_ICON_STROKE}
                   />
-                  {aiBusy === "suggest" ? "…" : "Vorschlagen"}
+                  {aiBusy === "suggest" ? "…" : t("microsoft.suggest")}
                 </Button>
                 <Button
                   type="button"
@@ -245,7 +247,7 @@ export function MicrosoftMailComposeDialog({
                   onClick={() => void runAi("shorter")}
                   className="h-7 px-2 text-[0.6875rem]"
                 >
-                  {aiBusy === "shorter" ? "…" : "Kürzer"}
+                  {aiBusy === "shorter" ? "…" : t("microsoft.shorter")}
                 </Button>
                 <Button
                   type="button"
@@ -255,7 +257,7 @@ export function MicrosoftMailComposeDialog({
                   onClick={() => void runAi("formal")}
                   className="h-7 px-2 text-[0.6875rem]"
                 >
-                  {aiBusy === "formal" ? "…" : "Formeller"}
+                  {aiBusy === "formal" ? "…" : t("microsoft.moreFormal")}
                 </Button>
                 <Button
                   type="button"
@@ -287,12 +289,12 @@ export function MicrosoftMailComposeDialog({
               disabled={blocked}
             />
             {usageLine ? (
-              <p className="text-[0.6875rem] text-muted-foreground" title="Listenpreis, ungefähr">
-                Tokens · {usageLine}
+              <p className="text-[0.6875rem] text-muted-foreground" title={t("microsoft.listPriceApprox")}>
+                {t("common.tokens", { line: usageLine })}
               </p>
             ) : (
               <p className="text-[0.6875rem] text-muted-foreground">
-                AI-Aktionen zeigen danach geschätzte Token-Kosten.
+                {t("microsoft.aiCostHint")}
               </p>
             )}
           </div>
@@ -303,8 +305,8 @@ export function MicrosoftMailComposeDialog({
               onChange={(e) => setIncludeSignature(e.target.checked)}
               disabled={blocked || !hasSignature}
             />
-            Signatur anhängen
-            {!hasSignature ? " (noch keine unter Konto)" : ""}
+            {t("microsoft.attachSignature")}
+            {!hasSignature ? t("microsoft.noSignatureYet") : ""}
           </label>
         </div>
         <DialogFooter className="gap-2 border-t border-border/60 px-4 py-3 sm:justify-between">
@@ -314,7 +316,7 @@ export function MicrosoftMailComposeDialog({
             disabled={blocked || !to.trim() || !body.trim()}
             onClick={() => void submit(false)}
           >
-            Als Entwurf
+            {t("microsoft.asDraft")}
           </Button>
           <div className="flex gap-2">
             <Button
@@ -323,7 +325,7 @@ export function MicrosoftMailComposeDialog({
               disabled={blocked}
               onClick={() => onOpenChange(false)}
             >
-              Abbrechen
+              {t("common.cancel")}
             </Button>
             <Button
               type="button"
@@ -332,7 +334,7 @@ export function MicrosoftMailComposeDialog({
               className="gap-1.5"
             >
               <Send className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-              {busy ? "Sendet…" : "Senden"}
+              {busy ? t("common.sending") : t("common.send")}
             </Button>
           </div>
         </DialogFooter>

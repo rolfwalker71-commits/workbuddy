@@ -21,6 +21,7 @@ import type {
   MariTimelineAttachment,
   MariTimelineItem,
 } from "@/lib/mari/tickets";
+import { useT } from "@/components/i18n/locale-provider";
 
 const MAX_VISION_IMAGES = 6;
 
@@ -101,6 +102,7 @@ function PickerImageTile({
   onEnlarge: (src: string) => void;
   onSignatureHint: (likely: boolean) => void;
 }) {
+  const t = useT();
   const [src, setSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [hint, setHint] = useState(
@@ -181,7 +183,7 @@ function PickerImageTile({
         {failed ? (
           <span className="flex min-h-52 w-full flex-col items-center justify-center gap-2 px-4 text-center text-sm text-muted-foreground">
             <Paperclip className="size-5" />
-            Vorschau nicht verfügbar
+            {t("tickets.previewUnavailable")}
           </span>
         ) : src ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -192,7 +194,7 @@ function PickerImageTile({
           />
         ) : (
           <span className="flex min-h-52 items-center justify-center text-sm text-muted-foreground">
-            Lädt…
+            {t("common.loading")}
           </span>
         )}
       </button>
@@ -208,7 +210,7 @@ function PickerImageTile({
           </p>
           {hint ? (
             <p className="mt-1 text-xs font-medium text-amber-800 dark:text-amber-200">
-              Wirkt wie Signatur oder Logo
+              {t("tickets.looksLikeChrome")}
             </p>
           ) : null}
         </div>
@@ -218,8 +220,10 @@ function PickerImageTile({
             variant="ghost"
             size="icon-sm"
             className="shrink-0"
-            title="Vergrössern"
-            aria-label={`${item.attachment.orgFilename} vergrössern`}
+            title={t("tickets.enlarge")}
+            aria-label={t("tickets.enlargeNamed", {
+              name: item.attachment.orgFilename,
+            })}
             onClick={() => onEnlarge(src)}
           >
             <Maximize2 className="size-4" />
@@ -248,6 +252,7 @@ export function TicketAnalyzeAttachmentPicker({
   analyzing: boolean;
   onConfirm: (payload: TicketAnalyzeConfirmPayload) => void;
 }) {
+  const t = useT();
   const { images, documents } = useMemo(
     () => collectTicketAnalyzeMedia(timeline),
     [timeline]
@@ -317,22 +322,20 @@ export function TicketAnalyzeAttachmentPicker({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-5xl">
         <DialogHeader>
-          <DialogTitle>AI-Analyse vorbereiten</DialogTitle>
+          <DialogTitle>{t("tickets.analyzePrepare")}</DialogTitle>
           <DialogDescription>
-            Optional Module markieren, wenn aus dem Ticket nicht klar ist,
-            worum es geht. Mehrfachauswahl möglich. Ohne Auswahl sucht die
-            AI wie bisher. Grafiken kannst du dazunehmen oder weglassen.
+            {t("tickets.analyzePrepareHint")}
           </DialogDescription>
         </DialogHeader>
 
         <fieldset className="space-y-3">
           <legend className="text-sm font-semibold">
-            Module für die Suche
-            {products.length > 0 ? ` (${products.length})` : ""}
+            {products.length > 0
+              ? t("tickets.modulesForSearchN", { count: products.length })
+              : t("tickets.modulesForSearch")}
           </legend>
           <p className="text-xs text-muted-foreground">
-            Gewählte Produkte gehen als Kontext an die AI (help.sap.com,
-            helpdesk.coresystems.ch und passende Herstellerportale).
+            {t("tickets.modulesHint")}
           </p>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {MARI_ANALYZE_MODULES.map((mod) => {
@@ -355,7 +358,7 @@ export function TicketAnalyzeAttachmentPicker({
                     onChange={() => toggleProduct(mod.id)}
                   />
                   <span className="min-w-0 break-words text-sm font-medium leading-snug">
-                    {mod.label}
+                    {mod.id === "ang" ? t("tickets.moduleAng") : mod.label}
                   </span>
                 </label>
               );
@@ -367,7 +370,10 @@ export function TicketAnalyzeAttachmentPicker({
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-sm font-semibold">
-                Grafiken ({selected.length} von {images.length} gewählt)
+                {t("tickets.graphicsChosen", {
+                  selected: selected.length,
+                  total: images.length,
+                })}
               </h3>
               <div className="flex flex-wrap gap-1.5">
                 <Button
@@ -376,7 +382,7 @@ export function TicketAnalyzeAttachmentPicker({
                   size="sm"
                   onClick={selectLikelyScreenshots}
                 >
-                  Nur Screenshots
+                  {t("tickets.screenshotsOnly")}
                 </Button>
                 <Button
                   type="button"
@@ -384,7 +390,7 @@ export function TicketAnalyzeAttachmentPicker({
                   size="sm"
                   onClick={selectAll}
                 >
-                  Alle
+                  {t("common.all")}
                 </Button>
                 <Button
                   type="button"
@@ -392,14 +398,13 @@ export function TicketAnalyzeAttachmentPicker({
                   size="sm"
                   onClick={selectNone}
                 >
-                  Keine
+                  {t("tickets.none")}
                 </Button>
               </div>
             </div>
             {atCap && images.length > MAX_VISION_IMAGES ? (
               <p className="text-xs text-muted-foreground">
-                Höchstens {MAX_VISION_IMAGES} Grafiken gleichzeitig — zuerst
-                eine abwählen, um eine andere dazuzunehmen.
+                {t("tickets.maxGraphics", { max: MAX_VISION_IMAGES })}
               </p>
             ) : null}
             <div className="grid gap-3 sm:grid-cols-2">
@@ -430,7 +435,7 @@ export function TicketAnalyzeAttachmentPicker({
         {documents.length > 0 ? (
           <div className="space-y-2">
             <h3 className="text-sm font-semibold">
-              Dokumente ({documents.length})
+              {t("tickets.documentsN", { count: documents.length })}
             </h3>
             <ul className="grid gap-2 sm:grid-cols-2">
               {documents.map((item) => (
@@ -464,7 +469,7 @@ export function TicketAnalyzeAttachmentPicker({
             onClick={() => onOpenChange(false)}
             disabled={analyzing}
           >
-            Abbrechen
+            {t("common.cancel")}
           </Button>
           <Button
             type="button"
@@ -473,8 +478,12 @@ export function TicketAnalyzeAttachmentPicker({
             onClick={() => onConfirm({ attachmentIds: selected, products })}
           >
             {selected.length > 0
-              ? `Mit ${selected.length} Grafik${selected.length === 1 ? "" : "en"} analysieren`
-              : "Nur Text analysieren"}
+              ? selected.length === 1
+                ? t("tickets.analyzeWithGraphics", { count: selected.length })
+                : t("tickets.analyzeWithGraphicsPlural", {
+                    count: selected.length,
+                  })
+              : t("tickets.analyzeTextOnly")}
           </Button>
         </DialogFooter>
       </DialogContent>

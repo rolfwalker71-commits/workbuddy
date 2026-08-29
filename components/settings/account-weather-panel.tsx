@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/components/i18n/locale-provider";
 
 type WeatherHomeSetting = {
   query: string;
@@ -14,6 +15,7 @@ type WeatherHomeSetting = {
 };
 
 export function AccountWeatherPanel() {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [saved, setSaved] = useState<WeatherHomeSetting | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +26,7 @@ export function AccountWeatherPanel() {
     void fetch("/api/me/weather")
       .then(async (res) => {
         const json = await res.json();
-        if (!res.ok) throw new Error(json.error || "Wetter laden fehlgeschlagen");
+        if (!res.ok) throw new Error(json.error || t("account.weatherLoadFailed"));
         if (json.weather) {
           setSaved(json.weather);
           setQuery(json.weather.query || "");
@@ -33,7 +35,7 @@ export function AccountWeatherPanel() {
       .catch((err) =>
         setError(err instanceof Error ? err.message : String(err))
       );
-  }, []);
+  }, [t]);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -47,10 +49,10 @@ export function AccountWeatherPanel() {
         body: JSON.stringify({ weatherPlace: query }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Speichern fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("common.saveFailed"));
       setSaved(json.weather);
       setQuery(json.weather.query);
-      setStatus(`Standort gesetzt: ${json.weather.label}`);
+      setStatus(t("account.weatherSet", { label: json.weather.label }));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -61,26 +63,30 @@ export function AccountWeatherPanel() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Wetter-Standort</CardTitle>
+        <CardTitle className="text-base">{t("account.weatherTitle")}</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={save} className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Nur für dich, auf der Startseite. Open-Meteo, kein API-Key nötig.
+            {t("account.weatherHintLong")}
           </p>
           <div className="space-y-2">
-            <Label htmlFor="weather-place">Ort</Label>
+            <Label htmlFor="weather-place">{t("account.weatherPlace")}</Label>
             <Input
               id="weather-place"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="z. B. Altdorf UR"
+              placeholder={t("account.weatherPlacePh")}
               autoComplete="address-level2"
             />
           </div>
           {saved ? (
             <p className="text-xs text-muted-foreground">
-              Aktuell: {saved.label} · {saved.lat.toFixed(3)}, {saved.lon.toFixed(3)}
+              {t("account.weatherCurrent", {
+                label: saved.label,
+                lat: saved.lat.toFixed(3),
+                lon: saved.lon.toFixed(3),
+              })}
             </p>
           ) : null}
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
@@ -88,7 +94,7 @@ export function AccountWeatherPanel() {
             <p className="text-sm text-emerald-700 dark:text-emerald-400">{status}</p>
           ) : null}
           <Button type="submit" disabled={busy} className="h-11">
-            {busy ? "Suche Ort…" : "Standort speichern"}
+            {busy ? t("account.weatherSearching") : t("account.weatherSave")}
           </Button>
         </form>
       </CardContent>

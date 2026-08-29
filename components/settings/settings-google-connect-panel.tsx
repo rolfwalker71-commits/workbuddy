@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GoogleLogo } from "@/components/branding/provider-logos";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/i18n/locale-provider";
 
 type Connection = {
   googleOauthConfigured: boolean;
@@ -24,6 +25,7 @@ type Connection = {
 };
 
 export function SettingsGoogleConnectPanel() {
+  const t = useT();
   const searchParams = useSearchParams();
   const [data, setData] = useState<Connection | null>(null);
   const [loading, setLoading] = useState(true);
@@ -48,7 +50,7 @@ export function SettingsGoogleConnectPanel() {
       const json = await connRes.json();
       const acc = await accRes.json().catch(() => ({}));
       if (!connRes.ok) {
-        throw new Error(json.error || "Status laden fehlgeschlagen");
+        throw new Error(json.error || t("common.statusLoadFailed"));
       }
       setData(json as Connection);
       setClientId(
@@ -70,11 +72,11 @@ export function SettingsGoogleConnectPanel() {
   useEffect(() => {
     const flag = searchParams.get("google");
     if (flag === "connected") {
-      setStatus("Google Workspace verbunden.");
+      setStatus(t("account.gConnected"));
       void load();
     } else if (flag === "error") {
-      const reason = searchParams.get("reason") || "unbekannt";
-      setError(`Verbindung fehlgeschlagen: ${reason}`);
+      const reason = searchParams.get("reason") || t("common.unknownLower");
+      setError(t("common.connectFailed", { reason }));
     }
   }, [searchParams, load]);
 
@@ -93,10 +95,10 @@ export function SettingsGoogleConnectPanel() {
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Speichern fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("common.saveFailed"));
       setClientSecret("");
       setClearSecret(false);
-      setStatus("OAuth-Client gespeichert.");
+      setStatus(t("account.oauthSaved"));
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -106,7 +108,7 @@ export function SettingsGoogleConnectPanel() {
   }
 
   async function disconnect() {
-    if (!window.confirm("Dein Google-Konto von WorkBuddy trennen?")) return;
+    if (!window.confirm(t("account.confirmDisconnectG"))) return;
     setBusy(true);
     setError(null);
     try {
@@ -114,8 +116,8 @@ export function SettingsGoogleConnectPanel() {
         method: "POST",
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Trennen fehlgeschlagen");
-      setStatus("Google-Konto getrennt — gilt nur für dich.");
+      if (!res.ok) throw new Error(json.error || t("account.disconnectFailed"));
+      setStatus(t("account.gDisconnected"));
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -133,18 +135,16 @@ export function SettingsGoogleConnectPanel() {
           <span className="flex size-8 items-center justify-center rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)]">
             <GoogleLogo className="size-4" />
           </span>
-          Mein Google Workspace
+          {t("account.gTitle")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Jeder User hinterlegt <span className="font-medium text-foreground">eigene</span>{" "}
-          OAuth-Client-Daten aus der Google Cloud Console und verbindet danach
-          sein Konto. Es gibt keinen gemeinsamen App-Client.
+          {t("account.gDescription")}
         </p>
 
         {loading ? (
-          <p className="text-sm text-muted-foreground">Lade…</p>
+          <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
         ) : (
           <>
             {error ? (
@@ -160,7 +160,7 @@ export function SettingsGoogleConnectPanel() {
 
             <div className="space-y-3 rounded-xl border border-border/60 bg-muted/15 p-3">
               <div className="space-y-1">
-                <Label htmlFor="g-client-id">OAuth-Client-ID</Label>
+                <Label htmlFor="g-client-id">{t("account.oauthClientId")}</Label>
                 <Input
                   id="g-client-id"
                   value={clientId}
@@ -172,7 +172,7 @@ export function SettingsGoogleConnectPanel() {
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="g-client-secret">OAuth-Client-Secret</Label>
+                <Label htmlFor="g-client-secret">{t("account.oauthClientSecret")}</Label>
                 <Input
                   id="g-client-secret"
                   type="password"
@@ -182,7 +182,7 @@ export function SettingsGoogleConnectPanel() {
                     if (e.target.value) setClearSecret(false);
                   }}
                   autoComplete="new-password"
-                  placeholder={hasSecret ? "Gesetzt — leer lassen zum Behalten" : "Secret einfügen"}
+                  placeholder={hasSecret ? t("account.secretKeep") : t("account.secretPaste")}
                   disabled={saving}
                 />
                 {hasSecret ? (
@@ -193,13 +193,13 @@ export function SettingsGoogleConnectPanel() {
                       onChange={(e) => setClearSecret(e.target.checked)}
                       disabled={saving}
                     />
-                    Secret entfernen
+                    {t("account.removeSecret")}
                   </label>
                 ) : null}
               </div>
               {redirectUri ? (
                 <div className="space-y-1">
-                  <Label htmlFor="g-redirect">Redirect-URI für deine Cloud-App</Label>
+                  <Label htmlFor="g-redirect">{t("account.redirectUri")}</Label>
                   <Input
                     id="g-redirect"
                     readOnly
@@ -208,8 +208,7 @@ export function SettingsGoogleConnectPanel() {
                     onFocus={(e) => e.target.select()}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Diese URI in deinem Google-OAuth-Client als autorisierte
-                    Weiterleitung eintragen.
+                    {t("account.redirectUriHint")}
                   </p>
                 </div>
               ) : null}
@@ -219,23 +218,23 @@ export function SettingsGoogleConnectPanel() {
                 disabled={saving}
                 onClick={() => void saveClient()}
               >
-                {saving ? "Speichert…" : "Client speichern"}
+                {saving ? t("common.savingAlt") : t("account.saveClient")}
               </Button>
             </div>
 
             {data?.ownerUserId == null ? (
               <p className="text-sm text-amber-800">
-                Kein App-User — Verbindung nicht möglich.
+                {t("account.noAppUser")}
               </p>
             ) : !canConnect ? (
               <p className="text-sm text-amber-800">
-                Zuerst Client-ID und Secret speichern, dann verbinden.
+                {t("account.saveClientFirst")}
               </p>
             ) : data.connected ? (
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-sm">
-                    Verbunden als{" "}
+                    {t("common.connectedAs")}{" "}
                     <span className="font-medium">
                       {data.connectedEmail || "Google"}
                     </span>
@@ -248,7 +247,7 @@ export function SettingsGoogleConnectPanel() {
                     onClick={() => void disconnect()}
                   >
                     <Unlink className="size-3.5" />
-                    Trennen
+                    {t("common.disconnect")}
                   </Button>
                   <a
                     href="/api/google/oauth/start"
@@ -258,7 +257,7 @@ export function SettingsGoogleConnectPanel() {
                     )}
                   >
                     <Link2 className="size-3.5" />
-                    Neu verbinden
+                    {t("common.reconnect")}
                   </a>
                 </div>
                 {!data.hasCalendarScope ||
@@ -266,12 +265,11 @@ export function SettingsGoogleConnectPanel() {
                 !data.hasTasksScope ||
                 !data.hasGmailModify ? (
                   <p className="text-xs text-amber-800">
-                    Scopes unvollständig — bitte neu verbinden (Mail, Kalender,
-                    Tasks).
+                    {t("account.gScopesIncomplete")}
                   </p>
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    Mail, Kalender und Tasks aktiv.
+                    {t("account.gMailCalTasks")}
                   </p>
                 )}
               </div>
@@ -281,7 +279,7 @@ export function SettingsGoogleConnectPanel() {
                 className={cn(buttonVariants({ variant: "outline" }), "gap-1.5")}
               >
                 <Link2 className="size-3.5" />
-                Mein Google-Konto verbinden
+                {t("account.connectGoogle")}
               </a>
             )}
           </>

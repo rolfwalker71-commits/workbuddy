@@ -4,20 +4,23 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PresenceStatusPills } from "@/components/presence/presence-status-pills";
 import type { PresenceStatus } from "@/lib/presence/status";
+import { useT } from "@/components/i18n/locale-provider";
+import type { MessageKey } from "@/lib/i18n";
 
 const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri"] as const;
 type WeekdayKey = (typeof WEEKDAYS)[number];
 type Week = Partial<Record<WeekdayKey, PresenceStatus>>;
 
-const WEEKDAY_LABELS: Record<WeekdayKey, string> = {
-  mon: "Montag",
-  tue: "Dienstag",
-  wed: "Mittwoch",
-  thu: "Donnerstag",
-  fri: "Freitag",
+const WEEKDAY_KEYS: Record<WeekdayKey, MessageKey> = {
+  mon: "presence.weekdays.mon",
+  tue: "presence.weekdays.tue",
+  wed: "presence.weekdays.wed",
+  thu: "presence.weekdays.thu",
+  fri: "presence.weekdays.fri",
 };
 
 export function AccountPresenceWeekPanel() {
+  const t = useT();
   const [week, setWeek] = useState<Week>({});
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -28,14 +31,14 @@ export function AccountPresenceWeekPanel() {
       .then(async (res) => {
         const json = await res.json();
         if (!res.ok) {
-          throw new Error(json.error || "Standardwoche laden fehlgeschlagen");
+          throw new Error(json.error || t("account.weekLoadFailed"));
         }
         setWeek(json.week || {});
       })
       .catch((err) =>
         setError(err instanceof Error ? err.message : String(err))
       );
-  }, []);
+  }, [t]);
 
   async function saveWeek(next: Week) {
     const previous = week;
@@ -51,10 +54,10 @@ export function AccountPresenceWeekPanel() {
       });
       const json = await res.json();
       if (!res.ok) {
-        throw new Error(json.error || "Speichern fehlgeschlagen");
+        throw new Error(json.error || t("common.saveFailed"));
       }
       setWeek(json.week || {});
-      setStatus("Gespeichert.");
+      setStatus(t("common.savedPeriod"));
     } catch (err) {
       setWeek(previous);
       setError(err instanceof Error ? err.message : String(err));
@@ -73,29 +76,26 @@ export function AccountPresenceWeekPanel() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Standardwoche</CardTitle>
+        <CardTitle className="text-base">{t("account.defaultWeek")}</CardTitle>
       </CardHeader>
       <CardContent className="min-w-0 space-y-4">
-        <p className="text-sm text-muted-foreground">
-          Die Regel für jede Woche — auch die aktuelle. Einzelne Tage setzt du
-          nur, wenn sie davon abweichen. Tippe einen gesetzten Status erneut, um
-          den Wochentag zu leeren.
-        </p>
+        <p className="text-sm text-muted-foreground">{t("account.weekHint")}</p>
         <div className="min-w-0 space-y-3">
-          {WEEKDAYS.map((key) => (
-            <div key={key} className="min-w-0 space-y-1.5">
-              <p className="text-sm font-medium leading-snug">
-                {WEEKDAY_LABELS[key]}
-              </p>
-              <PresenceStatusPills
-                value={week[key] ?? null}
-                onChange={(next) => setDay(key, next)}
-                onClear={() => setDay(key, null)}
-                disabled={busy}
-                ariaLabel={`${WEEKDAY_LABELS[key]} Standard`}
-              />
-            </div>
-          ))}
+          {WEEKDAYS.map((key) => {
+            const dayLabel = t(WEEKDAY_KEYS[key]);
+            return (
+              <div key={key} className="min-w-0 space-y-1.5">
+                <p className="text-sm font-medium leading-snug">{dayLabel}</p>
+                <PresenceStatusPills
+                  value={week[key] ?? null}
+                  onChange={(next) => setDay(key, next)}
+                  onClear={() => setDay(key, null)}
+                  disabled={busy}
+                  ariaLabel={t("presence.weekdayStandard", { day: dayLabel })}
+                />
+              </div>
+            );
+          })}
         </div>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         {status ? (

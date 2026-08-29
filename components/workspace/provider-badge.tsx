@@ -7,6 +7,7 @@ import {
   OutlookLogo,
 } from "@/components/branding/provider-logos";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/i18n/locale-provider";
 import type { WorkspaceProvider } from "@/lib/workspace/merge-today";
 
 export function ProviderBadge({
@@ -18,6 +19,7 @@ export function ProviderBadge({
   kind?: "default" | "mail" | "calendar";
   className?: string;
 }) {
+  const t = useT();
   if (provider === "buddy") {
     return (
       <span
@@ -26,7 +28,7 @@ export function ProviderBadge({
           className
         )}
       >
-        Ritual
+        {t("common.ritual")}
       </span>
     );
   }

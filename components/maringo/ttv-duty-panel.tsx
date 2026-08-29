@@ -17,6 +17,7 @@ import {
   parseMariSupportGroupId,
   supportGroupStaffHint,
 } from "@/lib/mari/support-group-staff";
+import { useT } from "@/components/i18n/locale-provider";
 
 type DutyUser = {
   id: number;
@@ -32,6 +33,7 @@ type DutyDay = {
 };
 
 export function TtvDutyPanel() {
+  const t = useT();
   const [today, setToday] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -51,7 +53,7 @@ export function TtvDutyPanel() {
     const qs = weekStart ? `?week=${encodeURIComponent(weekStart)}` : "";
     const res = await fetch(`/api/maringo/ttv-duty${qs}`);
     const json = await res.json();
-    if (!res.ok) throw new Error(json.error || "TTV-Dienst laden fehlgeschlagen");
+    if (!res.ok) throw new Error(json.error || t("duty.loadFailed"));
     setToday(json.today);
     setFrom(json.from);
     setTo(json.to);
@@ -105,7 +107,7 @@ export function TtvDutyPanel() {
         body: JSON.stringify({ ymd, userId }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Speichern fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("common.saveFailed"));
       await load(from);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -116,7 +118,7 @@ export function TtvDutyPanel() {
 
   if (!from) {
     return (
-      <p className="text-sm text-muted-foreground">Lade TTV-Dienst…</p>
+      <p className="text-sm text-muted-foreground">{t("duty.loadingDuty")}</p>
     );
   }
 
@@ -126,17 +128,14 @@ export function TtvDutyPanel() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">TTV-Dienst</CardTitle>
+        <CardTitle className="text-base">{t("duty.title")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
-        <p className="text-muted-foreground">
-          Wer hat den Tag. Der Ticket-Filter «TTV» bleibt daneben der Fallback
-          für NEU-Tickets, falls niemand übernimmt.
-        </p>
+        <p className="text-muted-foreground">{t("duty.hintPanel")}</p>
         <div
           className={segmentedTrackClass}
           role="tablist"
-          aria-label="TTV-Woche"
+          aria-label={t("duty.weekAria")}
         >
           <Button
             type="button"
@@ -148,7 +147,7 @@ export function TtvDutyPanel() {
             disabled={busy}
             onClick={() => void load(addDaysYmd(from, -7))}
           >
-            Vorwoche
+            {t("duty.prevWeek")}
           </Button>
           <Button
             type="button"
@@ -160,7 +159,7 @@ export function TtvDutyPanel() {
             disabled={busy}
             onClick={() => void load(today)}
           >
-            Diese Woche
+            {t("duty.thisWeek")}
           </Button>
           <Button
             type="button"
@@ -172,7 +171,7 @@ export function TtvDutyPanel() {
             disabled={busy}
             onClick={() => void load(addDaysYmd(from, 7))}
           >
-            Nächste
+            {t("duty.nextWeek")}
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
@@ -180,7 +179,7 @@ export function TtvDutyPanel() {
         </p>
         {visibleGroups.length > 0 ? (
           <div className="space-y-1">
-            <Label htmlFor="ttv-duty-group">Supportgruppe</Label>
+            <Label htmlFor="ttv-duty-group">{t("tickets.supportGroup")}</Label>
             <select
               id="ttv-duty-group"
               className="h-10 min-h-10 w-full rounded-xl border-0 bg-muted px-3 text-sm"
@@ -188,7 +187,7 @@ export function TtvDutyPanel() {
               disabled={busy}
               onChange={(e) => setSupportGroupId(e.target.value)}
             >
-              <option value="">— Supportgruppe —</option>
+              <option value="">{t("duty.groupPlaceholder")}</option>
               {visibleGroups.map((g) => (
                 <option key={g.groupId} value={g.groupId}>
                   {g.description}
@@ -227,7 +226,7 @@ export function TtvDutyPanel() {
                   {formatSwissDate(ymd)}
                   {ymd === today ? (
                     <span className="mt-0.5 block text-[0.6875rem] font-medium text-muted-foreground">
-                      heute
+                      {t("duty.todayLower")}
                     </span>
                   ) : null}
                 </span>
@@ -241,7 +240,7 @@ export function TtvDutyPanel() {
                     void assign(ymd, v ? Number(v) : null);
                   }}
                 >
-                  <option value="">— frei —</option>
+                  <option value="">{t("duty.free")}</option>
                   {options.map((u) => (
                     <option key={u.id} value={u.id}>
                       {u.displayName}

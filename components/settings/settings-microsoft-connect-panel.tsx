@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { MicrosoftLogo } from "@/components/branding/provider-logos";
 import { useAuth } from "@/components/auth/auth-provider";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/i18n/locale-provider";
 
 type Connection = {
   microsoftOauthConfigured: boolean;
@@ -44,6 +45,7 @@ type Probe = {
 };
 
 export function SettingsMicrosoftConnectPanel() {
+  const t = useT();
   const searchParams = useSearchParams();
   const { refresh: refreshAuth } = useAuth();
   const [data, setData] = useState<Connection | null>(null);
@@ -67,7 +69,7 @@ export function SettingsMicrosoftConnectPanel() {
     try {
       const res = await fetch("/api/microsoft/connection");
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Status laden fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("common.statusLoadFailed"));
       setData(json as Connection);
       try {
         const accRes = await fetch("/api/account");
@@ -112,8 +114,8 @@ export function SettingsMicrosoftConnectPanel() {
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Signatur speichern fehlgeschlagen");
-      setSigStatus("Signatur gespeichert.");
+      if (!res.ok) throw new Error(json.error || t("account.signatureSaveFailed"));
+      setSigStatus(t("account.signatureSaved"));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -128,11 +130,11 @@ export function SettingsMicrosoftConnectPanel() {
   useEffect(() => {
     const flag = searchParams.get("microsoft");
     if (flag === "connected") {
-      setStatus("Microsoft 365 verbunden.");
+      setStatus(t("account.msConnected"));
       void load();
     } else if (flag === "error") {
-      const reason = searchParams.get("reason") || "unbekannt";
-      setError(`Verbindung fehlgeschlagen: ${reason}`);
+      const reason = searchParams.get("reason") || t("common.unknownLower");
+      setError(t("common.connectFailed", { reason }));
     }
   }, [searchParams, load]);
 
@@ -147,7 +149,7 @@ export function SettingsMicrosoftConnectPanel() {
         body: JSON.stringify({ teamsEnabled: next }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Teams-Einstellung fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("account.teamsSettingFailed"));
       setTeamsEnabled(json.teamsEnabled !== false);
       await refreshAuth();
     } catch (err) {
@@ -159,7 +161,7 @@ export function SettingsMicrosoftConnectPanel() {
   }
 
   async function disconnect() {
-    if (!window.confirm("Dein Microsoft 365-Konto von Buddy trennen?")) return;
+    if (!window.confirm(t("account.confirmDisconnectMs"))) return;
     setBusy(true);
     setError(null);
     try {
@@ -167,8 +169,8 @@ export function SettingsMicrosoftConnectPanel() {
         method: "POST",
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Trennen fehlgeschlagen");
-      setStatus("Microsoft 365 getrennt — gilt nur für dich.");
+      if (!res.ok) throw new Error(json.error || t("account.disconnectFailed"));
+      setStatus(t("account.msDisconnected"));
       setProbe(null);
       await load();
     } catch (err) {
@@ -184,7 +186,7 @@ export function SettingsMicrosoftConnectPanel() {
     try {
       const res = await fetch("/api/microsoft/probe");
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Probe fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("account.probeFailed"));
       setProbe(json as Probe);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -200,23 +202,16 @@ export function SettingsMicrosoftConnectPanel() {
           <span className="flex size-8 items-center justify-center rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)]">
             <MicrosoftLogo className="size-4" />
           </span>
-          Mein Microsoft 365
+          {t("account.msTitle")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          Geschäftskonto für Outlook-Mail, Kalender, Teams-Chats, Kanäle und
-          Meeting-Transkripte (z. B.{" "}
-          <span className="font-medium text-foreground">
-            rolf.walker@an-group.one
-          </span>
-          ). Getrennt von Google — Tokens nur für dich. Welche Kalender Buddy
-          zeigt, wählst du unten unter «Microsoft 365-Kalender». Nach neuen
-          Teams-Rechten (Kanäle, Antworten senden) einmal «Neu verbinden».
+          {t("account.msDescription", { email: "rolf.walker@an-group.one" })}
         </p>
 
         {loading ? (
-          <p className="text-sm text-muted-foreground">Lade…</p>
+          <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
         ) : (
           <>
             {error ? (
@@ -232,18 +227,17 @@ export function SettingsMicrosoftConnectPanel() {
 
             {!data?.microsoftOauthConfigured ? (
               <p className="text-sm text-amber-800">
-                Microsoft OAuth ist noch nicht app-weit konfiguriert (Admin:
-                Einstellungen → Kalender → Microsoft 365 OAuth).
+                {t("account.msOauthMissing")}
               </p>
             ) : data.ownerUserId == null ? (
               <p className="text-sm text-amber-800">
-                Kein App-User — Verbindung nicht möglich.
+                {t("account.noAppUser")}
               </p>
             ) : data.connected ? (
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-sm">
-                    Verbunden als{" "}
+                    {t("common.connectedAs")}{" "}
                     <span className="font-medium">
                       {data.connectedDisplayName
                         ? `${data.connectedDisplayName} · `
@@ -259,7 +253,7 @@ export function SettingsMicrosoftConnectPanel() {
                     onClick={() => void disconnect()}
                   >
                     <Unlink className="size-3.5" />
-                    Trennen
+                    {t("common.disconnect")}
                   </Button>
                   <a
                     href="/api/microsoft/oauth/start"
@@ -269,7 +263,7 @@ export function SettingsMicrosoftConnectPanel() {
                     )}
                   >
                     <Link2 className="size-3.5" />
-                    Neu verbinden
+                    {t("common.reconnect")}
                   </a>
                   <Button
                     type="button"
@@ -281,40 +275,34 @@ export function SettingsMicrosoftConnectPanel() {
                     <RefreshCw
                       className={cn("size-3.5", probing && "animate-spin")}
                     />
-                    Verbindung testen
+                    {t("account.testConnection")}
                   </Button>
                 </div>
                 {!data.hasCalendarScope || !data.hasMailScope ? (
                   <p className="text-xs text-amber-800">
-                    Scopes unvollständig — bitte neu verbinden (Mail +
-                    Kalender + Tasks).
+                    {t("account.scopesIncomplete")}
                   </p>
                 ) : !data.hasTeamsScopes ? (
                   <p className="text-xs text-amber-800">
-                    Teams-Chats, Kanäle und Transkripte brauchen eine neue
-                    Zustimmung — bitte «Neu verbinden», damit das Token die
-                    neuen Rechte bekommt (OnlineMeetings.Read,
-                    OnlineMeetingTranscript.Read.All, Team.ReadBasic.All,
-                    Channel.ReadBasic.All).
+                    {t("account.teamsScopesNeedReconnect")}
                   </p>
                 ) : !data.hasChatCreateScope || !data.hasChatMessageSendScope ? (
                   <p className="text-xs text-amber-800">
-                    Ticket-Ping und Teams-Antworten brauchen Chat.Create und
-                    ChatMessage.Send — bitte «Neu verbinden», damit das Token
-                    die neuen Rechte bekommt.
+                    {t("account.chatScopesNeedReconnect")}
                   </p>
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    Mail und Kalender aktiv
-                    {data.hasMailSendScope ? " (inkl. Senden)" : ""}
-                    {data.hasTasksScope ? " · To Do" : ""}
-                    {data.hasChatScope ? " · Teams-Chats" : ""}
-                    {data.hasChatMessageSendScope ? " · Teams senden" : ""}
-                    {data.hasChatCreateScope ? " · Chat anlegen" : ""}
-                    {data.hasChannelListScopes ? " · Teams-Kanäle" : ""}
-                    {data.hasTranscriptScope ? " · Transkripte" : ""}.
+                    {t("account.mailCalendarActive")}
+                    {data.hasMailSendScope ? t("account.inclSend") : ""}
+                    {data.hasTasksScope ? t("account.todoSuffix") : ""}
+                    {data.hasChatScope ? t("account.teamsChatsSuffix") : ""}
+                    {data.hasChatMessageSendScope ? t("account.teamsSendSuffix") : ""}
+                    {data.hasChatCreateScope ? t("account.chatCreateSuffix") : ""}
+                    {data.hasChannelListScopes ? t("account.teamsChannelsSuffix") : ""}
+                    {data.hasTranscriptScope ? t("account.transcriptsSuffix") : ""}
+                    .
                     {!data.hasTasksScope
-                      ? " Für To Do: Tasks.ReadWrite in Entra + neu verbinden."
+                      ? t("account.todoEntraHint")
                       : ""}
                   </p>
                 )}
@@ -324,7 +312,9 @@ export function SettingsMicrosoftConnectPanel() {
                       Graph OK
                       {probe.me?.mail ? ` · ${probe.me.mail}` : ""}
                       {probe.calendar?.ok
-                        ? ` · heute ${probe.calendar.todayEventCount} Termin(e)`
+                        ? t("account.graphOkToday", {
+                            count: probe.calendar.todayEventCount,
+                          })
                         : ""}
                     </p>
                     {probe.calendar?.sampleTitles?.length ? (
@@ -334,7 +324,9 @@ export function SettingsMicrosoftConnectPanel() {
                     ) : null}
                     {probe.calendar && !probe.calendar.ok ? (
                       <p className="mt-1 text-amber-800">
-                        Kalender: {probe.calendar.error}
+                        {t("account.calendarError", {
+                          error: probe.calendar.error,
+                        })}
                       </p>
                     ) : null}
                   </div>
@@ -346,7 +338,7 @@ export function SettingsMicrosoftConnectPanel() {
                 className={cn(buttonVariants({ variant: "outline" }), "gap-1.5")}
               >
                 <Link2 className="size-3.5" />
-                Mein Microsoft 365 verbinden
+                {t("account.connectMs")}
               </a>
             )}
             <div className="flex items-start gap-3 rounded-xl border border-border/60 bg-muted/30 px-3 py-3">
@@ -369,27 +361,24 @@ export function SettingsMicrosoftConnectPanel() {
                 </Label>
                 <p className="text-xs text-muted-foreground">
                   {teamsModuleEnabled
-                    ? "Chats, Kanäle, Analyse und Karte auf Home."
-                    : "Vom Admin ausgeschaltet"}
+                    ? t("account.teamsHomeHint")
+                    : t("account.teamsAdminOff")}
                 </p>
               </div>
             </div>
             {data?.connected ? (
               <div className="space-y-3 rounded-xl border border-border/60 bg-muted/15 p-3">
                 <div className="space-y-1">
-                  <Label htmlFor="ms-sig">Mail-Signatur für Buddy-Versand</Label>
+                  <Label htmlFor="ms-sig">{t("account.mailSignature")}</Label>
                   <p className="text-xs text-muted-foreground">
-                    Outlook-Client-Signaturen sind über die Microsoft-API{" "}
-                    <span className="font-medium text-foreground">nicht lesbar</span>
-                    . Einmal aus Outlook kopieren und hier einfügen — Buddy hängt
-                    sie beim Senden an.
+                    {t("account.mailSignatureHint")}
                   </p>
                   <Textarea
                     id="ms-sig"
                     rows={5}
                     value={sigText}
                     onChange={(e) => setSigText(e.target.value)}
-                    placeholder={"Mit freundlichen Grüssen\nRolf Walker\n…"}
+                    placeholder={t("account.mailSignaturePh")}
                     disabled={sigSaving}
                   />
                 </div>
@@ -400,7 +389,7 @@ export function SettingsMicrosoftConnectPanel() {
                     onChange={(e) => setSigAppend(e.target.checked)}
                     disabled={sigSaving}
                   />
-                  Beim Senden aus Buddy automatisch anhängen
+                  {t("account.appendOnSend")}
                 </label>
                 <div className="flex flex-wrap items-center gap-2">
                   <Button
@@ -409,7 +398,7 @@ export function SettingsMicrosoftConnectPanel() {
                     disabled={sigSaving}
                     onClick={() => void saveSignature()}
                   >
-                    {sigSaving ? "Speichert…" : "Signatur speichern"}
+                    {sigSaving ? t("common.savingAlt") : t("account.saveSignature")}
                   </Button>
                   {sigStatus ? (
                     <span className="text-xs text-emerald-700">{sigStatus}</span>
@@ -419,7 +408,7 @@ export function SettingsMicrosoftConnectPanel() {
             ) : null}
             {data?.connected ? (
               <p className="pt-1 text-xs text-muted-foreground">
-                Abend-Review &amp; Mail-Tag:{" "}
+                {t("account.eveningReview")}{" "}
                 <a href="/microsoft" className="underline underline-offset-2">
                   /microsoft
                 </a>

@@ -14,14 +14,13 @@ import {
   segmentedTriggerProps,
 } from "@/components/layout/segmented-control";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
-import {
-  PRESENCE_PILL_LABELS,
-  PRESENCE_STATUS_ACTIVE_PILL,
-} from "@/lib/presence/client";
+import { PRESENCE_STATUS_ACTIVE_PILL } from "@/lib/presence/client";
 import {
   PRESENCE_STATUSES,
   type PresenceStatus,
 } from "@/lib/presence/status";
+import { useLocale, useT } from "@/components/i18n/locale-provider";
+import { presenceDisplayLabel } from "@/lib/i18n/display";
 
 const PILL_ICONS = {
   office: Building2,
@@ -36,7 +35,7 @@ export function PresenceStatusPills({
   onChange,
   onClear,
   disabled,
-  ariaLabel = "Anwesenheit",
+  ariaLabel,
 }: {
   value: PresenceStatus | null;
   onChange: (status: PresenceStatus) => void;
@@ -44,16 +43,18 @@ export function PresenceStatusPills({
   disabled?: boolean;
   ariaLabel?: string;
 }) {
+  const t = useT();
+  const { locale } = useLocale();
   return (
     <div
       className={cn(segmentedTrackClass, "w-full min-w-0 max-w-full flex-nowrap")}
       role="radiogroup"
-      aria-label={ariaLabel}
+      aria-label={ariaLabel ?? t("presence.attendance")}
     >
       {PRESENCE_STATUSES.map((status) => {
         const Icon = PILL_ICONS[status];
         const active = value === status;
-        const label = PRESENCE_PILL_LABELS[status];
+        const label = presenceDisplayLabel(status, locale, "pill");
         return (
           <button
             key={status}

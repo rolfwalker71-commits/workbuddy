@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/components/i18n/locale-provider";
 
 export function AccountDayClosePanel() {
+  const t = useT();
   const [startHm, setStartHm] = useState("18:30");
   const [endHm, setEndHm] = useState("18:45");
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +20,7 @@ export function AccountDayClosePanel() {
       .then(async (res) => {
         const json = await res.json();
         if (!res.ok) {
-          throw new Error(json.error || "Tagesabschluss laden fehlgeschlagen");
+          throw new Error(json.error || t("account.dayCloseLoadFailed"));
         }
         if (json.startHm) setStartHm(json.startHm);
         if (json.endHm) setEndHm(json.endHm);
@@ -26,7 +28,7 @@ export function AccountDayClosePanel() {
       .catch((err) =>
         setError(err instanceof Error ? err.message : String(err))
       );
-  }, []);
+  }, [t]);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -40,10 +42,12 @@ export function AccountDayClosePanel() {
         body: JSON.stringify({ startHm }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Speichern fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("common.saveFailed"));
       setStartHm(json.startHm);
       setEndHm(json.endHm);
-      setStatus(`Virtueller Termin: ${json.startHm}–${json.endHm} (Mo–Fr)`);
+      setStatus(
+        t("account.dayCloseSaved", { start: json.startHm, end: json.endHm })
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -54,17 +58,15 @@ export function AccountDayClosePanel() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Tagesabschluss</CardTitle>
+        <CardTitle className="text-base">{t("account.dayClose")}</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={save} className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Virtueller Buddy-Termin, nur für dich — nicht in Outlook oder Google.
-            Mo–Fr, 15 Minuten. Ab dieser Uhrzeit öffnet der Assistent und die
-            Abend-Erinnerung.
+            {t("account.dayCloseHintLong")}
           </p>
           <div className="space-y-2">
-            <Label htmlFor="day-close-start">Start (Europe/Zurich)</Label>
+            <Label htmlFor="day-close-start">{t("account.dayCloseStart")}</Label>
             <Input
               id="day-close-start"
               type="time"
@@ -74,7 +76,7 @@ export function AccountDayClosePanel() {
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            Aktuell {startHm}–{endHm}. Erlaubt 06:00–22:00.
+            {t("account.dayCloseCurrent", { start: startHm, end: endHm })}
           </p>
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
           {status ? (
@@ -83,7 +85,7 @@ export function AccountDayClosePanel() {
             </p>
           ) : null}
           <Button type="submit" disabled={busy} className="h-11">
-            {busy ? "Speichere…" : "Zeit speichern"}
+            {busy ? t("common.saving") : t("account.dayCloseSave")}
           </Button>
         </form>
       </CardContent>

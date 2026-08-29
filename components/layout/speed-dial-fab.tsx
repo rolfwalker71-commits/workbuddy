@@ -5,6 +5,7 @@ import type { LucideIcon } from "lucide-react";
 import { Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/components/i18n/locale-provider";
 
 export type SpeedDialAction = {
   id: string;
@@ -21,13 +22,15 @@ export function SpeedDialFab({
   actions,
   accent = "finance",
   className,
-  label = "Hinzufügen",
+  label,
 }: {
   actions: SpeedDialAction[];
   accent?: "travel" | "finance";
   className?: string;
   label?: string;
 }) {
+  const t = useT();
+  const resolvedLabel = label ?? t("layout.add");
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -89,7 +92,7 @@ export function SpeedDialFab({
         type="button"
         variant="default"
         size="icon-lg"
-        aria-label={label}
+        aria-label={resolvedLabel}
         aria-expanded={open}
         className={cn(
           "pointer-events-auto size-14 rounded-full shadow-lg transition-transform",

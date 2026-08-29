@@ -1,7 +1,10 @@
 import type { Metadata, Viewport } from "next";
+import { cookies } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AppShell } from "@/components/layout/app-shell";
 import { THEME_FOUC_SCRIPT } from "@/lib/theme/fouc-script";
+import { LOCALE_FOUC_SCRIPT } from "@/lib/i18n/fouc-script";
+import { LOCALE_COOKIE, parseLocale } from "@/lib/i18n";
 import { BRAND, BRAND_TAGLINE } from "@/lib/branding";
 import "./globals.css";
 
@@ -59,14 +62,17 @@ export const viewport: Viewport = {
   colorScheme: "light dark",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const initialLocale = parseLocale(cookieStore.get(LOCALE_COOKIE)?.value);
+
   return (
     <html
-      lang="de"
+      lang={initialLocale}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
@@ -74,9 +80,12 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{ __html: THEME_FOUC_SCRIPT }}
         />
+        <script
+          dangerouslySetInnerHTML={{ __html: LOCALE_FOUC_SCRIPT }}
+        />
       </head>
       <body className="min-h-full font-sans">
-        <AppShell>{children}</AppShell>
+        <AppShell initialLocale={initialLocale}>{children}</AppShell>
       </body>
     </html>
   );

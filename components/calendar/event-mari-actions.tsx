@@ -8,6 +8,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { eventHasEnded } from "@/lib/workspace/event-mari-shared";
 import type { WorkspaceEventMari } from "@/lib/workspace/event-mari-shared";
 import { zurichHm, zurichYmd } from "@/lib/microsoft/time";
+import { useT } from "@/components/i18n/locale-provider";
 import { cn } from "@/lib/utils";
 
 export function EventMariActions({
@@ -29,6 +30,7 @@ export function EventMariActions({
   calendarType?: string | null;
   onBookHours?: () => void;
 }) {
+  const t = useT();
   const { me } = useAuth();
   const maringoOn = me?.modules?.includes("maringo") ?? false;
   const ended =
@@ -74,7 +76,7 @@ export function EventMariActions({
           className={cn(buttonVariants({ variant: "outline", size: "xs" }))}
         >
           <FolderOpen className="size-3" strokeWidth={APP_ICON_STROKE} />
-          Akte
+          {t("common.file")}
         </Link>
       ) : null}
       {ticketHref ? (
@@ -83,19 +85,19 @@ export function EventMariActions({
           className={cn(buttonVariants({ variant: "outline", size: "xs" }))}
         >
           <Ticket className="size-3" strokeWidth={APP_ICON_STROKE} />
-          Ticket
+          {t("tickets.ticket")}
         </Link>
       ) : null}
       {showBook ? (
         onBookHours ? (
           <Button type="button" size="xs" onClick={onBookHours}>
             <Clock3 className="size-3" strokeWidth={APP_ICON_STROKE} />
-            Stunden buchen
+            {t("home.bookHours")}
           </Button>
         ) : bookHref ? (
           <Link href={bookHref} className={cn(buttonVariants({ size: "xs" }))}>
             <Clock3 className="size-3" strokeWidth={APP_ICON_STROKE} />
-            Stunden buchen
+            {t("home.bookHours")}
           </Link>
         ) : null
       ) : null}

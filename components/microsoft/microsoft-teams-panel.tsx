@@ -39,12 +39,12 @@ import {
   MariMainFlyoutShell,
   useFlyoutPresence,
 } from "@/components/maringo/maringo-flyout-chrome";
+import { useT } from "@/components/i18n/locale-provider";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import {
   buildTeamsInboxCards,
   inboxCardCanApply,
   inboxCardHasMeeting,
-  inboxStatusLabel,
   isTeamsInboxActiveToday,
   mergeTeamsInboxThreads,
   type TeamsInboxCard,
@@ -104,12 +104,12 @@ type OpenTarget =
 
 const FILTERS: Array<{
   id: TeamsInboxFilter;
-  label: string;
+  labelKey: "common.today" | "workspace.statusOpen" | "workspace.statusDone";
   icon: typeof Calendar;
 }> = [
-  { id: "today", label: "Heute", icon: Calendar },
-  { id: "open", label: "Offen", icon: Inbox },
-  { id: "done", label: "Erledigt", icon: CheckCircle2 },
+  { id: "today", labelKey: "common.today", icon: Calendar },
+  { id: "open", labelKey: "workspace.statusOpen", icon: Inbox },
+  { id: "done", labelKey: "workspace.statusDone", icon: CheckCircle2 },
 ];
 
 function inboxTimeLabel(iso: string | null, todayYmd: string): string {
@@ -152,6 +152,7 @@ export function MicrosoftTeamsPanel({
 }: {
   initialChatId?: string | null;
 }) {
+  const t = useT();
   const todayYmd = zurichYmd();
   const [filter, setFilter] = useState<TeamsInboxFilter>("today");
   const [query, setQuery] = useState("");
@@ -199,14 +200,14 @@ export function MicrosoftTeamsPanel({
         setChats([]);
         return;
       }
-      if (!res.ok) throw new Error(json.error || "Chats laden fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("microsoft.loadChatsFailed"));
       setChats((json.chats || []) as ChatItem[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoadingChats(false);
     }
-  }, []);
+  }, [t]);
 
   const loadChannels = useCallback(async () => {
     setLoadingChannels(true);
@@ -219,14 +220,14 @@ export function MicrosoftTeamsPanel({
         setTeams([]);
         return;
       }
-      if (!res.ok) throw new Error(json.error || "Kanäle laden fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("microsoft.loadChannelsFailed"));
       setTeams((json.teams || []) as TeamItem[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoadingChannels(false);
     }
-  }, []);
+  }, [t]);
 
   const queryRef = useRef("");
   const searchSkipRef = useRef(true);
@@ -241,7 +242,7 @@ export function MicrosoftTeamsPanel({
       const res = await fetch(`/api/microsoft/teams/threads${qs}`);
       const json = await res.json().catch(() => ({}));
       if (req !== threadsReqRef.current) return;
-      if (!res.ok) throw new Error(json.error || "Inbox laden fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("microsoft.loadInboxFailed"));
       const incoming = (json.threads || []) as TeamsInboxThreadRow[];
       setThreads((prev) =>
         needle ? mergeTeamsInboxThreads(prev, incoming) : incoming
@@ -252,7 +253,7 @@ export function MicrosoftTeamsPanel({
     } finally {
       if (req === threadsReqRef.current && !silent) setLoadingThreads(false);
     }
-  }, []);
+  }, [t]);
 
   const refresh = useCallback(() => {
     void loadChats();
@@ -295,7 +296,7 @@ export function MicrosoftTeamsPanel({
     ranDayRef.current = false;
     if (dayAnalysis.error) {
       showActionFeedback({
-        headline: "Tagesanalyse fehlgeschlagen",
+        headline: t("microsoft.dayAnalysisFailed"),
         detail: dayAnalysis.error,
         tone: "error",
       });
@@ -303,11 +304,11 @@ export function MicrosoftTeamsPanel({
     }
     if (dayAnalysis.analysis) {
       showActionFeedback({
-        headline: "Tagesanalyse fertig",
-        detail: dayAnalysis.meta || "Karten sind gestempelt.",
+        headline: t("microsoft.dayAnalysisDone"),
+        detail: dayAnalysis.meta || t("microsoft.cardsStamped"),
       });
     }
-  }, [dayAnalysis.analysis, dayAnalysis.error, dayAnalysis.loading, dayAnalysis.meta]);
+  }, [dayAnalysis.analysis, dayAnalysis.error, dayAnalysis.loading, dayAnalysis.meta, t]);
 
   useEffect(() => {
     const onInbox = () => {
@@ -371,7 +372,7 @@ export function MicrosoftTeamsPanel({
         `/api/microsoft/teams/messages?chatId=${encodeURIComponent(chat.id)}`
       );
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || "Nachrichten fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("microsoft.messagesFailed"));
       setMessages((json.messages || []) as ChatMessage[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -410,7 +411,7 @@ export function MicrosoftTeamsPanel({
         setNeedsChannelReconnect(true);
         return;
       }
-      if (!res.ok) throw new Error(json.error || "Nachrichten fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("microsoft.messagesFailed"));
       setMessages((json.messages || []) as ChatMessage[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -515,7 +516,7 @@ export function MicrosoftTeamsPanel({
         }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || "Status speichern fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("microsoft.saveStatusFailed"));
       const next = json.thread as TeamsInboxThreadRow | undefined;
       setThreads((prev) => {
         if (!next) {
@@ -567,8 +568,7 @@ export function MicrosoftTeamsPanel({
             Teams
           </h2>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Eine Inbox für Chats und Kanäle. Analyse legt nichts an, bevor du
-            bestätigst.
+            {t("microsoft.inboxHint")}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -576,7 +576,9 @@ export function MicrosoftTeamsPanel({
             loading={dayAnalysis.loading}
             disabled={loadingChats}
             label={
-              dayAnalysis.analysis ? "Neu analysieren" : "Tag analysieren"
+              dayAnalysis.analysis
+                ? t("workspace.reanalyze")
+                : t("microsoft.analyzeDay")
             }
             onAnalyze={() => {
               ranDayRef.current = true;
@@ -594,7 +596,7 @@ export function MicrosoftTeamsPanel({
               className={cn("size-3.5", loading && "animate-spin")}
               strokeWidth={APP_ICON_STROKE}
             />
-            Aktualisieren
+            {t("common.refresh")}
           </Button>
         </div>
       </div>
@@ -603,7 +605,7 @@ export function MicrosoftTeamsPanel({
         <div
           className={segmentedTrackClass}
           role="tablist"
-          aria-label="Teams-Inbox"
+          aria-label={t("microsoft.inboxAria")}
         >
           {FILTERS.map((item) => {
             const Icon = item.icon;
@@ -620,7 +622,7 @@ export function MicrosoftTeamsPanel({
                 onClick={() => setFilter(item.id)}
               >
                 <Icon className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
-                {item.label}
+                {t(item.labelKey)}
               </Button>
             );
           })}
@@ -640,7 +642,7 @@ export function MicrosoftTeamsPanel({
           }}
         >
           <Rows3 className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
-          Kompakt
+          {t("common.compact")}
         </Button>
       </div>
 
@@ -654,8 +656,8 @@ export function MicrosoftTeamsPanel({
           type="search"
           value={query}
           onValueChange={setQuery}
-          placeholder="Suchen…"
-          aria-label="Inbox durchsuchen"
+          placeholder={t("common.searchEllipsis")}
+          aria-label={t("microsoft.searchInbox")}
           className="h-11 pl-9"
         />
       </div>
@@ -663,15 +665,15 @@ export function MicrosoftTeamsPanel({
       {needsChannelReconnect || needsChatReconnect ? (
         <p className="rounded-2xl bg-amber-50 px-3 py-2 text-sm text-amber-950 ring-1 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-100 dark:ring-amber-400/30">
           {needsChannelReconnect
-            ? "Neue Team- und Kanal-Rechte sind in Entra frei — dein Token hat sie noch nicht. Unter "
-            : "Neue Teams-Rechte sind aktiv — bitte unter "}
+            ? t("microsoft.entraRightsBefore")
+            : t("microsoft.teamsRightsBefore")}
           <a href="/account" className="font-medium underline underline-offset-2">
-            Konto
+            {t("common.account")}
           </a>{" "}
-          Microsoft 365 <strong>Neu verbinden</strong>
+          Microsoft 365 <strong>{t("common.reconnect")}</strong>
           {needsChannelReconnect
-            ? ", damit Buddy deine Teams und Kanäle lädt."
-            : " (Chat + Senden + Transkripte)."}
+            ? t("microsoft.entraRightsAfter")
+            : t("microsoft.teamsRightsAfter")}
         </p>
       ) : null}
 
@@ -683,7 +685,7 @@ export function MicrosoftTeamsPanel({
 
       {dayAnalysis.loading ? (
         <p className="text-sm text-muted-foreground" role="status">
-          Tagesanalyse läuft — Karten werden gestempelt…
+          {t("microsoft.dayAnalysisRunning")}
         </p>
       ) : dayAnalysis.error ? (
         <p className="text-sm text-destructive" role="alert">
@@ -692,16 +694,16 @@ export function MicrosoftTeamsPanel({
       ) : null}
 
       {loading && cards.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Lade Inbox…</p>
+        <p className="text-sm text-muted-foreground">{t("microsoft.loadingInbox")}</p>
       ) : cards.length === 0 ? (
         <p className="rounded-2xl bg-card px-4 py-8 text-center text-sm text-muted-foreground shadow-sm ring-1 ring-border/50">
           {debouncedQuery
-            ? `Keine Treffer für «${debouncedQuery}».`
+            ? t("microsoft.noHits", { query: debouncedQuery })
             : filter === "today"
-              ? "Heute nichts Offenes. Ignorierte Threads bleiben ausgeblendet."
+              ? t("microsoft.nothingOpenToday")
               : filter === "done"
-                ? "Keine erledigten Threads."
-                : "Nichts Offen oder auf Später."}
+                ? t("microsoft.noDoneThreads")
+                : t("microsoft.nothingOpenOrLater")}
         </p>
       ) : (
         <ul className={cn(compact ? "space-y-1.5" : "space-y-2.5")}>
@@ -764,25 +766,39 @@ export function MicrosoftTeamsPanel({
                         <span className="flex max-w-[55%] flex-wrap justify-end gap-1">
                           {card.inbox !== "open" || filter !== "open" ? (
                             <InboxBadge tone={card.inbox}>
-                              {inboxStatusLabel(card.inbox)}
+                              {card.inbox === "later"
+                                ? t("common.later")
+                                : card.inbox === "done"
+                                  ? t("workspace.statusDone")
+                                  : card.inbox === "ignored"
+                                    ? t("microsoft.ignored")
+                                    : t("workspace.statusOpen")}
                             </InboxBadge>
                           ) : null}
-                          <InboxBadge>{card.typeLabel}</InboxBadge>
+                          <InboxBadge>
+                            {card.kind === "channel"
+                              ? t("microsoft.channel")
+                              : card.chatType === "meeting"
+                                ? t("microsoft.meeting")
+                                : card.chatType === "group"
+                                  ? t("microsoft.group")
+                                  : t("microsoft.chat")}
+                          </InboxBadge>
                           {card.analyzed ? (
-                            <InboxBadge tone="ok">Analysiert</InboxBadge>
+                            <InboxBadge tone="ok">{t("microsoft.analyzed")}</InboxBadge>
                           ) : null}
                           {card.taskCount > 0 ? (
                             <InboxBadge tone="task">
                               {card.taskCount === 1
-                                ? "1 Aufgabe"
-                                : `${card.taskCount} Aufgaben`}
+                                ? t("microsoft.oneTask")
+                                : t("microsoft.nTasks", { count: card.taskCount })}
                             </InboxBadge>
                           ) : null}
                           {card.eventCount > 0 ? (
                             <InboxBadge tone="event">
                               {card.eventCount === 1
-                                ? "1 Termin"
-                                : `${card.eventCount} Termine`}
+                                ? t("microsoft.oneEvent")
+                                : t("microsoft.nEvents", { count: card.eventCount })}
                             </InboxBadge>
                           ) : null}
                         </span>
@@ -790,7 +806,7 @@ export function MicrosoftTeamsPanel({
                       {compact ? (
                         card.issueId ? (
                           <span className="mt-0.5 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[0.6875rem] font-medium text-amber-950 dark:bg-amber-500/20 dark:text-amber-100">
-                            Ticket #{card.issueId}
+                            {t("microsoft.ticketHash", { id: card.issueId })}
                           </span>
                         ) : null
                       ) : (
@@ -806,7 +822,7 @@ export function MicrosoftTeamsPanel({
                           ) : null}
                           {card.issueId ? (
                             <span className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[0.6875rem] font-medium text-amber-950 dark:bg-amber-500/20 dark:text-amber-100">
-                              Ticket #{card.issueId}
+                              {t("microsoft.ticketHash", { id: card.issueId })}
                             </span>
                           ) : null}
                         </>
@@ -829,7 +845,7 @@ export function MicrosoftTeamsPanel({
                         onClick={() => void patchInbox(card, "open")}
                       >
                         <Inbox className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-                        Offen
+                        {t("workspace.statusOpen")}
                       </Button>
                     ) : (
                       <Button
@@ -841,7 +857,7 @@ export function MicrosoftTeamsPanel({
                         onClick={() => void patchInbox(card, "later")}
                       >
                         <Clock3 className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-                        Später
+                        {t("common.later")}
                       </Button>
                     )}
                     {card.inbox !== "done" ? (
@@ -854,7 +870,7 @@ export function MicrosoftTeamsPanel({
                         onClick={() => void patchInbox(card, "done")}
                       >
                         <Check className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-                        Erledigt
+                        {t("workspace.statusDone")}
                       </Button>
                     ) : null}
                     <Button
@@ -866,7 +882,7 @@ export function MicrosoftTeamsPanel({
                       onClick={() => void patchInbox(card, "ignored")}
                     >
                       <EyeOff className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-                      Ignorieren
+                      {t("microsoft.ignore")}
                     </Button>
                     {showMeeting ? (
                       <Button
@@ -883,7 +899,7 @@ export function MicrosoftTeamsPanel({
                         }
                       >
                         <FileText className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-                        Transkript
+                        {t("microsoft.transcript")}
                       </Button>
                     ) : null}
                     <Button
@@ -895,7 +911,7 @@ export function MicrosoftTeamsPanel({
                       onClick={() => startApply(card)}
                     >
                       <UserPlus className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-                      Übernehmen
+                      {t("microsoft.apply")}
                     </Button>
                   </div>
                   {showMeeting && transcriptOpen ? (
@@ -950,7 +966,7 @@ export function MicrosoftTeamsPanel({
                   flyoutPresence.entered ? "opacity-100" : "opacity-0"
                 )}
                 style={{ transitionDuration: `${MARI_FLYOUT_MS}ms` }}
-                aria-label="Flyout schliessen"
+                aria-label={t("microsoft.closeFlyout")}
                 onClick={closeFlyout}
               />
               <MariMainFlyoutShell open={flyoutPresence.entered}>
@@ -971,8 +987,8 @@ export function MicrosoftTeamsPanel({
                       disabled={msgLoading || messages.length === 0}
                       label={
                         threadAnalysis.analysis
-                          ? "Neu analysieren"
-                          : "Analysieren"
+                          ? t("workspace.reanalyze")
+                          : t("tickets.analyze")
                       }
                       onAnalyze={analyzeOpenThread}
                       className="mt-0.5 shrink-0"
@@ -987,7 +1003,7 @@ export function MicrosoftTeamsPanel({
                           "mt-0.5 shrink-0 gap-1.5 whitespace-nowrap"
                         )}
                       >
-                        In Teams
+                        {t("microsoft.inTeams")}
                       </a>
                     ) : null}
                     <Button
@@ -996,7 +1012,7 @@ export function MicrosoftTeamsPanel({
                       variant="ghost"
                       className="size-7 shrink-0"
                       onClick={closeFlyout}
-                      aria-label="Schliessen"
+                      aria-label={t("common.close")}
                     >
                       <X className="size-4" />
                     </Button>
@@ -1017,15 +1033,15 @@ export function MicrosoftTeamsPanel({
                     ) : null}
                     {msgLoading ? (
                       <p className="text-sm text-muted-foreground">
-                        Lade Nachrichten…
+                        {t("microsoft.loadingMessages")}
                       </p>
                     ) : messages.length === 0 ? (
                       <p className="text-sm text-muted-foreground">
                         {threadChatType === "meeting" ||
                         threadJoinUrl ||
                         threadEventId
-                          ? "Keine Chat-Nachrichten — der Inhalt sitzt meist im Transkript darüber."
-                          : "Keine Nachrichten in diesem Ausschnitt."}
+                          ? t("microsoft.noChatMessages")
+                          : t("microsoft.noMessagesInSlice")}
                       </p>
                     ) : (
                       <ul className="space-y-2">

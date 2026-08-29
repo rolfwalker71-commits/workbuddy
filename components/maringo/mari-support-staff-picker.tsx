@@ -14,6 +14,7 @@ import {
   parseMariSupportGroupId,
   supportGroupStaffHint,
 } from "@/lib/mari/support-group-staff";
+import { useT } from "@/components/i18n/locale-provider";
 
 const FORM_SELECT_CLASS =
   "flex h-9 w-full rounded-md border border-input bg-background px-2.5 text-[0.8125rem]";
@@ -29,17 +30,17 @@ export function MariSupportStaffPicker({
   onGroupChange,
   onEmployeeChange,
   onReset,
-  resetLabel = "Reset",
-  groupLabel = "Supportgruppe",
-  employeeLabel = "Mitarbeiter",
+  resetLabel,
+  groupLabel,
+  employeeLabel,
   groupSelectId,
   employeeSelectId,
   disabled,
   variant = "form",
   hideGroupLabel,
   hideEmployeeLabel,
-  emptyGroupLabel = "— Supportgruppe —",
-  emptyEmployeeLabel = "— wählen —",
+  emptyGroupLabel,
+  emptyEmployeeLabel,
   currentGroupLabel,
   extraEmployeeOptions,
   formatEmployeeOption,
@@ -69,6 +70,12 @@ export function MariSupportStaffPicker({
   formatEmployeeOption?: (employee: MariEmployeeOption) => string;
   footer?: ReactNode;
 }) {
+  const t = useT();
+  const resolvedReset = resetLabel ?? t("tickets.reset");
+  const resolvedGroupLabel = groupLabel ?? t("tickets.supportGroup");
+  const resolvedEmployeeLabel = employeeLabel ?? t("tickets.employee");
+  const resolvedEmptyGroup = emptyGroupLabel ?? t("tickets.supportGroupPlaceholder");
+  const resolvedEmptyEmployee = emptyEmployeeLabel ?? t("tickets.emptyEmployee");
   const parsedGroupId = parseMariSupportGroupId(groupId);
   const keepAssigned =
     variant === "form" ? parsedGroupId : null;
@@ -81,7 +88,7 @@ export function MariSupportStaffPicker({
           {
             groupId: parsedGroupId,
             description:
-              (currentGroupLabel || "").trim() || `Gruppe ${parsedGroupId}`,
+              (currentGroupLabel || "").trim() || t("tickets.groupN", { id: parsedGroupId }),
           },
           ...visibleGroups,
         ]
@@ -105,7 +112,7 @@ export function MariSupportStaffPicker({
         htmlFor={groupSelectId}
         className={hideGroupLabel ? "sr-only" : undefined}
       >
-        {groupLabel}
+        {resolvedGroupLabel}
       </Label>
       <select
         id={groupSelectId}
@@ -114,7 +121,7 @@ export function MariSupportStaffPicker({
         disabled={disabled}
         onChange={(e) => onGroupChange(e.target.value)}
       >
-        <option value="">{emptyGroupLabel}</option>
+        <option value="">{resolvedEmptyGroup}</option>
         {pickerGroups.map((g) => (
           <option key={g.groupId} value={g.groupId}>
             {g.description}
@@ -130,7 +137,7 @@ export function MariSupportStaffPicker({
         htmlFor={employeeSelectId}
         className={hideEmployeeLabel ? "sr-only" : undefined}
       >
-        {employeeLabel}
+        {resolvedEmployeeLabel}
       </Label>
       <select
         id={employeeSelectId}
@@ -139,7 +146,7 @@ export function MariSupportStaffPicker({
         disabled={employeeDisabled}
         onChange={(e) => onEmployeeChange(e.target.value)}
       >
-        <option value="">{emptyEmployeeLabel}</option>
+        <option value="">{resolvedEmptyEmployee}</option>
         {staff.map((e) => (
           <option key={e.employeeNumber} value={e.employeeNumber}>
             {formatEmployeeOption
@@ -174,7 +181,7 @@ export function MariSupportStaffPicker({
               className="h-10 min-h-10 shrink-0 gap-1.5 px-3 text-sm"
             >
               <RotateCcw className="size-4" strokeWidth={APP_ICON_STROKE} />
-              {resetLabel}
+              {resolvedReset}
             </Button>
           ) : null}
         </div>

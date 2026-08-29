@@ -11,6 +11,7 @@ import {
 } from "@/lib/calendar/slot-duration";
 import { weekdayLabel } from "@/lib/utils/weekday";
 import { toSwissDate } from "@/lib/utils/dates";
+import { useLocale, useT } from "@/components/i18n/locale-provider";
 import { cn } from "@/lib/utils";
 
 export type AnalysisDraftEvent = {
@@ -46,6 +47,8 @@ export function AnalysisEventDraftCard({
   disabled?: boolean;
   onChange: (next: AnalysisDraftEvent) => void;
 }) {
+  const t = useT();
+  const { intlLocale } = useLocale();
   const needsSlot = Boolean(event.fromTaskTwin);
   const [duration, setDuration] = useState(30);
   const [slots, setSlots] = useState<FreeSlot[]>([]);
@@ -71,14 +74,14 @@ export function AnalysisEventDraftCard({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || "Slots suchen fehlgeschlagen");
+        throw new Error(data.error || t("common.searchSlotsFailed"));
       }
       const next = (data.slots || []) as FreeSlot[];
       setSlots(next);
       setSlotMsg(
         next.length
-          ? `${next.length} freie Slots (heute–+7 Tage, 08–18).`
-          : "Keine freien Slots gefunden."
+          ? t("mail.freeSlotsFound", { count: next.length })
+          : t("common.noFreeSlots")
       );
     } catch (err) {
       setSlotError(err instanceof Error ? err.message : String(err));
@@ -96,18 +99,21 @@ export function AnalysisEventDraftCard({
       allDay: false,
     });
     setSlotMsg(
-      `Gewählt: ${toSwissDate(slot.date)} ${slot.startHm}–${slot.endHm}`
+      t("mail.chosenSlot", {
+        when: `${toSwissDate(slot.date)} ${slot.startHm}–${slot.endHm}`,
+      })
     );
   }
 
   return (
     <div className="space-y-2 rounded-lg border border-border/60 p-3">
       <p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">
-        Termin · {calendarLabel}
-        {needsSlot ? " · aus Aufgabe" : ""}
+        {needsSlot
+          ? t("mail.eventFromTask", { calendar: calendarLabel })
+          : t("mail.eventLabel", { calendar: calendarLabel })}
       </p>
       <div className="space-y-1">
-        <Label>Titel</Label>
+        <Label>{t("common.title")}</Label>
         <Input
           value={event.title}
           disabled={disabled}
@@ -118,11 +124,10 @@ export function AnalysisEventDraftCard({
       {needsSlot ? (
         <div className="space-y-2 rounded-md border border-dashed border-border/70 bg-muted/20 p-2.5">
           <p className="text-xs text-muted-foreground">
-            Dauer wählen und freien Slot suchen — erst dann wird der Termin
-            angelegt.
+            {t("mail.pickDurationHint")}
           </p>
           <div className="space-y-1.5">
-            <Label>Dauer</Label>
+            <Label>{t("common.duration")}</Label>
             <div className="flex flex-wrap gap-1.5">
               {SLOT_DURATION_PRESETS.map((m) => (
                 <Button
@@ -142,7 +147,7 @@ export function AnalysisEventDraftCard({
                     void suggestSlots(m);
                   }}
                 >
-                  {m} Min
+                  {t("common.minutes", { count: m })}
                 </Button>
               ))}
             </div>
@@ -154,7 +159,7 @@ export function AnalysisEventDraftCard({
             disabled={disabled || slotBusy}
             onClick={() => void suggestSlots()}
           >
-            {slotBusy ? "Suche…" : "Freie Slots suchen"}
+            {slotBusy ? t("common.searching") : t("common.searchSlots")}
           </Button>
           {slotError ? (
             <p className="text-xs text-rose-700">{slotError}</p>
@@ -164,7 +169,9 @@ export function AnalysisEventDraftCard({
           ) : null}
           {event.startTime && event.endTime ? (
             <p className="text-xs font-medium text-emerald-800">
-              Slot: {toSwissDate(event.date)} {event.startTime}–{event.endTime}
+              {t("mail.slotPicked", {
+                when: `${toSwissDate(event.date)} ${event.startTime}–${event.endTime}`,
+              })}
             </p>
           ) : null}
           {slots.length > 0 ? (
@@ -172,7 +179,7 @@ export function AnalysisEventDraftCard({
               {groupFreeSlotsByDate(slots).map((day) => (
                 <div key={day.date} className="space-y-1">
                   <p className="text-[0.6875rem] font-semibold text-muted-foreground">
-                    {weekdayLabel(day.date)} · {toSwissDate(day.date)}
+                    {weekdayLabel(day.date, intlLocale)} · {toSwissDate(day.date)}
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {day.slots.map((s) => {
@@ -208,7 +215,7 @@ export function AnalysisEventDraftCard({
       ) : (
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
-            <Label>Datum</Label>
+            <Label>{t("common.date")}</Label>
             <Input
               type="date"
               value={event.date}
@@ -217,7 +224,7 @@ export function AnalysisEventDraftCard({
             />
           </div>
           <div className="space-y-1">
-            <Label>Start</Label>
+            <Label>{t("common.start")}</Label>
             <Input
               type="time"
               value={event.startTime || ""}
@@ -235,7 +242,7 @@ export function AnalysisEventDraftCard({
       )}
 
       <div className="space-y-1">
-        <Label>Notizen</Label>
+        <Label>{t("common.notesPlural")}</Label>
         <Textarea
           rows={2}
           value={event.notes || ""}

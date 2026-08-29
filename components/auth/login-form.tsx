@@ -7,7 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BuddyLogo } from "@/components/brand/buddy-logo";
-import { BRAND, BRAND_TAGLINE } from "@/lib/branding";
+import { BRAND } from "@/lib/branding";
+import { useT } from "@/components/i18n/locale-provider";
+import { LocaleSwitcher } from "@/components/i18n/locale-switcher";
 
 export function LoginForm({
   nextPath,
@@ -16,6 +18,7 @@ export function LoginForm({
   nextPath: string;
   initialError?: string | null;
 }) {
+  const t = useT();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(initialError);
@@ -38,7 +41,7 @@ export function LoginForm({
         home?: string;
       };
       if (!response.ok) {
-        throw new Error(data.error || "Anmeldung fehlgeschlagen.");
+        throw new Error(data.error || t("auth.failed"));
       }
       const target =
         nextPath && nextPath !== "/"
@@ -54,27 +57,29 @@ export function LoginForm({
   return (
     <Card className="mx-auto w-full max-w-md border-white/50 bg-white/95 shadow-2xl shadow-slate-950/20 backdrop-blur">
       <CardHeader className="space-y-5 px-6 pb-2 pt-7 sm:px-8">
-        <div className="flex items-center gap-4">
-          <span className="flex size-16 shrink-0 items-center justify-center">
-            <BuddyLogo size={64} className="size-16 drop-shadow-md" priority />
-          </span>
-          <div>
-            <p className="text-sm font-medium text-primary">{BRAND.app}</p>
-            <CardTitle className="text-2xl">Willkommen zurück</CardTitle>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-4">
+            <span className="flex size-16 shrink-0 items-center justify-center">
+              <BuddyLogo size={64} className="size-16 drop-shadow-md" priority />
+            </span>
+            <div>
+              <p className="text-sm font-medium text-primary">{BRAND.app}</p>
+              <CardTitle className="text-2xl">{t("auth.welcomeBack")}</CardTitle>
+            </div>
           </div>
+          <LocaleSwitcher />
         </div>
         <p className="text-sm leading-6 text-muted-foreground">
-          {BRAND_TAGLINE}
+          {t("brand.tagline")}
         </p>
       </CardHeader>
       <CardContent className="px-6 pb-7 pt-5 sm:px-8">
         <p className="mb-5 text-sm leading-relaxed text-muted-foreground">
-          Ein Admin legt dein Konto an und gibt dir Benutzername und Passwort.
-          Microsoft 365 verbindest du danach unter Konto.
+          {t("auth.hint")}
         </p>
         <form className="space-y-5" onSubmit={submit}>
           <div className="space-y-2">
-            <Label htmlFor="username">E-Mail oder Benutzername</Label>
+            <Label htmlFor="username">{t("auth.username")}</Label>
             <Input
               id="username"
               name="username"
@@ -89,7 +94,7 @@ export function LoginForm({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Passwort</Label>
+            <Label htmlFor="password">{t("auth.password")}</Label>
             <Input
               id="password"
               name="password"
@@ -122,7 +127,7 @@ export function LoginForm({
             ) : (
               <LockKeyhole />
             )}
-            {loading ? "Anmeldung läuft…" : "Anmelden"}
+            {loading ? t("auth.submitting") : t("auth.submit")}
           </Button>
         </form>
       </CardContent>

@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { ChevronRight, Copy, Pencil, Trash2 } from "lucide-react";
 import {
-  approvalStatusLabel,
   formatMariContractListLines,
   type MariApprovalStatus,
   type MariTimeLine,
@@ -14,6 +13,23 @@ import { toSwissDate, toSwissWeekday } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MariHoursSplitSummary } from "@/components/maringo/mari-hours-split-summary";
+import { useT } from "@/components/i18n/locale-provider";
+import type { MessageKey } from "@/lib/i18n";
+
+const REMARK_LABEL: Record<string, MessageKey> = {
+  Umbuchen: "timekeeping.remarkRepost",
+  Verrechnen: "timekeeping.remarkBill",
+  Rueckfrage: "timekeeping.remarkAsk",
+  Begründung: "timekeeping.remarkReason",
+};
+
+const APPROVAL_LABEL: Record<string, MessageKey> = {
+  approved: "timekeeping.approved",
+  recorded: "timekeeping.recorded",
+  draft: "timekeeping.draft",
+  rejected: "timekeeping.rejected",
+  unknown: "common.unknown",
+};
 
 function ServiceDateLabel({
   serviceDate,
@@ -71,6 +87,7 @@ function ProjectWithCustomer({
 }
 
 function ProjectAndContract({ line }: { line: MariTimeLine }) {
+  const t = useT();
   const contractLines = formatMariContractListLines(line);
   return (
     <span className="inline-flex min-w-0 max-w-full flex-col gap-0.5 leading-snug">
@@ -84,7 +101,9 @@ function ProjectAndContract({ line }: { line: MariTimeLine }) {
           className="break-words text-[0.625rem] font-normal text-muted-foreground"
         >
           <span className="sr-only">
-            {i === 0 ? "Vertrag: " : "Vertragsposition: "}
+            {i === 0
+              ? t("timekeeping.contractPrefix")
+              : t("timekeeping.positionPrefix")}
           </span>
           {text}
         </span>
@@ -101,6 +120,7 @@ function formatHours(n: number): string {
 }
 
 function MemoBlock({ memo }: { memo: string }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
 
   return (
@@ -120,7 +140,7 @@ function MemoBlock({ memo }: { memo: string }) {
           )}
           aria-hidden
         />
-        {open ? "Memo zuklappen" : "Memo aufklappen"}
+        {open ? t("timekeeping.memoCollapse") : t("timekeeping.memoExpand")}
       </Button>
       {open ? (
         <p className="mt-0.5 whitespace-pre-wrap text-[0.625rem] text-muted-foreground">
@@ -138,8 +158,9 @@ function ApprovalBadge({
   status?: MariApprovalStatus;
   approved?: boolean;
 }) {
+  const t = useT();
   const s = status || (approved ? "approved" : "recorded");
-  const label = approvalStatusLabel(s);
+  const label = t(APPROVAL_LABEL[s] ?? "common.unknown");
   return (
     <span
       className={cn(
@@ -175,6 +196,7 @@ function LineActions({
   onDuplicate?: (line: MariTimeLine) => void;
   onDelete?: (line: MariTimeLine) => void | Promise<void>;
 }) {
+  const t = useT();
   if (!onEdit && !onDuplicate && !onDelete) return null;
   return (
     <div className="flex shrink-0 gap-0">
@@ -187,9 +209,13 @@ function LineActions({
           disabled={busy || locked || line.lineId <= 0}
           onClick={() => onEdit(line)}
           aria-label={
-            locked ? "Freigegeben — nicht änderbar" : "Buchung ändern"
+            locked
+              ? t("timekeeping.releasedLockedEdit")
+              : t("timekeeping.editBooking")
           }
-          title={locked ? "Freigegeben — nicht änderbar" : "Ändern"}
+          title={
+            locked ? t("timekeeping.releasedLockedEdit") : t("common.change")
+          }
         >
           <Pencil className="size-3" strokeWidth={APP_ICON_STROKE} />
         </Button>
@@ -202,8 +228,8 @@ function LineActions({
           className="size-6"
           disabled={busy || line.lineId <= 0}
           onClick={() => onDuplicate(line)}
-          aria-label="Buchung duplizieren"
-          title="Duplizieren"
+          aria-label={t("timekeeping.duplicateBookingAria")}
+          title={t("timekeeping.duplicate")}
         >
           <Copy className="size-3" strokeWidth={APP_ICON_STROKE} />
         </Button>
@@ -217,9 +243,13 @@ function LineActions({
           disabled={busy || locked || line.lineId <= 0}
           onClick={() => void onDelete(line)}
           aria-label={
-            locked ? "Freigegeben — nicht löschbar" : "Buchung löschen"
+            locked
+              ? t("timekeeping.releasedLocked")
+              : t("timekeeping.deleteBookingAria")
           }
-          title={locked ? "Freigegeben — nicht löschbar" : "Löschen"}
+          title={
+            locked ? t("timekeeping.releasedLocked") : t("common.delete")
+          }
         >
           <Trash2 className="size-3" strokeWidth={APP_ICON_STROKE} />
         </Button>
@@ -232,7 +262,7 @@ export function MaringoTimeLinesTable({
   lines,
   totalHours,
   billableHours,
-  emptyText = "Keine Buchungen.",
+  emptyText,
   className,
   onEdit,
   onDuplicate,
@@ -256,6 +286,8 @@ export function MaringoTimeLinesTable({
   variant?: "stack" | "table";
   summaryVariant?: "text" | "chart" | "none";
 }) {
+  const t = useT();
+  const resolvedEmpty = emptyText ?? t("timekeeping.noBookings");
   const total =
     totalHours ??
     Math.round(lines.reduce((s, l) => s + l.hours, 0) * 100) / 100;
@@ -268,7 +300,7 @@ export function MaringoTimeLinesTable({
   if (lines.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-border/60 px-2.5 py-4 text-center text-xs text-muted-foreground">
-        {emptyText}
+        {resolvedEmpty}
       </p>
     );
   }
@@ -279,16 +311,16 @@ export function MaringoTimeLinesTable({
         totalHours={total}
         billableHours={billable}
         lineCount={lines.length}
-        totalHint="Ticket"
+        totalHint={t("tickets.ticket")}
       />
     ) : summaryVariant === "text" ? (
       <p className="text-[0.6875rem] text-muted-foreground">
-        geleistet{" "}
+        {t("timekeeping.workedLabel")}{" "}
         <span className="font-semibold tabular-nums text-foreground">
           {formatHours(total)} h
         </span>
         {" · "}
-        verrechenbar{" "}
+        {t("timekeeping.billableLabel")}{" "}
         <span className="font-semibold tabular-nums text-emerald-800">
           {formatHours(billable)} h
         </span>
@@ -327,15 +359,19 @@ export function MaringoTimeLinesTable({
                       <div className="space-y-0.5 text-[0.625rem] text-muted-foreground">
                         {l.internalRemarkVerr ? (
                           <p>
-                            Verr.:{" "}
+                            {t("timekeeping.verrColon")}
                             <span className="font-medium text-foreground/80">
-                              {labelForInternalRemarkVerr(l.internalRemarkVerr)}
+                              {REMARK_LABEL[l.internalRemarkVerr]
+                                ? t(REMARK_LABEL[l.internalRemarkVerr])
+                                : labelForInternalRemarkVerr(
+                                    l.internalRemarkVerr
+                                  )}
                             </span>
                           </p>
                         ) : null}
                         {l.zeroHoursReason ? (
                           <p className="wrap-break-word">
-                            Nullerstunden:{" "}
+                            {t("timekeeping.zeroHoursColon")}
                             <span className="font-medium text-foreground/80">
                               {l.zeroHoursReason}
                             </span>
@@ -352,8 +388,10 @@ export function MaringoTimeLinesTable({
                         approved={l.approved}
                       />
                       <span className="tabular-nums">
-                        geleistet {formatHours(l.hours)} h · verr.{" "}
-                        {formatHours(l.hoursBillable)} h
+                        {t("timekeeping.workedBillable", {
+                          worked: formatHours(l.hours),
+                          billable: formatHours(l.hoursBillable),
+                        })}
                       </span>
                     </div>
                   </div>
@@ -383,15 +421,17 @@ export function MaringoTimeLinesTable({
         <table className="w-full min-w-[44rem] text-left text-[0.6875rem]">
           <thead className="bg-muted/40 text-[0.5625rem] font-semibold uppercase tracking-wide text-muted-foreground">
             <tr>
-              <th className="px-2 py-1.5">Datum</th>
-              <th className="px-2 py-1.5">Projekt</th>
-              <th className="px-2 py-1.5">Aktivität / Memo</th>
-              <th className="px-2 py-1.5">Bearbeiter</th>
-              <th className="px-2 py-1.5">Freigabe</th>
-              <th className="px-2 py-1.5 text-right">Geleistet</th>
-              <th className="px-2 py-1.5 text-right">Verr.</th>
+              <th className="px-2 py-1.5">{t("common.date")}</th>
+              <th className="px-2 py-1.5">{t("common.project")}</th>
+              <th className="px-2 py-1.5">{t("timekeeping.activityMemo")}</th>
+              <th className="px-2 py-1.5">{t("tickets.handler")}</th>
+              <th className="px-2 py-1.5">{t("timekeeping.approval")}</th>
+              <th className="px-2 py-1.5 text-right">{t("timekeeping.worked")}</th>
+              <th className="px-2 py-1.5 text-right">{t("timekeeping.verrShort")}</th>
               {showActions ? (
-                <th className="px-2 py-1.5 text-right">Aktion</th>
+                <th className="px-2 py-1.5 text-right">
+                  {t("timekeeping.actionCol")}
+                </th>
               ) : null}
             </tr>
           </thead>

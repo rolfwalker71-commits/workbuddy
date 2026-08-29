@@ -13,24 +13,26 @@ import {
 import { BRAND } from "@/lib/branding";
 import { AngHeaderLogo } from "@/components/brand/ang-header-logo";
 import { WorkBuddyWordmark } from "@/components/brand/wordmark";
+import { useT } from "@/components/i18n/locale-provider";
 import { Sidebar } from "./sidebar";
 
 export function MobileHeader() {
   const [open, setOpen] = useState(false);
+  const t = useT();
 
   return (
     <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-border/60 bg-background/90 px-4 py-3 backdrop-blur lg:hidden">
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger
           className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl"
-          aria-label="Menü öffnen"
+          aria-label={t("common.menuOpen")}
         >
           <Menu className="size-5" />
         </SheetTrigger>
         <SheetContent side="left" className="w-72 p-0">
           <SheetHeader className="sr-only">
             <SheetTitle>{BRAND.app}</SheetTitle>
-            <SheetDescription>Navigation</SheetDescription>
+            <SheetDescription>{t("common.navigation")}</SheetDescription>
           </SheetHeader>
           <Sidebar onNavigate={() => setOpen(false)} />
         </SheetContent>

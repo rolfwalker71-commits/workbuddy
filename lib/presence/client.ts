@@ -1,8 +1,7 @@
 import { readResponseJson } from "@/lib/utils/fetch-json";
-import {
-  USER_ORGANIZATION_LABELS,
-  type UserOrganization,
-} from "@/lib/users/organization";
+import { DEFAULT_LOCALE, translate, type Locale } from "@/lib/i18n";
+import { organizationDisplayLabel } from "@/lib/i18n/display";
+import { type UserOrganization } from "@/lib/users/organization";
 import { canDelegatePresence } from "@/lib/presence/delegate";
 import {
   isProtectedPresenceSource,
@@ -122,18 +121,20 @@ export function groupPresencePeople(people: PresencePersonView[]): Record<
 }
 
 export function organizationLabel(
-  organization: UserOrganization | null
+  organization: UserOrganization | null,
+  locale: Locale = DEFAULT_LOCALE
 ): string {
-  if (!organization) return "Ohne Organisation";
-  return USER_ORGANIZATION_LABELS[organization];
+  if (!organization) return translate(locale, "presence.noOrganization");
+  return organizationDisplayLabel(organization, locale);
 }
 
 export function presenceSourceHint(
-  source: PresenceSource | null
+  source: PresenceSource | null,
+  locale: Locale = DEFAULT_LOCALE
 ): string | null {
   if (source === "oof") return "Outlook";
-  if (source === "deputy") return "Stellvertretung";
-  if (source === "default") return "Regel";
+  if (source === "deputy") return translate(locale, "presence.sourceDeputy");
+  if (source === "default") return translate(locale, "presence.sourceDefault");
   return null;
 }
 

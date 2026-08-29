@@ -9,6 +9,7 @@ import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { cn } from "@/lib/utils";
 import { formatSwissDate } from "@/lib/utils/dates";
 import type { TimeBookFormDefaults } from "@/components/maringo/maringo-time-book-form";
+import { useT } from "@/components/i18n/locale-provider";
 
 export type MariTimeSuggestion = {
   eventProvider: "microsoft" | "google";
@@ -35,6 +36,7 @@ export function MaringoTimeSuggestionsPanel({
   /** Bump to reload pending suggestions. */
   refreshKey?: number;
 }) {
+  const t = useT();
   const [items, setItems] = useState<MariTimeSuggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -47,7 +49,7 @@ export function MaringoTimeSuggestionsPanel({
       const res = await fetch("/api/maringo/timekeeping/suggestions");
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || "Vorschläge laden fehlgeschlagen");
+        throw new Error(data.error || t("timekeeping.loadSuggestionsFailed"));
       }
       setItems((data.suggestions || []) as MariTimeSuggestion[]);
     } catch (err) {
@@ -56,7 +58,7 @@ export function MaringoTimeSuggestionsPanel({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -77,7 +79,7 @@ export function MaringoTimeSuggestionsPanel({
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Verwerfen fehlgeschlagen");
+      if (!res.ok) throw new Error(data.error || t("timekeeping.dismissFailed"));
       setItems((prev) =>
         prev.filter(
           (x) =>
@@ -96,7 +98,7 @@ export function MaringoTimeSuggestionsPanel({
       <Card className={cn("border-border/60", className)}>
         <CardContent className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" aria-hidden />
-          Abend-Vorschläge laden…
+          {t("timekeeping.eveningSuggestions")}
         </CardContent>
       </Card>
     );
@@ -116,7 +118,7 @@ export function MaringoTimeSuggestionsPanel({
             absoluteStrokeWidth
             aria-hidden
           />
-          Stunden aus Ticket-Terminen
+          {t("timekeeping.hoursFromTicketEvents")}
           {items.length ? (
             <span className="rounded-full bg-orange-500 px-2 py-0.5 text-[0.625rem] font-semibold text-white">
               {items.length}
@@ -124,7 +126,7 @@ export function MaringoTimeSuggestionsPanel({
           ) : null}
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          Gestempelte Kalendertermine aus Maringo — prüfen und buchen.
+          {t("timekeeping.stampedHint")}
         </p>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -168,7 +170,7 @@ export function MaringoTimeSuggestionsPanel({
                       onClick={() => onBookSuggestion?.(s)}
                     >
                       <Check className="size-3.5" aria-hidden />
-                      Buchen
+                      {t("common.book")}
                     </Button>
                     <Button
                       type="button"
@@ -179,13 +181,13 @@ export function MaringoTimeSuggestionsPanel({
                       onClick={() => void dismiss(s)}
                     >
                       <X className="size-3.5" aria-hidden />
-                      Später
+                      {t("common.later")}
                     </Button>
                     <Link
                       href={s.href}
                       className="inline-flex h-8 items-center rounded-lg px-2.5 text-xs font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                     >
-                      Ticket
+                      {t("tickets.ticket")}
                     </Link>
                   </div>
                 </div>
@@ -202,7 +204,7 @@ export function MaringoTimeSuggestionsPanel({
             onClick={() => void load()}
             disabled={loading}
           >
-            Aktualisieren
+            {t("common.refresh")}
           </Button>
         </div>
       </CardContent>

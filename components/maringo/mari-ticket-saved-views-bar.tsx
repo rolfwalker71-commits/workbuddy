@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/i18n/locale-provider";
 
 const MAX_VIEWS = 8;
 
@@ -35,6 +36,7 @@ export function MariTicketSavedViewsBar({
   onApply: (view: MariTicketSavedViewChip) => void;
   disabled?: boolean;
 }) {
+  const t = useT();
   const [name, setName] = useState("");
   const [showOnHome, setShowOnHome] = useState(true);
   const [open, setOpen] = useState(false);
@@ -48,7 +50,7 @@ export function MariTicketSavedViewsBar({
   async function save() {
     const label = name.trim();
     if (!label) {
-      setError("Name angeben.");
+      setError(t("tickets.nameRequired"));
       return;
     }
     setBusy(true);
@@ -71,7 +73,7 @@ export function MariTicketSavedViewsBar({
         method: "DELETE",
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || "Löschen fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("tickets.deleteFailed"));
       onReload();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -106,7 +108,7 @@ export function MariTicketSavedViewsBar({
               variant="outline"
               size="icon"
               disabled={disabled || busy}
-              aria-label={`${view.label} löschen`}
+              aria-label={t("tickets.deleteViewAria", { label: view.label })}
               onClick={() => void remove(view.id)}
               className="size-7 rounded-full rounded-l-none border-l-0"
             >
@@ -124,7 +126,7 @@ export function MariTicketSavedViewsBar({
             className="h-auto rounded-full px-2.5 py-1 text-[0.6875rem] font-semibold"
           >
             <BookmarkPlus className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-            Sicht speichern
+            {t("tickets.saveView")}
           </Button>
         ) : null}
       </div>
@@ -133,7 +135,7 @@ export function MariTicketSavedViewsBar({
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="z.B. Abteilung offen"
+            placeholder={t("tickets.viewNamePh")}
             className="h-9 text-sm"
             maxLength={60}
           />
@@ -143,7 +145,7 @@ export function MariTicketSavedViewsBar({
               checked={showOnHome}
               onChange={(e) => setShowOnHome(e.target.checked)}
             />
-            Auch auf Home zeigen
+            {t("tickets.showOnHome")}
           </label>
           {error ? <p className="text-xs text-destructive">{error}</p> : null}
           <Button
@@ -153,7 +155,7 @@ export function MariTicketSavedViewsBar({
             disabled={busy}
             onClick={() => void save()}
           >
-            {busy ? "Speichere…" : "Speichern"}
+            {busy ? t("common.saving") : t("common.save")}
           </Button>
         </div>
       ) : error ? (

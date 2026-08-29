@@ -23,7 +23,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { STATUS_LABELS, TICKET_EDIT_STATUS_IDS } from "@/lib/mari/status";
 import { formatTicketIdList } from "@/lib/mari/ticket-bulk";
+import { statusDisplayLabel } from "@/lib/i18n/display";
 import { cn } from "@/lib/utils";
+import { useLocale, useT } from "@/components/i18n/locale-provider";
 
 export function MariTicketSelectCheckbox({
   checked,
@@ -83,6 +85,8 @@ export function MariTicketBulkBar({
   onApplyDue: () => void;
   onDelete: () => void;
 }) {
+  const t = useT();
+  const { locale } = useLocale();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const count = selectedIds.length;
   const idList = formatTicketIdList(selectedIds, 20);
@@ -90,7 +94,7 @@ export function MariTicketBulkBar({
   return (
     <div className="flex flex-wrap items-center gap-1.5 border-b border-border/50 bg-orange-50/70 px-3 py-1.5 dark:bg-orange-500/10">
       <p className="mr-1 text-[0.6875rem] font-semibold tabular-nums text-orange-950 dark:text-orange-100">
-        {count} ausgewählt
+        {t("tickets.selectedCount", { count })}
       </p>
       <DropdownMenu>
         <DropdownMenuTrigger
@@ -104,18 +108,18 @@ export function MariTicketBulkBar({
             />
           }
         >
-          Status
+          {t("tickets.status")}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="max-h-80 w-56 overflow-y-auto">
           <DropdownMenuGroup>
-            <DropdownMenuLabel>Status setzen</DropdownMenuLabel>
+            <DropdownMenuLabel>{t("tickets.setStatus")}</DropdownMenuLabel>
             {TICKET_EDIT_STATUS_IDS.map((id) => (
               <DropdownMenuItem
                 key={id}
                 disabled={busy}
                 onClick={() => onApplyStatus(id)}
               >
-                {STATUS_LABELS[id] || `Status ${id}`}
+                {statusDisplayLabel(id, locale, STATUS_LABELS[id])}
               </DropdownMenuItem>
             ))}
           </DropdownMenuGroup>
@@ -124,7 +128,7 @@ export function MariTicketBulkBar({
       <div className="inline-flex items-center gap-1.5">
         <Calendar className="size-3.5 text-muted-foreground" aria-hidden />
         <Label htmlFor="bulkDueDate" className="sr-only">
-          Stichtag
+          {t("tickets.dueDate")}
         </Label>
         <Input
           id="bulkDueDate"
@@ -142,7 +146,7 @@ export function MariTicketBulkBar({
           disabled={busy || !dueDraft}
           onClick={onApplyDue}
         >
-          Setzen
+          {t("tickets.setDue")}
         </Button>
       </div>
       <Button
@@ -154,17 +158,19 @@ export function MariTicketBulkBar({
         onClick={() => setConfirmOpen(true)}
       >
         <Trash2 className="size-3.5" />
-        Löschen
+        {t("common.delete")}
       </Button>
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {count} Ticket{count === 1 ? "" : "s"} löschen?
+              {count === 1
+                ? t("tickets.confirmDeleteN", { count })
+                : t("tickets.confirmDeleteNPlural", { count })}
             </DialogTitle>
             <DialogDescription>
-              Unwiderruflich in Maringo löschen, inklusive aller Anhänge.
+              {t("tickets.confirmDeleteDesc")}
             </DialogDescription>
           </DialogHeader>
           <p className="break-words text-sm font-medium tabular-nums leading-snug">
@@ -177,7 +183,7 @@ export function MariTicketBulkBar({
               disabled={busy}
               onClick={() => setConfirmOpen(false)}
             >
-              Abbrechen
+              {t("common.cancel")}
             </Button>
             <Button
               type="button"
@@ -188,7 +194,7 @@ export function MariTicketBulkBar({
                 onDelete();
               }}
             >
-              Endgültig löschen
+              {t("tickets.deleteForever")}
             </Button>
           </DialogFooter>
         </DialogContent>

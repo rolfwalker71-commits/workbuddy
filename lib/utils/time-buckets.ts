@@ -1,4 +1,6 @@
 import { daysUntil } from "@/lib/utils/due-urgency";
+import { DEFAULT_LOCALE, translate, type Locale } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n/messages/types";
 
 /** Horizon buckets for deadlines / warranties / due lists. */
 export type TimeBucketId =
@@ -132,14 +134,45 @@ const PRESET: Record<
   },
 };
 
+const TITLE_KEY: Record<TimeBucketId, MessageKey> = {
+  overdue: "buckets.overdue",
+  week: "buckets.week",
+  twoWeeks: "buckets.twoWeeks",
+  month: "buckets.month",
+  halfYear: "buckets.halfYear",
+  year: "buckets.year",
+  later: "buckets.later",
+  none: "buckets.none",
+};
+
+function localizedTitle(
+  id: TimeBucketId,
+  preset: TimeBucketPreset,
+  locale: Locale | string
+): string {
+  if (id === "overdue" && preset === "deadlines") {
+    return translate(locale, "buckets.expired");
+  }
+  if (id === "overdue" && preset === "warranties") {
+    return translate(locale, "buckets.lapsed");
+  }
+  return translate(locale, TITLE_KEY[id]);
+}
+
 /** @deprecated Prefer resolveBucketDefs(preset) — kept for callers expecting a flat list. */
 export const TIME_BUCKET_DEFS: TimeBucketDef[] = PRESET.finance.order.map(
   (id) => ({ ...BASE[id], ...PRESET.finance.overrides[id] })
 );
 
-export function resolveBucketDefs(preset: TimeBucketPreset): TimeBucketDef[] {
+export function resolveBucketDefs(
+  preset: TimeBucketPreset,
+  locale: Locale | string = DEFAULT_LOCALE
+): TimeBucketDef[] {
   const { order, overrides } = PRESET[preset];
-  return order.map((id) => ({ ...BASE[id], ...overrides[id] }));
+  return order.map((id) => {
+    const merged = { ...BASE[id], ...overrides[id] };
+    return { ...merged, title: localizedTitle(id, preset, locale) };
+  });
 }
 
 export function timeBucketForDate(
@@ -161,9 +194,10 @@ export function groupByTimeBucket<T>(
   rows: T[],
   getDate: (row: T) => string | null | undefined,
   today = new Date().toISOString().slice(0, 10),
-  preset: TimeBucketPreset = "finance"
+  preset: TimeBucketPreset = "finance",
+  locale: Locale | string = DEFAULT_LOCALE
 ): Array<TimeBucketDef & { rows: T[] }> {
-  const defs = resolveBucketDefs(preset);
+  const defs = resolveBucketDefs(preset, locale);
   const buckets = new Map<TimeBucketId, T[]>();
   for (const def of defs) buckets.set(def.id, []);
   for (const row of rows) {

@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toSwissDate } from "@/lib/utils/dates";
+import { useT } from "@/components/i18n/locale-provider";
 import { cn } from "@/lib/utils";
 
 export type EventEditValues = {
@@ -66,6 +67,7 @@ export function EventDetailDialog({
   saving?: boolean;
   onSave?: (values: EventEditValues) => Promise<void> | void;
 }) {
+  const t = useT();
   const art = event ? resolveEventArt(event) : null;
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
@@ -87,8 +89,8 @@ export function EventDetailDialog({
   }, [event]);
   const when = event
     ? event.isAllDay
-      ? "Ganztägig"
-      : [event.time, event.endTime].filter(Boolean).join("–") || "Heute"
+      ? t("calendarUi.allDay")
+      : [event.time, event.endTime].filter(Boolean).join("–") || t("common.today")
     : "";
 
   return (
@@ -117,16 +119,16 @@ export function EventDetailDialog({
                   </Badge>
                   {event.done ? (
                     <Badge variant="secondary" className="text-[0.625rem]">
-                      Erledigt
+                      {t("workspace.statusDone")}
                     </Badge>
                   ) : null}
                 </div>
                 <DialogTitle className="text-lg font-bold leading-snug">
-                  {canEdit ? "Termin bearbeiten" : event.title}
+                  {canEdit ? t("calendarUi.editEvent") : event.title}
                 </DialogTitle>
                 <DialogDescription>
                   {canEdit
-                    ? "Titel, Zeit, Ort und Notiz speichern."
+                    ? t("calendarUi.editEventHint")
                     : `${event.date ? `${toSwissDate(event.date)} · ` : ""}${when}`}
                 </DialogDescription>
               </DialogHeader>
@@ -148,7 +150,7 @@ export function EventDetailDialog({
                   }}
                 >
                   <div className="space-y-1.5">
-                    <Label htmlFor="event-edit-title">Titel</Label>
+                    <Label htmlFor="event-edit-title">{t("common.title")}</Label>
                     <Input
                       id="event-edit-title"
                       value={title}
@@ -159,7 +161,7 @@ export function EventDetailDialog({
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label htmlFor="event-edit-date">Datum</Label>
+                      <Label htmlFor="event-edit-date">{t("common.date")}</Label>
                       <Input
                         id="event-edit-date"
                         type="date"
@@ -176,13 +178,13 @@ export function EventDetailDialog({
                         disabled={saving}
                         onChange={(e) => setIsAllDay(e.target.checked)}
                       />
-                      Ganztägig
+                      {t("calendarUi.allDay")}
                     </label>
                   </div>
                   {!isAllDay ? (
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
-                        <Label htmlFor="event-edit-start">Von</Label>
+                        <Label htmlFor="event-edit-start">{t("common.from")}</Label>
                         <Input
                           id="event-edit-start"
                           type="time"
@@ -192,7 +194,7 @@ export function EventDetailDialog({
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <Label htmlFor="event-edit-end">Bis</Label>
+                        <Label htmlFor="event-edit-end">{t("common.until")}</Label>
                         <Input
                           id="event-edit-end"
                           type="time"
@@ -204,7 +206,7 @@ export function EventDetailDialog({
                     </div>
                   ) : null}
                   <div className="space-y-1.5">
-                    <Label htmlFor="event-edit-location">Ort</Label>
+                    <Label htmlFor="event-edit-location">{t("calendarUi.location")}</Label>
                     <Input
                       id="event-edit-location"
                       value={location}
@@ -214,7 +216,7 @@ export function EventDetailDialog({
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="event-edit-notes">Notiz</Label>
+                    <Label htmlFor="event-edit-notes">{t("common.notes")}</Label>
                     <Textarea
                       id="event-edit-notes"
                       value={description}
@@ -233,7 +235,7 @@ export function EventDetailDialog({
                     {saving ? (
                       <Loader2 className="size-4 animate-spin" aria-hidden />
                     ) : null}
-                    Änderungen speichern
+                    {t("calendarUi.saveChanges")}
                   </Button>
                 </form>
               ) : event.location ? (
@@ -267,7 +269,7 @@ export function EventDetailDialog({
                     )}
                   >
                     <Video className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-                    Meeting öffnen
+                    {t("calendarUi.openMeeting")}
                   </a>
                 ) : null}
                 {event.webLink ? (
@@ -277,7 +279,7 @@ export function EventDetailDialog({
                     rel="noreferrer"
                     className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border px-3 text-sm font-medium"
                   >
-                    Im Kalender
+                    {t("calendarUi.inCalendar")}
                     <ExternalLink className="size-3.5" />
                   </a>
                 ) : null}

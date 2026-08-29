@@ -8,16 +8,17 @@ import {
 import { formatBookHours } from "@/lib/mari/time-book-hours";
 import { formatOvertimeHours } from "@/lib/mari/timekeeping-overtime-shared";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/i18n/locale-provider";
 
 export function MariHoursSplitSummary({
   totalHours,
   billableHours,
   lineCount,
   footnote,
-  totalHint = "Zeitraum",
   overtimeHours = null,
   overtimeHint = null,
   className,
+  totalHint,
 }: {
   totalHours: number;
   billableHours: number;
@@ -33,10 +34,14 @@ export function MariHoursSplitSummary({
   overtimeHint?: string | null;
   className?: string;
 }) {
+  const t = useT();
+  const resolvedHint = totalHint === undefined ? t("timekeeping.period") : totalHint;
   const hint =
     footnote ??
     (lineCount != null
-      ? `${lineCount} Buchung${lineCount === 1 ? "" : "en"} auf diesem Ticket`
+      ? lineCount === 1
+        ? t("timekeeping.bookingsOnTicket", { count: lineCount })
+        : t("timekeeping.bookingsOnTicketPlural", { count: lineCount })
       : null);
 
   return (
@@ -62,7 +67,7 @@ export function MariHoursSplitSummary({
                 style={{ backgroundColor: HOURS_BAGEL_WORKED }}
                 aria-hidden
               />
-              Geleistet
+              {t("timekeeping.worked")}
             </p>
             <p className="mt-0.5 text-[0.8125rem] font-black tabular-nums leading-none text-foreground">
               {formatBookHours(totalHours)}
@@ -70,9 +75,9 @@ export function MariHoursSplitSummary({
                 h
               </span>
             </p>
-            {totalHint ? (
+            {resolvedHint ? (
               <p className="mt-px text-[0.5625rem] text-muted-foreground">
-                {totalHint}
+                {resolvedHint}
               </p>
             ) : null}
           </div>
@@ -83,7 +88,7 @@ export function MariHoursSplitSummary({
                 style={{ backgroundColor: HOURS_BAGEL_BILLABLE }}
                 aria-hidden
               />
-              Verrechenbar
+              {t("timekeeping.billable")}
             </p>
             <p className="mt-0.5 text-[0.8125rem] font-black tabular-nums leading-none text-emerald-950">
               {formatBookHours(billableHours)}
@@ -113,7 +118,7 @@ export function MariHoursSplitSummary({
                       : "text-muted-foreground"
                 )}
               >
-                Überstunden
+                {t("timekeeping.overtime")}
               </p>
               <p
                 className={cn(

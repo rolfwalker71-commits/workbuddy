@@ -22,6 +22,7 @@ import {
   COMPANY_OPENAI_MODELS,
   type CompanyAiKind,
 } from "@/lib/ai/company-ai-shared";
+import { useT } from "@/components/i18n/locale-provider";
 
 type CompanyAiPublic = {
   enabled: boolean;
@@ -34,6 +35,7 @@ type CompanyAiPublic = {
 };
 
 export function SettingsCompanyAiPanel() {
+  const t = useT();
   const [data, setData] = useState<CompanyAiPublic | null>(null);
   const [enabled, setEnabled] = useState(true);
   const [kind, setKind] = useState<CompanyAiKind>("openai");
@@ -59,7 +61,7 @@ export function SettingsCompanyAiPanel() {
   async function load() {
     const res = await fetch("/api/settings/company-ai");
     const json = (await res.json()) as CompanyAiPublic;
-    if (!res.ok) throw new Error(json.error || "Firmen-KI laden fehlgeschlagen");
+    if (!res.ok) throw new Error(json.error || t("settings.companyAiLoadFailed"));
     setData(json);
     setEnabled(json.enabled);
     setKind(json.kind || "openai");
@@ -91,7 +93,7 @@ export function SettingsCompanyAiPanel() {
         }),
       });
       const json = (await res.json()) as CompanyAiPublic;
-      if (!res.ok) throw new Error(json.error || "Speichern fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("common.saveFailed"));
       setApiKey("");
       setClearKey(false);
       setData(json);
@@ -99,7 +101,7 @@ export function SettingsCompanyAiPanel() {
       setKind(json.kind || "openai");
       setModel(json.model || "gpt-4o-mini");
       setBaseUrl(json.baseUrl || "");
-      setStatus("Firmen-KI gespeichert.");
+      setStatus(t("settings.companyAiSaved"));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -112,18 +114,13 @@ export function SettingsCompanyAiPanel() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Firmen-KI (alle User)</CardTitle>
+        <CardTitle className="text-base">{t("settings.companyAiTitle")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
-        <p className="text-muted-foreground">
-          Führend für alle Konten. OpenAI: nur Key und Modell. Custom: Key,
-          Modell und URL vom Provider. Persönliche Keys unter Konto greifen
-          erst, wenn das hier aus ist.
-        </p>
+        <p className="text-muted-foreground">{t("settings.companyAiHint")}</p>
         {fromEnv ? (
           <p className="rounded-xl bg-muted px-3 py-2 text-xs">
-            Aktiv aus der Umgebung (.env). Der Key kommt aus{" "}
-            <code>COMPANY_AI_API_KEY</code>.
+            {t("settings.companyAiEnv")}
           </p>
         ) : null}
         <label className="flex items-center gap-2">
@@ -132,12 +129,12 @@ export function SettingsCompanyAiPanel() {
             checked={enabled}
             onChange={(e) => setEnabled(e.target.checked)}
           />
-          Firmen-KI aktiv
+          {t("settings.companyAiOn")}
         </label>
         <div
           className={segmentedTrackClass}
           role="tablist"
-          aria-label="Firmen-KI Provider"
+          aria-label={t("settings.companyAiProvider")}
         >
           <Button
             type="button"
@@ -174,18 +171,18 @@ export function SettingsCompanyAiPanel() {
         </div>
         <p className="text-xs text-muted-foreground">
           {data?.hasKey
-            ? "Ein Firmen-Key ist gesetzt (nicht sichtbar)."
-            : "Noch kein Firmen-Key."}
+            ? t("settings.companyKeySet")
+            : t("settings.companyKeyMissing")}
         </p>
         <div className="space-y-1.5">
-          <Label htmlFor="company-ai-key">API-Key</Label>
+          <Label htmlFor="company-ai-key">{t("settings.apiKey")}</Label>
           <Input
             id="company-ai-key"
             type="password"
             autoComplete="off"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
-            placeholder={data?.hasKey ? "gesetzt — neu nur zum Ersetzen" : "sk-…"}
+            placeholder={data?.hasKey ? t("settings.keyReplacePh") : "sk-…"}
             disabled={fromEnv}
           />
         </div>
@@ -196,10 +193,10 @@ export function SettingsCompanyAiPanel() {
             onChange={(e) => setClearKey(e.target.checked)}
             disabled={fromEnv}
           />
-          Key entfernen
+          {t("account.removeKey")}
         </label>
         <div className="space-y-1.5">
-          <Label htmlFor="company-ai-model">Modell</Label>
+          <Label htmlFor="company-ai-model">{t("account.model")}</Label>
           {kind === "openai" ? (
             <Select
               value={model}
@@ -229,7 +226,7 @@ export function SettingsCompanyAiPanel() {
         </div>
         {kind === "custom" ? (
           <div className="space-y-1.5">
-            <Label htmlFor="company-ai-url">URL</Label>
+            <Label htmlFor="company-ai-url">{t("settings.companyUrl")}</Label>
             <Input
               id="company-ai-url"
               value={baseUrl}
@@ -241,7 +238,7 @@ export function SettingsCompanyAiPanel() {
         {error ? <p className="text-destructive">{error}</p> : null}
         {status ? <p className="text-muted-foreground">{status}</p> : null}
         <Button type="button" size="sm" disabled={busy} onClick={() => void save()}>
-          {busy ? "Speichern…" : "Firmen-KI speichern"}
+          {busy ? t("common.saving") : t("settings.saveCompanyAi")}
         </Button>
       </CardContent>
     </Card>

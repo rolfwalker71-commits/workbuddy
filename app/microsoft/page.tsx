@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { WorkspaceDayClient } from "@/components/workspace/workspace-day-client";
+import { TranslatedLoading } from "@/components/layout/translated-loading";
 
 export const dynamic = "force-dynamic";
 
@@ -7,7 +8,7 @@ export default function MicrosoftPage() {
   return (
     <Suspense
       fallback={
-        <p className="p-6 text-sm text-muted-foreground">Lade Microsoft 365…</p>
+        <TranslatedLoading messageKey="layout.loadingMicrosoft" />
       }
     >
       <WorkspaceDayClient providerScope="microsoft" />

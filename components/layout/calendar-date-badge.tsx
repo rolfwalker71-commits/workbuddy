@@ -1,30 +1,21 @@
+"use client";
+
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/components/i18n/locale-provider";
 
-const MONTH_SHORT_DE = [
-  "JAN",
-  "FEB",
-  "MÄR",
-  "APR",
-  "MAI",
-  "JUN",
-  "JUL",
-  "AUG",
-  "SEP",
-  "OKT",
-  "NOV",
-  "DEZ",
-] as const;
-
-/** Full German weekday, e.g. Freitag. */
-function weekdayLongDe(isoDate: string): string {
+function weekdayLong(isoDate: string, locale: string): string {
   const [y, m, d] = isoDate.split("-").map(Number);
   const date = new Date(y, m - 1, d);
-  return new Intl.DateTimeFormat("de-CH", { weekday: "long" }).format(date);
+  return new Intl.DateTimeFormat(locale, { weekday: "long" }).format(date);
 }
 
-function monthShortDe(isoDate: string): string {
-  const month = Number(isoDate.slice(5, 7));
-  return MONTH_SHORT_DE[month - 1] ?? "";
+function monthShort(isoDate: string, locale: string): string {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  return new Intl.DateTimeFormat(locale, { month: "short" })
+    .format(date)
+    .replace(".", "")
+    .toUpperCase();
 }
 
 function dayNumber(isoDate: string): string {
@@ -86,6 +77,7 @@ export function CalendarDateBadge({
   accent?: "teal" | "green";
   className?: string;
 }) {
+  const { intlLocale } = useLocale();
   const s = SIZE_STYLES[size];
   const monthTone =
     accent === "green"
@@ -107,7 +99,7 @@ export function CalendarDateBadge({
             s.month
           )}
         >
-          {monthShortDe(isoDate)}
+          {monthShort(isoDate, intlLocale)}
         </div>
         <div
           className={cn(
@@ -121,7 +113,7 @@ export function CalendarDateBadge({
               s.weekday
             )}
           >
-            {weekdayLongDe(isoDate)}
+            {weekdayLong(isoDate, intlLocale)}
           </div>
           <div className={cn("tabular-nums text-foreground", s.day)}>
             {dayNumber(isoDate)}

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/i18n/locale-provider";
 
 export type MariSecondaryFlyoutId =
   | "verlauf"
@@ -164,6 +165,7 @@ export function MariTicketFlyoutRail({
   onToggle: (id: MariSecondaryFlyoutId) => void;
   hiddenIds?: readonly MariSecondaryFlyoutId[];
 }) {
+  const t = useT();
   const hidden = new Set<MariSecondaryFlyoutId>(hiddenIds);
   const items: {
     id: MariSecondaryFlyoutId;
@@ -171,11 +173,11 @@ export function MariTicketFlyoutRail({
     label: string;
   }[] = (
     [
-      { id: "verlauf", icon: MessageSquare, label: "Verlauf" },
-      { id: "kopf", icon: SquarePen, label: "Ticket-Kopf" },
-      { id: "buchen", icon: Clock3, label: "Buchungsmaske" },
-      { id: "buchungen", icon: ClipboardList, label: "Stundenübersicht" },
-      { id: "anzeige", icon: ListTree, label: "Listenfelder" },
+      { id: "verlauf", icon: MessageSquare, label: t("tickets.flyoutTimeline") },
+      { id: "kopf", icon: SquarePen, label: t("tickets.flyoutKopf") },
+      { id: "buchen", icon: Clock3, label: t("tickets.flyoutBook") },
+      { id: "buchungen", icon: ClipboardList, label: t("tickets.flyoutHours") },
+      { id: "anzeige", icon: ListTree, label: t("tickets.flyoutFields") },
     ] satisfies {
       id: MariSecondaryFlyoutId;
       icon: typeof MessageSquare;
@@ -186,7 +188,7 @@ export function MariTicketFlyoutRail({
   return (
     <nav
       className="flex h-full w-12 shrink-0 flex-col items-center gap-1.5 border-r border-border/60 bg-muted/25 px-1.5 py-2.5"
-      aria-label="Ticket-Nebenbereiche"
+      aria-label={t("tickets.flyoutRailAria")}
     >
       {items.map(({ id, icon: Icon, label }, index) => {
         const active = openIds.includes(id);
@@ -277,6 +279,7 @@ export function MariSecondaryFlyoutShell({
   children: ReactNode;
   open?: boolean;
 }) {
+  const t = useT();
   return (
     <aside
       className={cn(
@@ -308,7 +311,7 @@ export function MariSecondaryFlyoutShell({
           variant="ghost"
           className="size-8 shrink-0"
           onClick={onClose}
-          aria-label="Schliessen"
+          aria-label={t("common.close")}
         >
           <X className="size-4" />
         </Button>

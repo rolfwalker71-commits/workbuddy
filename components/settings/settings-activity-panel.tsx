@@ -33,7 +33,6 @@ import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { formatSwissDateTime } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils";
 import {
-  activityEventLabel,
   formatActivityDetail,
   type ActivityEventValue,
 } from "@/lib/users/activity-log-display";
@@ -44,6 +43,8 @@ import {
   clampActivityLogRange,
 } from "@/lib/users/activity-log-range";
 import { zurichYmd } from "@/lib/microsoft/time";
+import { useLocale, useT } from "@/components/i18n/locale-provider";
+import { activityEventDisplayLabel } from "@/lib/i18n/display";
 
 type ActivityItem = {
   id: number;
@@ -56,20 +57,18 @@ type ActivityItem = {
 
 type FilterValue = "" | ActivityEventValue;
 
-const FILTERS: {
-  value: FilterValue;
-  label: string;
-  icon: LucideIcon;
-}[] = [
-  { value: "", label: "Alle", icon: List },
-  { value: "login", label: "Anmeldung", icon: LogIn },
-  { value: "logout", label: "Abmeldung", icon: LogOut },
-  { value: "session_expired", label: "Session abgelaufen", icon: Clock },
-  { value: "ticket_analysis", label: "Ticketanalyse", icon: Ticket },
-  { value: "mail_day_analysis", label: "AI-Tagesanalyse", icon: Sparkles },
+const FILTER_ICONS: { value: FilterValue; icon: LucideIcon }[] = [
+  { value: "", icon: List },
+  { value: "login", icon: LogIn },
+  { value: "logout", icon: LogOut },
+  { value: "session_expired", icon: Clock },
+  { value: "ticket_analysis", icon: Ticket },
+  { value: "mail_day_analysis", icon: Sparkles },
 ];
 
 export function SettingsActivityPanel() {
+  const t = useT();
+  const { locale } = useLocale();
   const today = useMemo(() => zurichYmd(), []);
   const minDate = useMemo(() => activityLogRetentionFrom(today), [today]);
   const initial = useMemo(() => activityLogDefaultRange(today), [today]);
@@ -111,7 +110,7 @@ export function SettingsActivityPanel() {
           error?: string;
         };
         if (!res.ok) {
-          throw new Error(json.error || "Aktivitätslog laden fehlgeschlagen");
+          throw new Error(json.error || t("settings.activityLoadFailed"));
         }
         setItems(json.items || []);
         setTotal(Number(json.total ?? 0));
@@ -127,7 +126,7 @@ export function SettingsActivityPanel() {
       });
 
     return () => ac.abort();
-  }, [from, to, event, offset]);
+  }, [from, to, event, offset, t]);
 
   const rangeStart = total === 0 ? 0 : offset + 1;
   const rangeEnd = Math.min(offset + items.length, total);
@@ -137,17 +136,15 @@ export function SettingsActivityPanel() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Aktivitätslog</CardTitle>
+        <CardTitle className="text-base">{t("activity.title")}</CardTitle>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Anmeldungen, Abmeldungen, abgelaufene Sessions und abgeschlossene
-          Analysen. Standard: letzte 7 Wochen, höchstens 60 Tage
-          (Europe/Zurich).
+          {t("settings.activityHint")}
         </p>
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="activity-from">Von</Label>
+            <Label htmlFor="activity-from">{t("common.from")}</Label>
             <Input
               id="activity-from"
               type="date"
@@ -158,7 +155,7 @@ export function SettingsActivityPanel() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="activity-to">Bis</Label>
+            <Label htmlFor="activity-to">{t("common.until")}</Label>
             <Input
               id="activity-to"
               type="date"
@@ -174,11 +171,14 @@ export function SettingsActivityPanel() {
           <div
             className={cn(segmentedTrackClass, "flex-nowrap")}
             role="radiogroup"
-            aria-label="Ereignis filtern"
+            aria-label={t("settings.filterEvents")}
           >
-            {FILTERS.map((filter) => {
+            {FILTER_ICONS.map((filter) => {
               const active = event === filter.value;
               const Icon = filter.icon;
+              const label = filter.value
+                ? activityEventDisplayLabel(filter.value, locale)
+                : t("common.all");
               return (
                 <Button
                   key={filter.value || "all"}
@@ -201,7 +201,7 @@ export function SettingsActivityPanel() {
                     strokeWidth={APP_ICON_STROKE}
                     aria-hidden
                   />
-                  {filter.label}
+                  {label}
                 </Button>
               );
             })}
@@ -212,19 +212,19 @@ export function SettingsActivityPanel() {
 
         <div aria-busy={loading} aria-live="polite">
           {loading && items.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Lade Aktivitätslog…</p>
+            <p className="text-sm text-muted-foreground">{t("settings.loadingActivity")}</p>
           ) : items.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Keine Einträge im gewählten Zeitraum.
+              {t("settings.activityEmpty")}
             </p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Zeit</TableHead>
-                  <TableHead>User</TableHead>
-                  <TableHead>Ereignis</TableHead>
-                  <TableHead>Kurzdetail</TableHead>
+                  <TableHead>{t("settings.time")}</TableHead>
+                  <TableHead>{t("settings.user")}</TableHead>
+                  <TableHead>{t("settings.event")}</TableHead>
+                  <TableHead>{t("settings.shortDetail")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -234,13 +234,13 @@ export function SettingsActivityPanel() {
                       {formatSwissDateTime(row.createdAt)}
                     </TableCell>
                     <TableCell className="break-words font-medium">
-                      {row.username || "—"}
+                      {row.username || t("common.dash")}
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
-                      {activityEventLabel(row.event)}
+                      {activityEventDisplayLabel(row.event, locale)}
                     </TableCell>
                     <TableCell className="break-words text-muted-foreground">
-                      {formatActivityDetail(row)}
+                      {formatActivityDetail({ ...row, locale })}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -252,8 +252,12 @@ export function SettingsActivityPanel() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
             {total === 0
-              ? "0 Einträge"
-              : `${rangeStart}–${rangeEnd} von ${total}`}
+              ? t("settings.entriesZero")
+              : t("settings.entriesRange", {
+                  start: rangeStart,
+                  end: rangeEnd,
+                  total,
+                })}
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -266,7 +270,7 @@ export function SettingsActivityPanel() {
               }
             >
               <ChevronLeft className="size-4" aria-hidden />
-              Zurück
+              {t("common.back")}
             </Button>
             <Button
               type="button"
@@ -275,7 +279,7 @@ export function SettingsActivityPanel() {
               disabled={!canNext || loading}
               onClick={() => setOffset((prev) => prev + ACTIVITY_LOG_PAGE_SIZE)}
             >
-              Weiter
+              {t("common.next")}
               <ChevronRight className="size-4" aria-hidden />
             </Button>
           </div>

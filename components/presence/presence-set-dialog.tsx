@@ -9,12 +9,11 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { PresenceStatusPills } from "@/components/presence/presence-status-pills";
-import {
-  PRESENCE_STATUS_LABELS,
-  type PresencePersonView,
-} from "@/lib/presence/client";
+import { type PresencePersonView } from "@/lib/presence/client";
 import { formatSwissDate } from "@/lib/utils/dates";
 import type { PresenceStatus } from "@/lib/presence/status";
+import { useLocale, useT } from "@/components/i18n/locale-provider";
+import { presenceDisplayLabel } from "@/lib/i18n/display";
 
 export function PresenceSetDialog({
   open,
@@ -39,6 +38,8 @@ export function PresenceSetDialog({
   onSelect: (status: PresenceStatus) => void;
   onClear?: () => void;
 }) {
+  const t = useT();
+  const { locale } = useLocale();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="min-w-0 sm:max-w-xl">
@@ -50,9 +51,8 @@ export function PresenceSetDialog({
           </DialogTitle>
           <DialogDescription>
             {locked
-              ? lockedReason ||
-                "Dieser Tag wurde von einer Stellvertretung oder Outlook gesetzt."
-              : "Wie arbeitest du an diesem Tag?"}
+              ? lockedReason || t("presence.lockedDefault")
+              : t("presence.howThisDay")}
           </DialogDescription>
         </DialogHeader>
         {error ? (
@@ -62,12 +62,17 @@ export function PresenceSetDialog({
           value={person?.status ?? null}
           onChange={onSelect}
           disabled={busy || locked}
-          ariaLabel="Eigener Status"
+          ariaLabel={t("presence.ownStatus")}
         />
         {person?.status ? (
           <p className="text-xs text-muted-foreground">
-            Aktuell: {PRESENCE_STATUS_LABELS[person.status]}
-            {person.source === "default" ? " · Regel" : ""}
+            {person.source === "default"
+              ? t("presence.currentStatusRule", {
+                  status: presenceDisplayLabel(person.status, locale),
+                })
+              : t("presence.currentStatus", {
+                  status: presenceDisplayLabel(person.status, locale),
+                })}
           </p>
         ) : null}
         {onClear && !locked ? (
@@ -78,7 +83,7 @@ export function PresenceSetDialog({
             disabled={busy}
             onClick={onClear}
           >
-            Regel verwenden
+            {t("presence.useRule")}
           </Button>
         ) : null}
       </DialogContent>

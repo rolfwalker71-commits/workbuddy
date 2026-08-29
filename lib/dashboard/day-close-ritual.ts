@@ -10,6 +10,7 @@ import {
   dayCloseScheduleFromStart,
   type DayCloseSchedule,
 } from "@/lib/dashboard/day-close-prefs-parse";
+import { DEFAULT_LOCALE, translate, type Locale } from "@/lib/i18n";
 
 export const DAY_CLOSE_RITUAL_ID = "buddy-day-close";
 export const DAY_CLOSE_TIME = DEFAULT_DAY_CLOSE_START_HM;
@@ -66,26 +67,46 @@ export type DayCloseRitualItem = {
   description: string;
 };
 
-function ritualSubtitle(status?: DayCloseRitualStatus | null): string {
-  const bits: string[] = ["Termine prüfen · Tagesanalysen"];
-  if (status?.mariHoursPending != null) {
-    bits[0] = "Termine prüfen · Tagesanalysen · Ticket-Stunden";
-  }
+function ritualSubtitle(
+  status?: DayCloseRitualStatus | null,
+  locale: Locale | string = DEFAULT_LOCALE
+): string {
+  const bits: string[] = [
+    status?.mariHoursPending != null
+      ? translate(locale, "closeout.subtitleWithHours")
+      : translate(locale, "closeout.subtitleBase"),
+  ];
   if (status) {
     if (status.calendarOpen > 0) {
-      bits.push(`${status.calendarOpen} Termin(e) offen`);
+      bits.push(
+        translate(locale, "closeout.eventsOpen", {
+          count: status.calendarOpen,
+        })
+      );
     }
     const analyses: string[] = [];
-    if (status.googleDayDone === false) analyses.push("Gmail-Analyse fehlt");
-    if (status.microsoftDayDone === false) analyses.push("Outlook-Analyse fehlt");
-    if (status.googleDayDone === true) analyses.push("Gmail ✓");
-    if (status.microsoftDayDone === true) analyses.push("Outlook ✓");
+    if (status.googleDayDone === false) {
+      analyses.push(translate(locale, "closeout.gmailMissing"));
+    }
+    if (status.microsoftDayDone === false) {
+      analyses.push(translate(locale, "closeout.outlookMissing"));
+    }
+    if (status.googleDayDone === true) {
+      analyses.push(translate(locale, "closeout.gmailOk"));
+    }
+    if (status.microsoftDayDone === true) {
+      analyses.push(translate(locale, "closeout.outlookOk"));
+    }
     if (analyses.length) bits.push(analyses.join(" · "));
     if (status.mariHoursPending != null && status.mariHoursPending > 0) {
       bits.push(
-        `${status.mariHoursPending} Stunden-Vorschlag${
-          status.mariHoursPending === 1 ? "" : "e"
-        }`
+        translate(
+          locale,
+          status.mariHoursPending === 1
+            ? "closeout.hourSuggestion"
+            : "closeout.hourSuggestions",
+          { count: status.mariHoursPending }
+        )
       );
     }
   }
@@ -108,7 +129,8 @@ export function isDayCloseRitualComplete(
 export function buildDayCloseRitualItem(
   todayIso: string,
   status?: DayCloseRitualStatus | null,
-  schedule?: DayCloseSchedule | null
+  schedule?: DayCloseSchedule | null,
+  locale: Locale | string = DEFAULT_LOCALE
 ): DayCloseRitualItem {
   const done = isDayCloseRitualComplete(status);
   const clock = dayCloseScheduleFromStart(schedule?.startHm);
@@ -116,21 +138,19 @@ export function buildDayCloseRitualItem(
     id: DAY_CLOSE_RITUAL_ID,
     kind: "deadline",
     date: todayIso,
-    title: done ? "✅ Tagesabschluss" : "Tagesabschluss",
-    subtitle: ritualSubtitle(status),
+    title: done
+      ? translate(locale, "closeout.titleDone")
+      : translate(locale, "closeout.title"),
+    subtitle: ritualSubtitle(status, locale),
     time: clock.startHm,
     endTime: clock.endHm,
     href: "/",
-    badge: "Ritual",
+    badge: translate(locale, "closeout.ritual"),
     accentColor: "#0f766e",
     calendarId: DAY_CLOSE_CALENDAR_ID,
     calendarName: "Buddy",
     planningRelevant: true,
-    description:
-      "Virtueller Buddy-Termin (nicht im Google-/Outlook-Kalender).\n" +
-      "1) Offene Termine erledigen, verschieben oder bestätigen\n" +
-      "2) Gmail- und/oder Outlook-Tagesanalyse laufen lassen\n" +
-      "3) Stunden aus Ticket-Terminen prüfen (Maringo → Stunden)",
+    description: translate(locale, "closeout.description"),
   };
 }
 
@@ -146,11 +166,12 @@ export function withDayCloseRitual<
   todayIso: string,
   status?: DayCloseRitualStatus | null,
   mapRitual?: (ritual: DayCloseRitualItem) => T,
-  schedule?: DayCloseSchedule | null
+  schedule?: DayCloseSchedule | null,
+  locale: Locale | string = DEFAULT_LOCALE
 ): T[] {
   const without = items.filter((i) => !isDayCloseRitualId(i.id));
   if (!isZurichWeekday(todayIso)) return without;
-  const ritual = buildDayCloseRitualItem(todayIso, status, schedule);
+  const ritual = buildDayCloseRitualItem(todayIso, status, schedule, locale);
   const mapped = mapRitual
     ? mapRitual(ritual)
     : ({
@@ -206,14 +227,16 @@ export function withDayCloseRitualMsEvents<
   events: T[],
   todayIso: string,
   status?: DayCloseRitualStatus | null,
-  schedule?: DayCloseSchedule | null
+  schedule?: DayCloseSchedule | null,
+  locale: Locale | string = DEFAULT_LOCALE
 ): T[] {
   return withDayCloseRitual(
     events,
     todayIso,
     status,
     ritualAsMsCalendarEvent as unknown as (ritual: DayCloseRitualItem) => T,
-    schedule
+    schedule,
+    locale
   );
 }
 
@@ -261,14 +284,16 @@ export function withDayCloseRitualGoogleEvents<
   events: T[],
   todayIso: string,
   status?: DayCloseRitualStatus | null,
-  schedule?: DayCloseSchedule | null
+  schedule?: DayCloseSchedule | null,
+  locale: Locale | string = DEFAULT_LOCALE
 ): T[] {
   return withDayCloseRitual(
     events,
     todayIso,
     status,
     (ritual) => ritualAsGoogleReviewEvent(ritual),
-    schedule
+    schedule,
+    locale
   ) as T[];
 }
 

@@ -3,19 +3,29 @@
 import { usePathname } from "next/navigation";
 import { AuthProvider, useAuth } from "@/components/auth/auth-provider";
 import { ThemeProvider } from "@/components/theme/theme-provider";
+import { LocaleProvider } from "@/components/i18n/locale-provider";
 import { RealtimeToasts } from "@/components/realtime/realtime-toasts";
 import { CloseoutAssistant } from "@/components/closeout/closeout-assistant";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
+import type { Locale } from "@/lib/i18n";
 import { MobileHeader } from "./mobile-header";
 import { MobileDock } from "./mobile-dock";
 import { Sidebar } from "./sidebar";
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  initialLocale,
+}: {
+  children: React.ReactNode;
+  initialLocale?: Locale;
+}) {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <AppShellInner>{children}</AppShellInner>
-      </AuthProvider>
+      <LocaleProvider initialLocale={initialLocale}>
+        <AuthProvider>
+          <AppShellInner>{children}</AppShellInner>
+        </AuthProvider>
+      </LocaleProvider>
     </ThemeProvider>
   );
 }

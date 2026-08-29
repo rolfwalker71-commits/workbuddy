@@ -3,29 +3,21 @@
 import { useEffect, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useLocale, useT } from "@/components/i18n/locale-provider";
 
-const MONTH_SHORT_DE = [
-  "JAN",
-  "FEB",
-  "MÄR",
-  "APR",
-  "MAI",
-  "JUN",
-  "JUL",
-  "AUG",
-  "SEP",
-  "OKT",
-  "NOV",
-  "DEZ",
-] as const;
-
-function dayLabel(iso: string): { month: string; day: string; weekday: string } {
+function dayLabel(
+  iso: string,
+  locale: string
+): { month: string; day: string; weekday: string } {
   const [y, m, d] = iso.split("-").map(Number);
   const date = new Date(y, m - 1, d);
   return {
-    month: MONTH_SHORT_DE[m - 1] ?? "",
+    month: new Intl.DateTimeFormat(locale, { month: "short" })
+      .format(date)
+      .replace(".", "")
+      .toUpperCase(),
     day: String(d),
-    weekday: new Intl.DateTimeFormat("de-CH", { weekday: "short" }).format(date),
+    weekday: new Intl.DateTimeFormat(locale, { weekday: "short" }).format(date),
   };
 }
 
@@ -73,10 +65,12 @@ export function DateTimelineStrip({
   activeDate?: string | null;
   accent?: "finance" | "travel";
 }) {
+  const t = useT();
+  const { intlLocale } = useLocale();
   const scrollerRef = useRef<HTMLDivElement>(null);
   const items = useMemo(
-    () => dates.map((iso) => ({ iso, ...dayLabel(iso) })),
-    [dates]
+    () => dates.map((iso) => ({ iso, ...dayLabel(iso, intlLocale) })),
+    [dates, intlLocale]
   );
 
   useEffect(() => {
@@ -102,7 +96,7 @@ export function DateTimelineStrip({
         className
       )}
       role="navigation"
-      aria-label="Tage"
+      aria-label={t("layout.days")}
     >
       {items.map((item) => {
         const active = activeDate === item.iso;

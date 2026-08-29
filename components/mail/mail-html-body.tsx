@@ -5,6 +5,7 @@ import { ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { prepareMailHtmlForDisplay } from "@/lib/mail/mail-html-display";
+import { useT } from "@/components/i18n/locale-provider";
 import { cn } from "@/lib/utils";
 
 export function MailHtmlBody({
@@ -16,6 +17,7 @@ export function MailHtmlBody({
   plainFallback?: string | null;
   className?: string;
 }) {
+  const t = useT();
   const [loadImages, setLoadImages] = useState(false);
 
   const prepared = useMemo(
@@ -31,7 +33,7 @@ export function MailHtmlBody({
           className
         )}
       >
-        {plainFallback || "(kein Text)"}
+        {plainFallback || t("mail.noText")}
       </pre>
     );
   }
@@ -44,8 +46,8 @@ export function MailHtmlBody({
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200/80 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-400/30 dark:bg-amber-500/12 dark:text-amber-100">
           <p className="min-w-0 flex-1">
             {prepared.externalImageCount === 1
-              ? "1 externes Bild blockiert (Datenschutz)."
-              : `${prepared.externalImageCount} externe Bilder blockiert (Datenschutz).`}
+              ? t("mail.oneBlockedImage")
+              : t("mail.blockedImages", { count: prepared.externalImageCount })}
           </p>
           <Button
             type="button"
@@ -55,20 +57,20 @@ export function MailHtmlBody({
             onClick={() => setLoadImages(true)}
           >
             <ImageIcon className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-            Bilder laden
+            {t("mail.loadImages")}
           </Button>
         </div>
       ) : null}
       {loadImages && prepared.externalImageCount > 0 ? (
         <div className="flex flex-wrap items-center justify-between gap-2 text-[0.6875rem] text-muted-foreground">
-          <span>Externe Bilder geladen.</span>
+          <span>{t("mail.imagesLoaded")}</span>
           <Button
             type="button"
             variant="link"
             className="h-auto p-0 text-[0.6875rem] underline underline-offset-2"
             onClick={() => setLoadImages(false)}
           >
-            Wieder blockieren
+            {t("mail.blockAgain")}
           </Button>
         </div>
       ) : null}

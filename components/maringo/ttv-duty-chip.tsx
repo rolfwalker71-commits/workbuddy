@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
+import { useT } from "@/components/i18n/locale-provider";
 
 type DutyPayload = {
   today: string;
@@ -18,6 +19,7 @@ export function TtvDutyChip({
 }: {
   onOpenInbox: () => void;
 }) {
+  const t = useT();
   const [data, setData] = useState<DutyPayload | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -40,7 +42,7 @@ export function TtvDutyChip({
         body: JSON.stringify({ ymd: data.today, claim: true }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || "Übernehmen fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("duty.claimFailed"));
       setData((prev) =>
         prev
           ? {
@@ -60,10 +62,12 @@ export function TtvDutyChip({
   return (
     <div
       className="flex min-h-10 max-w-full flex-wrap items-center gap-1.5 rounded-full bg-orange-50 px-2.5 dark:bg-orange-950"
-      title="Dienst ist wer den Tag hat. Filter TTV bleibt der Fallback für NEU-Tickets, auch ohne Dienst."
+      title={t("duty.hintChip")}
     >
       <p className="min-w-0 text-[0.75rem] font-semibold leading-none text-orange-950 dark:text-orange-100">
-        TTV heute: {data.todayDuty?.displayName || "noch niemand"}
+        {t("duty.ttvToday", {
+          name: data.todayDuty?.displayName || t("duty.nobodyYet"),
+        })}
       </p>
       {!data.isMe ? (
         <Button
@@ -73,16 +77,16 @@ export function TtvDutyChip({
           disabled={busy}
           onClick={() => void claim()}
         >
-          Übernehmen
+          {t("duty.claim")}
         </Button>
       ) : (
         <span className="text-[0.625rem] font-semibold leading-none text-orange-800 dark:text-orange-200">
-          Du
+          {t("common.you")}
         </span>
       )}
       <Button type="button" size="xs" variant="ghost" onClick={onOpenInbox}>
         <Inbox className="size-3" strokeWidth={APP_ICON_STROKE} />
-        Inbox
+        {t("duty.inbox")}
       </Button>
     </div>
   );

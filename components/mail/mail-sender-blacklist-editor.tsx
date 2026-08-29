@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/sheet";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import type { MailSenderBlacklistEntry } from "@/lib/mail/sender-blacklist";
+import { useT } from "@/components/i18n/locale-provider";
 import { SYSTEM_MAIL_HIDE_NOTE } from "@/lib/mail/sender-blacklist";
 
 type BlacklistPayload = {
@@ -20,12 +21,12 @@ type BlacklistPayload = {
   systemNote?: string;
 };
 
-async function fetchBlacklist(): Promise<BlacklistPayload> {
+async function fetchBlacklist(loadFailed: string): Promise<BlacklistPayload> {
   const res = await fetch("/api/me/mail-blacklist");
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(
-      (json as { error?: string }).error || "Blacklist laden fehlgeschlagen"
+      (json as { error?: string }).error || loadFailed
     );
   }
   return json as BlacklistPayload;
@@ -44,18 +45,17 @@ function BlacklistBody({
   error: string | null;
   onRemove: (email: string) => void;
 }) {
+  const t = useT();
   return (
     <div className="space-y-3">
       <p className="text-sm leading-snug text-muted-foreground">
-        Ausgeblendete Absender fehlen in der Mail-Chronik und in der
-        AI-Tagesanalyse. Nur für dich.
+        {t("mail.hideSendersHint")}
       </p>
       <p className="text-xs leading-snug text-muted-foreground">{systemNote}</p>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       {entries.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          Noch keine eigenen Absender. Öffne eine Mail und tippe «Absender
-          ausblenden».
+          {t("mail.hideSendersEmpty")}
         </p>
       ) : (
         <ul className="space-y-2">
@@ -82,7 +82,7 @@ function BlacklistBody({
                 onClick={() => onRemove(entry.email)}
               >
                 <Trash2 className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-                Entfernen
+                {t("common.remove")}
               </Button>
             </li>
           ))}
@@ -93,6 +93,7 @@ function BlacklistBody({
 }
 
 export function useMailSenderBlacklist() {
+  const t = useT();
   const [entries, setEntries] = useState<MailSenderBlacklistEntry[]>([]);
   const [systemNote, setSystemNote] = useState(SYSTEM_MAIL_HIDE_NOTE);
   const [error, setError] = useState<string | null>(null);
@@ -100,14 +101,14 @@ export function useMailSenderBlacklist() {
 
   const reload = useCallback(async () => {
     try {
-      const data = await fetchBlacklist();
+      const data = await fetchBlacklist(t("mail.loadBlacklistFailed"));
       setEntries(data.entries || []);
       if (data.systemNote) setSystemNote(data.systemNote);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void reload();
@@ -123,13 +124,13 @@ export function useMailSenderBlacklist() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(
-          (json as { error?: string }).error || "Ausblenden fehlgeschlagen"
+          (json as { error?: string }).error || t("common.hideFailed")
         );
       }
       setEntries((json as BlacklistPayload).entries || []);
       return json as BlacklistPayload;
     },
-    []
+    [t]
   );
 
   const remove = useCallback(async (email: string) => {
@@ -142,7 +143,7 @@ export function useMailSenderBlacklist() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(
-          (json as { error?: string }).error || "Entfernen fehlgeschlagen"
+          (json as { error?: string }).error || t("common.removeFailed")
         );
       }
       setEntries((json as BlacklistPayload).entries || []);
@@ -152,7 +153,7 @@ export function useMailSenderBlacklist() {
     } finally {
       setBusyEmail(null);
     }
-  }, []);
+  }, [t]);
 
   return {
     entries,
@@ -187,11 +188,12 @@ export function MailSenderBlacklistEditor({
 }
 
 export function MailSenderBlacklistAccountPanel() {
+  const t = useT();
   const list = useMailSenderBlacklist();
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Mail-Absender ausblenden</CardTitle>
+        <CardTitle className="text-base">{t("mail.hideSendersTitle")}</CardTitle>
       </CardHeader>
       <CardContent>
         <MailSenderBlacklistEditor list={list} />
@@ -211,13 +213,14 @@ export function MailSenderBlacklistSheet({
   list: ReturnType<typeof useMailSenderBlacklist>;
   onChanged?: () => void;
 }) {
+  const t = useT();
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="gap-0 overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>Ausgeblendete Absender</SheetTitle>
+          <SheetTitle>{t("mail.hiddenSenders")}</SheetTitle>
           <SheetDescription>
-            Chronik und AI-Tagesanalyse nutzen dieselbe Liste.
+            {t("mail.hiddenSendersDesc")}
           </SheetDescription>
         </SheetHeader>
         <div className="px-4 pb-6">
@@ -233,6 +236,7 @@ export function MailSenderBlacklistOpenButton({
 }: {
   onClick: () => void;
 }) {
+  const t = useT();
   return (
     <Button
       type="button"
@@ -242,7 +246,7 @@ export function MailSenderBlacklistOpenButton({
       onClick={onClick}
     >
       <EyeOff className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-      Ausgeblendet
+      {t("mail.hidden")}
     </Button>
   );
 }

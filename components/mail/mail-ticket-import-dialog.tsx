@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { MailHtmlImportEditor } from "@/components/mail/mail-html-import-editor";
 import { MariKeyPairPicker } from "@/components/maringo/mari-key-pair-picker";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
+import { useT } from "@/components/i18n/locale-provider";
 import { parseMailSender } from "@/lib/mail/mail-contact";
 import {
   initialMailTicketDescription,
@@ -112,6 +113,7 @@ export function MailTicketImportDialog({
   onOpenChange: (open: boolean) => void;
   mail: MailTicketImportSource | null;
 }) {
+  const t = useT();
   const sender = parseMailSender({
     from: mail?.from,
     fromName: mail?.fromName,
@@ -258,7 +260,7 @@ export function MailTicketImportDialog({
     }
     let cancelled = false;
     setLookupState("loading");
-    const t = window.setTimeout(() => {
+    const timer = window.setTimeout(() => {
       void (async () => {
         try {
           const res = await fetch(
@@ -267,7 +269,7 @@ export function MailTicketImportDialog({
           const data = await res.json().catch(() => ({}));
           if (cancelled) return;
           if (!res.ok) {
-            throw new Error(data.error || "Absender-Suche fehlgeschlagen");
+            throw new Error(data.error || t("mail.senderSearchFailed"));
           }
           const next = (data.suggestions || []) as MariEmailPartnerSuggestion[];
           setSuggestions(next);
@@ -285,7 +287,7 @@ export function MailTicketImportDialog({
     }, 300);
     return () => {
       cancelled = true;
-      window.clearTimeout(t);
+      window.clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, contactEmail]);
@@ -294,7 +296,7 @@ export function MailTicketImportDialog({
     if (!open || !projectOpen) return;
     let cancelled = false;
     const q = projectQuery.trim();
-    const t = window.setTimeout(() => {
+    const timer = window.setTimeout(() => {
       void (async () => {
         setLoadingProjects(true);
         try {
@@ -306,7 +308,7 @@ export function MailTicketImportDialog({
           const data = await res.json().catch(() => ({}));
           if (cancelled) return;
           if (!res.ok) {
-            throw new Error(data.error || "Projekte laden fehlgeschlagen");
+            throw new Error(data.error || t("mail.loadProjectsFailed"));
           }
           setProjects((data.projects || []) as MariKeyPair[]);
         } catch (err) {
@@ -320,7 +322,7 @@ export function MailTicketImportDialog({
     }, 200);
     return () => {
       cancelled = true;
-      window.clearTimeout(t);
+      window.clearTimeout(timer);
     };
   }, [open, projectOpen, projectQuery]);
 
@@ -349,7 +351,7 @@ export function MailTicketImportDialog({
         if (cancelled) return;
         if (!contractRes.ok) {
           throw new Error(
-            contractData.error || "Verträge laden fehlgeschlagen"
+            contractData.error || t("mail.loadContractsFailed")
           );
         }
         const nextContracts = (contractData.contracts || []) as MariKeyPair[];
@@ -424,30 +426,30 @@ export function MailTicketImportDialog({
     setError(null);
     const email = contactEmail.trim();
     if (!email.includes("@")) {
-      setError("E-Mail des Ansprechpartners ist Pflicht.");
+      setError(t("mail.emailRequired"));
       return;
     }
     const pn = sanitizeMariProjectNumber(projectNumber);
     if (!pn) {
       setError(
-        "Projektnummer fehlt — bitte ein Projekt aus der Liste wählen."
+        t("mail.projectRequired")
       );
       return;
     }
     const company = parseMariCompanyId(companyId);
     if (company == null) {
       setError(
-        "Mandant zum Projekt fehlt — Ticket kann nicht angelegt werden."
+        t("mail.tenantMissing")
       );
       return;
     }
     if (contracts.length > 0 && !contractId) {
-      setError("Vertrag ist Pflicht, wenn Verträge zum Projekt existieren.");
+      setError(t("mail.contractRequired"));
       return;
     }
     const act = subject.trim();
     if (!act) {
-      setError("Betreff fehlt.");
+      setError(t("mail.subjectMissing"));
       return;
     }
     submittingRef.current = true;
@@ -474,7 +476,7 @@ export function MailTicketImportDialog({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(
-          (data as { error?: string }).error || "Ticket anlegen fehlgeschlagen"
+          (data as { error?: string }).error || t("mail.createTicketFailed")
         );
       }
       const issueId = Number(
@@ -482,7 +484,7 @@ export function MailTicketImportDialog({
           (data as { ticket?: { issueId?: number } }).ticket?.issueId
       );
       if (!Number.isInteger(issueId) || issueId <= 0) {
-        throw new Error("MARI hat keine Ticket-ID zurückgegeben.");
+        throw new Error(t("mail.noTicketId"));
       }
       const attach = (
         data as {
@@ -505,26 +507,31 @@ export function MailTicketImportDialog({
       if (attachErr.length > 0) {
         side.push(
           attachedN > 0
-            ? `${attachedN} Anhang/Anhänge übernommen. ${attachErr.join(" · ")}`
+            ? t("mail.attachmentsApplied", {
+                count: attachedN,
+                errors: attachErr.join(" · "),
+              })
             : attachErr.join(" · ")
         );
       } else if (attachedN > 0) {
-        notes.push(`${attachedN} Anhang/Anhänge am Ticket.`);
+        notes.push(t("mail.attachmentsOnTicket", { count: attachedN }));
       }
       if (stamp?.ok) {
         notes.push(
-          `Outlook gestempelt: ${stamp.category || "Import als Ticket"}.`
+          t("mail.outlookStamped", {
+            category: stamp.category || t("mail.importAsTicket"),
+          })
         );
       } else if (stamp?.error) {
         side.push(
-          `Outlook-Stempel «Import als Ticket» fehlgeschlagen: ${stamp.error}`
+          t("mail.outlookStampFailed", { error: stamp.error })
         );
       }
       if (notes.length > 0) setAttachNote(notes.join(" "));
       if (side.length > 0) setStampWarning(side.join(" "));
       setCreatedId(issueId);
       showActionFeedback({
-        headline: `Ticket #${issueId} in Maringo erstellt`,
+        headline: t("mail.ticketCreatedToast", { id: issueId }),
         detail: act,
         tone: "success",
       });
@@ -552,23 +559,23 @@ export function MailTicketImportDialog({
         <DialogHeader className="shrink-0 space-y-1 border-b border-border/60 px-4 py-3 pr-12 text-left">
           <DialogTitle className="text-base leading-snug">
             {createdId
-              ? `Ticket #${createdId} in Maringo erstellt`
-              : "Ticket aus Mail erstellen"}
+              ? t("mail.ticketCreated", { id: createdId })
+              : t("mail.createTicket")}
           </DialogTitle>
           <DialogDescription className="text-xs">
             {createdId
-              ? "Das Ticket liegt in Maringo. Du kannst es jetzt öffnen."
-              : "Felder mit * sind Pflicht. Keine Extra-Mail an den Kunden."}
+              ? t("mail.ticketCreatedHint")
+              : t("mail.ticketFormHint")}
           </DialogDescription>
         </DialogHeader>
 
         {createdId ? (
           <div className="space-y-4 px-4 py-5" role="status">
             <p className="text-2xl font-semibold tabular-nums tracking-tight text-foreground">
-              Ticket #{createdId}
+              {t("mail.ticketNumber", { id: createdId })}
             </p>
             <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm leading-snug text-emerald-950 dark:border-emerald-400/30 dark:bg-emerald-500/12 dark:text-emerald-100">
-              Ticket #{createdId} in Maringo erstellt.
+              {t("mail.ticketCreated", { id: createdId })}
             </p>
             {attachNote ? (
               <p className="text-xs text-muted-foreground">{attachNote}</p>
@@ -590,7 +597,7 @@ export function MailTicketImportDialog({
                 )}
               >
                 <Ticket className="size-4" strokeWidth={APP_ICON_STROKE} />
-                Ticket in Maringo öffnen
+                {t("mail.openTicketInMaringo")}
               </a>
               <Button
                 type="button"
@@ -598,7 +605,7 @@ export function MailTicketImportDialog({
                 className="min-h-11"
                 onClick={() => onOpenChange(false)}
               >
-                Schließen
+                {t("common.close")}
               </Button>
             </div>
           </div>
@@ -617,25 +624,25 @@ export function MailTicketImportDialog({
             ) : null}
 
             <FieldGroup
-              title="Ansprechpartner"
+              title={t("mail.contact")}
               required
-              hint="Name frei, E-Mail Pflicht."
+              hint={t("mail.contactHint")}
             >
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div className="space-y-1">
-                  <Label htmlFor="mail-tk-contact">Name</Label>
+                  <Label htmlFor="mail-tk-contact">{t("common.name")}</Label>
                   <Input
                     id="mail-tk-contact"
                     value={contactName}
                     onChange={(e) => setContactName(e.target.value)}
-                    placeholder="z.B. Frau Muster"
+                    placeholder={t("mail.contactNamePlaceholder")}
                     maxLength={200}
                     autoComplete="off"
                   />
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="mail-tk-email">
-                    E-Mail
+                    {t("common.email")}
                     <RequiredMark />
                   </Label>
                   <Input
@@ -652,7 +659,7 @@ export function MailTicketImportDialog({
               </div>
               {lookupState === "loading" ? (
                 <p className="text-xs text-muted-foreground" role="status">
-                  Suche Geschäftspartner zur Absender-Adresse…
+                  {t("mail.searchingPartner")}
                 </p>
               ) : null}
               {lookupState === "empty" && contactEmail.includes("@") ? (
@@ -663,7 +670,7 @@ export function MailTicketImportDialog({
               {suggestions.length > 0 ? (
                 <div className="space-y-1">
                   <p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Vorschläge
+                    {t("mail.suggestions")}
                   </p>
                   <ul className="flex flex-col gap-1">
                     {suggestions.map((s) => {
@@ -703,13 +710,13 @@ export function MailTicketImportDialog({
             </FieldGroup>
 
             <FieldGroup
-              title="Projekt"
+              title={t("common.project")}
               required
-              hint="Kunde und Mandant folgen aus dem Projekt."
+              hint={t("mail.projectHint")}
             >
               <div className="space-y-1">
                 <Label htmlFor="mail-tk-project">
-                  Projekt
+                  {t("common.project")}
                   <RequiredMark />
                 </Label>
                 <div className="relative">
@@ -726,7 +733,7 @@ export function MailTicketImportDialog({
                       setProjectOpen(true);
                       setProjectQuery("");
                     }}
-                    placeholder="Suche z.B. Werk oder P200000"
+                    placeholder={t("mail.searchProject")}
                     autoComplete="off"
                     required={!projectNumber}
                   />
@@ -734,11 +741,11 @@ export function MailTicketImportDialog({
                     <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-border bg-background shadow-lg">
                       {loadingProjects ? (
                         <p className="px-2.5 py-2 text-xs text-muted-foreground">
-                          Lade…
+                          {t("common.loading")}
                         </p>
                       ) : projects.length === 0 ? (
                         <p className="px-2.5 py-2 text-xs text-muted-foreground">
-                          Keine Treffer
+                          {t("common.noResults")}
                         </p>
                       ) : (
                         <ul>
@@ -769,29 +776,33 @@ export function MailTicketImportDialog({
                 className="text-sm leading-snug text-muted-foreground"
                 aria-live="polite"
               >
-                <span className="font-medium text-foreground">Kunde</span>
+                <span className="font-medium text-foreground">{t("workspace.customer")}</span>
                 {customerLine ? (
                   <> · {customerLine}</>
                 ) : (
-                  <> · folgt aus dem Projekt</>
+                  <> · {t("mail.followsFromProject")}</>
                 )}
               </p>
               <MariKeyPairPicker
                 id="mail-tk-contract"
-                label={contracts.length > 0 ? "Vertrag *" : "Vertrag"}
+                label={
+                  contracts.length > 0
+                    ? t("mail.contractStar")
+                    : t("mail.contract")
+                }
                 value={contractId}
                 options={contracts}
-                placeholder="Vertrag wählen…"
-                emptyLabel="Kein Vertrag nötig"
+                placeholder={t("mail.chooseContract")}
+                emptyLabel={t("mail.noContractNeeded")}
                 disabled={!projectNumber}
                 onChange={setContractId}
               />
             </FieldGroup>
 
-            <FieldGroup title="Betreff" required>
+            <FieldGroup title={t("mail.subject")} required>
               <div className="space-y-1">
                 <Label htmlFor="mail-tk-subject" className="sr-only">
-                  Betreff
+                  {t("mail.subject")}
                   <RequiredMark />
                 </Label>
                 <Input
@@ -805,17 +816,17 @@ export function MailTicketImportDialog({
             </FieldGroup>
 
             <FieldGroup
-              title="Mail-Text"
+              title={t("mail.mailText")}
               hint={
                 isHtml
-                  ? "HTML-Mail — formatierte Vorschau, direkt editierbar."
-                  : "Nur-Text — bis zum Absenden editierbar."
+                  ? t("mail.htmlPreview")
+                  : t("mail.plainEditable")
               }
             >
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <Label htmlFor="mail-tk-body" id="mail-tk-body-label">
-                    {isHtml ? "HTML-Beschreibung" : "Beschreibung"}
+                    {isHtml ? t("mail.htmlDescription") : t("common.description")}
                   </Label>
                   {isHtml ? (
                     <Button
@@ -824,7 +835,7 @@ export function MailTicketImportDialog({
                       className="h-9 min-h-9 text-xs"
                       onClick={() => reapplySignatureStrip()}
                     >
-                      Signaturbilder entfernen
+                      {t("mail.removeSignatureImages")}
                     </Button>
                   ) : null}
                 </div>
@@ -848,15 +859,15 @@ export function MailTicketImportDialog({
             </FieldGroup>
 
             <FieldGroup
-              title="Anhänge"
+              title={t("mail.attachments")}
               hint={
                 attachments.length > 0
-                  ? "Alle vorausgewählt. Signaturbilder sind ausgeblendet."
-                  : "Keine Dateianhänge in dieser Mail."
+                  ? t("mail.attachmentsPicked")
+                  : t("mail.noFileAttachments")
               }
             >
               {attachments.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Keine Anhänge.</p>
+                <p className="text-xs text-muted-foreground">{t("mail.noAttachments")}</p>
               ) : (
                 <ul className="space-y-1">
                   {attachments.map((a) => {
@@ -898,7 +909,7 @@ export function MailTicketImportDialog({
               aria-busy={busy}
               className="min-h-11 w-full sm:w-auto"
             >
-              {busy ? "Lege Ticket an…" : "Ticket in Maringo anlegen"}
+              {busy ? t("mail.creatingTicket") : t("mail.createTicketInMaringo")}
             </Button>
           </form>
         )}

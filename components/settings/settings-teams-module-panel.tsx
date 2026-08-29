@@ -11,8 +11,10 @@ import {
 import { MicrosoftTeamsLogo } from "@/components/branding/provider-logos";
 import { useAuth } from "@/components/auth/auth-provider";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
+import { useT } from "@/components/i18n/locale-provider";
 
 export function SettingsTeamsModulePanel() {
+  const t = useT();
   const { refresh: refreshAuth } = useAuth();
   const [enabled, setEnabled] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -24,14 +26,14 @@ export function SettingsTeamsModulePanel() {
       .then(async (res) => {
         const json = await res.json();
         if (!res.ok) {
-          throw new Error(json.error || "Einstellung laden fehlgeschlagen");
+          throw new Error(json.error || t("settings.teamsLoadFailed"));
         }
         setEnabled(json.teamsModuleEnabled !== false);
       })
       .catch((err) =>
         setError(err instanceof Error ? err.message : String(err))
       );
-  }, []);
+  }, [t]);
 
   async function save(next: boolean) {
     const previous = enabled;
@@ -47,13 +49,13 @@ export function SettingsTeamsModulePanel() {
       });
       const json = await res.json();
       if (!res.ok) {
-        throw new Error(json.error || "Speichern fehlgeschlagen");
+        throw new Error(json.error || t("common.saveFailed"));
       }
       setEnabled(json.teamsModuleEnabled !== false);
       setStatus(
         json.teamsModuleEnabled !== false
-          ? "Teams-Modul ist für alle sichtbar."
-          : "Teams-Modul ist für alle ausgeblendet."
+          ? t("settings.teamsVisible")
+          : t("settings.teamsHidden")
       );
       await refreshAuth();
     } catch (err) {
@@ -69,18 +71,15 @@ export function SettingsTeamsModulePanel() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <MicrosoftTeamsLogo className="size-4" />
-          Microsoft Teams
+          {t("settings.teamsTitle")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
-        <p className="text-muted-foreground">
-          Modul für alle Benutzer anzeigen. Aus: kein Teams-Tab, keine Home-Karte,
-          keine Chat-Analyse. Kalender-Transkripte bleiben.
-        </p>
+        <p className="text-muted-foreground">{t("settings.teamsHint")}</p>
         <div
           className={segmentedTrackClass}
           role="tablist"
-          aria-label="Microsoft Teams Modul"
+          aria-label={t("settings.teamsAria")}
         >
           <Button
             type="button"
@@ -99,7 +98,7 @@ export function SettingsTeamsModulePanel() {
               strokeWidth={APP_ICON_STROKE}
               aria-hidden
             />
-            Anzeigen
+            {t("common.show")}
           </Button>
           <Button
             type="button"
@@ -118,7 +117,7 @@ export function SettingsTeamsModulePanel() {
               strokeWidth={APP_ICON_STROKE}
               aria-hidden
             />
-            Ausblenden
+            {t("common.hide")}
           </Button>
         </div>
         {error ? <p className="text-destructive">{error}</p> : null}

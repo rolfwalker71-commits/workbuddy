@@ -4,6 +4,7 @@ import { getWeatherHomeLocation } from "./location";
 export type HomeWeatherDay = {
   date: string;
   icon: string;
+  weatherCode: number;
   weatherLabelDe: string;
   temperatureMaxC: number;
   temperatureMinC: number;
@@ -167,6 +168,7 @@ export async function fetchHomeWeatherCard(
       week: week.map((d) => ({
         date: d.date,
         icon: weatherConditionIcon(d.weatherCode),
+        weatherCode: d.weatherCode,
         weatherLabelDe: d.weatherLabelDe,
         temperatureMaxC: Math.round(d.temperatureMaxC),
         temperatureMinC: Math.round(d.temperatureMinC),

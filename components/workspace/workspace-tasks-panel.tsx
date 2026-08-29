@@ -10,6 +10,7 @@ import { MicrosoftPlannerPanel } from "@/components/microsoft/microsoft-planner-
 import { TaskCreateDialog } from "@/components/workspace/task-create-dialog";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { toSwissDate } from "@/lib/utils/dates";
+import { useT } from "@/components/i18n/locale-provider";
 import { cn } from "@/lib/utils";
 
 type GoogleTask = {
@@ -35,6 +36,7 @@ export function WorkspaceTasksPanel({
   microsoft: boolean;
   google: boolean;
 }) {
+  const t = useT();
   return (
     <div className="space-y-8">
       {microsoft ? (
@@ -45,7 +47,7 @@ export function WorkspaceTasksPanel({
       {google ? <GoogleTasksSection /> : null}
       {!microsoft && !google ? (
         <p className="text-sm text-muted-foreground">
-          Kein Aufgaben-Konto verbunden.
+          {t("workspace.noTaskAccount")}
         </p>
       ) : null}
     </div>
@@ -59,6 +61,7 @@ function GoogleTasksSection() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [showDone, setShowDone] = useState(false);
+  const t = useT();
   const [createOpen, setCreateOpen] = useState(false);
 
   const load = useCallback(async () => {
@@ -72,7 +75,7 @@ function GoogleTasksSection() {
       });
       const res = await fetch(`/api/google/tasks?${qs}`);
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Google Tasks laden fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("workspace.loadGoogleTasksFailed"));
       setTasks((json.tasks || []) as GoogleTask[]);
       setLists((json.lists || []) as GoogleList[]);
     } catch (err) {
@@ -80,7 +83,7 @@ function GoogleTasksSection() {
     } finally {
       setLoading(false);
     }
-  }, [showDone]);
+  }, [showDone, t]);
 
   useEffect(() => {
     void load();
@@ -112,7 +115,7 @@ function GoogleTasksSection() {
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Aktualisieren fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("common.updateFailed"));
       setTasks((prev) =>
         prev.filter((t) => !(t.id === task.id && t.listId === task.listId))
       );
@@ -133,7 +136,7 @@ function GoogleTasksSection() {
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" size="sm" onClick={() => setCreateOpen(true)}>
             <ListPlus className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-            Neue Aufgabe
+            {t("workspace.newTask")}
           </Button>
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <input
@@ -141,7 +144,7 @@ function GoogleTasksSection() {
               checked={showDone}
               onChange={(e) => setShowDone(e.target.checked)}
             />
-            Erledigte laden
+            {t("common.loadCompleted")}
           </label>
           <Button
             type="button"
@@ -154,7 +157,7 @@ function GoogleTasksSection() {
               className={cn("size-3.5", loading && "animate-spin")}
               strokeWidth={APP_ICON_STROKE}
             />
-            Aktualisieren
+            {t("common.refresh")}
           </Button>
         </div>
       </div>
@@ -171,12 +174,12 @@ function GoogleTasksSection() {
         </p>
       ) : null}
       {loading && tasks.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Lade Google Tasks…</p>
+        <p className="text-sm text-muted-foreground">{t("workspace.loadingGoogleTasks")}</p>
       ) : null}
       {!loading && tasks.length === 0 ? (
         <Card>
           <CardContent className="p-5 text-sm text-muted-foreground">
-            Keine offenen Google Tasks im Horizont.
+            {t("workspace.noOpenGoogleTasks")}
           </CardContent>
         </Card>
       ) : null}
@@ -199,10 +202,10 @@ function GoogleTasksSection() {
                         </p>
                         <p className="mt-0.5 text-[0.6875rem] text-muted-foreground">
                           {task.overdue
-                            ? "Überfällig"
+                            ? t("common.overdue")
                             : task.dueDate
-                              ? `fällig ${toSwissDate(task.dueDate)}`
-                              : "ohne Termin"}
+                              ? t("common.dueOn", { date: toSwissDate(task.dueDate) })
+                              : t("workspace.noEventDate")}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -210,7 +213,7 @@ function GoogleTasksSection() {
                           variant={done ? "secondary" : "outline"}
                           className="text-[0.625rem]"
                         >
-                          {done ? "Erledigt" : "Offen"}
+                          {done ? t("workspace.statusDone") : t("workspace.statusOpen")}
                         </Badge>
                         {!done ? (
                           <Button
@@ -220,7 +223,7 @@ function GoogleTasksSection() {
                             onClick={() => void markDone(task)}
                           >
                             <Check className="size-3.5" />
-                            Erledigt
+                            {t("workspace.statusDone")}
                           </Button>
                         ) : null}
                       </div>

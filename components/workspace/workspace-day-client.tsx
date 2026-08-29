@@ -107,6 +107,8 @@ import {
   detectReplyLanguage,
   type ReplyLang,
 } from "@/lib/microsoft/reply-language-shared";
+import { useLocale, useT } from "@/components/i18n/locale-provider";
+import type { MessageKey } from "@/lib/i18n";
 
 function zurichYmdClient(d = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -359,10 +361,11 @@ function ReplyLangToggle({
   busy: boolean;
   onChange: (lang: ReplyLang) => void;
 }) {
+  const t = useT();
   return (
     <div
       role="group"
-      aria-label="Antwortsprache"
+      aria-label={t("workspace.replyLang")}
       className="inline-flex items-center gap-0.5 rounded-md border border-border/60 p-0.5"
       onClick={(e) => {
         e.preventDefault();
@@ -438,11 +441,11 @@ type PickState = {
   replies: Record<number, boolean>;
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  open: "Offen",
-  waiting: "Wartet",
-  done: "Erledigt",
-  fyi: "Info",
+const STATUS_KEY: Record<string, MessageKey> = {
+  open: "workspace.statusOpen",
+  waiting: "workspace.waiting",
+  done: "workspace.statusDone",
+  fyi: "workspace.info",
 };
 
 function tagMailProvider(
@@ -518,6 +521,8 @@ function EventDetailActions({
   onSuggest: () => void;
   onReschedule: (slot: FreeSlot) => void;
 }) {
+  const t = useT();
+  const { intlLocale } = useLocale();
   if (isDayCloseRitualId(event.id)) {
     return (
       <Button
@@ -527,7 +532,7 @@ function EventDetailActions({
         onClick={() => window.dispatchEvent(new Event(CLOSEOUT_OPEN_EVENT))}
       >
         <Sparkles className="size-3.5" />
-        Assistent starten
+        {t("workspace.startAssistant")}
       </Button>
     );
   }
@@ -535,7 +540,7 @@ function EventDetailActions({
   return (
     <div className="space-y-2">
       <p className="text-[0.6875rem] text-muted-foreground">
-        Dauer für Slot-Suche (kürzer = engere Lücken)
+        {t("workspace.slotSearchHint")}
       </p>
       <div className="flex flex-wrap gap-1.5">
         {SLOT_DURATION_PRESETS.map((m) => (
@@ -548,7 +553,7 @@ function EventDetailActions({
             disabled={busy}
             onClick={() => onPreset(m)}
           >
-            {m} Min
+            {t("common.minutes", { count: m })}
           </Button>
         ))}
         {!isSlotDurationPreset(slotDuration) ? (
@@ -559,14 +564,14 @@ function EventDetailActions({
             className="h-7 tabular-nums"
             disabled={busy}
           >
-            {slotDuration} Min
+            {t("common.minutes", { count: slotDuration })}
           </Button>
         ) : null}
       </div>
       <div className="flex flex-wrap gap-2">
         <Button type="button" size="sm" disabled={busy} onClick={onDone}>
           <Check className="size-3.5" />
-          Erledigt
+          {t("workspace.statusDone")}
         </Button>
         <Button
           type="button"
@@ -575,19 +580,19 @@ function EventDetailActions({
           disabled={busy}
           onClick={onSuggest}
         >
-          Freien Slot suchen
+          {t("workspace.findFreeSlot")}
         </Button>
       </div>
       {slots.length ? (
         <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-2">
           <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-muted-foreground">
-            Vorschläge à {slotDuration} Min (7 Tage, 08–18)
+            {t("workspace.slotSuggestions", { duration: slotDuration })}
           </p>
           <div className="max-h-64 space-y-2.5 overflow-y-auto">
             {groupFreeSlotsByDate(slots).map(({ date, slots: daySlots }) => (
               <div key={date} className="space-y-1">
                 <p className="text-xs font-semibold">
-                  {weekdayLabel(date)} · {toSwissDate(date)}
+                  {weekdayLabel(date, intlLocale)} · {toSwissDate(date)}
                 </p>
                 <ul className="flex flex-wrap gap-1.5">
                   {daySlots.map((s) => (
@@ -621,6 +626,8 @@ export function WorkspaceDayClient({
   const searchParams = useSearchParams();
   const pathname = usePathname() || "";
   const router = useRouter();
+  const t = useT();
+  const { intlLocale } = useLocale();
   const { me, loading: authLoading } = useAuth();
   const modules = me?.modules ?? [];
   const scope: CloudProvider =
@@ -750,7 +757,7 @@ export function WorkspaceDayClient({
           fetch("/api/microsoft/connection")
             .then(async (res) => {
               const json = await res.json();
-              if (!res.ok) throw new Error(json.error || "Microsoft-Status fehlgeschlagen");
+              if (!res.ok) throw new Error(json.error || t("workspace.msStatusFailed"));
               setMsConnected(Boolean(json.connected));
               setMsEmail(json.connectedEmail || null);
             })
@@ -767,7 +774,7 @@ export function WorkspaceDayClient({
           fetch("/api/google/connection")
             .then(async (res) => {
               const json = await res.json();
-              if (!res.ok) throw new Error(json.error || "Google-Status fehlgeschlagen");
+              if (!res.ok) throw new Error(json.error || t("workspace.googleStatusFailed"));
               setGoogleConnected(Boolean(json.connected));
               setGoogleEmail(json.connectedEmail || null);
             })
@@ -796,7 +803,7 @@ export function WorkspaceDayClient({
           fetch(`/api/microsoft/calendar/today?${qs}`)
             .then(async (res) => {
               const json = await res.json();
-              if (!res.ok) throw new Error(json.error || "Outlook-Kalender fehlgeschlagen");
+              if (!res.ok) throw new Error(json.error || t("workspace.outlookCalFailed"));
               return mapTodayEvents((json.events || []) as unknown[], "microsoft");
             })
             .catch((err) => {
@@ -810,7 +817,7 @@ export function WorkspaceDayClient({
           fetch(`/api/google/calendar/today?${qs}`)
             .then(async (res) => {
               const json = await res.json();
-              if (!res.ok) throw new Error(json.error || "Google-Kalender fehlgeschlagen");
+              if (!res.ok) throw new Error(json.error || t("workspace.googleCalFailed"));
               return mapTodayEvents((json.events || []) as unknown[], "google");
             })
             .catch((err) => {
@@ -842,7 +849,7 @@ export function WorkspaceDayClient({
         fetches.push(
           fetch(`/api/microsoft/mail/today?${qs}`).then(async (res) => {
             const json = await res.json();
-            if (!res.ok) throw new Error(json.error || "Outlook-Mails fehlgeschlagen");
+            if (!res.ok) throw new Error(json.error || t("workspace.outlookMailFailed"));
             return {
               inbox: tagMailProvider(json.inbox, "microsoft"),
               sent: tagMailProvider(json.sent, "microsoft"),
@@ -856,7 +863,7 @@ export function WorkspaceDayClient({
         fetches.push(
           fetch(`/api/google/mail/today?${qs}`).then(async (res) => {
             const json = await res.json();
-            if (!res.ok) throw new Error(json.error || "Gmail fehlgeschlagen");
+            if (!res.ok) throw new Error(json.error || t("workspace.gmailFailed"));
             return {
               inbox: tagMailProvider(json.inbox, "google"),
               sent: tagMailProvider(json.sent, "google"),
@@ -1037,8 +1044,8 @@ export function WorkspaceDayClient({
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Markieren fehlgeschlagen");
-      setStatus("Als erledigt markiert (Buddy/Erledigt).");
+      if (!res.ok) throw new Error(json.error || t("workspace.markFailed"));
+      setStatus(t("workspace.markedDoneBuddy"));
       setDetailEvent(null);
       await loadCalendar();
     } catch (err) {
@@ -1079,14 +1086,14 @@ export function WorkspaceDayClient({
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Slots fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("workspace.slotsFailed"));
       setSlotsByEvent((prev) => ({
         ...prev,
         [key]: (json.slots || []) as FreeSlot[],
       }));
       if (!(json.slots || []).length) {
         setStatus(
-          `Keine freien Slots à ${duration} Min in den nächsten 7 Tagen (08–18).`
+          t("workspace.noSlotsInWeek", { duration })
         );
       }
     } catch (err) {
@@ -1117,10 +1124,12 @@ export function WorkspaceDayClient({
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Verschieben fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("workspace.moveFailed"));
       setDetailEvent(null);
       setStatus(
-        `Verschoben auf ${toSwissDate(slot.date)} ${slot.startHm}–${slot.endHm}`
+        t("workspace.movedTo", {
+          when: `${toSwissDate(slot.date)} ${slot.startHm}–${slot.endHm}`,
+        })
       );
       setSlotsByEvent((prev) => {
         const next = { ...prev };
@@ -1144,10 +1153,10 @@ export function WorkspaceDayClient({
       const cloud = cloudProviderOf(event);
       if (!cloud) return;
       if (!values.title.trim() || !values.date) {
-        throw new Error("Titel und Datum sind nötig.");
+        throw new Error(t("workspace.titleDateRequired"));
       }
       if (cloud === "google" && !event.calendarId) {
-        throw new Error("Kalender-ID fehlt — Termin kann nicht gespeichert werden.");
+        throw new Error(t("workspace.calendarIdMissing"));
       }
       const res = await fetch(eventActionUrl(cloud), {
         method: "POST",
@@ -1166,8 +1175,8 @@ export function WorkspaceDayClient({
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Speichern fehlgeschlagen");
-      setStatus("Termin gespeichert.");
+      if (!res.ok) throw new Error(json.error || t("common.saveFailed"));
+      setStatus(t("workspace.eventSaved"));
       setDetailEvent(null);
       await loadCalendar();
     } catch (err) {
@@ -1220,11 +1229,16 @@ export function WorkspaceDayClient({
         : toSwissDate(dayLabel);
       const usageLine = formatTokenUsageLine(a.usage);
       const prefix = opts?.fromCache
-        ? `Gespeicherte Analyse (${when})`
-        : `Analyse fertig (${when})`;
+        ? t("workspace.analysisSavedPrefix", { when })
+        : t("workspace.analysisDonePrefix", { when });
       setAnalyzeNotice(
         [
-          `${prefix}: ${(a.clusters || []).length} Cluster, ${(a.tasks || []).length} Aufgabe(n), ${(a.replies || []).length} Antwort(en).`,
+          t("workspace.analysisSummary", {
+            prefix,
+            clusters: (a.clusters || []).length,
+            tasks: (a.tasks || []).length,
+            replies: (a.replies || []).length,
+          }),
           usageLine,
         ]
           .filter(Boolean)
@@ -1271,7 +1285,7 @@ export function WorkspaceDayClient({
       if (job.status === "running") {
         setAnalyzing(true);
         setAnalysisFromCache(false);
-        setAnalyzeNotice(`Analyse für ${label} läuft im Hintergrund (inkl. vollständiger Threads)…`);
+        setAnalyzeNotice(t("workspace.analysisRunning", { label }));
         if (syncDay && fromYmd && toYmd) {
           setMailFrom(fromYmd);
           setMailTo(toYmd);
@@ -1293,7 +1307,7 @@ export function WorkspaceDayClient({
       if (job.status === "error") {
         setAnalyzing(false);
         setAnalysisFromCache(false);
-        setError(job.error || "Analyse fehlgeschlagen");
+        setError(job.error || t("workspace.analysisFailed"));
         setAnalyzeNotice(null);
       }
     },
@@ -1396,10 +1410,12 @@ export function WorkspaceDayClient({
           }
           setAnalysis(null);
           setAnalyzeNotice(
-            `Analyse für ${formatMailRangeLabel(
-              json.job?.fromYmd || json.job?.dayIso || "",
-              json.job?.toYmd || json.job?.dayIso || ""
-            )} läuft noch — dieser Zeitraum hat keine gespeicherte Analyse.`
+            t("workspace.analysisStillRunning", {
+              label: formatMailRangeLabel(
+                json.job?.fromYmd || json.job?.dayIso || "",
+                json.job?.toYmd || json.job?.dayIso || ""
+              ),
+            })
           );
           setAnalysisFromCache(false);
           setPicks({ tasks: {}, events: {}, replies: {} });
@@ -1485,7 +1501,9 @@ export function WorkspaceDayClient({
     setStatus(null);
     setAnalyzing(true);
     setAnalyzeNotice(
-      `Analyse für ${formatMailRangeLabel(clamped.from, clamped.to)} läuft im Hintergrund (inkl. vollständiger Threads)…`
+      t("workspace.analysisRunning", {
+        label: formatMailRangeLabel(clamped.from, clamped.to),
+      })
     );
     void (async () => {
       try {
@@ -1495,7 +1513,7 @@ export function WorkspaceDayClient({
           body: JSON.stringify({ from: clamped.from, to: clamped.to }),
         });
         const json = await res.json();
-        if (!res.ok) throw new Error(json.error || "Analyse starten fehlgeschlagen");
+        if (!res.ok) throw new Error(json.error || t("workspace.analysisStartFailed"));
         mergeCachedFromJson(json.cachedEntries);
         if (json.job) hydrateFromJob(json.job, { fromCache: false });
         startPolling();
@@ -1534,7 +1552,7 @@ export function WorkspaceDayClient({
     }
     if (analysisEventsNeedSlot(draftEvents)) {
       setError(
-        "Für Termine aus Aufgaben zuerst Dauer und freien Slot wählen."
+        t("workspace.pickSlotForTaskEvents")
       );
       return;
     }
@@ -1552,29 +1570,38 @@ export function WorkspaceDayClient({
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Übernehmen fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("workspace.applyFailed"));
       if (json.failCount > 0 && json.okCount === 0) {
         throw new Error(
-          (json.errors || []).join(" · ") || "Übernehmen fehlgeschlagen"
+          (json.errors || []).join(" · ") || t("workspace.applyFailed")
         );
       }
       const dest = analysisProvider === "google" ? "Google" : "Outlook";
       const replyLabel =
         analysisProvider === "microsoft" && sendReplies
-          ? `${json.replyOk} Antwort(en) gesendet`
-          : `${json.replyOk} Entwurf(e) → ${dest}`;
+          ? t("workspace.repliesSent", { count: json.replyOk })
+          : t("workspace.draftsTo", { count: json.replyOk, dest });
       const parts = [
         json.taskOk
-          ? `${json.taskOk} Aufgabe(n) → ${analysisProvider === "google" ? "Google Tasks" : "Outlook To Do"}`
+          ? t("workspace.tasksTo", {
+              count: json.taskOk,
+              dest:
+                analysisProvider === "google" ? "Google Tasks" : "Outlook To Do",
+            })
           : null,
-        json.eventOk ? `${json.eventOk} Termin(e) → ${dest}` : null,
+        json.eventOk
+          ? t("workspace.eventsTo", { count: json.eventOk, dest })
+          : null,
         json.replyOk ? replyLabel : null,
       ].filter(Boolean);
       setStatus(
         [
-          parts.join(" · ") || `${json.okCount} übernommen`,
+          parts.join(" · ") || t("workspace.appliedCount", { count: json.okCount }),
           json.failCount
-            ? `(${json.failCount} fehlgeschlagen: ${(json.errors || []).join("; ")})`
+            ? t("workspace.applyFailSuffix", {
+                count: json.failCount,
+                errors: (json.errors || []).join("; "),
+              })
             : null,
         ]
           .filter(Boolean)
@@ -1657,7 +1684,7 @@ export function WorkspaceDayClient({
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(data.error || `Übersetzung fehlgeschlagen (${res.status})`);
+      throw new Error(data.error || t("workspace.translateFailed", { status: res.status }));
     }
     return {
       ...reply,
@@ -1770,10 +1797,10 @@ export function WorkspaceDayClient({
         }
         description={
           scope === "google"
-            ? "Gmail, Kalender und Tasks."
+            ? t("workspace.googleDesc")
             : teamsEnabled
-              ? "Outlook-Chronik, Kalender, Teams-Chats und Kanäle, Tagesanalysen — plus Planner und Slot-Suche."
-              : "Outlook-Chronik, Kalender, Tagesanalysen — plus Planner und Slot-Suche."
+              ? t("workspace.msDescTeams")
+              : t("workspace.msDesc")
         }
         logo={
           scope === "google" ? (
@@ -1790,14 +1817,14 @@ export function WorkspaceDayClient({
           <CardContent className="space-y-3 p-5">
             <p className="text-sm text-muted-foreground">
               {scope === "google"
-                ? "Noch kein Google-Konto verbunden. Unter Konto Google Workspace verknüpfen."
-                : "Noch kein Microsoft-Konto verbunden. Unter Konto Microsoft 365 verknüpfen."}
+                ? t("workspace.noGoogleAccount")
+                : t("workspace.noMicrosoftAccount")}
             </p>
             <Link
               href="/account"
               className={cn(buttonVariants({ variant: "outline" }), "gap-1.5")}
             >
-              Zu Konto
+              {t("workspace.toAccount")}
             </Link>
           </CardContent>
         </Card>
@@ -1815,7 +1842,7 @@ export function WorkspaceDayClient({
                   </span>
                 </span>
               ) : wantMs ? (
-                <span>Outlook nicht verbunden</span>
+                <span>{t("workspace.outlookDisconnected")}</span>
               ) : null}
               {googleConnected ? (
                 <span className="inline-flex items-center gap-1.5">
@@ -1825,15 +1852,15 @@ export function WorkspaceDayClient({
                   </span>
                 </span>
               ) : wantGoogle ? (
-                <span>Google nicht verbunden</span>
+                <span>{t("workspace.googleDisconnected")}</span>
               ) : null}
             </p>
             <nav
               className={cn(segmentedTrackClass, "overflow-visible")}
               aria-label={
                 scope === "microsoft" && teamsEnabled
-                  ? "Kalender Mail Teams Aufgaben"
-                  : "Kalender Mail Aufgaben"
+                  ? t("workspace.navCalMailTeamsTasks")
+                  : t("workspace.navCalMailTasks")
               }
             >
               <Button
@@ -1848,7 +1875,7 @@ export function WorkspaceDayClient({
                 ) : (
                   <OutlookLogo className="size-4 shrink-0" />
                 )}
-                Mail
+                {t("workspace.mail")}
               </Button>
               <Button
                 type="button"
@@ -1858,7 +1885,7 @@ export function WorkspaceDayClient({
                 onClick={() => goTab("calendar")}
               >
                 <CalendarClock className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
-                Kalender
+                {t("workspace.calendar")}
               </Button>
               {scope === "microsoft" && teamsEnabled ? (
                 <Button
@@ -1869,7 +1896,7 @@ export function WorkspaceDayClient({
                   onClick={() => goTab("teams")}
                 >
                   <MicrosoftTeamsLogo className="size-4 shrink-0" />
-                  Teams
+                  {t("workspace.teams")}
                 </Button>
               ) : null}
               <Button
@@ -1889,7 +1916,7 @@ export function WorkspaceDayClient({
                     <GoogleTasksLogo className="size-4" />
                   )}
                 </span>
-                Aufgaben
+                {t("workspace.tasks")}
               </Button>
             </nav>
           </div>
@@ -1922,10 +1949,7 @@ export function WorkspaceDayClient({
                   <p>{analyzeNotice}</p>
                   {analyzing ? (
                     <p className="mt-0.5 text-[0.6875rem] opacity-80">
-                      Läuft serverseitig inkl. vollständiger Mail-Threads — du
-                      kannst die Seite verlassen. Bei Rückkehr erscheinen die
-                      Resultate automatisch; zusätzlich Toast und
-                      Push-Benachrichtigung wenn fertig.
+                      {t("workspace.analyzeBackgroundHint")}
                     </p>
                   ) : null}
                 </div>
@@ -1936,7 +1960,7 @@ export function WorkspaceDayClient({
                     variant="ghost"
                     onClick={() => setAnalyzeNotice(null)}
                   >
-                    Schliessen
+                    {t("common.close")}
                   </Button>
                 ) : null}
               </div>
@@ -1952,14 +1976,20 @@ export function WorkspaceDayClient({
             <section className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-[0.9375rem] font-semibold">
-                  {calDate === zurichYmdClient() ? "Heute" : "Tag"} ·{" "}
-                  {openEvents.length} offen /{" "}
-                  {visibleEvents.filter((e) => e.done).length} erledigt
+                  {calDate === zurichYmdClient()
+                    ? t("workspace.todayOpenDone", {
+                        open: openEvents.length,
+                        done: visibleEvents.filter((e) => e.done).length,
+                      })
+                    : t("workspace.dayOpenDone", {
+                        open: openEvents.length,
+                        done: visibleEvents.filter((e) => e.done).length,
+                      })}
                 </h2>
                 <div className="flex flex-wrap items-end gap-2">
                   <div className="space-y-1">
                     <Label htmlFor="wb-cal-day" className="text-xs text-muted-foreground">
-                      Tag
+                      {t("common.day")}
                     </Label>
                     <Input
                       id="wb-cal-day"
@@ -1983,7 +2013,7 @@ export function WorkspaceDayClient({
                       variant="outline"
                       onClick={() => setCalDate(zurichYmdClient())}
                     >
-                      Heute
+                      {t("common.today")}
                     </Button>
                   ) : null}
                   <Button
@@ -1992,7 +2022,7 @@ export function WorkspaceDayClient({
                     onClick={() => setAdhocOpen(true)}
                   >
                     <CalendarPlus className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-                    Neuer Termin
+                    {t("workspace.newEvent")}
                   </Button>
                   <Button
                     type="button"
@@ -2004,13 +2034,13 @@ export function WorkspaceDayClient({
                     <RefreshCw
                       className={cn("size-3.5", calLoading && "animate-spin")}
                     />
-                    Aktualisieren
+                    {t("common.refresh")}
                   </Button>
                 </div>
               </div>
 
               <p className="text-sm font-semibold capitalize">
-                {new Intl.DateTimeFormat("de-CH", {
+                {new Intl.DateTimeFormat(intlLocale, {
                   timeZone: "Europe/Zurich",
                   weekday: "long",
                   day: "numeric",
@@ -2021,16 +2051,15 @@ export function WorkspaceDayClient({
 
               {reviewMode ? (
                 <p className="rounded-2xl bg-orange-50 px-3 py-2 text-sm text-orange-950 ring-1 ring-orange-200 dark:bg-orange-500/15 dark:text-orange-100 dark:ring-orange-400/30">
-                  Tagesabschluss: jeden offenen Termin als erledigt markieren
-                  oder auf einen freien Slot verschieben.
+                  {t("workspace.reviewHint")}
                 </p>
               ) : null}
 
               {calLoading && visibleEvents.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Lade Termine…</p>
+                <p className="text-sm text-muted-foreground">{t("workspace.loadingEvents")}</p>
               ) : visibleEvents.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  Keine Termine für diesen Tag.
+                  {t("workspace.noEventsToday")}
                 </p>
               ) : (
                 <ul className="space-y-3">
@@ -2175,12 +2204,12 @@ export function WorkspaceDayClient({
           ) : tab === "planner" ? (
             <section className="space-y-3">
               <h2 className="text-[0.9375rem] font-semibold">
-                Aufgaben nach Quelle
+                {t("workspace.tasksBySource")}
               </h2>
               <p className="text-sm text-muted-foreground">
                 {scope === "google"
-                  ? "Google Tasks — anlegen, erledigen oder Termin setzen."
-                  : "To Do anlegen, erledigen oder umbenennen. Planner bleibt die zugewiesenen Aufgaben."}
+                  ? t("workspace.googleTasksHint")
+                  : t("workspace.todoPlannerHint")}
               </p>
               <WorkspaceTasksPanel
                 microsoft={Boolean(msConnected)}
@@ -2193,7 +2222,7 @@ export function WorkspaceDayClient({
                 <div className="flex flex-wrap items-end gap-2">
                   <div className="space-y-1">
                     <Label htmlFor="ms-mail-from" className="text-xs text-muted-foreground">
-                      Von
+                      {t("common.from")}
                     </Label>
                     <Input
                       id="ms-mail-from"
@@ -2213,7 +2242,7 @@ export function WorkspaceDayClient({
                   </div>
                   <div className="space-y-1">
                     <Label htmlFor="ms-mail-to" className="text-xs text-muted-foreground">
-                      Bis
+                      {t("common.until")}
                     </Label>
                     <Input
                       id="ms-mail-to"
@@ -2242,7 +2271,7 @@ export function WorkspaceDayClient({
                     <RefreshCw
                       className={cn("size-3.5", mailLoading && "animate-spin")}
                     />
-                    Mails laden
+                    {t("workspace.loadMails")}
                   </Button>
                 </div>
                 <Button
@@ -2256,7 +2285,7 @@ export function WorkspaceDayClient({
                   <RefreshCw
                     className={cn("size-3.5", mailLoading && "animate-spin")}
                   />
-                  Aktualisieren
+                  {t("common.refresh")}
                 </Button>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2278,7 +2307,7 @@ export function WorkspaceDayClient({
                       onClick={() => setComposeNewOpen(true)}
                     >
                       <Send className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-                      Neue Mail
+                      {t("mail.compose")}
                     </Button>
                   ) : null}
                 </div>
@@ -2306,10 +2335,10 @@ export function WorkspaceDayClient({
               <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
                 <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
                   <h2 className="text-[1.375rem] font-semibold tracking-tight text-foreground">
-                    Tagesanalysen
+                    {t("workspace.dayAnalyses")}
                   </h2>
                   {msConnected && googleConnected ? (
-                    <div className={segmentedTrackClass} aria-label="Analyse-Postfach">
+                    <div className={segmentedTrackClass} aria-label={t("workspace.analysisMailbox")}>
                       <Button
                         type="button"
                         variant="ghost"
@@ -2343,7 +2372,7 @@ export function WorkspaceDayClient({
                       htmlFor="ms-mail-from-ta"
                       className="text-xs text-muted-foreground"
                     >
-                      Von
+                      {t("common.from")}
                     </Label>
                     <Input
                       id="ms-mail-from-ta"
@@ -2369,7 +2398,7 @@ export function WorkspaceDayClient({
                       htmlFor="ms-mail-to-ta"
                       className="text-xs text-muted-foreground"
                     >
-                      Bis
+                      {t("common.until")}
                     </Label>
                     <Input
                       id="ms-mail-to-ta"
@@ -2394,7 +2423,7 @@ export function WorkspaceDayClient({
                     />
                     {cachedDays.includes(mailRangeKey(mailFrom, mailTo)) ? (
                       <span className="text-[0.6875rem] text-muted-foreground">
-                        Analyse gespeichert
+                        {t("workspace.analysisSaved")}
                       </span>
                     ) : null}
                   </div>
@@ -2411,7 +2440,7 @@ export function WorkspaceDayClient({
                     <RefreshCw
                       className={cn("size-3.5", mailLoading && "animate-spin")}
                     />
-                    Aktualisieren
+                    {t("common.refresh")}
                   </Button>
                   <Button
                     type="button"
@@ -2424,11 +2453,11 @@ export function WorkspaceDayClient({
                       className={cn("size-3.5", analyzing && "animate-pulse")}
                     />
                     {analyzing
-                      ? "Analyse läuft…"
+                      ? t("workspace.analyzing")
                       : analysis &&
                           cachedDays.includes(mailRangeKey(mailFrom, mailTo))
-                        ? "Neu analysieren"
-                        : "Neue AI Tagesanalyse"}
+                        ? t("workspace.reanalyze")
+                        : t("workspace.newAiDayAnalysis")}
                   </Button>
                 </div>
               </div>
@@ -2459,10 +2488,10 @@ export function WorkspaceDayClient({
                 <Card className="border-border/70">
                   <CardHeader>
                     <CardTitle className="flex flex-wrap items-center gap-2 text-sm">
-                      AI · Tagesbild
+                      {t("workspace.aiDayImage")}
                       {analysisFromCache ? (
                         <Badge variant="secondary" className="text-[0.625rem] font-normal">
-                          gespeichert
+                          {t("common.saved")}
                         </Badge>
                       ) : null}
                     </CardTitle>
@@ -2477,13 +2506,13 @@ export function WorkspaceDayClient({
                     <p className="text-sm leading-relaxed">{analysis.daySummary}</p>
                     {formatTokenUsageLine(analysis.usage) ? (
                       <p className="text-[0.6875rem] text-muted-foreground">
-                        Tokens · {formatTokenUsageLine(analysis.usage)}
+                        {t("common.tokens", { line: formatTokenUsageLine(analysis.usage) })}
                       </p>
                     ) : null}
 
                     {analysis.clusters.length === 0 ? (
                       <p className="text-sm text-muted-foreground">
-                        Keine Cluster / Handlungsvorschläge.
+                        {t("workspace.noClusters")}
                       </p>
                     ) : (
                       <div className="space-y-3">
@@ -2491,7 +2520,7 @@ export function WorkspaceDayClient({
                         !showAllThreads &&
                         clusterView.rest.length > 0 ? (
                           <p className="text-sm text-muted-foreground">
-                            Keine offenen Handlungen — nur Info-/FYI-Threads.
+                            {t("workspace.noOpenActions")}
                           </p>
                         ) : null}
                         <ul className="space-y-3">
@@ -2521,7 +2550,7 @@ export function WorkspaceDayClient({
                                     variant="outline"
                                     className="text-[0.625rem] font-normal"
                                   >
-                                    Thread erfordert keine Aktion
+                                    {t("workspace.threadNoAction")}
                                   </Badge>
                                 ) : null}
                                 {cluster.status ? (
@@ -2529,8 +2558,9 @@ export function WorkspaceDayClient({
                                     variant="secondary"
                                     className="text-[0.625rem]"
                                   >
-                                    {STATUS_LABEL[cluster.status] ||
-                                      cluster.status}
+                                    {STATUS_KEY[cluster.status]
+                                      ? t(STATUS_KEY[cluster.status])
+                                      : cluster.status}
                                   </Badge>
                                 ) : null}
                               </div>
@@ -2542,11 +2572,11 @@ export function WorkspaceDayClient({
                             {cluster.tasks.length > 0 ? (
                               <div className="mt-3 space-y-1.5">
                                 <p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">
-                                  Aufgaben
+                                  {t("workspace.tasks")}
                                 </p>
-                                {cluster.tasks.map((t, li) => {
+                                {cluster.tasks.map((task, li) => {
                                   const i = flatTaskIndex(ci, li);
-                                  const existing = t.existingTask;
+                                  const existing = task.existingTask;
                                   const matched = Boolean(existing?.id);
                                   return (
                                     <label
@@ -2574,7 +2604,7 @@ export function WorkspaceDayClient({
                                       />
                                       <span className="min-w-0">
                                         <span className="block text-sm font-medium">
-                                          {t.title}
+                                          {task.title}
                                         </span>
                                         {existing ? (
                                           <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[0.6875rem]">
@@ -2588,15 +2618,15 @@ export function WorkspaceDayClient({
                                             >
                                               {existing.status === "done"
                                                 ? existing.source === "planner"
-                                                  ? "Erledigt in Planner"
+                                                  ? t("workspace.doneInPlanner")
                                                   : existing.source === "google"
-                                                    ? "Erledigt in Google Tasks"
-                                                    : "Erledigt in To Do"
+                                                    ? t("workspace.doneInGoogleTasks")
+                                                    : t("workspace.doneInToDo")
                                                 : existing.source === "planner"
-                                                  ? "Offen in Planner"
+                                                  ? t("workspace.openInPlanner")
                                                   : existing.source === "google"
-                                                    ? "Offen in Google Tasks"
-                                                    : "Offen in To Do"}
+                                                    ? t("workspace.openInGoogleTasks")
+                                                    : t("workspace.openInToDo")}
                                             </Badge>
                                             <span className="text-muted-foreground">
                                               {existing.title}
@@ -2611,17 +2641,17 @@ export function WorkspaceDayClient({
                                                   e.stopPropagation()
                                                 }
                                               >
-                                                öffnen
+                                                {t("common.open")}
                                               </a>
                                             ) : null}
                                           </span>
                                         ) : (
                                           <span className="block text-[0.6875rem] text-muted-foreground">
                                             {[
-                                              t.dueDate
-                                                ? `fällig ${toSwissDate(t.dueDate)}`
+                                              task.dueDate
+                                                ? t("common.dueOn", { date: toSwissDate(task.dueDate) })
                                                 : null,
-                                              t.reason,
+                                              task.reason,
                                             ]
                                               .filter(Boolean)
                                               .join(" · ")}
@@ -2637,7 +2667,7 @@ export function WorkspaceDayClient({
                             {cluster.events.length > 0 ? (
                               <div className="mt-3 space-y-1.5">
                                 <p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">
-                                  Termine
+                                  {t("workspace.events")}
                                 </p>
                                 {cluster.events.map((ev, li) => {
                                   const i = flatEventIndex(ci, li);
@@ -2667,13 +2697,13 @@ export function WorkspaceDayClient({
                                         <span className="block text-[0.6875rem] text-muted-foreground">
                                           {[
                                             ev.fromTaskTwin
-                                              ? "aus Aufgabe"
+                                              ? t("workspace.fromTask")
                                               : null,
                                             toSwissDate(ev.date),
                                             ev.fromTaskTwin && !ev.startTime
-                                              ? "Zeit wählen beim Übernehmen"
+                                              ? t("workspace.pickTimeOnApply")
                                               : ev.allDay || !ev.startTime
-                                                ? "ganztags"
+                                                ? t("workspace.allDayLower")
                                                 : `${ev.startTime}${ev.endTime ? `–${ev.endTime}` : ""}`,
                                             ev.location,
                                             ev.reason,
@@ -2691,7 +2721,7 @@ export function WorkspaceDayClient({
                             {cluster.replies.length > 0 ? (
                               <div className="mt-3 space-y-1.5">
                                 <p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">
-                                  Antwort-Entwürfe
+                                  {t("workspace.replyDrafts")}
                                 </p>
                                 {cluster.replies.map((r, li) => {
                                   const i = flatReplyIndex(ci, li);
@@ -2705,7 +2735,7 @@ export function WorkspaceDayClient({
                                       <input
                                         type="checkbox"
                                         className="mt-1"
-                                        aria-label={`Antwort ${r.subject}`}
+                                        aria-label={t("workspace.replyAria", { subject: r.subject })}
                                         checked={Boolean(picks.replies[i])}
                                         onChange={(e) =>
                                           setPicks((prev) => ({
@@ -2734,9 +2764,9 @@ export function WorkspaceDayClient({
                                           />
                                         </span>
                                         <span className="block text-[0.6875rem] text-muted-foreground">
-                                          An {r.to}
+                                          {t("workspace.replyTo", { to: r.to })}
                                           {r.reason ? ` · ${r.reason}` : ""}
-                                          {busy ? " · übersetzt…" : ""}
+                                          {busy ? t("workspace.translating") : ""}
                                         </span>
                                         <span className="mt-1 block whitespace-pre-wrap text-xs text-foreground/80">
                                           {r.body}
@@ -2758,8 +2788,12 @@ export function WorkspaceDayClient({
                             onClick={() => setShowAllThreads((v) => !v)}
                           >
                             {showAllThreads
-                              ? `Nur offene Threads (${clusterView.actionable.length})`
-                              : `Alle Threads zeigen (${clusterView.rest.length} weitere)`}
+                              ? t("workspace.onlyOpenThreads", {
+                                  count: clusterView.actionable.length,
+                                })
+                              : t("workspace.showAllThreads", {
+                                  count: clusterView.rest.length,
+                                })}
                           </Button>
                         ) : null}
                       </div>
@@ -2777,13 +2811,12 @@ export function WorkspaceDayClient({
                           disabled={applying || selectedCount === 0}
                           onClick={() => openConfirm()}
                         >
-                          {`Ausgewählte prüfen (${selectedCount})`}
+                          {t("workspace.reviewSelected", { count: selectedCount })}
                         </Button>
                         <p className="text-[0.6875rem] text-muted-foreground">
                           {analysisProvider === "google"
-                            ? "Übernahme nach Google: Aufgaben → Tasks, Termine → Kalender, Antworten → Gmail-Entwürfe."
-                            : "Übernahme nach Outlook: Aufgaben → To Do, Termine → Kalender, Antworten → Entwürfe."}{" "}
-                          Vor dem Anlegen kannst du Texte noch anpassen.
+                            ? t("workspace.applyGoogleHint")
+                            : t("workspace.applyOutlookHint")}
                         </p>
                       </div>
                     ) : null}
@@ -2795,31 +2828,31 @@ export function WorkspaceDayClient({
           )}
         </>
       ) : !connectionReady ? (
-        <p className="text-sm text-muted-foreground">Lade…</p>
+        <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
       ) : null}
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent className="flex max-h-[90dvh] w-[min(96vw,36rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
           <DialogHeader className="border-b border-border/60 px-4 py-3">
-            <DialogTitle>Übernehmen bestätigen</DialogTitle>
+            <DialogTitle>{t("workspace.confirmApply")}</DialogTitle>
             <DialogDescription>
-              Texte und Daten bei Bedarf anpassen, dann bei{" "}
-              {analysisProvider === "google" ? "Google" : "Outlook"} anlegen.
+              {t("workspace.confirmApplyDesc", {
+                dest: analysisProvider === "google" ? "Google" : "Outlook",
+              })}
             </DialogDescription>
           </DialogHeader>
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3">
-            {draftTasks.map((t, i) => (
+            {draftTasks.map((task, i) => (
               <div key={`dt-${i}`} className="space-y-2 rounded-lg border border-border/60 p-3">
                 <p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Aufgabe ·{" "}
                   {analysisProvider === "google"
-                    ? "Google Tasks"
-                    : "Outlook To Do"}
+                    ? t("workspace.taskDestGoogle")
+                    : t("workspace.taskDestToDo")}
                 </p>
                 <div className="space-y-1">
-                  <Label>Titel</Label>
+                  <Label>{t("common.title")}</Label>
                   <Input
-                    value={t.title}
+                    value={task.title}
                     onChange={(e) =>
                       setDraftTasks((prev) =>
                         prev.map((x, j) =>
@@ -2830,10 +2863,10 @@ export function WorkspaceDayClient({
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label>Fällig</Label>
+                  <Label>{t("tickets.due")}</Label>
                   <Input
                     type="date"
-                    value={t.dueDate || ""}
+                    value={task.dueDate || ""}
                     onChange={(e) =>
                       setDraftTasks((prev) =>
                         prev.map((x, j) =>
@@ -2846,10 +2879,10 @@ export function WorkspaceDayClient({
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label>Notizen</Label>
+                  <Label>{t("common.notesPlural")}</Label>
                   <Textarea
                     rows={3}
-                    value={t.notes || ""}
+                    value={task.notes || ""}
                     onChange={(e) =>
                       setDraftTasks((prev) =>
                         prev.map((x, j) =>
@@ -2867,8 +2900,8 @@ export function WorkspaceDayClient({
                 event={ev}
                 calendarLabel={
                   analysisProvider === "google"
-                    ? "Google Kalender"
-                    : "Outlook Kalender"
+                    ? t("workspace.googleCalendar")
+                    : t("workspace.outlookCalendar")
                 }
                 slotProvider={analysisProvider}
                 disabled={applying}
@@ -2886,13 +2919,13 @@ export function WorkspaceDayClient({
               <div key={`dr-${i}`} className="space-y-2 rounded-lg border border-border/60 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Antwort ·{" "}
+                    {t("common.reply")} ·{" "}
                     {analysisProvider === "microsoft" && sendReplies
-                      ? "direkt senden"
+                      ? t("workspace.replySendDirect")
                       : analysisProvider === "google"
-                        ? "Gmail Entwurf"
-                        : "Outlook Entwurf"}
-                    {busy ? " · übersetzt…" : ""}
+                        ? t("workspace.replyGmailDraft")
+                        : t("workspace.replyOutlookDraft")}
+                    {busy ? t("workspace.translating") : ""}
                   </p>
                   <ReplyLangToggle
                     lang={lang}
@@ -2901,7 +2934,7 @@ export function WorkspaceDayClient({
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label>An</Label>
+                  <Label>{t("mail.to")}</Label>
                   <Input
                     value={r.to}
                     onChange={(e) =>
@@ -2914,7 +2947,7 @@ export function WorkspaceDayClient({
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label>Betreff</Label>
+                  <Label>{t("mail.subject")}</Label>
                   <Input
                     value={r.subject}
                     onChange={(e) =>
@@ -2927,7 +2960,7 @@ export function WorkspaceDayClient({
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label>Text</Label>
+                  <Label>{t("mail.body")}</Label>
                   <Textarea
                     rows={5}
                     value={r.body}
@@ -2955,8 +2988,9 @@ export function WorkspaceDayClient({
                   disabled={applying}
                 />
                 <span>
-                  Antworten <span className="font-medium text-foreground">direkt senden</span>
-                  {" "}(sonst nur Entwurf). Signatur aus Konto wird angehängt, falls hinterlegt.
+                  {t("workspace.sendRepliesHint", {
+                    direct: t("workspace.sendRepliesDirect"),
+                  })}
                 </span>
               </label>
             ) : null}
@@ -2967,7 +3001,7 @@ export function WorkspaceDayClient({
               onClick={() => setConfirmOpen(false)}
               disabled={applying}
             >
-              Abbrechen
+              {t("common.cancel")}
             </Button>
             <Button
               type="button"
@@ -2984,10 +3018,10 @@ export function WorkspaceDayClient({
                 : sendReplies &&
                     draftReplies.length > 0 &&
                     analysisProvider === "microsoft"
-                  ? "Anlegen & senden"
+                  ? t("workspace.createAndSend")
                   : analysisProvider === "google"
-                    ? "In Google anlegen"
-                    : "In Outlook anlegen"}
+                    ? t("workspace.createInGoogle")
+                    : t("workspace.createInOutlook")}
             </Button>
             </div>
           </DialogFooter>
@@ -2995,9 +3029,9 @@ export function WorkspaceDayClient({
       </Dialog>
 
       <p className="text-xs text-muted-foreground">
-        OAuth und Status unter{" "}
+        {t("workspace.oauthHint")}{" "}
         <Link href="/account" className="underline underline-offset-2">
-          Konto
+          {t("common.account")}
         </Link>
         .
       </p>

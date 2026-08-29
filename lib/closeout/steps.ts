@@ -1,5 +1,7 @@
 /** Step model for the floating Tagesabschluss-Assistent. */
 
+import { DEFAULT_LOCALE, translate, type Locale } from "@/lib/i18n";
+
 export type CloseoutProvider = "google" | "microsoft";
 
 export type CloseoutStepId =
@@ -37,45 +39,46 @@ export type CloseoutStatusPayload = {
 
 export function closeoutStepsFor(
   provider: CloseoutProvider,
-  opts?: { includeMariHours?: boolean }
+  opts?: { includeMariHours?: boolean; locale?: Locale }
 ): CloseoutStepDef[] {
+  const locale = opts?.locale ?? DEFAULT_LOCALE;
   const base = provider === "google" ? "/google" : "/microsoft";
   const label = provider === "google" ? "Gmail" : "Outlook";
   const steps: CloseoutStepDef[] = [
     {
       id: "calendar",
-      title: "Offene Termine prüfen",
-      hint: "Jeden Termin erledigen oder auf einen freien Slot verschieben.",
+      title: translate(locale, "closeout.checkOpenEvents"),
+      hint: translate(locale, "closeout.checkOpenEventsHint"),
       href: `${base}?tab=calendar&review=1`,
-      cta: "Termine prüfen",
-      visualLabel: "Kalender",
+      cta: translate(locale, "closeout.checkEventsCta"),
+      visualLabel: translate(locale, "closeout.calendar"),
     },
     {
       id: "day-analysis",
-      title: `${label}-Tagesanalyse`,
-      hint: "Posteingang analysieren und Vorschläge übernehmen.",
+      title: translate(locale, "closeout.dayAnalysis", { label }),
+      hint: translate(locale, "closeout.dayAnalysisHint"),
       href: `${base}?tab=mail&view=tagesanalysen`,
-      cta: "Tagesanalyse öffnen",
-      visualLabel: "Analyse",
+      cta: translate(locale, "closeout.dayAnalysisCta"),
+      visualLabel: translate(locale, "closeout.analysis"),
     },
   ];
   if (opts?.includeMariHours) {
     steps.push({
       id: "ticket-hours",
-      title: "Ticket-Stunden buchen",
-      hint: "Gestempelte Ticket-Termine prüfen und buchen.",
+      title: translate(locale, "closeout.bookTicketHours"),
+      hint: translate(locale, "closeout.bookTicketHoursHint"),
       href: "/maringo?tab=hours",
-      cta: "Zu Stunden-Vorschlägen",
-      visualLabel: "Stunden",
+      cta: translate(locale, "closeout.bookTicketHoursCta"),
+      visualLabel: translate(locale, "closeout.hours"),
     });
   }
   steps.push({
     id: "done",
-    title: "Abschluss bestätigen",
-    hint: "Alles erledigt — Ritual abschliessen.",
+    title: translate(locale, "closeout.confirmDone"),
+    hint: translate(locale, "closeout.confirmDoneHint"),
     href: "/",
-    cta: "Zur Übersicht",
-    visualLabel: "Fertig",
+    cta: translate(locale, "closeout.toOverview"),
+    visualLabel: translate(locale, "common.done"),
   });
   return steps;
 }
@@ -112,29 +115,40 @@ export function stepDone(
 export function stepDetail(
   stepId: CloseoutStepId,
   provider: CloseoutProvider,
-  status: CloseoutStatusPayload
+  status: CloseoutStatusPayload,
+  locale: Locale = DEFAULT_LOCALE
 ): string {
   switch (stepId) {
     case "calendar":
       return status.ritual.calendarOpen > 0
-        ? `${status.ritual.calendarOpen} offen`
-        : "Keine offen";
+        ? translate(locale, "common.openCount", {
+            count: status.ritual.calendarOpen,
+          })
+        : translate(locale, "common.noneOpen");
     case "day-analysis": {
       const flag =
         provider === "google"
           ? status.ritual.googleDayDone
           : status.ritual.microsoftDayDone;
-      if (flag === null) return "Nicht verbunden";
-      return flag ? "Erledigt" : "Noch offen";
+      if (flag === null) return translate(locale, "closeout.notConnected");
+      return flag
+        ? translate(locale, "closeout.completed")
+        : translate(locale, "closeout.stillOpen");
     }
     case "ticket-hours":
       return status.ticketHourSuggestions > 0
-        ? `${status.ticketHourSuggestions} Vorschlag${
-            status.ticketHourSuggestions === 1 ? "" : "e"
-          }`
-        : "Keine offen";
+        ? translate(
+            locale,
+            status.ticketHourSuggestions === 1
+              ? "closeout.suggestion"
+              : "closeout.suggestions",
+            { count: status.ticketHourSuggestions }
+          )
+        : translate(locale, "common.noneOpen");
     case "done":
-      return stepDone("done", provider, status) ? "Bereit" : "Noch offen";
+      return stepDone("done", provider, status)
+        ? translate(locale, "closeout.ready")
+        : translate(locale, "closeout.stillOpen");
     default:
       return "";
   }
@@ -160,28 +174,34 @@ export function openStepCount(
   }).filter((s) => s.id !== "done" && !stepDone(s.id, provider, status)).length;
 }
 
-export function microChecksFor(stepId: CloseoutStepId): string[] {
+export function microChecksFor(
+  stepId: CloseoutStepId,
+  locale: Locale = DEFAULT_LOCALE
+): string[] {
   switch (stepId) {
     case "calendar":
       return [
-        "Offene Termine ansehen",
-        "Erledigen / verschieben / bestätigen",
-        "Count auf 0",
+        translate(locale, "closeout.checkOpenEventsMicro"),
+        translate(locale, "closeout.checkMoveConfirm"),
+        translate(locale, "closeout.countToZero"),
       ];
     case "day-analysis":
       return [
-        "Analyse laufen lassen",
-        "Vorschläge prüfen",
-        "Erledigt markieren",
+        translate(locale, "closeout.runAnalysis"),
+        translate(locale, "closeout.reviewSuggestions"),
+        translate(locale, "closeout.markDone"),
       ];
     case "ticket-hours":
       return [
-        "Vorschlagsliste öffnen",
-        "Stunden prüfen und buchen",
-        "Rest verwerfen oder erledigen",
+        translate(locale, "closeout.openSuggestionList"),
+        translate(locale, "closeout.checkAndBookHours"),
+        translate(locale, "closeout.discardOrFinish"),
       ];
     case "done":
-      return ["Alle Provider-Schritte grün", "Assistent schliessen"];
+      return [
+        translate(locale, "closeout.allProviderGreen"),
+        translate(locale, "closeout.closeAssistant"),
+      ];
     default:
       return [];
   }

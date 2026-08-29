@@ -6,10 +6,11 @@ import { cn } from "@/lib/utils";
 import {
   organizationLabel,
   presenceSourceHint,
-  PRESENCE_STATUS_LABELS,
   PRESENCE_STATUS_SURFACE,
   type PresencePersonView,
 } from "@/lib/presence/client";
+import { useLocale, useT } from "@/components/i18n/locale-provider";
+import { presenceDisplayLabel } from "@/lib/i18n/display";
 
 const CHIP_MAX = "w-fit max-w-[min(14rem,calc(100%-3rem))]";
 
@@ -24,11 +25,13 @@ export function PresencePersonCard({
   interactive?: boolean;
   onClick?: () => void;
 }) {
-  const hint = presenceSourceHint(person.source);
+  const t = useT();
+  const { locale } = useLocale();
+  const hint = presenceSourceHint(person.source, locale);
   const statusLabel = person.status
-    ? PRESENCE_STATUS_LABELS[person.status]
-    : "Offen";
-  const orgLabel = organizationLabel(person.organization);
+    ? presenceDisplayLabel(person.status, locale)
+    : t("presence.open");
+  const orgLabel = organizationLabel(person.organization, locale);
   const hasArt = Boolean(person.status);
   const className = cn(
     "relative flex w-full flex-col items-stretch overflow-hidden rounded-2xl text-left shadow-sm ring-1",
@@ -42,7 +45,7 @@ export function PresencePersonCard({
   const name = (
     <span className="break-words text-lg font-semibold leading-snug">
       {person.displayName}
-      {isSelf ? " · Du" : ""}
+      {isSelf ? t("presence.youSuffix") : ""}
     </span>
   );
 

@@ -1,6 +1,7 @@
 import { Suspense } from "react";
-import { PageHeader } from "@/components/layout/page-primitives";
+import { TranslatedPageHeader } from "@/components/layout/translated-page-header";
 import { pageVisuals } from "@/components/layout/icon-circle";
+import { AccountPageCopy } from "@/components/settings/account-page-copy";
 import { SettingsMicrosoftCalendarsPanel } from "@/components/settings/settings-microsoft-calendars-panel";
 import { SettingsMicrosoftConnectPanel } from "@/components/settings/settings-microsoft-connect-panel";
 import { NotificationPrefsPanel } from "@/components/settings/notification-prefs-panel";
@@ -17,61 +18,41 @@ export const dynamic = "force-dynamic";
 export default function AccountPage() {
   return (
     <div className="space-y-8 pb-28 md:pb-0">
-      <PageHeader
-        title="Konto"
-        description="Dein Wetter, Standardwoche, Tagesabschluss, Anmeldepasswort, Maringo-Personalnummer, Microsoft 365 und Google Workspace — nur für dich."
+      <TranslatedPageHeader
+        titleKey="account.title"
+        descriptionKey="account.description"
         icon={pageVisuals.account.icon}
         tone={pageVisuals.account.tone}
       />
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold tracking-tight">Wetter</h2>
-        <p className="text-xs text-muted-foreground">
-          Standort für das Widget auf der Startseite — gilt nur für dich.
-        </p>
+        <AccountPageCopy titleKey="account.weather" hintKey="account.weatherHint" />
         <AccountWeatherPanel />
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold tracking-tight">Standardwoche</h2>
-        <p className="text-xs text-muted-foreground">
-          Deine Anwesenheits-Regel für Montag bis Freitag. Abweichungen setzt du
-          auf Team oder Home.
-        </p>
+        <AccountPageCopy titleKey="account.defaultWeek" hintKey="account.defaultWeekHint" />
         <AccountPresenceWeekPanel />
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold tracking-tight">Tagesabschluss</h2>
-        <p className="text-xs text-muted-foreground">
-          Uhrzeit des virtuellen Rituals — gilt nur für dich, wie der Wetter-Standort.
-        </p>
+        <AccountPageCopy titleKey="account.dayClose" hintKey="account.dayCloseHint" />
         <AccountDayClosePanel />
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold tracking-tight">Anmeldepasswort</h2>
-        <p className="text-xs text-muted-foreground">
-          Ändere dein WorkBuddy-Login — gilt nur für dich.
-        </p>
+        <AccountPageCopy titleKey="account.password" hintKey="account.passwordHint" />
         <AccountPasswordPanel />
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold tracking-tight">Geheimnisse</h2>
-        <p className="text-xs text-muted-foreground">
-          Keys und Passwörter werden verschlüsselt gespeichert und nie zurückgegeben.
-        </p>
+        <AccountPageCopy titleKey="account.secrets" hintKey="account.secretsHint" />
         <AccountSecretsPanel />
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold tracking-tight">Microsoft 365</h2>
-        <p className="text-xs text-muted-foreground">
-          Verbinde dein Work- oder Schulkonto. Eine Entra-App für alle User.
-          Nach neuen Teams-/Transkript- oder Sende-Rechten einmal neu verbinden.
-        </p>
-        <Suspense fallback={<p className="text-sm text-muted-foreground">Lade…</p>}>
+        <AccountPageCopy titleKey="nav.microsoft" hintKey="account.microsoftHint" />
+        <Suspense fallback={<AccountPageCopy loading />}>
           <SettingsMicrosoftConnectPanel />
         </Suspense>
         <SettingsMicrosoftCalendarsPanel />
@@ -80,16 +61,12 @@ export default function AccountPage() {
       <AccountGoogleSection />
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold tracking-tight">Mail ausblenden</h2>
-        <p className="text-xs text-muted-foreground">
-          Absender fehlen in der Chronik und in der AI-Tagesanalyse — nur für dich.
-          System-Infoboard und Monitoring sind automatisch ausgeblendet.
-        </p>
+        <AccountPageCopy titleKey="account.hideMail" hintKey="account.hideMailHint" />
         <MailSenderBlacklistAccountPanel />
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold tracking-tight">Benachrichtigungen</h2>
+        <AccountPageCopy titleKey="account.notifications" />
         <NotificationPrefsPanel />
       </section>
     </div>

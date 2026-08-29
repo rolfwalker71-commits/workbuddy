@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { PageHeader } from "@/components/layout/page-primitives";
 import { pageVisuals } from "@/components/layout/icon-circle";
 import { SettingsUsersPanel } from "@/components/settings/settings-users-panel";
 import { SettingsCompanyAiPanel } from "@/components/settings/settings-company-ai-panel";
@@ -9,6 +8,8 @@ import { SettingsTeamsModulePanel } from "@/components/settings/settings-teams-m
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TranslatedPageHeader } from "@/components/layout/translated-page-header";
+import { useT } from "@/components/i18n/locale-provider";
 
 type AdminSecrets = {
   appPublicUrl: string | null;
@@ -22,6 +23,7 @@ type AdminSecrets = {
 };
 
 export default function SettingsPage() {
+  const t = useT();
   const [secrets, setSecrets] = useState<AdminSecrets | null>(null);
 
   useEffect(() => {
@@ -33,41 +35,44 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-8 pb-28 md:pb-0">
-      <PageHeader
-        title="Einstellungen"
-        description="User, Module und gemeinsame Server-Secrets (nur Admin)."
+      <TranslatedPageHeader
+        titleKey="settings.title"
+        descriptionKey="settings.description"
         icon={pageVisuals.settings.icon}
         tone={pageVisuals.settings.tone}
       />
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Gemeinsame Secrets (.env)</CardTitle>
+          <CardTitle className="text-base">{t("settings.sharedSecrets")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <p className="text-muted-foreground">
-            Client-ID, Client-Secret und Session-Secret stehen nur in der Umgebung — nicht hier editierbar.
+            {t("settings.sharedSecretsHint")}
           </p>
           <div className="space-y-2">
-            <Label>Öffentliche App-URL</Label>
+            <Label>{t("settings.publicAppUrl")}</Label>
             <Input readOnly value={secrets?.appPublicUrl || ""} />
           </div>
           <p>
-            Entra Redirect:{" "}
+            {t("settings.entraRedirect")}{" "}
             <code className="break-all text-xs">
               {secrets?.microsoftOauthRedirectUri || "—"}
             </code>
           </p>
           <p>
-            Microsoft Client-ID:{" "}
-            {secrets?.microsoftOauthClientIdMasked || "nicht gesetzt"} · Tenant{" "}
+            {t("settings.microsoftClientId")}{" "}
+            {secrets?.microsoftOauthClientIdMasked || t("common.notSet")} ·{" "}
+            {t("settings.tenant")}{" "}
             {secrets?.microsoftOauthTenant || "organizations"}
           </p>
-          <p>MARI Basis-URL: {secrets?.mariBaseUrl || "—"}</p>
           <p>
-            MARI REST-Benutzer:{" "}
+            {t("settings.mariBaseUrl")} {secrets?.mariBaseUrl || "—"}
+          </p>
+          <p>
+            {t("settings.mariRestUser")}{" "}
             {secrets?.mariRestUsernameMasked ||
-              (secrets?.mariRestConfigured ? "gesetzt" : "nicht gesetzt")}
+              (secrets?.mariRestConfigured ? t("common.set") : t("common.notSet"))}
           </p>
         </CardContent>
       </Card>

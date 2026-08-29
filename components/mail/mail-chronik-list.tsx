@@ -32,6 +32,7 @@ import {
   normalizeMailSenderEmail,
 } from "@/lib/mail/mail-threads";
 import { formatSwissDateTime } from "@/lib/utils/dates";
+import { useT } from "@/components/i18n/locale-provider";
 import { ProviderBadge } from "@/components/workspace/provider-badge";
 
 export type MailChronikProvider = "microsoft" | "google";
@@ -72,13 +73,14 @@ export function MailChronikSummary({
   inboxCount: number;
   sentCount: number;
 }) {
+  const t = useT();
   return (
     <p className="px-1 text-sm font-semibold tracking-tight">
       {rangeLabel}
       <span className="font-normal text-muted-foreground"> · </span>
-      <span className="font-semibold text-teal-800">{inboxCount} Eingang</span>
+      <span className="font-semibold text-teal-800">{t("mail.inboxCount", { count: inboxCount })}</span>
       <span className="font-normal text-muted-foreground"> · </span>
-      <span className="font-semibold text-amber-800">{sentCount} Gesendet</span>
+      <span className="font-semibold text-amber-800">{t("mail.sentCount", { count: sentCount })}</span>
     </p>
   );
 }
@@ -96,20 +98,21 @@ function MailChronikRow({
   onOpen: (m: ChronikMail) => void;
   listProvider: MailChronikProvider;
 }) {
+  const t = useT();
   const isInbox = mail.folder === "inbox";
   const isContext = mail.inRange === false;
   const partyName = isInbox
-    ? mail.from || mail.fromEmail || "Unbekannt"
+    ? mail.from || mail.fromEmail || t("common.unknown")
     : mail.toPreview?.split("<")[0]?.trim() ||
       mail.toEmails[0] ||
-      "Empfänger";
+      t("common.recipient");
   const partyEmail = isInbox ? mail.fromEmail : mail.toEmails[0] || null;
-  const headline = `${partyName} · ${mail.subject || "(kein Betreff)"}`;
+  const headline = `${partyName} · ${mail.subject || t("common.noSubject")}`;
   const sub = isInbox
     ? partyEmail || partyName
     : partyEmail
-      ? `An ${partyName} (${partyEmail})`
-      : `An ${partyName}`;
+      ? t("mail.toWithEmail", { name: partyName, email: partyEmail })
+      : t("common.toName", { name: partyName });
 
   return (
     <Button
@@ -134,11 +137,11 @@ function MailChronikRow({
                 : "border-amber-200/80 bg-amber-50 text-amber-950 dark:border-amber-400/30 dark:bg-amber-500/15 dark:text-amber-100"
           )}
         >
-          {isInbox ? "Eingang" : "Gesendet"}
+          {isInbox ? t("mail.inboxShort") : t("mail.sent")}
         </Badge>
         {isContext ? (
           <span className="text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground/90">
-            Kontext
+            {t("common.context")}
           </span>
         ) : null}
       </div>
@@ -247,6 +250,7 @@ export function MailChronikList({
   const hasInRange = visibleItems.some((m) => m.inRange !== false);
   const hiddenFromView = items.length - visibleItems.length;
 
+  const t = useT();
   const [openProvider, setOpenProvider] = useState<MailChronikProvider>(provider);
 
   const openMail = useCallback(
@@ -287,7 +291,7 @@ export function MailChronikList({
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           throw new Error(
-            (data as { error?: string }).error || "Mail laden fehlgeschlagen"
+            (data as { error?: string }).error || t("mail.loadFailed")
           );
         }
         setDetail((data as { message: MailMessageDetail }).message);
@@ -316,8 +320,8 @@ export function MailChronikList({
         name: openSenderName,
       });
       showActionFeedback({
-        headline: "Absender ausgeblendet",
-        detail: `${openSenderEmail} fehlt in Chronik und AI-Tagesanalyse`,
+        headline: t("mail.senderHidden"),
+        detail: t("mail.senderHiddenDetail", { email: openSenderEmail }),
         tone: "success",
       });
       setOpenId(null);
@@ -325,7 +329,7 @@ export function MailChronikList({
       onItemsChanged?.();
     } catch (err) {
       showActionFeedback({
-        headline: "Ausblenden fehlgeschlagen",
+        headline: t("common.hideFailed"),
         detail: err instanceof Error ? err.message : String(err),
         tone: "error",
       });
@@ -337,12 +341,16 @@ export function MailChronikList({
   const hideBar = (
     <div className="flex flex-wrap items-center justify-between gap-2 px-1">
       <p className="text-xs leading-snug text-muted-foreground">
-        System-Infoboard und Monitoring sind ausgeblendet
-        {hiddenFromView > 0 ? ` · ${hiddenFromView} ausgeblendet` : ""}
-        {blacklist.entries.length > 0
-          ? ` · ${blacklist.entries.length} eigene Absender`
-          : ""}
-        .
+        {t("mail.systemHidden", {
+          hidden:
+            hiddenFromView > 0
+              ? t("mail.hiddenCount", { count: hiddenFromView })
+              : "",
+          own:
+            blacklist.entries.length > 0
+              ? t("mail.ownSenders", { count: blacklist.entries.length })
+              : "",
+        })}
       </p>
       {showBlacklistButton ? (
         <MailSenderBlacklistOpenButton
@@ -365,7 +373,7 @@ export function MailChronikList({
     return (
       <>
         <p className="text-sm text-muted-foreground" role="status">
-          Lade Mails…
+          {t("mail.loadingMails")}
         </p>
         {blacklistSheet}
       </>
@@ -377,8 +385,8 @@ export function MailChronikList({
         {hideBar}
         <div className="rounded-2xl border border-dashed border-border/70 bg-card px-4 py-8 text-center text-sm text-muted-foreground shadow-sm">
           {items.length > 0
-            ? "Keine sichtbaren Mails — Absender sind ausgeblendet."
-            : "Keine Mails im gewählten Zeitraum."}
+            ? t("mail.noneVisible")
+            : t("mail.noneInRange")}
         </div>
         {blacklistSheet}
       </div>
@@ -386,7 +394,7 @@ export function MailChronikList({
   }
 
   const externalLabel =
-    openProvider === "microsoft" ? "In Outlook öffnen" : "In Gmail öffnen";
+    openProvider === "microsoft" ? t("mail.openInOutlook") : t("mail.openInGmail");
 
   return (
     <>
@@ -407,9 +415,9 @@ export function MailChronikList({
                 {isThread ? (
                   <div className="flex items-center justify-between gap-2 border-b border-border/50 bg-muted px-3.5 py-2">
                     <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Thread · {thread.mails.length} Mails
+                      {t("mail.threadMails", { count: thread.mails.length })}
                       {contextCount > 0
-                        ? ` · ${contextCount} Kontext`
+                        ? t("mail.threadContext", { count: contextCount })
                         : ""}
                     </p>
                   </div>
@@ -453,7 +461,7 @@ export function MailChronikList({
           <DialogHeader className="shrink-0 space-y-1 border-b border-border/60 px-4 py-3 pr-12 text-left">
             <DialogTitle className="text-base leading-snug">
               {detail?.subject ||
-                (detailLoading ? "Lade…" : detailError ? "Mail" : "Mail")}
+                (detailLoading ? t("common.loading") : t("workspace.mail"))}
             </DialogTitle>
             <DialogDescription className="text-xs">
               {detail
@@ -463,8 +471,8 @@ export function MailChronikList({
                       : ""
                   }${formatDetailWhen(detail) ? ` · ${formatDetailWhen(detail)}` : ""}`
                 : openProvider === "microsoft"
-                  ? "Outlook-Nachricht"
-                  : "Gmail-Nachricht"}
+                  ? t("mail.outlookMessage")
+                  : t("mail.gmailMessage")}
             </DialogDescription>
           </DialogHeader>
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden px-4 py-3">
@@ -493,7 +501,7 @@ export function MailChronikList({
                   onClick={() => void blacklistOpenSender()}
                 >
                   <EyeOff className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-                  Absender ausblenden
+                  {t("mail.hideSender")}
                 </Button>
               ) : null}
               {openProvider === "microsoft" && openId ? (
@@ -532,14 +540,14 @@ export function MailChronikList({
               ) : null}
             </div>
             {detailLoading ? (
-              <p className="text-sm text-muted-foreground">Lade Inhalt…</p>
+              <p className="text-sm text-muted-foreground">{t("mail.loadingBody")}</p>
             ) : detailError ? (
               <p className="text-sm text-rose-800">{detailError}</p>
             ) : detail ? (
               <div className="space-y-3">
                 {detail.to ? (
                   <p className="text-xs text-muted-foreground">
-                    An: {detail.to}
+                    {t("mail.toPrefix", { to: detail.to })}
                   </p>
                 ) : null}
                 <MailHtmlBody

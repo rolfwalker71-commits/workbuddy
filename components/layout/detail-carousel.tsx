@@ -10,6 +10,7 @@ import {
 } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/components/i18n/locale-provider";
 import { cn } from "@/lib/utils";
 
 /**
@@ -30,6 +31,7 @@ export function DetailCarousel({
   /** Slide to show after reset (clamped to available slides). */
   initialIndex?: number;
 }) {
+  const t = useT();
   const scrollerRef = useRef<HTMLDivElement>(null);
   const slides = Children.toArray(children).filter(Boolean);
   const count = slides.length;
@@ -103,12 +105,12 @@ export function DetailCarousel({
             variant="ghost"
             className="shrink-0"
             disabled={index <= 0}
-            aria-label="Zurück"
+            aria-label={t("common.back")}
             onClick={() => goTo(index - 1)}
           >
             <ChevronLeft className="size-4" />
           </Button>
-          <div className="flex items-center gap-1.5" role="tablist" aria-label="Seiten">
+          <div className="flex items-center gap-1.5" role="tablist" aria-label={t("layout.pages")}>
             {slides.map((_, i) => (
               <Button
                 key={i}
@@ -117,7 +119,7 @@ export function DetailCarousel({
                 size="icon-xs"
                 role="tab"
                 aria-selected={i === index}
-                aria-label={`Seite ${i + 1}`}
+                aria-label={t("layout.pageN", { n: i + 1 })}
                 className={cn(
                   "size-1.5 min-h-0 min-w-0 shrink-0 rounded-full p-0 transition-colors hover:bg-transparent",
                   i === index
@@ -134,7 +136,7 @@ export function DetailCarousel({
             variant="ghost"
             className="shrink-0"
             disabled={index >= count - 1}
-            aria-label="Weiter"
+            aria-label={t("common.next")}
             onClick={() => goTo(index + 1)}
           >
             <ChevronRight className="size-4" />

@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { showActionFeedback } from "@/lib/ui/action-feedback";
+import { useT } from "@/components/i18n/locale-provider";
 import { cn } from "@/lib/utils";
 
 type MutateAction =
@@ -41,12 +42,13 @@ export function MicrosoftMailQuickActions({
   onChanged?: (action: MutateAction) => void;
   className?: string;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState<string | null>(null);
   const isSent = folder === "sent";
 
   async function run(action: MutateAction, label: string) {
     if (action === "delete") {
-      if (!window.confirm("Diese Mail in Outlook löschen?")) return;
+      if (!window.confirm(t("microsoft.confirmDeleteMail"))) return;
     }
     setBusy(action);
     try {
@@ -61,21 +63,21 @@ export function MicrosoftMailQuickActions({
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(
-          (json as { error?: string }).error || "Aktion fehlgeschlagen"
+          (json as { error?: string }).error || t("common.actionFailed")
         );
       }
       showActionFeedback({
         headline: label,
         detail:
           action === "createTodo"
-            ? "In Microsoft To Do (und als Flag)"
+            ? t("microsoft.inToDoAndFlag")
             : "Outlook",
         tone: "success",
       });
       onChanged?.(action);
     } catch (err) {
       showActionFeedback({
-        headline: "Mail-Aktion fehlgeschlagen",
+        headline: t("microsoft.mailActionFailed"),
         detail: err instanceof Error ? err.message : String(err),
         tone: "error",
       });
@@ -96,7 +98,7 @@ export function MicrosoftMailQuickActions({
           className="gap-1.5"
         >
           <Reply className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-          Antworten
+          {t("common.reply")}
         </Button>
       ) : null}
       {onCreateTicket ? (
@@ -109,7 +111,7 @@ export function MicrosoftMailQuickActions({
           className="gap-1.5"
         >
           <Ticket className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-          Ticket erstellen
+          {t("microsoft.createTicket")}
         </Button>
       ) : null}
       {!isSent ? (
@@ -121,7 +123,7 @@ export function MicrosoftMailQuickActions({
           onClick={() =>
             void run(
               unread ? "markRead" : "markUnread",
-              unread ? "Als gelesen markiert" : "Als ungelesen markiert"
+              unread ? t("microsoft.markedRead") : t("microsoft.markedUnread")
             )
           }
           className="gap-1.5"
@@ -131,7 +133,7 @@ export function MicrosoftMailQuickActions({
           ) : (
             <Mail className="size-3.5" strokeWidth={APP_ICON_STROKE} />
           )}
-          {unread ? "Gelesen" : "Ungelesen"}
+          {unread ? t("microsoft.read") : t("microsoft.unread")}
         </Button>
       ) : null}
       {!isSent ? (
@@ -140,11 +142,11 @@ export function MicrosoftMailQuickActions({
           size="sm"
           variant="outline"
           disabled={Boolean(busy)}
-          onClick={() => void run("archive", "Archiviert")}
+          onClick={() => void run("archive", t("microsoft.archived"))}
           className="gap-1.5"
         >
           <Archive className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-          Archiv
+          {t("microsoft.archive")}
         </Button>
       ) : null}
       <Button
@@ -152,7 +154,7 @@ export function MicrosoftMailQuickActions({
         size="sm"
         variant="outline"
         disabled={Boolean(busy)}
-        onClick={() => void run("flag", "Gekennzeichnet")}
+        onClick={() => void run("flag", t("microsoft.flagged"))}
         className="gap-1.5"
       >
         <Flag className="size-3.5" strokeWidth={APP_ICON_STROKE} />
@@ -163,7 +165,7 @@ export function MicrosoftMailQuickActions({
         size="sm"
         variant="outline"
         disabled={Boolean(busy)}
-        onClick={() => void run("createTodo", "In To Do angelegt")}
+        onClick={() => void run("createTodo", t("microsoft.createdInToDo"))}
         className="gap-1.5"
       >
         <CheckSquare className="size-3.5" strokeWidth={APP_ICON_STROKE} />
@@ -174,11 +176,11 @@ export function MicrosoftMailQuickActions({
         size="sm"
         variant="outline"
         disabled={Boolean(busy)}
-        onClick={() => void run("delete", "Gelöscht")}
+        onClick={() => void run("delete", t("microsoft.deleted"))}
         className="gap-1.5 text-rose-800"
       >
         <Trash2 className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-        Löschen
+        {t("common.delete")}
       </Button>
     </div>
   );

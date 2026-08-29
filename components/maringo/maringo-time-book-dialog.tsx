@@ -14,6 +14,7 @@ import {
 } from "@/components/maringo/maringo-time-book-form";
 import type { MariEmailPartnerSuggestion } from "@/lib/mari/customers";
 import type { HoursBookedStampLike } from "@/lib/workspace/event-mari-shared";
+import { useT } from "@/components/i18n/locale-provider";
 
 export type CalendarBookStampInput = {
   eventId: string;
@@ -37,9 +38,9 @@ export function MaringoTimeBookDialog({
   open,
   onOpenChange,
   defaults,
-  title = "Zeit buchen",
+  title,
   description,
-  submitLabel = "Auf Ticket buchen",
+  submitLabel,
   editLineId,
   onBooked,
   calendarEvent,
@@ -66,6 +67,10 @@ export function MaringoTimeBookDialog({
   preserveEventPrefillOnChips?: boolean;
   hoursHint?: string | null;
 }) {
+  const t = useT();
+  const resolvedTitle = title ?? t("tickets.bookTime");
+  const resolvedSubmit = submitLabel ?? t("timekeeping.bookOnTicket");
+
   async function submit(values: TimeBookFormValues) {
     const url = editLineId
       ? `/api/maringo/timekeeping/lines/${editLineId}`
@@ -79,7 +84,7 @@ export function MaringoTimeBookDialog({
     if (!res.ok) {
       throw new Error(
         data.error ||
-          (editLineId ? "Änderung fehlgeschlagen" : "Buchung fehlgeschlagen")
+          (editLineId ? t("timekeeping.patchFailed") : t("timekeeping.bookFailed"))
       );
     }
     if (calendarEvent && !editLineId) {
@@ -118,7 +123,7 @@ export function MaringoTimeBookDialog({
       if (!stampRes.ok) {
         throw new Error(
           stampData.error ||
-            "Stunden gebucht, Kalender-Stempel fehlgeschlagen. Bitte neu laden."
+            t("timekeeping.stampFailed")
         );
       }
       onOpenChange(false);
@@ -133,7 +138,7 @@ export function MaringoTimeBookDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+          <DialogTitle>{resolvedTitle}</DialogTitle>
           {description ? (
             <DialogDescription>{description}</DialogDescription>
           ) : null}
@@ -141,7 +146,7 @@ export function MaringoTimeBookDialog({
         <MaringoTimeBookForm
           key={`${editLineId || "new"}-${defaults?.issueId || "x"}-${defaults?.projectNumber || ""}-${calendarEvent?.eventId || ""}-${open}`}
           defaults={defaults}
-          submitLabel={submitLabel}
+          submitLabel={resolvedSubmit}
           onSubmit={submit}
           attendeeEmails={attendeeEmails}
           subjectSuggestions={subjectSuggestions}
