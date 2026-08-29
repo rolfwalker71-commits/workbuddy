@@ -26,6 +26,7 @@ import {
   FolderOpen,
   Inbox,
   ListTodo,
+  Loader2,
   Lock,
   Mail,
   MessageSquare,
@@ -884,6 +885,8 @@ export function MaringoWorkspaceClient() {
   const [ticketCalendarOpen, setTicketCalendarOpen] = useState(false);
   const [ticketCalendarStamp, setTicketCalendarStamp] =
     useState<MariCalendarStamp | null>(null);
+  const [removingTicketAppointment, setRemovingTicketAppointment] =
+    useState(false);
   const [listCalendarStamps, setListCalendarStamps] = useState<
     Record<number, MariCalendarStamp>
   >({});
@@ -2144,6 +2147,66 @@ export function MaringoWorkspaceClient() {
     }
   }
 
+  async function reloadTicketCalendarStamp(issueId: number) {
+    try {
+      const res = await fetch(`/api/maringo/tickets/${issueId}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return;
+      setTicketCalendarStamp(
+        data.calendarStamp && typeof data.calendarStamp === "object"
+          ? (data.calendarStamp as MariCalendarStamp)
+          : null
+      );
+    } catch {
+      /* optional */
+    }
+  }
+
+  async function removeTicketAppointment() {
+    if (!detail || !ticketCalendarStamp) return;
+    const when = formatStampWhen(ticketCalendarStamp);
+    const ok = window.confirm(
+      `Termin für Ticket #${detail.issueId} am ${when} wirklich entfernen?\n\nDer Termin wird in Microsoft 365 gelöscht und in WorkBuddy nicht mehr angezeigt.`
+    );
+    if (!ok) return;
+    setRemovingTicketAppointment(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/calendar/adhoc", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete",
+          eventId: ticketCalendarStamp.eventId,
+          calendarId: ticketCalendarStamp.calendarId || undefined,
+          mariIssueId: detail.issueId,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Termin konnte nicht entfernt werden.");
+      }
+      await reloadTicketCalendarStamp(detail.issueId);
+      void loadList();
+      setSuggestionsRefresh((n) => n + 1);
+      showActionFeedback({
+        headline: "Termin entfernt",
+        detail: `#${detail.issueId} · ${when}`,
+        tone: "success",
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+      showActionFeedback({
+        headline: "Termin nicht entfernt",
+        detail: message,
+        tone: "error",
+      });
+    } finally {
+      setRemovingTicketAppointment(false);
+    }
+  }
+
   async function patchTicket(body: {
     status?: number;
     dueDate?: string | null;
@@ -2497,6 +2560,7 @@ export function MaringoWorkspaceClient() {
           cardCode={akteCard?.cardCode || null}
           filterCustomers={akteFilterCustomers}
           ticketsLoading={listLoading}
+          refreshKey={suggestionsRefresh}
           onOpenTicket={(id) => openTicket(id)}
           onBook={(ticket) => {
             setSelectedId(ticket.issueId);
@@ -3464,26 +3528,54 @@ export function MaringoWorkspaceClient() {
                           </Button>
                             </>
                           ) : null}
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            title={
-                              ticketCalendarStamp
-                                ? `Termin eingeplant · ${formatStampWhen(ticketCalendarStamp)} — erneut öffnen für weiteren Termin`
-                                : "Termin aus Ticket — Slot suchen und anlegen"
-                            }
-                            onClick={() => setTicketCalendarOpen(true)}
-                            className={cn(
-                              ticketCalendarStamp &&
-                                "border-emerald-300 bg-emerald-50 text-emerald-950 hover:bg-emerald-100 hover:text-emerald-950 dark:border-emerald-400/40 dark:bg-emerald-500/15 dark:text-emerald-100 dark:hover:bg-emerald-500/25 dark:hover:text-emerald-50"
-                            )}
-                          >
-                            <CalendarPlus className="size-3.5" />
-                            {ticketCalendarStamp
-                              ? `Termin eingeplant (${formatStampWhen(ticketCalendarStamp)})`
-                              : "Termin"}
-                          </Button>
+                          {ticketCalendarStamp ? (
+                            <div className="inline-flex items-stretch">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                title={`Termin eingeplant · ${formatStampWhen(ticketCalendarStamp)} — erneut öffnen für weiteren Termin`}
+                                onClick={() => setTicketCalendarOpen(true)}
+                                className="rounded-r-none border-emerald-300 bg-emerald-50 text-emerald-950 hover:bg-emerald-100 hover:text-emerald-950 dark:border-emerald-400/40 dark:bg-emerald-500/15 dark:text-emerald-100 dark:hover:bg-emerald-500/25 dark:hover:text-emerald-50"
+                              >
+                                <CalendarPlus className="size-3.5" />
+                                {`Termin eingeplant (${formatStampWhen(ticketCalendarStamp)})`}
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={removingTicketAppointment}
+                                title="Termin entfernen"
+                                aria-label={`Termin entfernen · Ticket #${detail.issueId} · ${formatStampWhen(ticketCalendarStamp)}`}
+                                onClick={() => void removeTicketAppointment()}
+                                className="-ml-px rounded-l-none border-emerald-300 bg-emerald-50 px-2 text-emerald-950 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-800 dark:border-emerald-400/40 dark:bg-emerald-500/15 dark:text-emerald-100 dark:hover:border-rose-400/40 dark:hover:bg-rose-500/20 dark:hover:text-rose-100"
+                              >
+                                {removingTicketAppointment ? (
+                                  <Loader2
+                                    className="size-3.5 animate-spin"
+                                    strokeWidth={APP_ICON_STROKE}
+                                  />
+                                ) : (
+                                  <X
+                                    className="size-3.5"
+                                    strokeWidth={APP_ICON_STROKE}
+                                  />
+                                )}
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              title="Termin aus Ticket — Slot suchen und anlegen"
+                              onClick={() => setTicketCalendarOpen(true)}
+                            >
+                              <CalendarPlus className="size-3.5" />
+                              Termin
+                            </Button>
+                          )}
                           {!ticketReview ? (
                           <Button
                             type="button"
@@ -4399,21 +4491,9 @@ export function MaringoWorkspaceClient() {
         onCreated={() => {
           const id = detail?.issueId;
           void loadList();
+          setSuggestionsRefresh((n) => n + 1);
           if (id == null) return;
-          void (async () => {
-            try {
-              const res = await fetch(`/api/maringo/tickets/${id}`);
-              const data = await res.json().catch(() => ({}));
-              if (!res.ok) return;
-              setTicketCalendarStamp(
-                data.calendarStamp && typeof data.calendarStamp === "object"
-                  ? (data.calendarStamp as MariCalendarStamp)
-                  : null
-              );
-            } catch {
-              /* optional */
-            }
-          })();
+          void reloadTicketCalendarStamp(id);
         }}
         initialTitle={
           detail

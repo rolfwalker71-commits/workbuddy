@@ -245,6 +245,7 @@ export function CustomerWorkspacePanel({
   onBook,
   onAdhoc,
   onPickCustomer,
+  refreshKey = 0,
 }: {
   cardCode: string | null;
   filterCustomers: AkteFilterCustomer[];
@@ -256,6 +257,7 @@ export function CustomerWorkspacePanel({
     customer: MariCustomerOption,
     source: "filter" | "search"
   ) => void;
+  refreshKey?: number;
 }) {
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<MariCustomerOption[]>([]);
@@ -290,7 +292,7 @@ export function CustomerWorkspacePanel({
     return () => {
       cancelled = true;
     };
-  }, [cardCode]);
+  }, [cardCode, refreshKey]);
 
   useEffect(() => {
     const q = query.trim();

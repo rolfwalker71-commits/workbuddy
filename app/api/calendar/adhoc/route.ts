@@ -4,6 +4,8 @@ import { isAuthError, requireAuth } from "@/lib/auth/current-user";
 import { ensureInitialized } from "@/lib/db/migrations";
 import {
   appendMariBodyMarker,
+  deleteMariCalendarStamp,
+  getMariCalendarStamp,
   mariOutlookCategories,
   upsertMariCalendarStamp,
 } from "@/lib/mari/calendar-stamp";
@@ -12,7 +14,10 @@ import {
   isMicrosoftConnected,
 } from "@/lib/microsoft/oauth";
 import { suggestFreeSlotsForDuration } from "@/lib/microsoft/calendar-review";
-import { createOutlookCalendarEvent } from "@/lib/microsoft/mail-day-actions";
+import {
+  createOutlookCalendarEvent,
+  deleteOutlookCalendarEvent,
+} from "@/lib/microsoft/mail-day-actions";
 import { listMicrosoftCalendarsForUser } from "@/lib/microsoft/calendars";
 import {
   hasGoogleCalendarEventsWriteScope,
@@ -58,6 +63,12 @@ const BodySchema = z.discriminatedUnion("action", [
     mariIssueId: z.number().int().positive().optional().nullable(),
     teamsMeeting: z.boolean().optional(),
     provider: ProviderSchema.optional(),
+    calendarId: z.string().min(1).optional(),
+  }),
+  z.object({
+    action: z.literal("delete"),
+    eventId: z.string().min(1),
+    mariIssueId: z.number().int().positive().optional().nullable(),
     calendarId: z.string().min(1).optional(),
   }),
 ]);
@@ -163,6 +174,55 @@ export async function POST(request: Request) {
       },
       { status: 400 }
     );
+  }
+
+  if (body.action === "delete") {
+    if (!msOk) {
+      return NextResponse.json(
+        { error: "Microsoft 365 nicht verbunden." },
+        { status: 400 }
+      );
+    }
+    const stamp = getMariCalendarStamp(userId, "microsoft", body.eventId);
+    if (!stamp) {
+      return NextResponse.json(
+        { error: "Kein gestempelter Ticket-Termin gefunden." },
+        { status: 404 }
+      );
+    }
+    if (
+      body.mariIssueId != null &&
+      body.mariIssueId > 0 &&
+      stamp.issueId !== body.mariIssueId
+    ) {
+      return NextResponse.json(
+        { error: "Termin gehört nicht zu diesem Ticket." },
+        { status: 403 }
+      );
+    }
+    try {
+      await deleteOutlookCalendarEvent(
+        userId,
+        stamp.eventId,
+        body.calendarId || stamp.calendarId
+      );
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error:
+            error instanceof Error
+              ? error.message
+              : "Outlook-Termin konnte nicht gelöscht werden.",
+        },
+        { status: 502 }
+      );
+    }
+    deleteMariCalendarStamp(userId, "microsoft", stamp.eventId);
+    return NextResponse.json({
+      ok: true,
+      eventId: stamp.eventId,
+      issueId: stamp.issueId,
+    });
   }
 
   const requested =
@@ -280,6 +340,7 @@ export async function POST(request: Request) {
         userId,
         eventProvider: "microsoft",
         eventId: created.id,
+        calendarId: body.calendarId || null,
         issueId: mariIssueId,
         eventDate: body.date,
         startHm: body.startHm,

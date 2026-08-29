@@ -1,4 +1,4 @@
-import { graphFetch, graphJson } from "@/lib/microsoft/graph";
+import { graphFetch, graphJson, MicrosoftGraphError } from "@/lib/microsoft/graph";
 import { outlookTeamsMeetingFields } from "@/lib/microsoft/teams-meeting";
 
 export type CreateOutlookEventInput = {
@@ -115,13 +115,27 @@ export async function createOutlookCalendarEvent(
 
 export async function deleteOutlookCalendarEvent(
   userId: number,
-  eventId: string
+  eventId: string,
+  calendarId?: string | null
 ): Promise<void> {
   const id = eventId.trim();
   if (!id) return;
-  await graphJson(userId, `/me/events/${encodeURIComponent(id)}`, {
-    method: "DELETE",
-  });
+  const path = calendarId?.trim()
+    ? `/me/calendars/${encodeURIComponent(calendarId.trim())}/events/${encodeURIComponent(id)}`
+    : `/me/events/${encodeURIComponent(id)}`;
+  try {
+    await graphJson(userId, path, {
+      method: "DELETE",
+    });
+  } catch (error) {
+    if (
+      error instanceof MicrosoftGraphError &&
+      (error.status === 404 || error.status === 410)
+    ) {
+      return;
+    }
+    throw error;
+  }
 }
 
 function outlookEventWriteBody(

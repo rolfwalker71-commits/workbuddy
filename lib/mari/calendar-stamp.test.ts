@@ -12,8 +12,11 @@ test("calendar stamps are owner-scoped", async () => {
 
   const { resetDbForTests } = await import("../db/client.ts");
   resetDbForTests();
-  const { listPendingMariCalendarStamps, upsertMariCalendarStamp } =
-    await import("./calendar-stamp.ts");
+  const {
+    deleteMariCalendarStamp,
+    listPendingMariCalendarStamps,
+    upsertMariCalendarStamp,
+  } = await import("./calendar-stamp.ts");
 
   upsertMariCalendarStamp({
     userId: 1,
@@ -41,4 +44,9 @@ test("calendar stamps are owner-scoped", async () => {
   assert.equal(two.length, 1);
   assert.equal(two[0]?.eventId, "evt-b");
   assert.equal(one[0]?.userId, 1);
+
+  assert.equal(deleteMariCalendarStamp(1, "microsoft", "evt-a"), true);
+  assert.equal(listPendingMariCalendarStamps(1, { onDate: "2026-08-22" }).length, 0);
+  assert.equal(listPendingMariCalendarStamps(2, { onDate: "2026-08-22" }).length, 1);
+  assert.equal(deleteMariCalendarStamp(1, "microsoft", "evt-a"), false);
 });

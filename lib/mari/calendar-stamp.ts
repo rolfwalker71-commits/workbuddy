@@ -299,6 +299,24 @@ export function mapPrimaryMariCalendarStampsByIssueIds(
   return out;
 }
 
+export function deleteMariCalendarStamp(
+  userId: number,
+  eventProvider: "microsoft",
+  eventId: string
+): boolean {
+  const uid = requireUserId(userId);
+  const id = eventId.trim();
+  if (!id) return false;
+  ensureMariCalendarStampsTable();
+  const result = getDb()
+    .prepare(
+      `DELETE FROM mari_calendar_stamps
+       WHERE user_id = ? AND event_provider = ? AND event_id = ?`
+    )
+    .run(uid, eventProvider, id);
+  return Number(result.changes) > 0;
+}
+
 export function updateMariCalendarStampStatus(input: {
   userId: number;
   eventProvider?: "microsoft";
