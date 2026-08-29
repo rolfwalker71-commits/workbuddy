@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS users (
   organization TEXT,
   can_manage_presence INTEGER NOT NULL DEFAULT 0,
   presence_default_week TEXT,
+  mail_sender_blacklist TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

@@ -10,6 +10,7 @@ import { AccountWeatherPanel } from "@/components/settings/account-weather-panel
 import { AccountDayClosePanel } from "@/components/settings/account-day-close-panel";
 import { AccountPresenceWeekPanel } from "@/components/settings/account-presence-week-panel";
 import { AccountGoogleSection } from "@/components/settings/account-google-section";
+import { MailSenderBlacklistAccountPanel } from "@/components/mail/mail-sender-blacklist-editor";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +78,15 @@ export default function AccountPage() {
       </section>
 
       <AccountGoogleSection />
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold tracking-tight">Mail ausblenden</h2>
+        <p className="text-xs text-muted-foreground">
+          Absender fehlen in der Chronik und in der AI-Tagesanalyse — nur für dich.
+          System-Infoboard und Monitoring sind automatisch ausgeblendet.
+        </p>
+        <MailSenderBlacklistAccountPanel />
+      </section>
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold tracking-tight">Benachrichtigungen</h2>

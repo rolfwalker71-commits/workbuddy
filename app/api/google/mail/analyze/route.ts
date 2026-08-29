@@ -34,6 +34,7 @@ import {
 import { formatTokenUsageLine } from "@/lib/ai/usage-cost";
 import { notifyAppChange } from "@/lib/realtime/notify";
 import { runWithAiUser } from "@/lib/ai/request-context";
+import { listUserMailSenderBlacklistEmails } from "@/lib/mail/sender-blacklist-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -140,6 +141,7 @@ async function runAnalysisJob(
       toYmd: mail.toYmd,
       inbox: mail.inbox,
       sent: mail.sent,
+      blacklistEmails: listUserMailSenderBlacklistEmails(userId),
     });
     const enriched = attachExistingTasksToAnalysis(
       analysis,

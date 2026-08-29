@@ -62,6 +62,7 @@ function ensureUsersColumns(db: Database.Database): void {
     ["organization", "TEXT"],
     ["can_manage_presence", "INTEGER NOT NULL DEFAULT 0"],
     ["presence_default_week", "TEXT"],
+    ["mail_sender_blacklist", "TEXT"],
   ];
   for (const [name, ddl] of adds) {
     if (!names.has(name)) {

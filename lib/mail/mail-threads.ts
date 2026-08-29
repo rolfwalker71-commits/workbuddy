@@ -38,17 +38,49 @@ export function annotateMailInRange(
   };
 }
 
-/**
- * Mails die die Tagesanalyse standardmässig überspringt (Noise).
- * Chronik kann sie weiterhin zeigen.
- */
-export function isExcludedFromMailAnalysis(mail: {
+/** Auto-hide: Infoboard / Monitoring-Betreff (global, nicht user-editierbar). */
+export function isSystemNoiseMail(mail: {
   subject?: string | null;
 }): boolean {
   const subject = mail.subject || "";
   return (
     /\[SYSTEM\s+INFOBOARD\]/i.test(subject) || /\[Monitoring\]/i.test(subject)
   );
+}
+
+export function normalizeMailSenderEmail(
+  raw: string | null | undefined
+): string | null {
+  const trimmed = (raw || "").trim();
+  if (!trimmed) return null;
+  const angle = /<([^>]+)>/.exec(trimmed);
+  const candidate = (angle?.[1] || trimmed).trim().toLowerCase();
+  if (!candidate.includes("@") || /\s/.test(candidate)) return null;
+  return candidate;
+}
+
+/**
+ * Hidden from Chronik and AI-Tagesanalyse: system noise and/or user blacklist.
+ */
+export function isExcludedFromMailAnalysis(
+  mail: { subject?: string | null; fromEmail?: string | null; from?: string | null },
+  opts?: { blacklistEmails?: readonly string[] }
+): boolean {
+  if (isSystemNoiseMail(mail)) return true;
+  const emails = opts?.blacklistEmails;
+  if (!emails?.length) return false;
+  const from =
+    normalizeMailSenderEmail(mail.fromEmail) ||
+    normalizeMailSenderEmail(mail.from);
+  if (!from) return false;
+  return emails.includes(from);
+}
+
+export function filterVisibleMails<
+  T extends { subject?: string | null; fromEmail?: string | null; from?: string | null },
+>(items: T[], opts?: { blacklistEmails?: readonly string[] }): T[] {
+  if (!items.length) return items;
+  return items.filter((m) => !isExcludedFromMailAnalysis(m, opts));
 }
 
 /** Always date + time (Europe/Zurich), e.g. «10.08.2026 12:19». */

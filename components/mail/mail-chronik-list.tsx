@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { EyeOff, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -19,8 +19,17 @@ import { cn } from "@/lib/utils";
 import type { MsMailItem } from "@/lib/microsoft/mail-day";
 import type { MailMessageDetail } from "@/lib/mail/gmail";
 import {
+  MailSenderBlacklistOpenButton,
+  MailSenderBlacklistSheet,
+  useMailSenderBlacklist,
+} from "@/components/mail/mail-sender-blacklist-editor";
+import { showActionFeedback } from "@/lib/ui/action-feedback";
+import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
+import {
   buildMailChronikThreads,
   chronikDateTimeLabel,
+  filterVisibleMails,
+  normalizeMailSenderEmail,
 } from "@/lib/mail/mail-threads";
 import { formatSwissDateTime } from "@/lib/utils/dates";
 import { ProviderBadge } from "@/components/workspace/provider-badge";
@@ -208,9 +217,20 @@ export function MailChronikList({
     snippet?: string | null;
     bodyContentType?: "html" | "text" | null;
   } | null>(null);
+  const [blacklistSheetOpen, setBlacklistSheetOpen] = useState(false);
+  const [blacklistBusy, setBlacklistBusy] = useState(false);
+  const blacklist = useMailSenderBlacklist();
 
-  const threads = useMemo(() => buildMailChronikThreads(items), [items]);
-  const hasInRange = items.some((m) => m.inRange !== false);
+  const visibleItems = useMemo(
+    () => filterVisibleMails(items, { blacklistEmails: blacklist.emails }),
+    [items, blacklist.emails]
+  );
+  const threads = useMemo(
+    () => buildMailChronikThreads(visibleItems),
+    [visibleItems]
+  );
+  const hasInRange = visibleItems.some((m) => m.inRange !== false);
+  const hiddenFromView = items.length - visibleItems.length;
 
   const [openProvider, setOpenProvider] = useState<MailChronikProvider>(provider);
 
@@ -265,6 +285,56 @@ export function MailChronikList({
     [provider]
   );
 
+  const openSenderEmail =
+    normalizeMailSenderEmail(detail?.from) ||
+    normalizeMailSenderEmail(openFromEmail);
+  const openSenderName = detail?.fromName || detail?.from || null;
+  const canBlacklist =
+    openFolder !== "sent" && Boolean(openSenderEmail) && Boolean(openId);
+
+  async function blacklistOpenSender() {
+    if (!openSenderEmail) return;
+    setBlacklistBusy(true);
+    try {
+      await blacklist.add({
+        email: openSenderEmail,
+        name: openSenderName,
+      });
+      showActionFeedback({
+        headline: "Absender ausgeblendet",
+        detail: `${openSenderEmail} fehlt in Chronik und AI-Tagesanalyse`,
+        tone: "success",
+      });
+      setOpenId(null);
+      setDetail(null);
+      onItemsChanged?.();
+    } catch (err) {
+      showActionFeedback({
+        headline: "Ausblenden fehlgeschlagen",
+        detail: err instanceof Error ? err.message : String(err),
+        tone: "error",
+      });
+    } finally {
+      setBlacklistBusy(false);
+    }
+  }
+
+  const hideBar = (
+    <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+      <p className="text-xs leading-snug text-muted-foreground">
+        System-Infoboard und Monitoring sind ausgeblendet
+        {hiddenFromView > 0 ? ` · ${hiddenFromView} ausgeblendet` : ""}
+        {blacklist.entries.length > 0
+          ? ` · ${blacklist.entries.length} eigene Absender`
+          : ""}
+        .
+      </p>
+      <MailSenderBlacklistOpenButton
+        onClick={() => setBlacklistSheetOpen(true)}
+      />
+    </div>
+  );
+
   if (loading && items.length === 0) {
     return (
       <p className="text-sm text-muted-foreground" role="status">
@@ -274,8 +344,19 @@ export function MailChronikList({
   }
   if (!hasInRange) {
     return (
-      <div className="rounded-2xl border border-dashed border-border/70 bg-card px-4 py-8 text-center text-sm text-muted-foreground shadow-sm">
-        Keine Mails im gewählten Zeitraum.
+      <div className="space-y-3">
+        {hideBar}
+        <div className="rounded-2xl border border-dashed border-border/70 bg-card px-4 py-8 text-center text-sm text-muted-foreground shadow-sm">
+          {items.length > 0
+            ? "Keine sichtbaren Mails — Absender sind ausgeblendet."
+            : "Keine Mails im gewählten Zeitraum."}
+        </div>
+        <MailSenderBlacklistSheet
+          open={blacklistSheetOpen}
+          onOpenChange={setBlacklistSheetOpen}
+          list={blacklist}
+          onChanged={() => onItemsChanged?.()}
+        />
       </div>
     );
   }
@@ -285,6 +366,7 @@ export function MailChronikList({
 
   return (
     <>
+      {hideBar}
       <ul className="space-y-3">
         {threads.map((thread) => {
           const contextCount = thread.mails.filter(
@@ -377,6 +459,19 @@ export function MailChronikList({
                   {externalLabel}
                 </a>
               ) : null}
+              {canBlacklist ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5"
+                  disabled={blacklistBusy}
+                  onClick={() => void blacklistOpenSender()}
+                >
+                  <EyeOff className="size-3.5" strokeWidth={APP_ICON_STROKE} />
+                  Absender ausblenden
+                </Button>
+              ) : null}
               {openProvider === "microsoft" && openId ? (
                 <MicrosoftMailQuickActions
                   messageId={openId}
@@ -459,6 +554,13 @@ export function MailChronikList({
           mail={ticketImportMail}
         />
       ) : null}
+
+      <MailSenderBlacklistSheet
+        open={blacklistSheetOpen}
+        onOpenChange={setBlacklistSheetOpen}
+        list={blacklist}
+        onChanged={() => onItemsChanged?.()}
+      />
     </>
   );
 }

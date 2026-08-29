@@ -8,11 +8,13 @@ import {
 } from "@/lib/mail/mail-analysis-range";
 import {
   annotateMailInRange,
+  filterVisibleMails,
   MAIL_THREAD_EXPAND_MAX_MESSAGES,
   MAIL_THREAD_EXPAND_MAX_THREADS,
   mergeMailItemsById,
   splitMailsByFolder,
 } from "@/lib/mail/mail-threads";
+import { listUserMailSenderBlacklistEmails } from "@/lib/mail/sender-blacklist-store";
 
 export type MsMailFolder = "inbox" | "sent";
 
@@ -305,9 +307,10 @@ export async function listMicrosoftMailForRange(
     resolved.toYmd
   );
   const { inbox, sent } = splitMailsByFolder(expanded);
+  const blacklistEmails = listUserMailSenderBlacklistEmails(userId);
   return {
-    inbox,
-    sent,
+    inbox: filterVisibleMails(inbox, { blacklistEmails }),
+    sent: filterVisibleMails(sent, { blacklistEmails }),
     dayIso: resolved.dayIso,
     fromYmd: resolved.fromYmd,
     toYmd: resolved.toYmd,

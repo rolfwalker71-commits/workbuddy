@@ -880,6 +880,8 @@ export async function analyzeMicrosoftMailDay(input: {
   toYmd?: string;
   inbox: MsMailItem[];
   sent: MsMailItem[];
+  /** Per-user sender emails already hidden in Chronik. */
+  blacklistEmails?: readonly string[];
 }): Promise<MsDayMailAnalysis> {
   if (!hasChatKey()) {
     throw new Error("Hinterlege deinen OpenAI-Key unter Konto");
@@ -890,8 +892,9 @@ export async function analyzeMicrosoftMailDay(input: {
   const defaultDue = addDaysYmd(toYmd, 1);
   const rangeLabel = formatSwissDateRange(fromYmd, toYmd);
 
-  const inbox = input.inbox.filter((m) => !isExcludedFromMailAnalysis(m));
-  const sent = input.sent.filter((m) => !isExcludedFromMailAnalysis(m));
+  const hideOpts = { blacklistEmails: input.blacklistEmails };
+  const inbox = input.inbox.filter((m) => !isExcludedFromMailAnalysis(m, hideOpts));
+  const sent = input.sent.filter((m) => !isExcludedFromMailAnalysis(m, hideOpts));
   const excludedCount =
     input.inbox.length +
     input.sent.length -
@@ -902,7 +905,7 @@ export async function analyzeMicrosoftMailDay(input: {
   if (seeds.length === 0) {
     const extra =
       excludedCount > 0
-        ? ` (${excludedCount} Noise-Mails übersprungen: INFOBOARD/Monitoring)`
+        ? ` (${excludedCount} Noise-Mails übersprungen: INFOBOARD/Monitoring oder Blacklist)`
         : "";
     return emptyMailDayAnalysis(
       `Keine Mails für ${rangeLabel} gefunden.${extra}`
@@ -963,7 +966,7 @@ REASONING: Pro Thread zuerst klären — wer will was, was ist belegt vs. impliz
 SUMMARY: 5–8 Sätze (Fakten, Einschätzung, offene Punkte, nächste Aktion). NIEMALS Signaturen, Grussformeln, Adressen, Disclaimer, Trennlinien (***/---), «Sent from…».
 Jede task und reply braucht reason (2–4 Sätze): warum jetzt, welche Mail stützt das, was passiert beim Warten.
 
-SYSTEM INFOBOARD und [Monitoring] sind bereits ausgefiltert — nicht erfinden.
+SYSTEM INFOBOARD, [Monitoring] und die User-Blacklist sind bereits ausgefiltert — nicht erfinden.
 
 Seed-Liste:
 ${required}
@@ -1346,7 +1349,7 @@ async function writeDaySummaryOverview(input: {
   const replyCount = input.clusters.reduce((n, c) => n + c.replies.length, 0);
   const excludedNote =
     input.excludedCount && input.excludedCount > 0
-      ? ` (${input.excludedCount} Noise-Mails ausgeklammert: INFOBOARD/Monitoring)`
+      ? ` (${input.excludedCount} Noise-Mails ausgeklammert: INFOBOARD/Monitoring oder Blacklist)`
       : "";
   const lines = input.clusters
     .slice(0, 80)
