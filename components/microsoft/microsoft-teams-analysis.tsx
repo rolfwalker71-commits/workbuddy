@@ -480,7 +480,7 @@ export function TeamsAnalysisResults({
                               })
                             : null,
                           task.reason,
-                        ]}
+                        ]
                           .filter(Boolean)
                           .join(" · ")}
                       />

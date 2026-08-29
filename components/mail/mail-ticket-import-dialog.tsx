@@ -650,7 +650,7 @@ export function MailTicketImportDialog({
                     type="email"
                     value={contactEmail}
                     onChange={(e) => setContactEmail(e.target.value)}
-                    placeholder="name@firma.ch"
+                    placeholder={t("microsoft.toPlaceholder")}
                     maxLength={120}
                     autoComplete="off"
                     required
@@ -664,7 +664,7 @@ export function MailTicketImportDialog({
               ) : null}
               {lookupState === "empty" && contactEmail.includes("@") ? (
                 <p className="text-xs text-muted-foreground">
-                  Kein Treffer zur E-Mail — bitte ein Projekt suchen.
+                  {t("mail.noPartnerHit")}
                 </p>
               ) : null}
               {suggestions.length > 0 ? (

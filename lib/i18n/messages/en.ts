@@ -1575,6 +1575,7 @@ export const en = {
     lookbackToday: "today",
     lookbackDays: "last {count} days",
     sideSupport: "Support (us)",
+    sideCustomer: "Customer",
     sideSystem: "System",
     sideUnknown: "Unclear",
     noText: "(no text)",

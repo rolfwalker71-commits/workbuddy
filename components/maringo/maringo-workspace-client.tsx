@@ -72,9 +72,11 @@ import {
   parseStatusIdsParam,
   resolveRecommendedStatusId,
   statusChipClass,
-  statusChipLabel,
   statusDetailHeaderClass,
 } from "@/lib/mari/status";
+import { statusDisplayLabel } from "@/lib/i18n/display";
+import { useLocale, useT } from "@/components/i18n/locale-provider";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { showActionFeedback } from "@/lib/ui/action-feedback";
 import { formatTicketIdList } from "@/lib/mari/ticket-bulk";
@@ -248,6 +250,7 @@ function TimelineImageThumb({
   attachment: MariTimelineAttachment;
   onOpen: () => void;
 }) {
+  const t = useT();
   const [src, setSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -281,7 +284,7 @@ function TimelineImageThumb({
       <a
         href={attachmentUrl(attachment.attachmentId, true)}
         className="inline-flex h-24 w-28 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border/70 bg-muted/30 px-2 text-center text-[0.625rem] text-muted-foreground hover:border-orange-300 hover:text-foreground"
-        title={`${attachment.orgFilename} herunterladen`}
+        title={t("tickets.downloadNamed", { name: attachment.orgFilename })}
       >
         <Paperclip className="size-3.5" />
         <span className="line-clamp-2 w-full break-all">
@@ -309,7 +312,7 @@ function TimelineImageThumb({
         />
       ) : (
         <span className="flex h-24 w-28 items-center justify-center text-[0.625rem] text-muted-foreground">
-          Lädt…
+          {t("common.loading")}
         </span>
       )}
       <span className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-1.5 py-0.5 text-[0.625rem] text-white opacity-0 transition group-hover:opacity-100">
@@ -324,6 +327,7 @@ function TimelineAttachments({
 }: {
   attachments: MariTimelineAttachment[];
 }) {
+  const t = useT();
   const [lightbox, setLightbox] = useState<MariTimelineAttachment | null>(null);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const images = attachments.filter((a) => a.isImage);
@@ -398,7 +402,7 @@ function TimelineAttachments({
             size="icon"
             className="absolute right-4 top-4 size-9 rounded-full bg-black/50 text-white hover:bg-black/70"
             onClick={() => setLightbox(null)}
-            aria-label="Schliessen"
+            aria-label={t("common.close")}
           >
             <X className="size-5" />
           </Button>
@@ -415,14 +419,14 @@ function TimelineAttachments({
               />
             ) : (
               <p className="rounded-lg bg-white/90 px-4 py-3 text-sm text-foreground">
-                Bild wird geladen…
+                {t("tickets.imageLoading")}
               </p>
             )}
             <a
               href={attachmentUrl(lightbox.attachmentId, true)}
               className="rounded-full bg-white/90 px-3 py-1 text-xs font-medium text-foreground hover:bg-white"
             >
-              {lightbox.orgFilename} herunterladen
+              {t("tickets.downloadNamed", { name: lightbox.orgFilename })}
             </a>
           </div>
         </div>
@@ -495,6 +499,7 @@ function StatusChip({
   statusName?: string;
   className?: string;
 }) {
+  const { locale } = useLocale();
   return (
     <Badge
       variant="outline"
@@ -504,7 +509,7 @@ function StatusChip({
         className
       )}
     >
-      {statusChipLabel(status, statusName)}
+      {statusDisplayLabel(status, locale, statusName)}
     </Badge>
   );
 }
@@ -539,7 +544,16 @@ function TimelineRow({
   onDeleteInternalNote?: (attachmentId: number) => void;
   deletingAttachmentId?: number | null;
 }) {
+  const t = useT();
   const side = item.side || "unknown";
+  const sideLabel =
+    side === "support"
+      ? t("tickets.sideSupport")
+      : side === "customer"
+        ? t("tickets.sideCustomer")
+        : side === "system"
+          ? t("tickets.sideSystem")
+          : t("tickets.sideUnknown");
 
   if (item.kind === "change") {
     return (
@@ -604,7 +618,7 @@ function TimelineRow({
               sideChipClass(side)
             )}
           >
-            {timelineSideLabel(side)}
+            {sideLabel}
           </span>
           <span>
             {formatTimelineAt(item.at)} · {item.label}
@@ -618,11 +632,11 @@ function TimelineRow({
               variant="ghost"
               className="h-6 gap-1 px-1.5 text-[0.625rem] text-muted-foreground hover:text-destructive"
               disabled={deleting}
-              title="Internen Kommentar löschen"
+              title={t("tickets.deleteInternalTitle")}
               onClick={() => onDeleteInternalNote(deletableId)}
             >
               <Trash2 className="size-3" />
-              {deleting ? "Lösche…" : "Löschen"}
+              {deleting ? t("common.deleting") : t("common.delete")}
             </Button>
           ) : null}
         </p>
@@ -650,15 +664,17 @@ function TimelineRow({
           {isAttachmentOnly && hasAttachments ? (
             <p className="text-[0.6875rem] text-muted-foreground">
               {attachments.length === 1
-                ? "Anhang aus E-Mail / Ticket"
-                : `${attachments.length} Anhänge aus E-Mail / Ticket`}
+                ? t("tickets.attachmentFromMail")
+                : t("tickets.attachmentsFromMail", {
+                    count: attachments.length,
+                  })}
             </p>
           ) : null}
           {hasAttachments ? (
             <TimelineAttachments attachments={attachments} />
           ) : null}
           {!showBody && !hasAttachments ? (
-            <span className="text-muted-foreground">(kein Text)</span>
+            <span className="text-muted-foreground">{t("tickets.noText")}</span>
           ) : null}
         </div>
       </div>
@@ -666,17 +682,22 @@ function TimelineRow({
   );
 }
 
-function copyArtifactCode(code: string, title: string) {
+function copyArtifactCode(
+  code: string,
+  title: string,
+  copied: string,
+  failed: string
+) {
   void navigator.clipboard.writeText(code).then(
     () =>
       showActionFeedback({
-        headline: "Skript kopiert",
+        headline: copied,
         detail: title,
         tone: "success",
       }),
     () =>
       showActionFeedback({
-        headline: "Kopieren fehlgeschlagen",
+        headline: failed,
         tone: "error",
       })
   );
@@ -689,6 +710,7 @@ function SolutionArtifactCard({
   artifact: MariSolutionArtifact;
   dialectHint?: string;
 }) {
+  const t = useT();
   const dialect = dialectHint || artifactKindLabel(artifact.kind);
   const unpairedSql =
     !dialectHint &&
@@ -709,10 +731,17 @@ function SolutionArtifactCard({
           type="button"
           size="sm"
           variant="secondary"
-          onClick={() => copyArtifactCode(artifact.code, artifact.title)}
+          onClick={() =>
+            copyArtifactCode(
+              artifact.code,
+              artifact.title,
+              t("tickets.scriptCopied"),
+              t("tickets.copyFailed")
+            )
+          }
         >
           <Copy className="size-3.5" />
-          Kopieren
+          {t("common.copy")}
         </Button>
       </div>
       {artifact.note ? (
@@ -722,7 +751,7 @@ function SolutionArtifactCard({
       ) : null}
       {unpairedSql ? (
         <p className="px-3 pb-2 text-[0.6875rem] text-amber-800 dark:text-amber-200">
-          Gegenstück fehlt — HANA und SQL Server sollten beide da sein.
+          {t("tickets.sqlPairMissing")}
         </p>
       ) : null}
       <pre className="max-h-[28rem] overflow-auto whitespace-pre-wrap border-t border-foreground/5 bg-muted/40 p-3 font-mono text-[0.6875rem] leading-snug">
@@ -761,17 +790,16 @@ function TicketReviewToggle({
   onToggle: () => void;
   compact?: boolean;
 }) {
+  const t = useT();
   return (
     <Button
       type="button"
       variant="outline"
       size="sm"
       aria-pressed={active}
-      aria-label={active ? "Review aus" : "Ticket Review"}
+      aria-label={active ? t("tickets.reviewOff") : t("tickets.reviewOn")}
       title={
-        active
-          ? "Review aus — Analyse und Stundenbuchung wieder anzeigen"
-          : "Ticket Review — KI-Analyse und Stundenbuchung ausblenden"
+        active ? t("tickets.reviewOffTitle") : t("tickets.reviewOnTitle")
       }
       onClick={onToggle}
       className={cn(
@@ -785,12 +813,14 @@ function TicketReviewToggle({
       )}
     >
       <EyeOff className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-      {active ? "Review läuft" : "Ticket Review"}
+      {active ? t("tickets.reviewRunning") : t("tickets.reviewOn")}
     </Button>
   );
 }
 
 export function MaringoWorkspaceClient() {
+  const t = useT();
+  const { locale } = useLocale();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [workspaceTab, setWorkspaceTab] = useState<
@@ -1158,7 +1188,7 @@ export function MaringoWorkspaceClient() {
         }
         setConfigured(true);
         setPasswordUnreadable(false);
-        if (!res.ok) throw new Error(data.error || "Liste fehlgeschlagen");
+        if (!res.ok) throw new Error(data.error || t("tickets.listFailed"));
         setTickets(Array.isArray(data.tickets) ? data.tickets : []);
         applyStamps(data.calendarStamps);
         if (typeof data.defaultHandledBy === "string" && data.defaultHandledBy) {
@@ -1189,7 +1219,7 @@ export function MaringoWorkspaceClient() {
         }
         setConfigured(true);
         setPasswordUnreadable(false);
-        if (!res.ok) throw new Error(data.error || "Liste fehlgeschlagen");
+        if (!res.ok) throw new Error(data.error || t("tickets.listFailed"));
         setTickets(Array.isArray(data.tickets) ? data.tickets : []);
         applyStamps(data.calendarStamps);
         if (typeof data.defaultHandledBy === "string" && data.defaultHandledBy) {
@@ -1213,7 +1243,7 @@ export function MaringoWorkspaceClient() {
       }
       setConfigured(true);
       setPasswordUnreadable(false);
-      if (!res.ok) throw new Error(data.error || "Liste fehlgeschlagen");
+      if (!res.ok) throw new Error(data.error || t("tickets.listFailed"));
       setTickets(Array.isArray(data.tickets) ? data.tickets : []);
       applyStamps(data.calendarStamps);
       if (typeof data.defaultHandledBy === "string" && data.defaultHandledBy) {
@@ -1261,7 +1291,7 @@ export function MaringoWorkspaceClient() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(
-          typeof data.error === "string" ? data.error : "Ticket-Suche fehlgeschlagen"
+          typeof data.error === "string" ? data.error : t("tickets.searchFailed")
         );
       }
       const list: unknown[] = Array.isArray(data.tickets) ? data.tickets : [];
@@ -1337,7 +1367,7 @@ export function MaringoWorkspaceClient() {
     try {
       const res = await fetch(`/api/maringo/tickets/${id}`);
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Detail fehlgeschlagen");
+      if (!res.ok) throw new Error(data.error || t("tickets.detailFailed"));
       const ticket = data.ticket as MariTicketDetail;
       setDetail(ticket);
       setTicketCalendarStamp(
@@ -1411,7 +1441,7 @@ export function MaringoWorkspaceClient() {
         `/api/maringo/timekeeping/by-ticket?issueId=${id}`
       );
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Ticket-Buchungen laden fehlgeschlagen");
+      if (!res.ok) throw new Error(data.error || t("tickets.loadTicketBookFailed"));
       setTicketTimeLines((data.lines || []) as MariTimeLine[]);
     } catch {
       setTicketTimeLines([]);
@@ -1858,7 +1888,7 @@ export function MaringoWorkspaceClient() {
       const res = await fetch(`/api/maringo/tickets/${s.issueId}`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || "Ticket für Buchung laden fehlgeschlagen");
+        throw new Error(data.error || t("tickets.loadTicketForBookFailed"));
       }
       const ticket = data.ticket as MariTicketDetail | undefined;
       setPendingStampBook(s);
@@ -1971,7 +2001,7 @@ export function MaringoWorkspaceClient() {
       }),
     });
     const json = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(json.error || "Speichern fehlgeschlagen");
+    if (!res.ok) throw new Error(json.error || t("common.saveFailed"));
     await loadSavedViews();
   }
 
@@ -2005,7 +2035,7 @@ export function MaringoWorkspaceClient() {
         body: JSON.stringify({ includeImages, attachmentIds, products }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Analyse fehlgeschlagen");
+      if (!res.ok) throw new Error(data.error || t("tickets.analyzeFailed"));
       setAnalysis(data.analysis as MariTicketAnalysis);
       setAdoptedTodoKeys({});
       setImagesAnalyzed(Number(data.imagesAnalyzed) || 0);
@@ -2064,7 +2094,7 @@ export function MaringoWorkspaceClient() {
       );
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(json.error || "To Do anlegen fehlgeschlagen");
+        throw new Error(json.error || t("tickets.createTodoFailed"));
       }
       setAdoptedTodoKeys((prev) => ({ ...prev, [key]: true }));
       showActionFeedback({
@@ -2307,7 +2337,7 @@ export function MaringoWorkspaceClient() {
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || "Löschen fehlgeschlagen");
+        throw new Error(data.error || t("tickets.deleteFailed"));
       }
       if (data.ticket) {
         setDetail(data.ticket as MariTicketDetail);
@@ -2404,7 +2434,7 @@ export function MaringoWorkspaceClient() {
         body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Änderung fehlgeschlagen");
+      if (!res.ok) throw new Error(data.error || t("tickets.patchFailed"));
       setDetail(data.ticket as MariTicketDetail);
       await loadList();
       return true;
@@ -2476,7 +2506,7 @@ export function MaringoWorkspaceClient() {
       });
       const data = await res.json().catch(() => ({}));
       if (res.status === 400 || res.status === 503) {
-        throw new Error(data.error || "Änderung fehlgeschlagen");
+        throw new Error(data.error || t("tickets.patchFailed"));
       }
       const succeeded = Array.isArray(data.succeeded)
         ? (data.succeeded as number[])
@@ -2485,7 +2515,7 @@ export function MaringoWorkspaceClient() {
         ? (data.failed as { issueId: number; error: string }[])
         : [];
       if (succeeded.length === 0 && failed.length === 0 && !res.ok) {
-        throw new Error(data.error || "Änderung fehlgeschlagen");
+        throw new Error(data.error || t("tickets.patchFailed"));
       }
 
       if (
@@ -2604,7 +2634,7 @@ export function MaringoWorkspaceClient() {
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Änderung fehlgeschlagen");
+      if (!res.ok) throw new Error(data.error || t("tickets.patchFailed"));
       setDetail(data.ticket as MariTicketDetail);
       await loadList();
     } finally {
