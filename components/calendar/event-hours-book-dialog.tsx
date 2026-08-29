@@ -33,7 +33,7 @@ export type HoursBookableEvent = {
 };
 
 const HOURS_HINT =
-  "Vorlage aus der Termindauer: Geleistet und Verrechenbar = Dauer. Beide unabhängig anpassbar — der Outlook-Termin bleibt unverändert.";
+  "Vorlage aus der Termindauer: Geleistet und Verrechenbar = Dauer. Geleistet füllt Verrechenbar mit, bis Sie Verrechenbar ändern — der Outlook-Termin bleibt unverändert.";
 
 export function EventHoursBookDialog({
   event,

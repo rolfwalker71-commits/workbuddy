@@ -5,7 +5,9 @@ import {
   bagelHoursAriaLabel,
   isValidBookHours,
   parseBookHours,
+  timeBookFollowBillableRaw,
   timeBookHoursFromDefaults,
+  timeBookInitialBillableDirty,
   timeBookPostHours,
 } from "./time-book-hours.ts";
 
@@ -42,6 +44,23 @@ test("changing one posted field does not force the other", () => {
     hours: 1.25,
     hoursBillable: 1.5,
   });
+});
+
+test("billableDirty starts false when Geleistet and Verrechenbar match", () => {
+  assert.equal(
+    timeBookInitialBillableDirty(timeBookHoursFromDefaults({ hours: 1.5 })),
+    false
+  );
+  assert.equal(
+    timeBookInitialBillableDirty({ hours: 1.5, hoursBillable: 0 }),
+    true
+  );
+});
+
+test("Geleistet copies into Verrechenbar until billableDirty", () => {
+  assert.equal(timeBookFollowBillableRaw("2", "1.5", false), "2");
+  assert.equal(timeBookFollowBillableRaw("2", "0", true), "0");
+  assert.equal(timeBookFollowBillableRaw("1,", "1.5", false), "1,");
 });
 
 test("parseBookHours and isValidBookHours are independent 0–24", () => {

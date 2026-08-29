@@ -1,6 +1,7 @@
 /**
  * Geleistet (MARI Stunden / `hours`) and Verrechenbar (MARI Fakt. / `hoursBillable`)
- * are independent 0–24. Defaults match; editing one must not change the other.
+ * are independent 0–24 on POST (no cap). Form UX: Verrechenbar follows Geleistet
+ * until the user edits Verrechenbar in this session (`billableDirty`).
  */
 
 export function roundBookHours(n: number): number {
@@ -42,6 +43,30 @@ export function timeBookPostHours(
     hours: roundBookHours(hours),
     hoursBillable: roundBookHours(hoursBillable),
   };
+}
+
+/**
+ * Session follow flag: Verrechenbar tracks Geleistet until the user edits it.
+ * Opens following when both defaults match (new book / same split).
+ * Edit with an existing split starts dirty so Geleistet does not overwrite billed.
+ */
+export function timeBookInitialBillableDirty(hours: {
+  hours: number;
+  hoursBillable: number;
+}): boolean {
+  return hours.hours !== hours.hoursBillable;
+}
+
+/**
+ * After a Geleistet change: copy the raw value into Verrechenbar while
+ * `billableDirty` is false. Changing Verrechenbar never writes Geleistet.
+ */
+export function timeBookFollowBillableRaw(
+  workedRaw: string,
+  currentBillableRaw: string,
+  billableDirty: boolean
+): string {
+  return billableDirty ? currentBillableRaw : workedRaw;
 }
 
 export function formatBookHours(n: number): string {

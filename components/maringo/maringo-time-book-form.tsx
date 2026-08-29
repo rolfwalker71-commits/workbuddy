@@ -22,7 +22,9 @@ import { MariKeyPairPicker } from "@/components/maringo/mari-key-pair-picker";
 import {
   isValidBookHours,
   parseBookHours,
+  timeBookFollowBillableRaw,
   timeBookHoursFromDefaults,
+  timeBookInitialBillableDirty,
   timeBookPostHours,
 } from "@/lib/mari/time-book-hours";
 
@@ -139,6 +141,10 @@ export function MaringoTimeBookForm({
   const [hoursRaw, setHoursRaw] = useState(String(initialHours.hours));
   const [hoursBillableRaw, setHoursBillableRaw] = useState(
     String(initialHours.hoursBillable)
+  );
+  /** False while Verrechenbar still follows Geleistet in this form session. */
+  const [billableDirty, setBillableDirty] = useState(
+    timeBookInitialBillableDirty(initialHours)
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -364,6 +370,7 @@ export function MaringoTimeBookForm({
       });
       setHoursRaw(String(split.hours));
       setHoursBillableRaw(String(split.hoursBillable));
+      setBillableDirty(timeBookInitialBillableDirty(split));
     }
     setProjectOpen(false);
   }
@@ -703,9 +710,15 @@ export function MaringoTimeBookForm({
               inputMode="decimal"
               className="tabular-nums"
               value={hoursRaw}
-              onChange={(e) => setHoursRaw(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value;
+                setHoursRaw(next);
+                setHoursBillableRaw(
+                  timeBookFollowBillableRaw(next, hoursBillableRaw, billableDirty)
+                );
+              }}
               placeholder="0.25"
-              title="Arbeitszeit (MARI Stunden) — unabhängig von Verrechenbar"
+              title="Arbeitszeit (MARI Stunden). Solange Verrechenbar nicht geändert wurde, wird der Wert übernommen."
               aria-describedby="tk-hours-hint"
             />
           </div>
@@ -718,16 +731,19 @@ export function MaringoTimeBookForm({
               inputMode="decimal"
               className="tabular-nums"
               value={hoursBillableRaw}
-              onChange={(e) => setHoursBillableRaw(e.target.value)}
+              onChange={(e) => {
+                setBillableDirty(true);
+                setHoursBillableRaw(e.target.value);
+              }}
               placeholder="0.25"
-              title="Fakturiert (MARI Fakt.) — unabhängig von Geleistet"
+              title="Fakturiert (MARI Fakt.). Ändern stoppt die Übernahme aus Geleistet — Geleistet bleibt unverändert."
               aria-describedby="tk-hours-hint"
             />
           </div>
         </div>
         <p id="tk-hours-hint" className="text-xs leading-snug text-muted-foreground">
           {hoursHint ||
-            "Vorlage gleich — Geleistet und Verrechenbar danach unabhängig ändern."}
+            "Geleistet füllt Verrechenbar mit, bis Sie Verrechenbar selbst ändern."}
         </p>
       </div>
 
