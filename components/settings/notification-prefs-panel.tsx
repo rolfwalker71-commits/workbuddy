@@ -516,13 +516,14 @@ export function NotificationPrefsPanel() {
       {(["microsoft", "google", "maringo", "app"] as const).map((domain) => {
         const items = byDomain[domain] || [];
         if (!items.length) return null;
+        const domainKey = DOMAIN_KEY[domain];
         return (
           <div
             key={domain}
             className="space-y-2 rounded-xl border border-border/60 p-3"
           >
             <p className="text-sm font-medium">
-              {DOMAIN_KEY[domain] ? t(DOMAIN_KEY[domain]) : "WorkBuddy"}
+              {domainKey ? t(domainKey) : "WorkBuddy"}
             </p>
             <div className="space-y-2">
               {items.map((item) => (
