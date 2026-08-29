@@ -19,6 +19,12 @@ import {
 /** Wie in patchTicketFields — Fallback wenn ProductID fehlt. */
 export const DEFAULT_SUPPORT_PRODUCT_ID = 100001;
 
+/**
+ * SAP-Firmen-ID (B1-Schema / MPSysConnections), nicht der Kunde.
+ * clsImportSupportIssue.Company — Swagger: «Standard=1», Pflichtfeld beim POST.
+ */
+export const DEFAULT_SUPPORT_COMPANY_ID = 1;
+
 export type MariIssueCreateInput = {
   briefDescription: string;
   requestText: string;
@@ -65,8 +71,8 @@ function toMariRequestHtml(plain: string): string {
 }
 
 /**
- * REST-Felder analog PATCH / GET SupportIssue
- * (Project, BusinessPartnerCode, ContractPosition, BriefDescription, …).
+ * REST-Felder analog GET/POST clsImportSupportIssue
+ * (Company, Project, BusinessPartnerCode, ContractPosition, BriefDescription, …).
  */
 export function buildMariIssueCreateBody(
   input: MariIssueCreateInput,
@@ -91,6 +97,7 @@ export function buildMariIssueCreateBody(
     BriefDescription: subject,
     RequestText: requestPlain ? toMariRequestHtml(requestPlain) : subject,
     ContactPerson: contact || null,
+    Company: DEFAULT_SUPPORT_COMPANY_ID,
     Project: pn,
     Status: NEW_STATUS_ID,
     ProductID: DEFAULT_SUPPORT_PRODUCT_ID,

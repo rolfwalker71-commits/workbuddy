@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildMariIssueCreateBody,
+  DEFAULT_SUPPORT_COMPANY_ID,
   DEFAULT_SUPPORT_PRODUCT_ID,
   joinMariContactPerson,
 } from "@/lib/mari/create-issue";
@@ -62,6 +63,7 @@ test("buildMariIssueCreateBody uses PATCH/GET field names", () => {
   );
   assert.equal(body.BriefDescription, "Drucker klemmt");
   assert.equal(body.Project, "P200000");
+  assert.equal(body.Company, DEFAULT_SUPPORT_COMPANY_ID);
   assert.equal(body.BusinessPartnerCode, "C1000");
   assert.equal(body.ContractID, 44);
   assert.equal(body.ContactPerson, "Anna; anna@firma.ch");
