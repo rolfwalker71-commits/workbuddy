@@ -465,9 +465,54 @@ type GraphChatPage = {
 
 const CHAT_PAGE_SIZE = 50;
 const CHAT_MAX_PAGES = 20;
+const CHAT_WALK_DEADLINE_MS = 12000;
+const SELF_CHAT_CACHE_MS = 30 * 60 * 1000;
 
-function graphNextLink(next: string | null | undefined): string | null {
-  return next?.trim() || null;
+const selfChatIdCache = new Map<number, { chatId: string; at: number }>();
+
+export type ChatWalkOptions = {
+  maxPages?: number;
+  deadlineMs?: number;
+};
+
+export function chatWalkPageLimit(options?: ChatWalkOptions): number {
+  const raw = options?.maxPages ?? CHAT_MAX_PAGES;
+  return Math.min(Math.max(Math.trunc(raw), 1), CHAT_MAX_PAGES);
+}
+
+export function shouldContinueChatWalk(
+  nextUrl: string | null | undefined,
+  pagesDone: number,
+  options?: ChatWalkOptions & { startedAt?: number }
+): string | null {
+  const url = nextUrl?.trim() || null;
+  if (!url) return null;
+  if (pagesDone >= chatWalkPageLimit(options)) return null;
+  const deadlineMs = options?.deadlineMs ?? CHAT_WALK_DEADLINE_MS;
+  const startedAt = options?.startedAt ?? 0;
+  if (startedAt > 0 && Date.now() - startedAt >= deadlineMs) return null;
+  return url;
+}
+
+export function cachedSelfChatId(userId: number): string | null {
+  const row = selfChatIdCache.get(userId);
+  if (!row) return null;
+  if (Date.now() - row.at > SELF_CHAT_CACHE_MS) {
+    selfChatIdCache.delete(userId);
+    return null;
+  }
+  return row.chatId;
+}
+
+export function rememberSelfChatId(userId: number, chatId: string): void {
+  const id = chatId.trim();
+  if (!id) return;
+  selfChatIdCache.set(userId, { chatId: id, at: Date.now() });
+}
+
+export function clearSelfChatIdCache(userId?: number): void {
+  if (userId == null) selfChatIdCache.clear();
+  else selfChatIdCache.delete(userId);
 }
 
 function chatsListPath(
@@ -509,21 +554,26 @@ function meEmails(me: MicrosoftMe | null): string[] {
 
 async function pagedFindChat(
   userId: number,
-  match: (chat: GraphChat, me: MicrosoftMe | null) => boolean
+  match: (chat: GraphChat, me: MicrosoftMe | null) => boolean,
+  options?: ChatWalkOptions
 ): Promise<string | null> {
   const me = await resolveChatMe(userId);
+  const startedAt = Date.now();
   let lastError: MicrosoftGraphError | null = null;
   for (const kind of CHAT_LIST_KINDS) {
     try {
       let url: string | null = chatsListPath(kind);
       let pages = 0;
-      while (url && pages < CHAT_MAX_PAGES) {
+      while (url) {
         pages += 1;
         const page = await graphJson<GraphChatPage>(userId, url);
         for (const chat of page.value || []) {
           if (chat.id && match(chat, me)) return chat.id;
         }
-        url = graphNextLink(page["@odata.nextLink"]);
+        url = shouldContinueChatWalk(page["@odata.nextLink"], pages, {
+          ...options,
+          startedAt,
+        });
       }
       return null;
     } catch (error) {
@@ -537,21 +587,26 @@ async function pagedFindChat(
 }
 
 async function listGraphChatsWithMembers(
-  userId: number
+  userId: number,
+  options?: ChatWalkOptions
 ): Promise<{ chats: GraphChat[]; myId: string | null; me: MicrosoftMe | null }> {
   const me = await resolveChatMe(userId);
   const myId = me?.id?.trim() || null;
+  const startedAt = Date.now();
   let lastError: MicrosoftGraphError | null = null;
   for (const kind of CHAT_LIST_KINDS) {
     try {
       const chats: GraphChat[] = [];
       let url: string | null = chatsListPath(kind);
       let pages = 0;
-      while (url && pages < CHAT_MAX_PAGES) {
+      while (url) {
         pages += 1;
         const page = await graphJson<GraphChatPage>(userId, url);
         chats.push(...(page.value || []));
-        url = graphNextLink(page["@odata.nextLink"]);
+        url = shouldContinueChatWalk(page["@odata.nextLink"], pages, {
+          ...options,
+          startedAt,
+        });
       }
       return { chats, myId, me };
     } catch (error) {
@@ -565,10 +620,11 @@ async function listGraphChatsWithMembers(
 
 /** 1:1 chat partners we can resolve without User.Read.All. */
 export async function listOneOnOneChatPeers(
-  userId: number
+  userId: number,
+  options?: ChatWalkOptions
 ): Promise<TeamsChatPeer[]> {
   try {
-    const { chats, myId, me } = await listGraphChatsWithMembers(userId);
+    const { chats, myId, me } = await listGraphChatsWithMembers(userId, options);
     const emails = meEmails(me);
     const out: TeamsChatPeer[] = [];
     const seen = new Set<string>();
@@ -651,13 +707,71 @@ async function postCreateChat(
   }
 }
 
+function selfChatTopicListPath(): string {
+  const qs = new URLSearchParams({
+    $top: String(CHAT_PAGE_SIZE),
+    $select: "id,topic,chatType",
+    $filter: "chatType eq 'oneOnOne'",
+  });
+  return `/me/chats?${qs}`;
+}
+
+/** First pages of 1:1 chats by topic — no member expand, no full mailbox crawl. */
+async function findSelfChatByTopic(
+  userId: number,
+  me: MicrosoftMe | null
+): Promise<string | null> {
+  let url: string | null = selfChatTopicListPath();
+  let pages = 0;
+  const startedAt = Date.now();
+  while (url) {
+    pages += 1;
+    const page = await graphJson<GraphChatPage>(userId, url);
+    for (const chat of page.value || []) {
+      if (
+        chat.id &&
+        chatLooksLikeSelfChat(chat, me?.id?.trim() || null, meEmails(me))
+      ) {
+        return chat.id;
+      }
+    }
+    url = shouldContinueChatWalk(page["@odata.nextLink"], pages, {
+      maxPages: 2,
+      deadlineMs: 8000,
+      startedAt,
+    });
+  }
+  return null;
+}
+
 export async function findExistingSelfChat(
   userId: number
 ): Promise<string | null> {
+  const cached = cachedSelfChatId(userId);
+  if (cached) return cached;
   try {
-    return await pagedFindChat(userId, (chat, me) =>
-      chatLooksLikeSelfChat(chat, me?.id?.trim() || null, meEmails(me))
+    const me = await resolveChatMe(userId);
+    try {
+      const byTopic = await findSelfChatByTopic(userId, me);
+      if (byTopic) {
+        rememberSelfChatId(userId, byTopic);
+        return byTopic;
+      }
+    } catch (error) {
+      if (!(error instanceof MicrosoftGraphError)) throw error;
+    }
+    const found = await pagedFindChat(
+      userId,
+      (chat, currentMe) =>
+        chatLooksLikeSelfChat(
+          chat,
+          currentMe?.id?.trim() || null,
+          meEmails(currentMe)
+        ),
+      { maxPages: 6, deadlineMs: CHAT_WALK_DEADLINE_MS }
     );
+    if (found) rememberSelfChatId(userId, found);
+    return found;
   } catch (error) {
     if (error instanceof MicrosoftGraphError && error.status === 403) {
       return null;
@@ -683,7 +797,9 @@ export async function createSelfChat(userId: number): Promise<string> {
     );
   }
   try {
-    return await postCreateChat(userId, [memberBinding(meId)]);
+    const created = await postCreateChat(userId, [memberBinding(meId)]);
+    rememberSelfChatId(userId, created);
+    return created;
   } catch (error) {
     const again = await findExistingSelfChat(userId);
     if (again) return again;

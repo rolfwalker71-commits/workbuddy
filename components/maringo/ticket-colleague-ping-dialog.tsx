@@ -48,12 +48,48 @@ export function TicketColleaguePingDialog({
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
+    const loadCtrl = new AbortController();
+    const loadTimer = window.setTimeout(() => loadCtrl.abort(), 15000);
     setLoading(true);
     setError(null);
     setNeedsReconnect(false);
     setSelectedKey(null);
     setQuery("");
-    void fetch("/api/microsoft/colleagues")
+    setColleagues([]);
+
+    function applyPayload(
+      json: {
+        error?: string;
+        colleagues?: Colleague[];
+        hasChatCreateScope?: boolean;
+        hasChatMessageSendScope?: boolean;
+      },
+      ok: boolean,
+      status: number
+    ) {
+      const next = json.colleagues || [];
+      if (next.length) setColleagues(next);
+      if (
+        json.hasChatCreateScope === false ||
+        json.hasChatMessageSendScope === false
+      ) {
+        setNeedsReconnect(true);
+      }
+      if (!ok) {
+        setNeedsReconnect(status === 400 || status === 403);
+        throw new Error(json.error || "Kollegen laden fehlgeschlagen.");
+      }
+    }
+
+    function loadErrorMessage(err: unknown): string {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return "Kollegen laden hat zu lange gedauert. Bitte Microsoft 365 prüfen oder später erneut versuchen.";
+      }
+      if (err instanceof Error && err.message.trim()) return err.message;
+      return "Kollegen laden fehlgeschlagen.";
+    }
+
+    void fetch("/api/microsoft/colleagues", { signal: loadCtrl.signal })
       .then(async (res) => {
         const json = (await res.json()) as {
           error?: string;
@@ -62,25 +98,39 @@ export function TicketColleaguePingDialog({
           hasChatMessageSendScope?: boolean;
         };
         if (cancelled) return;
-        if (!res.ok) {
-          setNeedsReconnect(res.status === 400 || res.status === 403);
-          throw new Error(json.error || "Kollegen laden fehlgeschlagen");
-        }
-        setColleagues(json.colleagues || []);
-        if (!json.hasChatCreateScope || !json.hasChatMessageSendScope) {
-          setNeedsReconnect(true);
-        }
+        applyPayload(json, res.ok, res.status);
       })
       .catch((err: unknown) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Laden fehlgeschlagen");
-        }
+        if (!cancelled) setError(loadErrorMessage(err));
       })
       .finally(() => {
+        window.clearTimeout(loadTimer);
         if (!cancelled) setLoading(false);
+        if (cancelled || loadCtrl.signal.aborted) return;
+        void fetch("/api/microsoft/colleagues?enrich=1")
+          .then(async (res) => {
+            const json = (await res.json()) as {
+              colleagues?: Colleague[];
+              hasChatCreateScope?: boolean;
+              hasChatMessageSendScope?: boolean;
+            };
+            if (cancelled || !res.ok) return;
+            if (json.colleagues?.length) setColleagues(json.colleagues);
+            if (
+              json.hasChatCreateScope === false ||
+              json.hasChatMessageSendScope === false
+            ) {
+              setNeedsReconnect(true);
+            }
+          })
+          .catch(() => {
+            /* local list is enough to pick and send */
+          });
       });
     return () => {
       cancelled = true;
+      window.clearTimeout(loadTimer);
+      loadCtrl.abort();
     };
   }, [open]);
 
@@ -160,13 +210,17 @@ export function TicketColleaguePingDialog({
         </label>
         <Input
           id="ticket-ping-colleague-q"
+          name="colleague-search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Name oder E-Mail"
           autoComplete="off"
+          data-1p-ignore="true"
+          data-lpignore="true"
+          data-bwignore="true"
         />
 
-        {loading ? (
+        {loading && colleagues.length === 0 ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2
               className="size-4 animate-spin"

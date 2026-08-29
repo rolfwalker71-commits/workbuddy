@@ -1,12 +1,11 @@
+import { withTimeout } from "@/lib/dashboard/with-timeout";
 import {
   isMicrosoftConnected,
   readMicrosoftUserTokens,
-  saveMicrosoftUserTokens,
 } from "@/lib/microsoft/oauth";
-import { getMicrosoftMe } from "@/lib/microsoft/graph";
 import {
-  findExistingSelfChat,
   listOneOnOneChatPeers,
+  type TeamsChatPeer,
 } from "@/lib/microsoft/teams-chats";
 import { getAppUserById, listAppUsers } from "@/lib/users/queries";
 
@@ -20,11 +19,16 @@ export type TicketPingColleague = {
   chatId: string | null;
 };
 
+/** Chat-peer enrichment only — never block the picker on a full /me/chats crawl. */
+export const TICKET_PING_PEER_MAX_PAGES = 2;
+export const TICKET_PING_PEER_TIMEOUT_MS = 8000;
+export const TICKET_PING_LIST_TIMEOUT_MS = 12000;
+
 function normEmail(raw: string | null | undefined): string {
   return (raw || "").trim().toLowerCase();
 }
 
-function colleagueKey(input: {
+export function colleagueKey(input: {
   userId?: number | null;
   microsoftId?: string | null;
   email?: string | null;
@@ -37,36 +41,90 @@ function colleagueKey(input: {
   return "";
 }
 
-async function backfillMicrosoftId(userId: number): Promise<string | null> {
-  const stored = readMicrosoftUserTokens(userId);
-  if (!stored?.refreshToken) return null;
-  if (stored.microsoftId?.trim()) return stored.microsoftId.trim();
-  try {
-    const me = await getMicrosoftMe(userId);
-    const id = me.id?.trim() || null;
-    if (id) {
-      saveMicrosoftUserTokens(userId, { ...stored, microsoftId: id });
-    }
-    return id;
-  } catch {
-    return stored.microsoftId?.trim() || null;
-  }
+function peerAsColleague(peer: TeamsChatPeer): TicketPingColleague | null {
+  const key = colleagueKey({
+    microsoftId: peer.microsoftId,
+    email: peer.email,
+  });
+  if (!key) return null;
+  return {
+    key,
+    source: "chat",
+    userId: null,
+    displayName: peer.displayName?.trim() || peer.email || "Kollege",
+    email: peer.email,
+    microsoftId: peer.microsoftId,
+    chatId: peer.chatId,
+  };
 }
 
-/** WorkBuddy users who connected Microsoft — oid and/or email, no User.Read.All. */
-export async function listWorkbuddyMicrosoftColleagues(
+/** Merge Ich + WorkBuddy roster + optional 1:1 peers. Local rows always win. */
+export function mergeTicketPingColleagues(
+  self: TicketPingColleague | null,
+  workbuddy: TicketPingColleague[],
+  peers: TicketPingColleague[] = []
+): TicketPingColleague[] {
+  const seen = new Set<string>();
+  const out: TicketPingColleague[] = [];
+
+  function remember(row: TicketPingColleague) {
+    const mailKey = colleagueKey({
+      microsoftId: row.microsoftId,
+      email: row.email,
+    });
+    if (mailKey) seen.add(mailKey);
+    if (row.userId != null) seen.add(`u:${row.userId}`);
+    if (row.key) seen.add(row.key);
+  }
+
+  if (self) {
+    remember(self);
+    out.push(self);
+  }
+  for (const row of workbuddy) {
+    remember(row);
+    out.push(row);
+  }
+  for (const row of peers) {
+    if (!row.key || seen.has(row.key)) continue;
+    const mailKey = colleagueKey({
+      microsoftId: row.microsoftId,
+      email: row.email,
+    });
+    if (mailKey && seen.has(mailKey)) continue;
+    if (
+      row.microsoftId &&
+      workbuddy.some(
+        (w) =>
+          w.microsoftId &&
+          w.microsoftId.toLowerCase() === row.microsoftId!.toLowerCase()
+      )
+    ) {
+      continue;
+    }
+    if (
+      row.email &&
+      workbuddy.some((w) => normEmail(w.email) === normEmail(row.email))
+    ) {
+      continue;
+    }
+    remember(row);
+    out.push(row);
+  }
+  return out;
+}
+
+/** WorkBuddy users who connected Microsoft — stored oid/email only, no Graph. */
+export function listWorkbuddyMicrosoftColleagues(
   actorUserId: number
-): Promise<TicketPingColleague[]> {
+): TicketPingColleague[] {
   const out: TicketPingColleague[] = [];
   for (const user of listAppUsers()) {
     if (!user.active || user.id === actorUserId) continue;
     if (!isMicrosoftConnected(user.id)) continue;
     const tokens = readMicrosoftUserTokens(user.id);
-    const microsoftId =
-      tokens?.microsoftId?.trim() ||
-      (await backfillMicrosoftId(user.id));
-    const email =
-      tokens?.email?.trim() || user.email?.trim() || null;
+    const microsoftId = tokens?.microsoftId?.trim() || null;
+    const email = tokens?.email?.trim() || user.email?.trim() || null;
     if (!microsoftId && !email) continue;
     out.push({
       key: colleagueKey({ userId: user.id, microsoftId, email }),
@@ -88,23 +146,16 @@ export async function listWorkbuddyMicrosoftColleagues(
   return out;
 }
 
-async function selfAsTestColleague(
+export function selfAsTestColleague(
   actorUserId: number
-): Promise<TicketPingColleague | null> {
+): TicketPingColleague | null {
   const user = getAppUserById(actorUserId);
   if (!user || !user.active) return null;
   if (!isMicrosoftConnected(actorUserId)) return null;
   const tokens = readMicrosoftUserTokens(actorUserId);
-  const microsoftId =
-    tokens?.microsoftId?.trim() || (await backfillMicrosoftId(actorUserId));
+  const microsoftId = tokens?.microsoftId?.trim() || null;
   const email = tokens?.email?.trim() || user.email?.trim() || null;
   if (!microsoftId && !email) return null;
-  let chatId: string | null = null;
-  try {
-    chatId = await findExistingSelfChat(actorUserId);
-  } catch {
-    chatId = null;
-  }
   return {
     key: colleagueKey({ userId: user.id, microsoftId, email }),
     source: "self",
@@ -112,66 +163,49 @@ async function selfAsTestColleague(
     displayName: "Ich (Test)",
     email,
     microsoftId,
-    chatId,
+    chatId: null,
   };
 }
 
-export async function listTicketPingColleagues(
+export function listLocalTicketPingColleagues(
   actorUserId: number
+): TicketPingColleague[] {
+  return mergeTicketPingColleagues(
+    selfAsTestColleague(actorUserId),
+    listWorkbuddyMicrosoftColleagues(actorUserId)
+  );
+}
+
+async function enrichWithChatPeers(
+  actorUserId: number,
+  local: TicketPingColleague[]
 ): Promise<TicketPingColleague[]> {
-  const workbuddy = await listWorkbuddyMicrosoftColleagues(actorUserId);
-  const seen = new Set<string>();
-  const out: TicketPingColleague[] = [];
-  const self = await selfAsTestColleague(actorUserId);
-  if (self) {
-    seen.add(colleagueKey({ microsoftId: self.microsoftId, email: self.email }));
-    if (self.userId != null) seen.add(`u:${self.userId}`);
-    out.push(self);
-  }
-  for (const row of workbuddy) {
-    seen.add(colleagueKey({ microsoftId: row.microsoftId, email: row.email }));
-    if (row.userId != null) seen.add(`u:${row.userId}`);
-    out.push(row);
-  }
-
+  const self = local.find((row) => row.source === "self") ?? null;
+  const workbuddy = local.filter((row) => row.source === "workbuddy");
   try {
-    const peers = await listOneOnOneChatPeers(actorUserId);
-    for (const peer of peers) {
-      const key = colleagueKey({
-        microsoftId: peer.microsoftId,
-        email: peer.email,
-      });
-      if (!key || seen.has(key)) continue;
-      if (
-        peer.microsoftId &&
-        workbuddy.some(
-          (w) =>
-            w.microsoftId &&
-            w.microsoftId.toLowerCase() === peer.microsoftId!.toLowerCase()
-        )
-      ) {
-        continue;
-      }
-      if (
-        peer.email &&
-        workbuddy.some((w) => normEmail(w.email) === normEmail(peer.email))
-      ) {
-        continue;
-      }
-      seen.add(key);
-      out.push({
-        key,
-        source: "chat",
-        userId: null,
-        displayName: peer.displayName?.trim() || peer.email || "Kollege",
-        email: peer.email,
-        microsoftId: peer.microsoftId,
-        chatId: peer.chatId,
-      });
-    }
+    const peers = await withTimeout(
+      listOneOnOneChatPeers(actorUserId, {
+        maxPages: TICKET_PING_PEER_MAX_PAGES,
+        deadlineMs: TICKET_PING_PEER_TIMEOUT_MS,
+      }),
+      TICKET_PING_PEER_TIMEOUT_MS,
+      []
+    );
+    return mergeTicketPingColleagues(
+      self,
+      workbuddy,
+      peers.map(peerAsColleague).filter((row): row is TicketPingColleague => row != null)
+    );
   } catch {
-    /* Chat.Read optional — WorkBuddy roster is enough */
+    return local;
   }
+}
 
-  return out;
+export async function listTicketPingColleagues(
+  actorUserId: number,
+  options?: { enrich?: boolean }
+): Promise<TicketPingColleague[]> {
+  const local = listLocalTicketPingColleagues(actorUserId);
+  if (!options?.enrich) return local;
+  return enrichWithChatPeers(actorUserId, local);
 }

@@ -2,11 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { MicrosoftGraphError } from "./graph.ts";
 import {
+  cachedSelfChatId,
   chatLooksLikeSelfChat,
+  chatWalkPageLimit,
+  clearSelfChatIdCache,
   graphErrorCode,
   isSelfOnlyChat,
   oneOnOneChatMatchesPeer,
+  rememberSelfChatId,
   selfChatTopicMatch,
+  shouldContinueChatWalk,
   targetIsSelfPeer,
   teamsChatUserMessage,
 } from "./teams-chats.ts";
@@ -153,6 +158,40 @@ test("teamsChatUserMessage maps Graph 405/403 without raw JSON", () => {
     "Chat.Create fehlt. Unter Konto Microsoft 365 neu verbinden."
   );
   assert.equal(teamsChatUserMessage(new Error("other"), "Chat.Create"), null);
+});
+
+test("shouldContinueChatWalk stops at the page cap and deadline", () => {
+  assert.equal(chatWalkPageLimit({ maxPages: 2 }), 2);
+  assert.equal(chatWalkPageLimit({ maxPages: 99 }), 20);
+  assert.equal(
+    shouldContinueChatWalk("https://graph.microsoft.com/v1.0/me/chats?$skiptoken=x", 1, {
+      maxPages: 2,
+    }),
+    "https://graph.microsoft.com/v1.0/me/chats?$skiptoken=x"
+  );
+  assert.equal(
+    shouldContinueChatWalk("https://graph.microsoft.com/v1.0/me/chats?$skiptoken=x", 2, {
+      maxPages: 2,
+    }),
+    null
+  );
+  assert.equal(
+    shouldContinueChatWalk("https://graph.microsoft.com/v1.0/me/chats?$skiptoken=x", 1, {
+      maxPages: 20,
+      deadlineMs: 10,
+      startedAt: Date.now() - 50,
+    }),
+    null
+  );
+});
+
+test("self-chat id cache avoids a mailbox crawl on repeat lookups", () => {
+  clearSelfChatIdCache();
+  assert.equal(cachedSelfChatId(9), null);
+  rememberSelfChatId(9, "19:self@thread.v2");
+  assert.equal(cachedSelfChatId(9), "19:self@thread.v2");
+  clearSelfChatIdCache(9);
+  assert.equal(cachedSelfChatId(9), null);
 });
 
 test("teamsChatUserMessage includes Graph status and code on 400", () => {
