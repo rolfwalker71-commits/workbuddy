@@ -13,7 +13,11 @@ import { formatMariProjectLabel } from "@/lib/mari/timekeeping-shared";
 import { TIMEKEEPING_INT_BEMERKUNG_OPTIONS } from "@/lib/mari/timekeeping-udfs";
 import type { MariTimeBookFavorite } from "@/lib/mari/time-book-favorites";
 import { isAllowedCompanyEmail } from "@/lib/auth/allowed-email";
-import type { MariEmailPartnerSuggestion } from "@/lib/mari/customers";
+import {
+  partnerSuggestionChipLabel,
+  partnerSuggestionChipReason,
+  type MariEmailPartnerSuggestion,
+} from "@/lib/mari/customers";
 import { MariKeyPairPicker } from "@/components/maringo/mari-key-pair-picker";
 
 export type TimeBookFormDefaults = {
@@ -382,14 +386,21 @@ export function MaringoTimeBookForm({
 
   function applyPartnerChip(s: MariEmailPartnerSuggestion) {
     setError(null);
+    const fromAttendee = Boolean(s.matchedEmail) || s.source !== "title";
     if (!s.projectNumber) {
-      setHint(`Kunde «${s.name}» aus dem Betreff — Projekt wählen.`);
+      setHint(
+        fromAttendee
+          ? `Kunde «${s.name}» — Ansprechpartner im Termin. Projekt wählen.`
+          : `Kunde «${s.name}» aus dem Betreff — Projekt wählen.`
+      );
       setProjectQuery(s.name);
       setProjectOpen(true);
       return;
     }
     setHint(
-      `Vorschlag «${s.name}» — Projekt prüfen, dann buchen. Stunden und Memo bleiben die Vorlage.`
+      fromAttendee
+        ? `Vorschlag «${s.name}» — Ansprechpartner im Termin. Projekt prüfen, dann buchen. Stunden und Memo bleiben die Vorlage.`
+        : `Vorschlag «${s.name}» — Projekt prüfen, dann buchen. Stunden und Memo bleiben die Vorlage.`
     );
     setProjectNumber(s.projectNumber);
     setProjectLabel(
@@ -639,16 +650,11 @@ export function MaringoTimeBookForm({
           ) : (
             <div className="flex flex-wrap gap-1.5">
               {partnerHits.map((s) => {
-                const label = s.projectNumber
-                  ? `${s.name} · ${s.projectNumber}`
-                  : `${s.name} · ${s.cardCode}`;
-                const why =
-                  s.reason ||
-                  (s.matchedEmail
-                    ? `Teilnehmer ${s.matchedEmail}`
-                    : s.source === "title"
-                      ? "Aus dem Betreff"
-                      : null);
+                const label = partnerSuggestionChipLabel(s);
+                const why = partnerSuggestionChipReason(s);
+                const titleParts = [why, s.contactName, s.matchedEmail].filter(
+                  Boolean
+                );
                 return (
                   <Button
                     key={`${s.cardCode}-${s.projectNumber || "none"}-${s.source}-${s.matchedEmail || ""}`}
@@ -656,7 +662,7 @@ export function MaringoTimeBookForm({
                     variant="secondary"
                     size="sm"
                     className="h-auto max-w-full whitespace-normal rounded-full px-3 py-1.5 text-left text-xs font-medium leading-snug"
-                    title={why || s.contactName || label}
+                    title={titleParts.join(" · ") || label}
                     onClick={() => applyPartnerChip(s)}
                   >
                     <span className="block">{label}</span>

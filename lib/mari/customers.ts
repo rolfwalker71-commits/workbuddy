@@ -490,12 +490,36 @@ function pushSuggestion(
   out.push(row);
 }
 
-/**
- * Geschäftspartner + Projekte zur Absender-E-Mail (OCRD, OCPR, Ticket-Historie).
- * Nur Vorschläge — die UI bestätigt immer.
- */
-function emailChipReason(email: string): string {
-  return `Teilnehmer ${email}`;
+export const ATTENDEE_CONTACT_REASON = "Ansprechpartner im Termin";
+
+export function partnerSuggestionChipLabel(
+  s: Pick<
+    MariEmailPartnerSuggestion,
+    "name" | "cardCode" | "projectNumber" | "contactName" | "matchedEmail"
+  >
+): string {
+  if (s.projectNumber) return `${s.name} · ${s.projectNumber}`;
+  if (s.contactName && s.matchedEmail) {
+    return `${s.contactName} · ${s.matchedEmail}`;
+  }
+  if (s.matchedEmail) return `${s.name} · ${s.matchedEmail}`;
+  return `${s.name} · ${s.cardCode}`;
+}
+
+export function partnerSuggestionChipReason(
+  s: Pick<MariEmailPartnerSuggestion, "reason" | "matchedEmail" | "source">
+): string | null {
+  if (s.reason) return s.reason;
+  if (
+    s.matchedEmail ||
+    s.source === "ocrd" ||
+    s.source === "ocpr" ||
+    s.source === "issue"
+  ) {
+    return ATTENDEE_CONTACT_REASON;
+  }
+  if (s.source === "title") return "Aus dem Betreff";
+  return null;
 }
 
 function pushEmailCustomer(
@@ -510,7 +534,7 @@ function pushEmailCustomer(
     projects: MariProjectHint[];
   }
 ) {
-  const reason = emailChipReason(input.email);
+  if (!isMariCustomerCardCode(input.cardCode)) return;
   const first = input.projects[0];
   pushSuggestion(out, seen, {
     cardCode: input.cardCode,
@@ -521,14 +545,15 @@ function pushEmailCustomer(
     projectLabel: first?.projectLabel ?? null,
     contractId: first?.contractId ?? null,
     matchedEmail: input.email,
-    reason,
+    reason: ATTENDEE_CONTACT_REASON,
   });
 }
 
 /**
- * Geschäftspartner zur Absender-/Teilnehmer-E-Mail (OCRD, OCPR).
- * Kollegen-Domains werden übersprungen. Ticket-Historie nur auf Wunsch
- * (Mail-Import) — nie LIKE auf die ganze ContactPerson für @an-group.one.
+ * Geschäftspartner zur Absender-/Teilnehmer-E-Mail.
+ * Kollegen-Domains werden übersprungen (keine Ticket-LIKE-Explosion).
+ * Reihenfolge: OCPR (Ansprechpartner), OCRD.E_Mail, optional Ticket
+ * ContactPerson mit exakter Mail (Name; email) — nie Domain-LIKE.
  */
 export async function lookupMariPartnersByEmail(
   rawEmail: string,
@@ -540,31 +565,6 @@ export async function lookupMariPartnersByEmail(
 
   const seen = new Set<string>();
   const out: MariEmailPartnerSuggestion[] = [];
-
-  try {
-    const fromOcrd = await lookupCardCodesFromOcrd(email);
-    for (const c of fromOcrd) {
-      let projects: MariProjectHint[] = [];
-      try {
-        projects = await listProjectsForCardCode(c.cardCode, 1);
-      } catch {
-        projects = [];
-      }
-      pushEmailCustomer(out, seen, {
-        cardCode: c.cardCode,
-        name: c.name,
-        contactName: null,
-        source: "ocrd",
-        email,
-        projects,
-      });
-    }
-  } catch (err) {
-    console.warn(
-      "[mari] OCRD email lookup failed:",
-      err instanceof MariApiError ? err.message : err
-    );
-  }
 
   try {
     const fromOcpr = await lookupCardCodesFromOcpr(email);
@@ -587,6 +587,31 @@ export async function lookupMariPartnersByEmail(
   } catch (err) {
     console.warn(
       "[mari] OCPR email lookup failed:",
+      err instanceof MariApiError ? err.message : err
+    );
+  }
+
+  try {
+    const fromOcrd = await lookupCardCodesFromOcrd(email);
+    for (const c of fromOcrd) {
+      let projects: MariProjectHint[] = [];
+      try {
+        projects = await listProjectsForCardCode(c.cardCode, 1);
+      } catch {
+        projects = [];
+      }
+      pushEmailCustomer(out, seen, {
+        cardCode: c.cardCode,
+        name: c.name,
+        contactName: null,
+        source: "ocrd",
+        email,
+        projects,
+      });
+    }
+  } catch (err) {
+    console.warn(
+      "[mari] OCRD email lookup failed:",
       err instanceof MariApiError ? err.message : err
     );
   }
@@ -624,7 +649,7 @@ export async function lookupMariPartnersByEmail(
   return out.slice(0, 8);
 }
 
-/** Merge partner suggestions for several attendee addresses (chips, no autobook). */
+/** Externe Teilnehmer-Mails → Ansprechpartner-Chips (OCRD/OCPR/Ticket, kein Autobuch). */
 export async function lookupMariPartnersByEmails(
   emails: string[]
 ): Promise<MariEmailPartnerSuggestion[]> {
@@ -644,7 +669,7 @@ export async function lookupMariPartnersByEmails(
   for (const email of unique) {
     if (isInternalColleagueEmail(email)) continue;
     const rows = await lookupMariPartnersByEmail(email, {
-      includeIssueHistory: false,
+      includeIssueHistory: true,
     });
     for (const row of rows) pushSuggestion(out, seen, row);
   }
