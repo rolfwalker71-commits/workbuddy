@@ -64,31 +64,10 @@ import type {
   HomeTicketRow,
   HomeTtvDutyState,
 } from "@/lib/dashboard/home-surfaces-shared";
+import { mariDonutColor } from "@/lib/mari/donut-colors";
 
 const ASIDE_WIDGET_CLASS =
   "rounded-2xl border border-border/70 bg-card shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_3px_10px_rgba(15,23,42,0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_4px_14px_rgba(0,0,0,0.28)]";
-
-const MARI_DONUT_COLORS: Record<number, string> = {
-  11: "#f43f5e",
-  1: "#e86a2b",
-  3: "#8b7cf6",
-  13: "#22d3ee",
-  6: "#eab308",
-  9: "#f59e0b",
-  7: "#a78bfa",
-  10: "#c084fc",
-  4: "#fb923c",
-  14: "#ef4444",
-  15: "#38bdf8",
-  16: "#34d399",
-};
-
-function mariDonutColor(statusId: number, index: number): string {
-  return (
-    MARI_DONUT_COLORS[statusId] ||
-    ["#e86a2b", "#8b7cf6", "#eab308", "#38bdf8", "#34d399"][index % 5]!
-  );
-}
 
 function polarDeg(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = ((angleDeg - 90) * Math.PI) / 180;

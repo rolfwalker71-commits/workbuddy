@@ -1,12 +1,13 @@
 "use client";
 
 import { HoursSplitBagel } from "@/components/ui/hours-split-bagel";
+import {
+  HOURS_BAGEL_BILLABLE,
+  HOURS_BAGEL_WORKED,
+} from "@/lib/mari/donut-colors";
 import { formatBookHours } from "@/lib/mari/time-book-hours";
 import { formatOvertimeHours } from "@/lib/mari/timekeeping-overtime-shared";
 import { cn } from "@/lib/utils";
-
-const WORKED_COLOR = "#64748b";
-const BILLABLE_COLOR = "#047857";
 
 export function MariHoursSplitSummary({
   totalHours,
@@ -58,7 +59,7 @@ export function MariHoursSplitSummary({
             <p className="flex items-center gap-1 text-[0.5625rem] font-semibold uppercase tracking-wide text-muted-foreground">
               <span
                 className="size-1.5 shrink-0 rounded-full"
-                style={{ backgroundColor: WORKED_COLOR }}
+                style={{ backgroundColor: HOURS_BAGEL_WORKED }}
                 aria-hidden
               />
               Geleistet
@@ -79,7 +80,7 @@ export function MariHoursSplitSummary({
             <p className="flex items-center gap-1 text-[0.5625rem] font-semibold uppercase tracking-wide text-emerald-900/80">
               <span
                 className="size-1.5 shrink-0 rounded-full"
-                style={{ backgroundColor: BILLABLE_COLOR }}
+                style={{ backgroundColor: HOURS_BAGEL_BILLABLE }}
                 aria-hidden
               />
               Verrechenbar

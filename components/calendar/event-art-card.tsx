@@ -53,7 +53,7 @@ function EventArtCardHeader({ event }: { event: EventArtCardModel }) {
           <HoursSplitBagel
             worked={split.hours}
             billable={split.billable}
-            size="lg"
+            size="md"
           />
         </span>
       ) : null}

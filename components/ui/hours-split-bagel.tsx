@@ -3,14 +3,15 @@
 import { useId } from "react";
 import { BagelHoleLabel } from "@/components/ui/bagel-hole-label";
 import {
+  HOURS_BAGEL_BILLABLE,
+  HOURS_BAGEL_EMPTY,
+  HOURS_BAGEL_WORKED,
+} from "@/lib/mari/donut-colors";
+import {
   bagelHoursAriaLabel,
   formatBagelBillablePercent,
 } from "@/lib/mari/time-book-hours";
 import { cn } from "@/lib/utils";
-
-const WORKED_COLOR = "#64748b";
-const BILLABLE_COLOR = "#047857";
-const EMPTY_COLOR = "#e2e8f0";
 
 function polar(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = ((angleDeg - 90) * Math.PI) / 180;
@@ -42,13 +43,15 @@ function describeDonutSlice(
 const BAGEL_VIEW = 64;
 
 const SIZE_CLASS = {
-  sm: "size-8",
-  lg: "size-[3.5rem]",
+  sm: "size-10",
+  md: "size-16",
+  lg: "size-[4.75rem]",
 } as const;
 
 const LABEL_CLASS = {
-  sm: "text-[0.5rem]",
-  lg: "text-xs",
+  sm: "text-[0.625rem]",
+  md: "text-xs",
+  lg: "text-sm",
 } as const;
 
 export function HoursSplitBagel({
@@ -76,16 +79,16 @@ export function HoursSplitBagel({
       ? billable / worked
       : null;
 
-  let ringColor = EMPTY_COLOR;
+  let ringColor = HOURS_BAGEL_EMPTY;
   let greenSweep = 0;
   if (worked <= 0 && billable > 0) {
-    ringColor = BILLABLE_COLOR;
+    ringColor = HOURS_BAGEL_BILLABLE;
   } else if (worked > 0 && (share == null || share <= 0)) {
-    ringColor = WORKED_COLOR;
+    ringColor = HOURS_BAGEL_WORKED;
   } else if (share != null && share >= 1) {
-    ringColor = BILLABLE_COLOR;
+    ringColor = HOURS_BAGEL_BILLABLE;
   } else if (share != null && share > 0) {
-    ringColor = WORKED_COLOR;
+    ringColor = HOURS_BAGEL_WORKED;
     greenSweep = share * 360;
   }
 
@@ -121,7 +124,7 @@ export function HoursSplitBagel({
         {greenSweep > 0 ? (
           <path
             d={describeDonutSlice(cx, cy, rOuter, rInner, 0, greenSweep)}
-            fill={BILLABLE_COLOR}
+            fill={HOURS_BAGEL_BILLABLE}
             filter={`url(#${gradId}-soft)`}
           />
         ) : null}
