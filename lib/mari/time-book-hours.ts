@@ -76,9 +76,31 @@ export function formatBookHours(n: number): string {
   });
 }
 
+/** Verrechenbar / Geleistet as a rounded integer percent, or null if Geleistet is 0. */
+export function bagelBillablePercent(
+  worked: number,
+  billable: number
+): number | null {
+  if (!Number.isFinite(worked) || !Number.isFinite(billable) || worked <= 0) {
+    return null;
+  }
+  return Math.round((billable / worked) * 100);
+}
+
+/** Center label: `36%`, `125%`, or `—` when Geleistet is 0 (no ratio). */
+export function formatBagelBillablePercent(
+  worked: number,
+  billable: number
+): string {
+  const pct = bagelBillablePercent(worked, billable);
+  return pct == null ? "—" : `${pct}%`;
+}
+
 export function bagelHoursAriaLabel(
   worked: number,
   billable: number
 ): string {
-  return `Geleistet ${formatBookHours(worked)} h, verrechenbar ${formatBookHours(billable)} h`;
+  const hours = `Geleistet ${formatBookHours(worked)} h, verrechenbar ${formatBookHours(billable)} h`;
+  const pct = formatBagelBillablePercent(worked, billable);
+  return pct === "—" ? hours : `${hours}, ${pct}`;
 }

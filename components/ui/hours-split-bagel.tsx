@@ -4,12 +4,13 @@ import { useId } from "react";
 import { BagelHoleLabel } from "@/components/ui/bagel-hole-label";
 import {
   bagelHoursAriaLabel,
-  formatBookHours,
+  formatBagelBillablePercent,
 } from "@/lib/mari/time-book-hours";
 import { cn } from "@/lib/utils";
 
 const WORKED_COLOR = "#64748b";
 const BILLABLE_COLOR = "#047857";
+const EMPTY_COLOR = "#e2e8f0";
 
 function polar(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = ((angleDeg - 90) * Math.PI) / 180;
@@ -62,54 +63,41 @@ export function HoursSplitBagel({
   className?: string;
 }) {
   const gradId = useId();
-  const sliceTotal = worked + billable;
   const cx = BAGEL_VIEW / 2;
   const cy = BAGEL_VIEW / 2;
   const rOuter = BAGEL_VIEW / 2 - 1;
   const rInner = rOuter * 0.58;
+  const rMid = (rOuter + rInner) / 2;
+  const strokeWidth = rOuter - rInner;
   const ariaLabel = bagelHoursAriaLabel(worked, billable);
+  const percentLabel = formatBagelBillablePercent(worked, billable);
+  const share =
+    worked > 0 && Number.isFinite(worked) && Number.isFinite(billable)
+      ? billable / worked
+      : null;
+
+  let ringColor = EMPTY_COLOR;
+  let greenSweep = 0;
+  if (worked <= 0 && billable > 0) {
+    ringColor = BILLABLE_COLOR;
+  } else if (worked > 0 && (share == null || share <= 0)) {
+    ringColor = WORKED_COLOR;
+  } else if (share != null && share >= 1) {
+    ringColor = BILLABLE_COLOR;
+  } else if (share != null && share > 0) {
+    ringColor = WORKED_COLOR;
+    greenSweep = share * 360;
+  }
 
   return (
     <div className={cn("relative shrink-0", SIZE_CLASS[size], className)}>
-      {sliceTotal <= 0 ? (
-        <svg
-          viewBox={`0 0 ${BAGEL_VIEW} ${BAGEL_VIEW}`}
-          className="block size-full"
-          role="img"
-          aria-label={ariaLabel}
-        >
-          <circle
-            cx={cx}
-            cy={cy}
-            r={(rOuter + rInner) / 2}
-            fill="none"
-            stroke="#e2e8f0"
-            strokeWidth={rOuter - rInner}
-          />
-        </svg>
-      ) : worked <= 0 || billable <= 0 ? (
-        <svg
-          viewBox={`0 0 ${BAGEL_VIEW} ${BAGEL_VIEW}`}
-          className="block size-full"
-          role="img"
-          aria-label={ariaLabel}
-        >
-          <circle
-            cx={cx}
-            cy={cy}
-            r={(rOuter + rInner) / 2}
-            fill="none"
-            stroke={worked > 0 ? WORKED_COLOR : BILLABLE_COLOR}
-            strokeWidth={rOuter - rInner}
-          />
-        </svg>
-      ) : (
-        <svg
-          viewBox={`0 0 ${BAGEL_VIEW} ${BAGEL_VIEW}`}
-          className="block size-full"
-          role="img"
-          aria-label={ariaLabel}
-        >
+      <svg
+        viewBox={`0 0 ${BAGEL_VIEW} ${BAGEL_VIEW}`}
+        className="block size-full"
+        role="img"
+        aria-label={ariaLabel}
+      >
+        {greenSweep > 0 ? (
           <defs>
             <filter id={`${gradId}-soft`} x="-8%" y="-8%" width="116%" height="116%">
               <feDropShadow
@@ -121,41 +109,44 @@ export function HoursSplitBagel({
               />
             </filter>
           </defs>
-          <g filter={`url(#${gradId}-soft)`}>
-            <path
-              d={describeDonutSlice(
-                cx,
-                cy,
-                rOuter,
-                rInner,
-                0,
-                (worked / sliceTotal) * 360
-              )}
-              fill={WORKED_COLOR}
-            />
-            <path
-              d={describeDonutSlice(
-                cx,
-                cy,
-                rOuter,
-                rInner,
-                (worked / sliceTotal) * 360,
-                360
-              )}
-              fill={BILLABLE_COLOR}
-            />
-          </g>
-        </svg>
-      )}
+        ) : null}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={rMid}
+          fill="none"
+          stroke={ringColor}
+          strokeWidth={strokeWidth}
+        />
+        {greenSweep > 0 ? (
+          <path
+            d={describeDonutSlice(cx, cy, rOuter, rInner, 0, greenSweep)}
+            fill={BILLABLE_COLOR}
+            filter={`url(#${gradId}-soft)`}
+          />
+        ) : null}
+      </svg>
       <BagelHoleLabel>
-        <span
-          className={cn(
-            "font-black tabular-nums tracking-tight",
-            LABEL_CLASS[size]
-          )}
-        >
-          {formatBookHours(worked)}
-        </span>
+        {percentLabel === "—" ? (
+          <span
+            className={cn(
+              "font-black leading-none text-muted-foreground",
+              LABEL_CLASS[size]
+            )}
+          >
+            —
+          </span>
+        ) : (
+          <span
+            className={cn(
+              "whitespace-nowrap font-black tabular-nums tracking-tight",
+              LABEL_CLASS[size]
+            )}
+          >
+            {percentLabel.slice(0, -1)}
+            <span className="text-[0.72em] font-extrabold">%</span>
+          </span>
+        )}
       </BagelHoleLabel>
     </div>
   );

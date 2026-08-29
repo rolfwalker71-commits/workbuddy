@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { hoursSplitFromStamp } from "../workspace/event-mari-shared.ts";
 import {
+  bagelBillablePercent,
   bagelHoursAriaLabel,
+  formatBagelBillablePercent,
   isValidBookHours,
   parseBookHours,
   timeBookFollowBillableRaw,
@@ -77,13 +79,29 @@ test("hoursSplitFromStamp keeps Geleistet and Verrechenbar independent", () => {
   assert.deepEqual(hoursSplitFromStamp(1.5, null), { hours: 1.5, billable: 1.5 });
 });
 
-test("bagel aria-label names Geleistet and Verrechenbar", () => {
+test("bagel percent is Verrechenbar of Geleistet, integer, no divide-by-zero", () => {
+  assert.equal(bagelBillablePercent(9, 3.25), 36);
+  assert.equal(formatBagelBillablePercent(9, 3.25), "36%");
+  assert.equal(formatBagelBillablePercent(1.5, 0), "0%");
+  assert.equal(formatBagelBillablePercent(1.5, 1.5), "100%");
+  assert.equal(formatBagelBillablePercent(1.5, 2), "133%");
+  assert.equal(bagelBillablePercent(0, 0), null);
+  assert.equal(bagelBillablePercent(0, 2), null);
+  assert.equal(formatBagelBillablePercent(0, 0), "—");
+  assert.equal(formatBagelBillablePercent(0, 2), "—");
+});
+
+test("bagel aria-label names Geleistet, Verrechenbar, and percent", () => {
   assert.equal(
     bagelHoursAriaLabel(1.5, 0),
-    "Geleistet 1.50 h, verrechenbar 0.00 h"
+    "Geleistet 1.50 h, verrechenbar 0.00 h, 0%"
   );
   assert.equal(
     bagelHoursAriaLabel(1.5, 2),
-    "Geleistet 1.50 h, verrechenbar 2.00 h"
+    "Geleistet 1.50 h, verrechenbar 2.00 h, 133%"
+  );
+  assert.equal(
+    bagelHoursAriaLabel(0, 2),
+    "Geleistet 0.00 h, verrechenbar 2.00 h"
   );
 });
