@@ -34,6 +34,7 @@ import {
   MoreHorizontal,
   Paperclip,
   RefreshCw,
+  Search,
   Sparkles,
   Trash2,
   User,
@@ -125,6 +126,11 @@ import {
   type MariTicketFilterPrefsPatch,
 } from "@/lib/mari/ticket-filter-prefs-shared";
 import { buildMariTicketListMetaItems } from "@/lib/mari/ticket-list-meta";
+import {
+  filterTicketsByTextQuery,
+  parseTicketNumberQuery,
+  shouldLookupTicketNumber,
+} from "@/lib/mari/ticket-search-shared";
 import {
   DEFAULT_TTV_LOOKBACK_DAYS,
   TTV_LOOKBACK_DAYS_MAX,
@@ -808,6 +814,15 @@ export function MaringoWorkspaceClient() {
     ...DEFAULT_MARI_LIST_META_FIELDS,
   ]);
   const [tickets, setTickets] = useState<MariTicketListItem[]>([]);
+  const [listSearchQuery, setListSearchQuery] = useState("");
+  const [lookupTicket, setLookupTicket] = useState<MariTicketListItem | null>(
+    null
+  );
+  const [lookupMissId, setLookupMissId] = useState<number | null>(null);
+  const [lookupBusy, setLookupBusy] = useState(false);
+  const ticketsRef = useRef<MariTicketListItem[]>([]);
+  const pinnedIssueIdRef = useRef<number | null>(null);
+  const lookupInflightRef = useRef<number | null>(null);
   const [selectedIssueIds, setSelectedIssueIds] = useState<Set<number>>(
     () => new Set()
   );
@@ -932,9 +947,49 @@ export function MaringoWorkspaceClient() {
     return items;
   }, [detail?.timeline, timelineSort]);
 
+  const searchedIssueId = useMemo(
+    () => parseTicketNumberQuery(listSearchQuery),
+    [listSearchQuery]
+  );
+  const numberLookupPending = useMemo(() => {
+    if (
+      searchedIssueId == null ||
+      !shouldLookupTicketNumber(listSearchQuery)
+    ) {
+      return false;
+    }
+    if (lookupMissId === searchedIssueId) return false;
+    if (tickets.some((t) => t.issueId === searchedIssueId)) return false;
+    if (lookupTicket?.issueId === searchedIssueId) return false;
+    return true;
+  }, [
+    searchedIssueId,
+    listSearchQuery,
+    lookupMissId,
+    tickets,
+    lookupTicket,
+  ]);
+  const displayedTickets = useMemo(() => {
+    if (searchedIssueId != null && shouldLookupTicketNumber(listSearchQuery)) {
+      if (lookupMissId === searchedIssueId) return [];
+      const fromList = tickets.find((t) => t.issueId === searchedIssueId);
+      const hit =
+        fromList ||
+        (lookupTicket?.issueId === searchedIssueId ? lookupTicket : null);
+      return hit ? [hit] : [];
+    }
+    return filterTicketsByTextQuery(tickets, listSearchQuery);
+  }, [
+    tickets,
+    listSearchQuery,
+    searchedIssueId,
+    lookupMissId,
+    lookupTicket,
+  ]);
+
   const sortedTickets = useMemo(() => {
-    if (tickets.length === 0) return tickets;
-    const items = [...tickets];
+    if (displayedTickets.length === 0) return displayedTickets;
+    const items = [...displayedTickets];
     const stamp = (t: MariTicketListItem) =>
       Date.parse(t.requestDate || "") ||
       Date.parse(t.changeAtDate || "") ||
@@ -950,7 +1005,7 @@ export function MaringoWorkspaceClient() {
         : a.issueId - b.issueId;
     });
     return items;
-  }, [tickets, listSort]);
+  }, [displayedTickets, listSort]);
 
   const visibleIssueIds = useMemo(
     () => sortedTickets.map((t) => t.issueId),
@@ -982,7 +1037,7 @@ export function MaringoWorkspaceClient() {
       string,
       { cardCode: string; name: string; ticketCount: number }
     >();
-    for (const t of sortedTickets) {
+    for (const t of tickets) {
       const code = (t.cardCode || "").trim();
       if (!code) continue;
       const existing = seen.get(code);
@@ -1000,7 +1055,7 @@ export function MaringoWorkspaceClient() {
       }
     }
     return [...seen.values()];
-  }, [sortedTickets]);
+  }, [tickets]);
 
   const ticketTimeHoursTotal = useMemo(() => {
     return (
@@ -1179,6 +1234,81 @@ export function MaringoWorkspaceClient() {
     selectedCardCodesKey,
     ttvLookbackDays,
   ]);
+
+  ticketsRef.current = tickets;
+
+  const lookupTicketByNumber = useCallback(async (issueId: number) => {
+    if (!Number.isInteger(issueId) || issueId <= 0) return;
+    const existing = ticketsRef.current.find((t) => t.issueId === issueId);
+    if (existing) {
+      setLookupTicket(null);
+      setLookupMissId(null);
+      pinnedIssueIdRef.current = issueId;
+      setSelectedId(issueId);
+      setTicketFlyoutOpen(true);
+      setAnalyzePickerOpen(false);
+      setWorkspaceTab("tickets");
+      return;
+    }
+    if (lookupInflightRef.current === issueId) return;
+    lookupInflightRef.current = issueId;
+    setLookupBusy(true);
+    setLookupMissId(null);
+    try {
+      const res = await fetch(
+        `/api/maringo/tickets?issueIds=${encodeURIComponent(String(issueId))}`
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          typeof data.error === "string" ? data.error : "Ticket-Suche fehlgeschlagen"
+        );
+      }
+      const list: unknown[] = Array.isArray(data.tickets) ? data.tickets : [];
+      const hit = list.find(
+        (row): row is MariTicketListItem =>
+          Boolean(
+            row &&
+              typeof row === "object" &&
+              Number((row as MariTicketListItem).issueId) === issueId
+          )
+      );
+      if (!hit) {
+        setLookupTicket(null);
+        setLookupMissId(issueId);
+        return;
+      }
+      setLookupTicket(hit);
+      setLookupMissId(null);
+      pinnedIssueIdRef.current = issueId;
+      setTickets((prev) =>
+        prev.some((t) => t.issueId === hit.issueId) ? prev : [hit, ...prev]
+      );
+      const stamps = data.calendarStamps;
+      if (stamps && typeof stamps === "object") {
+        const stamp = (stamps as Record<string, unknown>)[String(issueId)];
+        if (stamp && typeof stamp === "object") {
+          setListCalendarStamps((prev) => ({
+            ...prev,
+            [issueId]: stamp as MariCalendarStamp,
+          }));
+        }
+      }
+      setSelectedId(issueId);
+      setTicketFlyoutOpen(true);
+      setAnalyzePickerOpen(false);
+      setWorkspaceTab("tickets");
+    } catch (err) {
+      setLookupTicket(null);
+      setLookupMissId(issueId);
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      if (lookupInflightRef.current === issueId) {
+        lookupInflightRef.current = null;
+      }
+      setLookupBusy(false);
+    }
+  }, []);
 
   useEffect(() => {
     void loadEmployees();
@@ -1497,16 +1627,50 @@ export function MaringoWorkspaceClient() {
   }, [selectedId, loadDetail, loadTicketTimeLines]);
 
   useEffect(() => {
-    if (tickets.length === 0) {
-      setSelectedId(null);
-      setTicketFlyoutOpen(false);
-      setSecondaryFlyouts([]);
+    if (lookupBusy || numberLookupPending) return;
+    const searching = listSearchQuery.trim().length > 0;
+    const pool = searching ? displayedTickets : tickets;
+    if (pool.length === 0) {
+      if (searching) {
+        setSelectedId(null);
+        setTicketFlyoutOpen(false);
+        setSecondaryFlyouts([]);
+      } else if (!listLoading && pinnedIssueIdRef.current == null) {
+        setSelectedId(null);
+        setTicketFlyoutOpen(false);
+        setSecondaryFlyouts([]);
+      }
       return;
     }
-    if (selectedId == null || !tickets.some((t) => t.issueId === selectedId)) {
-      setSelectedId(tickets[0].issueId);
+    if (selectedId != null && pool.some((t) => t.issueId === selectedId)) {
+      if (pinnedIssueIdRef.current === selectedId) {
+        pinnedIssueIdRef.current = null;
+      }
+      return;
     }
-  }, [tickets, selectedId]);
+    if (selectedId != null && selectedId === pinnedIssueIdRef.current) {
+      return;
+    }
+    setSelectedId(pool[0].issueId);
+  }, [
+    tickets,
+    displayedTickets,
+    listSearchQuery,
+    selectedId,
+    lookupBusy,
+    numberLookupPending,
+    listLoading,
+  ]);
+
+  useEffect(() => {
+    if (!shouldLookupTicketNumber(listSearchQuery)) return;
+    const issueId = parseTicketNumberQuery(listSearchQuery);
+    if (issueId == null) return;
+    const t = window.setTimeout(() => {
+      void lookupTicketByNumber(issueId);
+    }, 350);
+    return () => window.clearTimeout(t);
+  }, [listSearchQuery, lookupTicketByNumber]);
 
   useEffect(() => {
     setFlyoutPortalReady(true);
@@ -1575,6 +1739,7 @@ export function MaringoWorkspaceClient() {
     if (openRaw) {
       const id = Number(openRaw);
       if (Number.isFinite(id) && id > 0) {
+        pinnedIssueIdRef.current = id;
         setSelectedId(id);
         setTicketFlyoutOpen(true);
         setWorkspaceTab("tickets");
@@ -1584,6 +1749,15 @@ export function MaringoWorkspaceClient() {
       }
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    const openRaw = searchParams.get("open");
+    if (!openRaw || listLoading) return;
+    const id = Number(openRaw);
+    if (!Number.isInteger(id) || id <= 0) return;
+    if (ticketsRef.current.some((t) => t.issueId === id)) return;
+    void lookupTicketByNumber(id);
+  }, [searchParams, listLoading, lookupTicketByNumber]);
 
   useEffect(() => {
     setAkteCard((prev) => {
@@ -2595,10 +2769,14 @@ export function MaringoWorkspaceClient() {
                 <p className="text-[0.8125rem] font-black tracking-tight">Tickets</p>
                 <p className="text-[0.6875rem] text-muted-foreground">
                   {selectedIssueIds.size > 0
-                    ? `${selectedIssueIds.size} von ${tickets.length} ausgewählt`
-                    : filterMode === "ttv"
-                      ? `${tickets.length} neu (${ttvLookbackLabel(ttvLookbackDays)})`
-                      : `${tickets.length} Ticket${tickets.length === 1 ? "" : "s"}`}
+                    ? `${selectedIssueIds.size} von ${sortedTickets.length} ausgewählt`
+                    : lookupBusy && searchedIssueId != null
+                      ? `Suche #${searchedIssueId}…`
+                      : listSearchQuery.trim()
+                        ? `${sortedTickets.length} Treffer`
+                      : filterMode === "ttv"
+                        ? `${tickets.length} neu (${ttvLookbackLabel(ttvLookbackDays)})`
+                        : `${tickets.length} Ticket${tickets.length === 1 ? "" : "s"}`}
                 </p>
               </div>
             </div>
@@ -2879,6 +3057,10 @@ export function MaringoWorkspaceClient() {
                   disabled={!configured}
                   extraNumber={extraHandledBy}
                   onExtraNumberChange={setExtraHandledBy}
+                  onTicketNumber={(issueId) => {
+                    setListSearchQuery(String(issueId));
+                    void lookupTicketByNumber(issueId);
+                  }}
                 />
               ) : (
                 <div className="space-y-1.5">
@@ -3044,19 +3226,100 @@ export function MaringoWorkspaceClient() {
             </div>
           </div>
 
+          <div className="border-b border-border/50 px-3 py-2">
+            <Label htmlFor="mari-ticket-list-search" className="sr-only">
+              Ticket suchen
+            </Label>
+            <div className="relative">
+              <Search
+                className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+                strokeWidth={APP_ICON_STROKE}
+                aria-hidden
+              />
+              <Input
+                id="mari-ticket-list-search"
+                type="text"
+                value={listSearchQuery}
+                onChange={(e) => {
+                  setListSearchQuery(e.target.value);
+                  setLookupMissId(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  e.preventDefault();
+                  const id = parseTicketNumberQuery(listSearchQuery);
+                  if (id != null) void lookupTicketByNumber(id);
+                }}
+                placeholder="Ticket-Nr., Betreff oder Kunde…"
+                className="h-10 min-h-10 pr-10 pl-9 text-sm"
+                spellCheck={false}
+                autoComplete="off"
+                disabled={!configured}
+              />
+              {listSearchQuery ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute top-1/2 right-1 size-8 -translate-y-1/2"
+                  aria-label="Suche leeren"
+                  onClick={() => {
+                    setListSearchQuery("");
+                    setLookupTicket(null);
+                    setLookupMissId(null);
+                  }}
+                >
+                  <X className="size-4" strokeWidth={APP_ICON_STROKE} />
+                </Button>
+              ) : null}
+            </div>
+            {numberLookupPending ||
+            (lookupBusy && searchedIssueId != null) ? (
+              <p className="mt-1.5 text-[0.6875rem] text-muted-foreground">
+                Suche Ticket #{searchedIssueId} — unabhängig von Status und
+                Bearbeiter…
+              </p>
+            ) : lookupMissId != null &&
+              (searchedIssueId === lookupMissId ||
+                listSearchQuery.trim() === "") ? (
+              <p className="mt-1.5 text-[0.6875rem] text-rose-800 dark:text-rose-200">
+                Ticket #{lookupMissId} nicht gefunden.
+              </p>
+            ) : searchedIssueId != null &&
+              shouldLookupTicketNumber(listSearchQuery) &&
+              sortedTickets.length === 1 ? (
+              <p className="mt-1.5 text-[0.6875rem] text-muted-foreground">
+                Treffer nach Nummer — Status- und Bearbeiterfilter gelten nicht.
+              </p>
+            ) : null}
+          </div>
+
           <ul className="min-h-0 flex-1 divide-y divide-border overflow-y-auto">
-            {listLoading && tickets.length === 0 ? (
+            {listLoading && tickets.length === 0 && !listSearchQuery.trim() ? (
               <li className="bg-card px-3 py-8 text-sm text-muted-foreground">
                 Lade Tickets…
               </li>
             ) : null}
-            {!listLoading && tickets.length === 0 ? (
+            {(lookupBusy || numberLookupPending) &&
+            sortedTickets.length === 0 ? (
               <li className="bg-card px-3 py-8 text-center text-sm text-muted-foreground">
-                {filterMode === "ttv"
-                  ? `Keine neuen Tickets (${ttvLookbackLabel(ttvLookbackDays)}).`
-                  : filterMode === "customer" && selectedCustomers.length === 0
-                    ? "Kunde wählen, um Tickets zu laden."
-                    : "Keine Tickets für die gewählten Filter."}
+                Suche Ticket #{searchedIssueId}…
+              </li>
+            ) : null}
+            {!listLoading &&
+            !lookupBusy &&
+            !numberLookupPending &&
+            sortedTickets.length === 0 ? (
+              <li className="bg-card px-3 py-8 text-center text-sm text-muted-foreground">
+                {lookupMissId != null
+                  ? `Ticket #${lookupMissId} nicht gefunden.`
+                  : listSearchQuery.trim()
+                    ? `Keine Treffer für „${listSearchQuery.trim()}“.`
+                  : filterMode === "ttv"
+                    ? `Keine neuen Tickets (${ttvLookbackLabel(ttvLookbackDays)}).`
+                    : filterMode === "customer" && selectedCustomers.length === 0
+                      ? "Kunde wählen, um Tickets zu laden."
+                      : "Keine Tickets für die gewählten Filter."}
               </li>
             ) : null}
             {sortedTickets.map((t, index) => {

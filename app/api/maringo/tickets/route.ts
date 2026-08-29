@@ -22,11 +22,13 @@ import {
   resolveMicrosoftUserId,
 } from "@/lib/microsoft/oauth";
 import {
+  getTicketDetail,
   listMyTickets,
   normalizeMariEmployeeNumber,
   parseEmployeeNumbersParam,
   type MariTicketListItem,
 } from "@/lib/mari/tickets";
+import { parseIssueIdsParam } from "@/lib/mari/ticket-search-shared";
 import {
   TTV_INBOX_STATUS_ID,
   sanitizeTtvLookbackDays,
@@ -73,6 +75,33 @@ export async function GET(request: Request) {
     const defaultHandledBy =
       normalizeMariEmployeeNumber(userEmp) ||
       cfg.employeeNumber.trim().toUpperCase();
+
+    const issueIds = parseIssueIdsParam(url.searchParams.get("issueIds"));
+    if (issueIds.length > 0) {
+      const rows: MariTicketListItem[] = await listMyTickets({ issueIds });
+      const have = new Set(rows.map((t) => t.issueId));
+      for (const id of issueIds.filter((n) => !have.has(n))) {
+        try {
+          rows.push(await getTicketDetail(id));
+        } catch {
+          /* Ticket existiert nicht oder REST verweigert */
+        }
+      }
+      const tickets = attachMariTicketAnalysisFlags(
+        ownerKeyFromAuth(auth),
+        rows
+      );
+      return NextResponse.json({
+        configured: true,
+        tickets,
+        calendarStamps: stampsForTickets(auth.userId, tickets),
+        statuses: [],
+        overdueOnly: false,
+        issueIds,
+        filterMode: "issueIds" as const,
+        defaultHandledBy,
+      });
+    }
 
     if (url.searchParams.get("filterMode") === "ttv") {
       const ownerKey = ownerKeyFromAuth(auth);

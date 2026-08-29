@@ -15,6 +15,7 @@ import {
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import type { MariEmployeeOption } from "@/lib/mari/tickets";
 import type { MariSupportGroupOption } from "@/lib/mari/ticket-meta";
+import { parseTicketNumberQuery } from "@/lib/mari/ticket-search-shared";
 import {
   filterEmployeesBySupportGroup,
   filterVisibleSupportGroups,
@@ -36,6 +37,7 @@ export function MariHandlerMultiPicker({
   disabled,
   extraNumber,
   onExtraNumberChange,
+  onTicketNumber,
 }: {
   groups: MariSupportGroupOption[];
   employees: MariEmployeeOption[];
@@ -48,6 +50,8 @@ export function MariHandlerMultiPicker({
   disabled?: boolean;
   extraNumber: string;
   onExtraNumberChange: (value: string) => void;
+  /** Digit-only input is a ticket number, not a Personalnummer. */
+  onTicketNumber?: (issueId: number) => void;
 }) {
   const parsedGroupId = parseMariSupportGroupId(groupId);
   const visibleGroups = filterVisibleSupportGroups(groups);
@@ -71,7 +75,14 @@ export function MariHandlerMultiPicker({
   }
 
   function addExtra() {
-    const n = extraNumber.trim().toUpperCase();
+    const raw = extraNumber.trim();
+    const ticketId = parseTicketNumberQuery(raw);
+    if (ticketId != null && onTicketNumber) {
+      onTicketNumber(ticketId);
+      onExtraNumberChange("");
+      return;
+    }
+    const n = raw.toUpperCase();
     if (!/^[A-Z0-9]{2,20}$/.test(n)) return;
     if (!selectedSet.has(n)) onSelectedChange([...selected, n].sort());
     onExtraNumberChange("");
@@ -179,7 +190,7 @@ export function MariHandlerMultiPicker({
         <Input
           value={extraNumber}
           onChange={(e) => onExtraNumberChange(e.target.value.toUpperCase())}
-          placeholder="Nummer dazu, z.B. M2055"
+          placeholder="Personalnr. (M2055) oder Ticket-Nr."
           className="h-8 text-xs"
           spellCheck={false}
           autoComplete="off"
