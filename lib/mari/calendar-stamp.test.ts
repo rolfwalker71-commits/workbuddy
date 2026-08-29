@@ -109,3 +109,42 @@ test("markMariCalendarEventBooked stamps hours-only and keeps ticket issueId", a
     0
   );
 });
+
+test("booking pin on series key is found on later occurrences", async () => {
+  process.env.WORKBUDDY_SESSION_SECRET =
+    "a-secure-test-secret-with-more-than-32-characters";
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "wb-stamp-series-"));
+  process.env.DATABASE_PATH = path.join(tmp, "test.sqlite");
+
+  const { resetDbForTests } = await import("../db/client.ts");
+  resetDbForTests();
+  const {
+    getMariCalendarStampForEvent,
+    upsertMariCalendarBookingRef,
+  } = await import("./calendar-stamp.ts");
+
+  upsertMariCalendarBookingRef({
+    userId: 1,
+    eventId: "occurrence-monday",
+    seriesKey: "master-weekly",
+    eventDate: "2026-08-24",
+    startHm: "09:00",
+    endHm: "09:30",
+    title: "Daily Infra",
+    projectNumber: "P100",
+    projectLabel: "Infra Intern",
+    contractId: 0,
+  });
+
+  const later = getMariCalendarStampForEvent(
+    1,
+    "occurrence-tuesday",
+    "master-weekly"
+  );
+  assert.ok(later);
+  assert.equal(later.eventId, "master-weekly");
+  assert.equal(later.seriesKey, "master-weekly");
+  assert.equal(later.projectNumber, "P100");
+  assert.equal(later.bookingPinned, true);
+  assert.equal(later.issueId, 0);
+});

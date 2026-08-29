@@ -79,6 +79,9 @@ export async function loadWorkspaceAgendaInRange(
             calendarType: e.type,
             calendarName: e.calendarName,
             attendeeEmails: e.attendeeEmails,
+            categories: e.categories,
+            seriesMasterId: e.seriesMasterId,
+            iCalUId: e.iCalUId,
           })
         );
       } catch (error) {

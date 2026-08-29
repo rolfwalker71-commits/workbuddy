@@ -68,6 +68,14 @@ export type MariCalendarStamp = {
   hours: number | null;
   status: MariCalendarStampStatus;
   bookedLineId: number | null;
+  cardCode: string | null;
+  customerName: string | null;
+  projectNumber: string | null;
+  projectLabel: string | null;
+  contractId: number | null;
+  contractVisible: string | null;
+  bookingPinned: boolean;
+  seriesKey: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -102,7 +110,37 @@ export function ensureMariCalendarStampsTable(): void {
       ON mari_calendar_stamps(user_id, status, event_date);
     CREATE INDEX IF NOT EXISTS idx_mari_calendar_stamps_owner_issue
       ON mari_calendar_stamps(user_id, issue_id, event_date);
+    CREATE INDEX IF NOT EXISTS idx_mari_calendar_stamps_series
+      ON mari_calendar_stamps(user_id, event_provider, series_key);
   `);
+  ensureMariCalendarStampBookingColumns(db);
+}
+
+function ensureMariCalendarStampBookingColumns(
+  db: ReturnType<typeof getDb>
+): void {
+  const names = new Set(
+    (
+      db.prepare(`PRAGMA table_info(mari_calendar_stamps)`).all() as Array<{
+        name: string;
+      }>
+    ).map((c) => c.name)
+  );
+  const adds: Array<[string, string]> = [
+    ["card_code", "TEXT"],
+    ["customer_name", "TEXT"],
+    ["project_number", "TEXT"],
+    ["project_label", "TEXT"],
+    ["contract_id", "INTEGER"],
+    ["contract_visible", "TEXT"],
+    ["booking_pinned", "INTEGER NOT NULL DEFAULT 0"],
+    ["series_key", "TEXT"],
+  ];
+  for (const [name, ddl] of adds) {
+    if (!names.has(name)) {
+      db.exec(`ALTER TABLE mari_calendar_stamps ADD COLUMN ${name} ${ddl}`);
+    }
+  }
 }
 
 function requireUserId(userId: number | null | undefined): number {
@@ -187,6 +225,38 @@ export function getMariCalendarStamp(
     )
     .get(userId, eventProvider, eventId) as Record<string, unknown> | undefined;
   return row ? mapStampRow(row) : null;
+}
+
+/**
+ * Recurring: series key first (seriesMasterId / iCalUId), then occurrence id.
+ * One overlay save on the series covers later days.
+ */
+export function getMariCalendarStampForEvent(
+  userId: number,
+  eventId: string,
+  seriesKey?: string | null
+): MariCalendarStamp | null {
+  requireUserId(userId);
+  ensureMariCalendarStampsTable();
+  const occurrence = (eventId || "").trim();
+  const series = (seriesKey || "").trim();
+  if (series) {
+    const byId = getMariCalendarStamp(userId, "microsoft", series);
+    if (byId) return byId;
+    const byCol = getDb()
+      .prepare(
+        `SELECT * FROM mari_calendar_stamps
+         WHERE user_id = ? AND event_provider = 'microsoft' AND series_key = ?
+         ORDER BY booking_pinned DESC, updated_at DESC
+         LIMIT 1`
+      )
+      .get(userId, series) as Record<string, unknown> | undefined;
+    if (byCol) return mapStampRow(byCol);
+  }
+  if (occurrence && occurrence !== series) {
+    return getMariCalendarStamp(userId, "microsoft", occurrence);
+  }
+  return occurrence ? getMariCalendarStamp(userId, "microsoft", occurrence) : null;
 }
 
 export function listPendingMariCalendarStamps(
@@ -418,8 +488,109 @@ export function updateMariCalendarStampStatus(input: {
   return getMariCalendarStamp(userId, "microsoft", input.eventId);
 }
 
+/** Pin Kunde/Projekt/Vertrag on the event. Keeps ticket issueId. Not an evening queue. */
+export function upsertMariCalendarBookingRef(input: {
+  userId: number;
+  eventId: string;
+  seriesKey?: string | null;
+  calendarId?: string | null;
+  eventDate: string;
+  startHm?: string | null;
+  endHm?: string | null;
+  title: string;
+  cardCode?: string | null;
+  customerName?: string | null;
+  projectNumber?: string | null;
+  projectLabel?: string | null;
+  contractId?: number | null;
+  contractVisible?: string | null;
+}): MariCalendarStamp {
+  const userId = requireUserId(input.userId);
+  ensureMariCalendarStampsTable();
+  const db = getDb();
+  const now = new Date().toISOString();
+  const ownerKey = ownerKeyForUser(userId);
+  const seriesKey =
+    (input.seriesKey || "").trim() || (input.eventId || "").trim();
+  const stampEventId = seriesKey;
+  const existing = getMariCalendarStampForEvent(
+    userId,
+    input.eventId,
+    seriesKey
+  );
+  const issueId = existing && existing.issueId > 0 ? existing.issueId : HOURS_ONLY_STAMP_ISSUE_ID;
+  const hours =
+    existing?.hours ??
+    (input.startHm && input.endHm
+      ? hoursBetweenHm(input.startHm, input.endHm)
+      : null);
+  db.prepare(
+    `INSERT INTO mari_calendar_stamps (
+      user_id, owner_key, event_provider, event_id, calendar_id, issue_id, event_date,
+      start_hm, end_hm, title, memo, hours, status, booked_line_id,
+      card_code, customer_name, project_number, project_label,
+      contract_id, contract_visible, booking_pinned, series_key,
+      created_at, updated_at
+    ) VALUES (
+      @userId, @ownerKey, 'microsoft', @eventId, @calendarId, @issueId, @eventDate,
+      @startHm, @endHm, @title, @memo, @hours, @status, @bookedLineId,
+      @cardCode, @customerName, @projectNumber, @projectLabel,
+      @contractId, @contractVisible, 1, @seriesKey,
+      @now, @now
+    )
+    ON CONFLICT(user_id, event_provider, event_id) DO UPDATE SET
+      calendar_id = COALESCE(excluded.calendar_id, mari_calendar_stamps.calendar_id),
+      issue_id = CASE
+        WHEN mari_calendar_stamps.issue_id > 0 THEN mari_calendar_stamps.issue_id
+        ELSE excluded.issue_id
+      END,
+      event_date = excluded.event_date,
+      start_hm = COALESCE(excluded.start_hm, mari_calendar_stamps.start_hm),
+      end_hm = COALESCE(excluded.end_hm, mari_calendar_stamps.end_hm),
+      title = excluded.title,
+      card_code = excluded.card_code,
+      customer_name = excluded.customer_name,
+      project_number = excluded.project_number,
+      project_label = excluded.project_label,
+      contract_id = excluded.contract_id,
+      contract_visible = excluded.contract_visible,
+      booking_pinned = 1,
+      series_key = excluded.series_key,
+      owner_key = excluded.owner_key,
+      updated_at = excluded.updated_at`
+  ).run({
+    userId,
+    ownerKey,
+    eventId: stampEventId,
+    calendarId: input.calendarId ?? existing?.calendarId ?? null,
+    issueId,
+    eventDate: input.eventDate,
+    startHm: input.startHm ?? existing?.startHm ?? null,
+    endHm: input.endHm ?? existing?.endHm ?? null,
+    title: input.title.trim() || existing?.title || "Termin",
+    memo: existing?.memo ?? null,
+    hours,
+    status: existing?.status || "pending",
+    bookedLineId: existing?.bookedLineId ?? null,
+    cardCode: input.cardCode?.trim() || null,
+    customerName: input.customerName?.trim() || null,
+    projectNumber: input.projectNumber?.trim() || null,
+    projectLabel: input.projectLabel?.trim() || null,
+    contractId:
+      input.contractId != null && Number.isInteger(input.contractId)
+        ? input.contractId
+        : null,
+    contractVisible: input.contractVisible?.trim() || null,
+    seriesKey,
+    now,
+  });
+  return getMariCalendarStampForEvent(userId, input.eventId, seriesKey)!;
+}
+
 function mapStampRow(row: Record<string, unknown>): MariCalendarStamp {
   const userId = Number(row.user_id || 0);
+  const contractId =
+    row.contract_id == null ? null : Number(row.contract_id);
   return {
     userId,
     ownerKey: String(row.owner_key || ownerKeyForUser(userId)),
@@ -436,6 +607,15 @@ function mapStampRow(row: Record<string, unknown>): MariCalendarStamp {
     status: row.status as MariCalendarStampStatus,
     bookedLineId:
       row.booked_line_id == null ? null : Number(row.booked_line_id),
+    cardCode: (row.card_code as string) || null,
+    customerName: (row.customer_name as string) || null,
+    projectNumber: (row.project_number as string) || null,
+    projectLabel: (row.project_label as string) || null,
+    contractId:
+      contractId != null && Number.isInteger(contractId) ? contractId : null,
+    contractVisible: (row.contract_visible as string) || null,
+    bookingPinned: Number(row.booking_pinned || 0) === 1,
+    seriesKey: (row.series_key as string) || null,
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
   };

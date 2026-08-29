@@ -39,6 +39,7 @@ export type CalendarEventBookDefaults = {
   hours: number;
   hoursBillable: number;
   billable: true;
+  contractOptional?: boolean;
 };
 
 const PROJECT_TOKEN_RE = /\bP\d{3,}\b/i;
@@ -254,34 +255,70 @@ export function calendarEventToBookDefaults(input: {
     contractPositionId?: number | null;
     activity?: string | null;
   } | null;
+  /** Pinned / Graph / recognized combo — wins over title tokens. */
+  stored?: {
+    projectNumber?: string | null;
+    projectLabel?: string | null;
+    contractId?: number | null;
+    contractVisible?: string | null;
+    source?: string | null;
+    contractOptional?: boolean;
+  } | null;
+  contractOptional?: boolean;
 }): CalendarEventBookDefaults {
   const tokens = parseEventTitleTokens(input.title);
   const hours = eventBookHoursFromDuration(input.startHm, input.endHm);
   const ticket = input.ticket;
+  const stored = input.stored;
   const ticketId =
     ticket && Number.isInteger(ticket.issueId) && ticket.issueId > 0
       ? ticket.issueId
       : null;
   const ticketProject = (ticket?.projectNumber || "").trim() || null;
+  const storedProject = (stored?.projectNumber || "").trim() || null;
+  const storedWins =
+    stored != null &&
+    (stored.source === "pinned" ||
+      stored.source === "graph" ||
+      Boolean(storedProject));
   const activity =
     (ticket?.activity || "").trim().slice(0, 100) || tokens.activity;
+  const projectNumber = storedWins
+    ? storedProject || ticketProject || tokens.projectNumber
+    : ticketProject || storedProject || tokens.projectNumber;
+  const projectLabel = storedWins
+    ? stored?.projectLabel || storedProject || projectNumber
+    : ticketProject
+      ? ticket?.projectLabel || ticketProject
+      : stored?.projectLabel || projectNumber;
+  const storedContract =
+    stored?.contractId != null && stored.contractId > 0
+      ? stored.contractId
+      : stored?.contractOptional
+        ? 0
+        : null;
+  const ticketContract =
+    ticket?.contractId != null && ticket.contractId > 0
+      ? ticket.contractId
+      : null;
 
   return {
     dayOfService: input.date,
     issueId: ticketId,
-    projectNumber: ticketProject || tokens.projectNumber,
-    projectLabel: ticketProject
-      ? ticket?.projectLabel || ticketProject
-      : tokens.projectNumber,
-    contractId:
-      ticket?.contractId != null && ticket.contractId > 0
-        ? ticket.contractId
-        : null,
+    projectNumber,
+    projectLabel,
+    contractId: storedWins
+      ? storedContract ?? ticketContract
+      : ticketContract ?? storedContract,
     contractPositionId:
       ticket?.contractPositionId != null && ticket.contractPositionId > 0
         ? ticket.contractPositionId
         : null,
-    contractVisible: ticketId ? null : tokens.contractVisible,
+    contractVisible: storedWins
+      ? stored?.contractVisible || null
+      : ticketId
+        ? null
+        : stored?.contractVisible || tokens.contractVisible,
     activity,
     memoText:
       (input.memo || "").trim().slice(0, 500) ||
@@ -290,5 +327,7 @@ export function calendarEventToBookDefaults(input: {
     hours,
     hoursBillable: hours,
     billable: true,
+    contractOptional:
+      input.contractOptional === true || stored?.contractOptional === true,
   };
 }

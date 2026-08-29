@@ -1,11 +1,23 @@
 import { hasMariConfig } from "@/lib/mari/config";
 import {
-  getMariCalendarStamp,
+  getMariCalendarStampForEvent,
   listPendingMariCalendarStamps,
   parseMariIssueIdFromBody,
   parseMariIssueIdFromCategories,
   type MariCalendarStamp,
 } from "@/lib/mari/calendar-stamp";
+import {
+  bookingRefFromStamp,
+  bookingRefFromTicket,
+  resolveAttachedBooking,
+} from "@/lib/mari/event-booking";
+import {
+  applyMeetingKind,
+  classifyEventMeetingKind,
+  eventBookingSeriesKey,
+  parseBookRefFromBody,
+  parseBookRefFromCategories,
+} from "@/lib/mari/event-booking-ref";
 import { listMyTickets, type MariTicketListItem } from "@/lib/mari/tickets";
 import type { WorkspaceProvider } from "@/lib/workspace/merge-today";
 import type {
@@ -23,6 +35,9 @@ export type EventMariLinkSource = {
   provider?: WorkspaceProvider | string | null;
   description?: string | null;
   categories?: string[] | null;
+  attendeeEmails?: string[] | null;
+  seriesMasterId?: string | null;
+  iCalUId?: string | null;
 };
 
 function issueIdFromEvent(event: EventMariLinkSource): number | null {
@@ -51,7 +66,8 @@ async function ticketsByIssueIds(
 function mariFromParts(
   issueId: number,
   stamp: MariCalendarStamp | null,
-  ticket: MariTicketListItem | undefined
+  ticket: MariTicketListItem | undefined,
+  booking: WorkspaceEventMari["booking"]
 ): WorkspaceEventMari {
   return {
     issueId,
@@ -62,6 +78,7 @@ function mariFromParts(
     briefDescription: ticket?.briefDescription ?? null,
     status: ticket?.status ?? null,
     statusName: ticket?.statusName ?? null,
+    booking,
   };
 }
 
@@ -76,7 +93,15 @@ export async function attachMariToEvents<T extends EventMariLinkSource>(
   const stamps: Array<MariCalendarStamp | null> = events.map((event) => {
     if (event.provider && event.provider !== "microsoft") return null;
     try {
-      return getMariCalendarStamp(userId, "microsoft", event.id);
+      return getMariCalendarStampForEvent(
+        userId,
+        event.id,
+        eventBookingSeriesKey({
+          eventId: event.id,
+          seriesMasterId: event.seriesMasterId,
+          iCalUId: event.iCalUId,
+        })
+      );
     } catch {
       return null;
     }
@@ -96,24 +121,38 @@ export async function attachMariToEvents<T extends EventMariLinkSource>(
     const issueId = stamp?.issueId && stamp.issueId > 0
       ? stamp.issueId
       : issueIds[i];
+    const meetingKind = classifyEventMeetingKind(event.attendeeEmails);
+    const ticketRow =
+      issueId != null && issueId > 0 ? tickets.get(issueId) : undefined;
+    const booking = resolveAttachedBooking({
+      meetingKind,
+      ticket: bookingRefFromTicket(ticketRow, meetingKind),
+      stamp: bookingRefFromStamp(stamp, meetingKind),
+      graph: applyMeetingKind(
+        parseBookRefFromBody(event.description) ||
+          parseBookRefFromCategories(event.categories),
+        meetingKind
+      ),
+    });
     if (issueId != null && issueId > 0) {
       return {
         ...event,
-        mari: mariFromParts(issueId, stamp, tickets.get(issueId)),
+        mari: mariFromParts(issueId, stamp, ticketRow, booking),
       };
     }
-    if (stamp) {
+    if (stamp || booking) {
       return {
         ...event,
         mari: {
           issueId: 0,
-          stampStatus: stamp.status,
-          hours: stamp.hours,
-          memo: stamp.memo,
+          stampStatus: stamp?.status ?? null,
+          hours: stamp?.hours ?? null,
+          memo: stamp?.memo ?? null,
           cardCode: null,
           briefDescription: null,
           status: null,
           statusName: null,
+          booking,
         },
       };
     }

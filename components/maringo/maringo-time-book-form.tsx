@@ -36,6 +36,8 @@ export type TimeBookFormDefaults = {
   issueId?: number | null;
   internalRemarkVerr?: string | null;
   zeroHoursReason?: string | null;
+  /** Internal meetings: Vertrag typically not required. */
+  contractOptional?: boolean;
 };
 
 export type TimeBookFormValues = {
@@ -466,7 +468,7 @@ export function MaringoTimeBookForm({
       setError("Bitte Projekt wählen.");
       return;
     }
-    if (contracts.length > 0 && !contractId) {
+    if (contracts.length > 0 && !contractId && !defaults?.contractOptional) {
       setError("Bitte Vertrag wählen.");
       return;
     }

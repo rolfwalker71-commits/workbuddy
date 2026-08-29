@@ -140,6 +140,28 @@ test("calendarEventToBookDefaults keeps ticket project/contract over tokens", ()
   assert.equal(d.memoText, "P600111 · Ignorieren");
 });
 
+test("calendarEventToBookDefaults prefers stored pin over title tokens", () => {
+  const d = calendarEventToBookDefaults({
+    title: "P600111 · Ignorieren",
+    date: "2026-08-29",
+    startHm: "09:00",
+    endHm: "10:00",
+    stored: {
+      projectNumber: "P100",
+      projectLabel: "Infra Intern (P100)",
+      contractId: 0,
+      source: "pinned",
+      contractOptional: true,
+    },
+    contractOptional: true,
+  });
+  assert.equal(d.projectNumber, "P100");
+  assert.equal(d.projectLabel, "Infra Intern (P100)");
+  assert.equal(d.contractId, 0);
+  assert.equal(d.contractOptional, true);
+  assert.equal(d.hours, 1);
+});
+
 test("calendarEventToBookDefaults prefers stamp memo over title", () => {
   const d = calendarEventToBookDefaults({
     title: "P600111 · Workshop",

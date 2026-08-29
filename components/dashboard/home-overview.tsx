@@ -45,7 +45,8 @@ import { BagelHoleLabel } from "@/components/ui/bagel-hole-label";
 import { EventArtCard } from "@/components/calendar/event-art-card";
 import { EventDetailDialog } from "@/components/calendar/event-detail-dialog";
 import { EventHoursBookDialog } from "@/components/calendar/event-hours-book-dialog";
-import { EventMariActions } from "@/components/calendar/event-mari-actions";
+import { EventMariBlock } from "@/components/calendar/event-mari-block";
+import type { EventBookingRef } from "@/lib/mari/event-booking-ref";
 import { HomeDutyAbsenceBar } from "@/components/dashboard/home-duty-absence-bar";
 import { HomeNextQueue } from "@/components/dashboard/home-next-queue";
 import { buildHomeNextQueue } from "@/lib/dashboard/home-next-queue";
@@ -455,6 +456,36 @@ export function HomeOverview() {
   const [detailEvent, setDetailEvent] = useState<WorkspaceTodayEvent | null>(
     null
   );
+  function applyEventBooking(eventId: string, booking: EventBookingRef) {
+    const patch = (e: WorkspaceTodayEvent): WorkspaceTodayEvent =>
+      e.id === eventId
+        ? {
+            ...e,
+            mari: {
+              issueId: e.mari?.issueId ?? 0,
+              stampStatus: e.mari?.stampStatus ?? null,
+              hours: e.mari?.hours ?? null,
+              memo: e.mari?.memo ?? null,
+              cardCode: e.mari?.cardCode ?? booking.cardCode,
+              briefDescription: e.mari?.briefDescription ?? null,
+              status: e.mari?.status ?? null,
+              statusName: e.mari?.statusName ?? null,
+              booking,
+            },
+          }
+        : e;
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            todayEvents: prev.todayEvents.map(patch),
+          }
+        : prev
+    );
+    setDetailEvent((prev) => (prev ? patch(prev) : prev));
+    setHoursBookEvent((prev) => (prev ? patch(prev) : prev));
+  }
+
   const [hoursBookEvent, setHoursBookEvent] =
     useState<WorkspaceTodayEvent | null>(null);
 
@@ -882,15 +913,12 @@ export function HomeOverview() {
                         onOpen={() => setDetailEvent(ev)}
                         footer={
                           ev.provider === "microsoft" || ev.mari ? (
-                            <EventMariActions
-                              mari={ev.mari}
-                              eventDate={ev.date}
-                              endTime={ev.endTime}
-                              time={ev.time}
-                              isAllDay={ev.isAllDay}
-                              provider={ev.provider}
-                              calendarType={ev.calendarType}
+                            <EventMariBlock
+                              event={ev}
                               onBookHours={() => setHoursBookEvent(ev)}
+                              onBookingSaved={(booking) =>
+                                applyEventBooking(ev.id, booking)
+                              }
                             />
                           ) : undefined
                         }
@@ -906,15 +934,12 @@ export function HomeOverview() {
                   }}
                   actions={
                     detailEvent ? (
-                      <EventMariActions
-                        mari={detailEvent.mari}
-                        eventDate={detailEvent.date}
-                        endTime={detailEvent.endTime}
-                        time={detailEvent.time}
-                        isAllDay={detailEvent.isAllDay}
-                        provider={detailEvent.provider}
-                        calendarType={detailEvent.calendarType}
+                      <EventMariBlock
+                        event={detailEvent}
                         onBookHours={() => setHoursBookEvent(detailEvent)}
+                        onBookingSaved={(booking) =>
+                          applyEventBooking(detailEvent.id, booking)
+                        }
                       />
                     ) : undefined
                   }

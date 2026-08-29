@@ -3,6 +3,10 @@
  * No db / Graph imports.
  */
 
+import type { EventBookingRef } from "@/lib/mari/event-booking-ref";
+
+export type { EventBookingRef };
+
 export type WorkspaceEventMari = {
   issueId: number;
   stampStatus: "pending" | "booked" | "dismissed" | null;
@@ -12,6 +16,8 @@ export type WorkspaceEventMari = {
   briefDescription: string | null;
   status: number | null;
   statusName: string | null;
+  /** Ticket/pin/graph combo for Stunden buchen — guess is filled on the card. */
+  booking?: EventBookingRef | null;
 };
 
 export type HomePendingStamp = {

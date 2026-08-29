@@ -40,6 +40,9 @@ export type WorkspaceTodayEvent = {
   calendarType?: string | null;
   calendarName?: string | null;
   attendeeEmails?: string[];
+  categories?: string[] | null;
+  seriesMasterId?: string | null;
+  iCalUId?: string | null;
   mari?: WorkspaceEventMari | null;
 };
 
@@ -144,6 +147,9 @@ export function toWorkspaceTodayEvent(input: {
   calendarType?: string | null;
   calendarName?: string | null;
   attendeeEmails?: string[] | null;
+  categories?: string[] | null;
+  seriesMasterId?: string | null;
+  iCalUId?: string | null;
   mari?: WorkspaceEventMari | null;
 }): WorkspaceTodayEvent {
   const title =
@@ -175,6 +181,9 @@ export function toWorkspaceTodayEvent(input: {
     attendeeEmails: Array.isArray(input.attendeeEmails)
       ? input.attendeeEmails.filter((e) => typeof e === "string" && e.includes("@"))
       : [],
+    categories: Array.isArray(input.categories) ? input.categories : undefined,
+    seriesMasterId: input.seriesMasterId ?? null,
+    iCalUId: input.iCalUId ?? null,
     mari: input.mari ?? null,
   };
 }

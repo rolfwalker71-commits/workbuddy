@@ -185,6 +185,14 @@ CREATE TABLE IF NOT EXISTS mari_calendar_stamps (
   hours REAL,
   status TEXT NOT NULL DEFAULT 'pending',
   booked_line_id INTEGER,
+  card_code TEXT,
+  customer_name TEXT,
+  project_number TEXT,
+  project_label TEXT,
+  contract_id INTEGER,
+  contract_visible TEXT,
+  booking_pinned INTEGER NOT NULL DEFAULT 0,
+  series_key TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   PRIMARY KEY (user_id, event_provider, event_id)
@@ -193,6 +201,8 @@ CREATE INDEX IF NOT EXISTS idx_mari_calendar_stamps_owner_pending
   ON mari_calendar_stamps(user_id, status, event_date);
 CREATE INDEX IF NOT EXISTS idx_mari_calendar_stamps_owner_issue
   ON mari_calendar_stamps(user_id, issue_id, event_date);
+CREATE INDEX IF NOT EXISTS idx_mari_calendar_stamps_series
+  ON mari_calendar_stamps(user_id, event_provider, series_key);
 
 CREATE TABLE IF NOT EXISTS push_subscriptions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -51,6 +51,9 @@ export type MicrosoftCalendarEvent = {
   planningRelevant: boolean;
   webLink: string | null;
   attendeeEmails: string[];
+  categories?: string[];
+  seriesMasterId?: string | null;
+  iCalUId?: string | null;
 };
 
 function selectionsKey(userId: number): string {
@@ -298,6 +301,9 @@ type GraphEvent = {
   onlineMeetingUrl?: string | null;
   webLink?: string | null;
   categories?: string[] | null;
+  seriesMasterId?: string | null;
+  iCalUId?: string | null;
+  type?: string | null;
   organizer?: {
     emailAddress?: { name?: string | null; address?: string | null };
   };
@@ -376,7 +382,7 @@ export async function listMicrosoftCalendarEventsInRange(
           startDateTime: start,
           endDateTime: end,
           $select:
-            "id,subject,bodyPreview,body,start,end,isAllDay,location,onlineMeeting,onlineMeetingUrl,webLink,categories,organizer,attendees",
+            "id,subject,bodyPreview,body,start,end,isAllDay,location,onlineMeeting,onlineMeetingUrl,webLink,categories,organizer,attendees,seriesMasterId,iCalUId,type",
           $orderby: "start/dateTime",
           $top: "250",
         });
@@ -431,6 +437,11 @@ export async function listMicrosoftCalendarEventsInRange(
             planningRelevant,
             webLink: ev.webLink || null,
             attendeeEmails: attendeeEmailsFromGraph(ev),
+            categories: ev.categories || [],
+            seriesMasterId:
+              (ev.seriesMasterId || "").trim() ||
+              ((ev.type || "").toLowerCase() === "seriesmaster" ? ev.id : null),
+            iCalUId: (ev.iCalUId || "").trim() || null,
           });
         }
       } catch {

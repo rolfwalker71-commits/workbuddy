@@ -150,6 +150,8 @@ export function microsoftAgendaToReviewEvent(
   calendarType: string;
   calendarName: string;
   attendeeEmails: string[];
+  seriesMasterId?: string | null;
+  iCalUId?: string | null;
 } {
   const subject = (e.summary || "").trim() || "(ohne Titel)";
   const done =
@@ -171,7 +173,11 @@ export function microsoftAgendaToReviewEvent(
     date: e.date,
     location: e.location,
     isAllDay: !e.time,
-    categories: done ? [BUDDY_DONE_CATEGORY] : [],
+    categories: e.categories?.length
+      ? e.categories
+      : done
+        ? [BUDDY_DONE_CATEGORY]
+        : [],
     done,
     showAs: null,
     webLink: e.webLink,
@@ -182,6 +188,8 @@ export function microsoftAgendaToReviewEvent(
     calendarType: e.type,
     calendarName: e.calendarName,
     attendeeEmails: e.attendeeEmails || [],
+    seriesMasterId: e.seriesMasterId ?? null,
+    iCalUId: e.iCalUId ?? null,
   };
 }
 

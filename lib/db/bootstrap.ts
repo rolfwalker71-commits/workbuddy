@@ -107,6 +107,22 @@ function ensureMariCalendarStampOwner(db: Database.Database): void {
       `ALTER TABLE mari_calendar_stamps ADD COLUMN owner_key TEXT NOT NULL DEFAULT 'admin'`
     );
   }
+  const bookingAdds: Array<[string, string]> = [
+    ["card_code", "TEXT"],
+    ["customer_name", "TEXT"],
+    ["project_number", "TEXT"],
+    ["project_label", "TEXT"],
+    ["contract_id", "INTEGER"],
+    ["contract_visible", "TEXT"],
+    ["booking_pinned", "INTEGER NOT NULL DEFAULT 0"],
+    ["series_key", "TEXT"],
+  ];
+  const afterOwner = tableColumnNames(db, "mari_calendar_stamps");
+  for (const [name, ddl] of bookingAdds) {
+    if (!afterOwner.has(name)) {
+      db.exec(`ALTER TABLE mari_calendar_stamps ADD COLUMN ${name} ${ddl}`);
+    }
+  }
   db.exec(`
     UPDATE mari_calendar_stamps
     SET owner_key = CASE

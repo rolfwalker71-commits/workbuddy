@@ -5,6 +5,10 @@ import { MaringoTimeBookDialog } from "@/components/maringo/maringo-time-book-di
 import type { TimeBookFormDefaults } from "@/components/maringo/maringo-time-book-form";
 import type { MariEmailPartnerSuggestion } from "@/lib/mari/customers";
 import { calendarEventToBookDefaults } from "@/lib/mari/event-title-tokens";
+import {
+  classifyEventMeetingKind,
+  eventBookingRefHasCodes,
+} from "@/lib/mari/event-booking-ref";
 import { formatMariProjectLabel } from "@/lib/mari/timekeeping-shared";
 import type { WorkspaceEventMari } from "@/lib/workspace/event-mari-shared";
 import type { WorkspaceProvider } from "@/lib/workspace/merge-today";
@@ -20,6 +24,8 @@ export type HoursBookableEvent = {
   isAllDay?: boolean;
   calendarType?: string | null;
   attendeeEmails?: string[] | null;
+  seriesMasterId?: string | null;
+  iCalUId?: string | null;
   mari?: WorkspaceEventMari | null;
 };
 
@@ -101,6 +107,14 @@ export function EventHoursBookDialog({
         }
       }
       if (cancelled) return;
+      const stored = event.mari?.booking ?? null;
+      const meetingKind = classifyEventMeetingKind(event.attendeeEmails);
+      const preferStored =
+        stored != null &&
+        (stored.source === "pinned" ||
+          stored.source === "graph" ||
+          stored.source === "ticket" ||
+          eventBookingRefHasCodes(stored));
       const next = calendarEventToBookDefaults({
         title: event.title,
         date: event.date,
@@ -108,9 +122,20 @@ export function EventHoursBookDialog({
         endHm: event.endTime,
         memo: event.mari?.memo || event.title,
         ticket,
+        stored: preferStored ? stored : null,
+        contractOptional:
+          meetingKind === "internal" || stored?.contractOptional === true,
       });
       let titleSuggestions: MariEmailPartnerSuggestion[] = [];
       let titleHint: string | null = null;
+      if (preferStored) {
+        titleHint =
+          stored.source === "pinned"
+            ? "Gespeicherte Zuordnung aus dem Termin — nicht neu erraten."
+            : stored.meetingKind === "internal"
+              ? "Interner Termin — Projekt prüfen, Vertrag in der Regel nicht nötig."
+              : null;
+      } else {
       try {
         const titleRes = await fetch(
           `/api/maringo/customers?eventTitle=${encodeURIComponent(event.title.slice(0, 200))}`
@@ -148,6 +173,7 @@ export function EventHoursBookDialog({
         }
       } catch {
         titleSuggestions = [];
+      }
       }
       if (cancelled) return;
       setSubjectSuggestions(titleSuggestions);
@@ -192,7 +218,11 @@ export function EventHoursBookDialog({
             }
           : null
       }
-      attendeeEmails={event?.attendeeEmails}
+      attendeeEmails={
+        event && classifyEventMeetingKind(event.attendeeEmails) === "internal"
+          ? []
+          : event?.attendeeEmails
+      }
       subjectSuggestions={subjectSuggestions}
       initialHint={initialHint}
       preserveEventPrefillOnChips

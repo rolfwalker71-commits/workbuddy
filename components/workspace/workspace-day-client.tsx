@@ -56,7 +56,8 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { AdhocEventDialog } from "@/components/calendar/adhoc-event-dialog";
 import { EventArtCard } from "@/components/calendar/event-art-card";
 import { EventHoursBookDialog } from "@/components/calendar/event-hours-book-dialog";
-import { EventMariActions } from "@/components/calendar/event-mari-actions";
+import { EventMariBlock } from "@/components/calendar/event-mari-block";
+import type { EventBookingRef } from "@/lib/mari/event-booking-ref";
 import {
   EventDetailDialog,
   type EventEditValues,
@@ -181,6 +182,8 @@ type WorkspaceCalEvent = {
   calendarType: string | null;
   calendarName: string | null;
   attendeeEmails?: string[];
+  seriesMasterId?: string | null;
+  iCalUId?: string | null;
   mari?: WorkspaceEventMari | null;
 };
 
@@ -202,6 +205,8 @@ function asCalEvent(e: {
   calendarType?: string | null;
   calendarName?: string | null;
   attendeeEmails?: string[] | null;
+  seriesMasterId?: string | null;
+  iCalUId?: string | null;
   mari?: WorkspaceEventMari | null;
 }): WorkspaceCalEvent {
   return {
@@ -225,6 +230,8 @@ function asCalEvent(e: {
     calendarType: e.calendarType ?? null,
     calendarName: e.calendarName ?? null,
     attendeeEmails: Array.isArray(e.attendeeEmails) ? e.attendeeEmails : [],
+    seriesMasterId: e.seriesMasterId ?? null,
+    iCalUId: e.iCalUId ?? null,
     mari: e.mari ?? null,
   };
 }
@@ -469,6 +476,9 @@ function mapTodayEvents(
       attendeeEmails: Array.isArray(e.attendeeEmails)
         ? (e.attendeeEmails as string[])
         : [],
+      seriesMasterId:
+        typeof e.seriesMasterId === "string" ? e.seriesMasterId : null,
+      iCalUId: typeof e.iCalUId === "string" ? e.iCalUId : null,
       mari:
         e.mari && typeof e.mari === "object"
           ? (e.mari as WorkspaceEventMari)
@@ -635,6 +645,29 @@ export function WorkspaceDayClient({
   const [detailEvent, setDetailEvent] = useState<WorkspaceCalEvent | null>(null);
   const [hoursBookEvent, setHoursBookEvent] =
     useState<WorkspaceCalEvent | null>(null);
+
+  function applyEventBooking(eventId: string, booking: EventBookingRef) {
+    const patch = (e: WorkspaceCalEvent): WorkspaceCalEvent =>
+      e.id === eventId
+        ? {
+            ...e,
+            mari: {
+              issueId: e.mari?.issueId ?? 0,
+              stampStatus: e.mari?.stampStatus ?? null,
+              hours: e.mari?.hours ?? null,
+              memo: e.mari?.memo ?? null,
+              cardCode: e.mari?.cardCode ?? booking.cardCode,
+              briefDescription: e.mari?.briefDescription ?? null,
+              status: e.mari?.status ?? null,
+              statusName: e.mari?.statusName ?? null,
+              booking,
+            },
+          }
+        : e;
+    setEvents((prev) => prev.map(patch));
+    setDetailEvent((prev) => (prev ? patch(prev) : prev));
+    setHoursBookEvent((prev) => (prev ? patch(prev) : prev));
+  }
   const [calLoading, setCalLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [slotsByEvent, setSlotsByEvent] = useState<Record<string, FreeSlot[]>>(
@@ -1957,15 +1990,12 @@ export function WorkspaceDayClient({
                           e.mari ||
                           e.provider === "microsoft" ? (
                             <div className="space-y-2">
-                              <EventMariActions
-                                mari={e.mari}
-                                eventDate={e.date}
-                                endTime={e.endTime}
-                                time={e.time}
-                                isAllDay={e.isAllDay}
-                                provider={e.provider}
-                                calendarType={e.calendarType}
+                              <EventMariBlock
+                                event={e}
                                 onBookHours={() => setHoursBookEvent(e)}
+                                onBookingSaved={(booking) =>
+                                  applyEventBooking(e.id, booking)
+                                }
                               />
                               {showActions ? (
                             <EventDetailActions
@@ -2021,15 +2051,12 @@ export function WorkspaceDayClient({
                 actions={
                   detailEvent ? (
                     <div className="space-y-3">
-                      <EventMariActions
-                        mari={detailEvent.mari}
-                        eventDate={detailEvent.date}
-                        endTime={detailEvent.endTime}
-                        time={detailEvent.time}
-                        isAllDay={detailEvent.isAllDay}
-                        provider={detailEvent.provider}
-                        calendarType={detailEvent.calendarType}
+                      <EventMariBlock
+                        event={detailEvent}
                         onBookHours={() => setHoursBookEvent(detailEvent)}
+                        onBookingSaved={(booking) =>
+                          applyEventBooking(detailEvent.id, booking)
+                        }
                       />
                     <EventDetailActions
                       event={detailEvent}
