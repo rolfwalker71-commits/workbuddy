@@ -6,6 +6,7 @@ export type MicrosoftMailAttachmentMeta = {
   contentType: string;
   size: number;
   isInline: boolean;
+  contentId: string | null;
   odataType: string;
 };
 
@@ -15,6 +16,7 @@ type GraphAttachment = {
   contentType?: string | null;
   size?: number;
   isInline?: boolean;
+  contentId?: string | null;
   "@odata.type"?: string;
 };
 
@@ -34,7 +36,7 @@ export async function listMicrosoftMessageAttachments(
   messageId: string
 ): Promise<MicrosoftMailAttachmentMeta[]> {
   const qs = new URLSearchParams({
-    $select: "id,name,contentType,size,isInline",
+    $select: "id,name,contentType,size,isInline,contentId",
   });
   const data = await graphJson<{ value?: GraphAttachment[] }>(
     userId,
@@ -45,12 +47,14 @@ export async function listMicrosoftMessageAttachments(
     if (!a.id) continue;
     const odataType = a["@odata.type"] || "";
     if (odataType && !odataType.includes("fileAttachment")) continue;
+    const contentId = (a.contentId || "").replace(/^<|>$/g, "").trim() || null;
     out.push({
       id: a.id,
       name: (a.name || "anhang").trim() || "anhang",
       contentType: (a.contentType || "application/octet-stream").trim(),
       size: Number(a.size) || 0,
       isInline: Boolean(a.isInline),
+      contentId,
       odataType,
     });
   }
@@ -84,9 +88,55 @@ export async function downloadMicrosoftAttachment(
   }
   const buf = Buffer.from(await res.arrayBuffer());
   if (buf.byteLength > MAX_ATTACHMENT_BYTES) {
-    throw new Error("PDF ist zu gross (max. 40 MB).");
+    throw new Error("Anhang ist zu gross (max. 40 MB).");
   }
   return buf;
+}
+
+export function isImageMailAttachment(meta: {
+  name: string;
+  contentType: string;
+}): boolean {
+  const type = (meta.contentType || "").toLowerCase();
+  if (type.startsWith("image/")) return true;
+  return /\.(png|jpe?g|gif|webp|bmp)$/i.test(meta.name || "");
+}
+
+/** Inline signature / tracking images — nicht als Ticket-Anhang. */
+export function isSignatureOrInlineImageAttachment(
+  meta: MicrosoftMailAttachmentMeta,
+  strippedContentIds?: string[]
+): boolean {
+  if (strippedContentIds?.length && meta.contentId) {
+    const cid = meta.contentId.toLowerCase();
+    if (
+      strippedContentIds.some(
+        (c) => c.toLowerCase() === cid || cid.includes(c.toLowerCase())
+      )
+    ) {
+      return true;
+    }
+  }
+  if (!isImageMailAttachment(meta)) return false;
+  const name = meta.name.toLowerCase();
+  if (/signatur|signature|logo|footer|stempel|image00[0-3]/.test(name)) {
+    return true;
+  }
+  if (meta.size > 0 && meta.size < 2500) return true;
+  const gif = meta.contentType.toLowerCase().includes("gif") || name.endsWith(".gif");
+  if (gif && meta.size > 0 && meta.size < 12_000) return true;
+  return meta.isInline && /image00[0-9]|logo|signatur|signature/.test(name);
+}
+
+export function listMicrosoftTicketFileAttachments(
+  all: MicrosoftMailAttachmentMeta[],
+  strippedContentIds?: string[]
+): MicrosoftMailAttachmentMeta[] {
+  return all.filter(
+    (a) =>
+      a.size <= MAX_ATTACHMENT_BYTES &&
+      !isSignatureOrInlineImageAttachment(a, strippedContentIds)
+  );
 }
 
 export { MAX_ATTACHMENT_BYTES };

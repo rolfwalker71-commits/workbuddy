@@ -10,6 +10,8 @@ export type MariKeyPair = {
   keyInternal: string;
   indent: number;
   indentParent: boolean;
+  /** SAP-Mandant (B1-Schema), wenn die Projektliste ihn mitliefert. */
+  company?: number | null;
 };
 
 /** MARI ApprovalMode: 0 erfasst, -1 freigegeben, 2 Vorerfassung, 3 abgelehnt. */

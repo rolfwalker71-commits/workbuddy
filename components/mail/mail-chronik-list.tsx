@@ -199,11 +199,14 @@ export function MailChronikList({
   const [composeOpen, setComposeOpen] = useState(false);
   const [ticketImportOpen, setTicketImportOpen] = useState(false);
   const [ticketImportMail, setTicketImportMail] = useState<{
+    messageId?: string | null;
     from?: string | null;
     fromName?: string | null;
     subject?: string | null;
+    bodyHtml?: string | null;
     bodyText?: string | null;
     snippet?: string | null;
+    bodyContentType?: "html" | "text" | null;
   } | null>(null);
 
   const threads = useMemo(() => buildMailChronikThreads(items), [items]);
@@ -382,11 +385,14 @@ export function MailChronikList({
                   onReply={() => setComposeOpen(true)}
                   onCreateTicket={() => {
                     setTicketImportMail({
+                      messageId: openId,
                       from: detail?.from || openFromEmail,
                       fromName: detail?.fromName || null,
                       subject: detail?.subject || openSubject,
+                      bodyHtml: detail?.bodyHtml || null,
                       bodyText: detail?.bodyText || detail?.snippet || null,
                       snippet: detail?.snippet || null,
+                      bodyContentType: detail?.bodyContentType || null,
                     });
                     setTicketImportOpen(true);
                     setOpenId(null);

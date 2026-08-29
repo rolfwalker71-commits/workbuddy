@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Ticket } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -13,13 +13,24 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { MailHtmlImportEditor } from "@/components/mail/mail-html-import-editor";
 import { MariKeyPairPicker } from "@/components/maringo/mari-key-pair-picker";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
-import { excerptMailBody, parseMailSender } from "@/lib/mail/mail-contact";
+import { parseMailSender } from "@/lib/mail/mail-contact";
+import {
+  initialMailTicketDescription,
+  MAIL_TICKET_HTML_MAX,
+  stripOutlookSignatureImages,
+} from "@/lib/mail/strip-signature-images";
 import type {
   MariCustomerOption,
   MariEmailPartnerSuggestion,
 } from "@/lib/mari/customers";
+import {
+  formatMariCompanyLabel,
+  parseMariCompanyId,
+  type MariCompanyOption,
+} from "@/lib/mari/companies-shared";
 import type { MariKeyPair } from "@/lib/mari/timekeeping-shared";
 import {
   formatMariProjectLabel,
@@ -30,12 +41,78 @@ import { showActionFeedback } from "@/lib/ui/action-feedback";
 import { cn } from "@/lib/utils";
 
 export type MailTicketImportSource = {
+  messageId?: string | null;
   from?: string | null;
   fromName?: string | null;
   subject?: string | null;
+  bodyHtml?: string | null;
   bodyText?: string | null;
   snippet?: string | null;
+  /** Graph body.contentType — html vs text. */
+  bodyContentType?: "html" | "text" | null;
 };
+
+type MailAttachRow = {
+  id: string;
+  name: string;
+  size: number;
+  contentType: string;
+  isInline?: boolean;
+  contentId?: string | null;
+};
+
+function RequiredMark() {
+  return (
+    <span className="text-destructive" aria-hidden>
+      {" "}
+      *
+    </span>
+  );
+}
+
+function ImportSection({
+  n,
+  title,
+  required,
+  hint,
+  children,
+}: {
+  n: number;
+  title: string;
+  required?: boolean;
+  hint?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="space-y-2.5 rounded-2xl bg-card p-3 shadow-sm ring-1 ring-foreground/10">
+      <header className="flex items-start gap-2.5">
+        <span
+          className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold tabular-nums text-foreground"
+          aria-hidden
+        >
+          {n}
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold leading-snug">
+            {title}
+            {required ? <RequiredMark /> : null}
+          </h3>
+          {hint ? (
+            <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
+          ) : null}
+        </div>
+      </header>
+      {children}
+    </section>
+  );
+}
+
+function formatBytes(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return "";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export function MailTicketImportDialog({
   open,
@@ -53,9 +130,11 @@ export function MailTicketImportDialog({
   const [contactName, setContactName] = useState(sender.name);
   const [contactEmail, setContactEmail] = useState(sender.email);
   const [subject, setSubject] = useState((mail?.subject || "").trim());
-  const [body, setBody] = useState(
-    excerptMailBody(mail?.bodyText, mail?.snippet)
-  );
+  const [body, setBody] = useState("");
+  const [rawHtml, setRawHtml] = useState("");
+  const [isHtml, setIsHtml] = useState(false);
+  const [htmlSyncKey, setHtmlSyncKey] = useState("0");
+  const [strippedContentIds, setStrippedContentIds] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<MariEmailPartnerSuggestion[]>(
     []
   );
@@ -73,11 +152,47 @@ export function MailTicketImportDialog({
   const [projectLabel, setProjectLabel] = useState("");
   const [projectOpen, setProjectOpen] = useState(false);
   const [loadingProjects, setLoadingProjects] = useState(false);
+  const [companyId, setCompanyId] = useState<number | null>(null);
+  const [companies, setCompanies] = useState<MariCompanyOption[]>([]);
   const [contracts, setContracts] = useState<MariKeyPair[]>([]);
   const [contractId, setContractId] = useState("");
+  const [attachments, setAttachments] = useState<MailAttachRow[]>([]);
+  const [selectedAttachIds, setSelectedAttachIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdId, setCreatedId] = useState<number | null>(null);
+  const [attachNote, setAttachNote] = useState<string | null>(null);
+  const [stampWarning, setStampWarning] = useState<string | null>(null);
+
+  function applyBodyFromMail(source: MailTicketImportSource | null) {
+    const next = initialMailTicketDescription({
+      bodyHtml: source?.bodyHtml,
+      bodyText: source?.bodyText,
+      snippet: source?.snippet,
+      contentType: source?.bodyContentType,
+    });
+    setBody(next.body);
+    setIsHtml(next.isHtml);
+    setRawHtml((source?.bodyHtml || "").trim());
+    setHtmlSyncKey(`${Date.now()}-open`);
+    if (next.isHtml && source?.bodyHtml) {
+      setStrippedContentIds(
+        stripOutlookSignatureImages(source.bodyHtml).removedContentIds
+      );
+    } else {
+      setStrippedContentIds([]);
+    }
+  }
+
+  function reapplySignatureStrip() {
+    const source = (isHtml ? body || rawHtml : rawHtml || body).trim();
+    if (!source) return;
+    const stripped = stripOutlookSignatureImages(source);
+    setBody(stripped.html.slice(0, MAIL_TICKET_HTML_MAX));
+    setIsHtml(true);
+    setHtmlSyncKey(`${Date.now()}-strip`);
+    setStrippedContentIds(stripped.removedContentIds);
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -88,7 +203,7 @@ export function MailTicketImportDialog({
     setContactName(next.name);
     setContactEmail(next.email);
     setSubject((mail?.subject || "").trim());
-    setBody(excerptMailBody(mail?.bodyText, mail?.snippet));
+    applyBodyFromMail(mail);
     setSuggestions([]);
     setLookupState("idle");
     setCardCode("");
@@ -99,12 +214,71 @@ export function MailTicketImportDialog({
     setProjectNumber("");
     setProjectLabel("");
     setProjectOpen(false);
+    setCompanyId(null);
     setContracts([]);
     setContractId("");
+    setAttachments([]);
+    setSelectedAttachIds([]);
     setBusy(false);
     setError(null);
     setCreatedId(null);
-  }, [open, mail?.from, mail?.fromName, mail?.subject, mail?.bodyText, mail?.snippet]);
+    setAttachNote(null);
+    setStampWarning(null);
+  }, [open, mail?.from, mail?.fromName, mail?.subject, mail?.bodyHtml, mail?.bodyText, mail?.snippet, mail?.bodyContentType]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/maringo/customers?companies=1");
+        const data = await res.json().catch(() => ({}));
+        if (cancelled || !res.ok) return;
+        setCompanies((data.companies || []) as MariCompanyOption[]);
+      } catch {
+        /* optional */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !mail?.messageId) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/microsoft/mail/${encodeURIComponent(mail.messageId!)}/attachments?all=1`
+        );
+        const data = await res.json().catch(() => ({}));
+        if (cancelled || !res.ok) return;
+        const strippedIds = mail.bodyHtml
+          ? stripOutlookSignatureImages(mail.bodyHtml).removedContentIds
+          : [];
+        const next = ((data.attachments || []) as MailAttachRow[]).filter(
+          (a) => {
+            const cid = (a.contentId || "").toLowerCase();
+            if (!cid || strippedIds.length === 0) return true;
+            return !strippedIds.some(
+              (c) => cid === c.toLowerCase() || cid.includes(c.toLowerCase())
+            );
+          }
+        );
+        setAttachments(next);
+        setSelectedAttachIds(next.map((a) => a.id));
+      } catch {
+        if (!cancelled) {
+          setAttachments([]);
+          setSelectedAttachIds([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, mail?.messageId]);
 
   useEffect(() => {
     if (!open) return;
@@ -145,7 +319,6 @@ export function MailTicketImportDialog({
       cancelled = true;
       window.clearTimeout(t);
     };
-    // applySuggestion is stable enough for this open-cycle
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, contactEmail]);
 
@@ -211,7 +384,11 @@ export function MailTicketImportDialog({
             contractData.error || "Verträge laden fehlgeschlagen"
           );
         }
-        setContracts((contractData.contracts || []) as MariKeyPair[]);
+        const nextContracts = (contractData.contracts || []) as MariKeyPair[];
+        setContracts(nextContracts);
+        if (nextContracts.length === 1) {
+          setContractId(nextContracts[0]!.keyInternal);
+        }
         const customers = (customerData.customers ||
           []) as MariCustomerOption[];
         if (customers.length === 1) {
@@ -227,6 +404,10 @@ export function MailTicketImportDialog({
         } else if (!cardCode) {
           setCustomerChoices([]);
         }
+        const fromProject = parseMariCompanyId(customerData.company);
+        if (fromProject != null) {
+          setCompanyId(fromProject);
+        }
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : String(err));
@@ -236,7 +417,6 @@ export function MailTicketImportDialog({
     return () => {
       cancelled = true;
     };
-    // cardCode is only used to keep an existing pick
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, projectNumber]);
 
@@ -274,16 +454,32 @@ export function MailTicketImportDialog({
     setCardCode("");
     setCustomerName("");
     setCustomerChoices([]);
+    const fromList = parseMariCompanyId(p.company);
+    if (fromList != null) setCompanyId(fromList);
   }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    const email = contactEmail.trim();
+    if (!email.includes("@")) {
+      setError("E-Mail des Ansprechpartners ist Pflicht.");
+      return;
+    }
     const pn = sanitizeMariProjectNumber(projectNumber);
     if (!pn) {
       setError(
         "Projektnummer fehlt — bitte ein Projekt aus der Liste wählen."
       );
+      return;
+    }
+    const company = parseMariCompanyId(companyId);
+    if (company == null) {
+      setError("Mandant/Company ist Pflicht — aus dem Projekt oder manuell.");
+      return;
+    }
+    if (contracts.length > 0 && !contractId) {
+      setError("Vertrag ist Pflicht, wenn Verträge zum Projekt existieren.");
       return;
     }
     const act = subject.trim();
@@ -299,11 +495,16 @@ export function MailTicketImportDialog({
         body: JSON.stringify({
           briefDescription: act,
           requestText: body.trim(),
+          requestIsHtml: isHtml,
           contactName: contactName.trim() || null,
-          contactEmail: contactEmail.trim() || null,
+          contactEmail: email,
           cardCode: cardCode.trim() || null,
           projectNumber: pn,
+          company,
           contractId: contractId ? Number(contractId) || null : null,
+          microsoftMessageId: mail?.messageId || null,
+          attachmentIds: selectedAttachIds,
+          strippedContentIds,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -318,6 +519,42 @@ export function MailTicketImportDialog({
       if (!Number.isInteger(issueId) || issueId <= 0) {
         throw new Error("MARI hat keine Ticket-ID zurückgegeben.");
       }
+      const attach = (
+        data as {
+          mailAttachments?: {
+            attached?: Array<{ name: string }>;
+            errors?: string[];
+          };
+          mailStamp?: { ok?: boolean; category?: string | null; error?: string | null };
+        }
+      ).mailAttachments;
+      const stamp = (
+        data as {
+          mailStamp?: { ok?: boolean; category?: string | null; error?: string | null };
+        }
+      ).mailStamp;
+      const notes: string[] = [];
+      const attachedN = attach?.attached?.length || 0;
+      const attachErr = (attach?.errors || []).filter(Boolean);
+      if (attachErr.length > 0) {
+        notes.push(
+          attachedN > 0
+            ? `${attachedN} Anhang/Anhänge übernommen. ${attachErr.join(" · ")}`
+            : attachErr.join(" · ")
+        );
+      } else if (attachedN > 0) {
+        notes.push(`${attachedN} Anhang/Anhänge am Ticket.`);
+      }
+      if (stamp?.ok) {
+        notes.push(
+          `Outlook gestempelt: ${stamp.category || "Import als Ticket"}.`
+        );
+      } else if (stamp?.error) {
+        setStampWarning(
+          `Ticket ist angelegt. Outlook-Stempel «Import als Ticket» fehlgeschlagen: ${stamp.error}`
+        );
+      }
+      if (notes.length > 0) setAttachNote(notes.join(" "));
       setCreatedId(issueId);
       showActionFeedback({
         headline: `Ticket #${issueId} angelegt`,
@@ -331,6 +568,14 @@ export function MailTicketImportDialog({
     }
   }
 
+  const companyLabel =
+    companyId != null
+      ? formatMariCompanyLabel(
+          companyId,
+          companies.find((c) => c.id === companyId)?.name
+        )
+      : "";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="z-[1200] flex max-h-[90dvh] w-[min(96vw,36rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
@@ -339,8 +584,8 @@ export function MailTicketImportDialog({
             Ticket aus Mail erstellen
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Vorschläge aus dem Absender sind nur vorausgefüllt — bitte prüfen
-            und bestätigen. Es wird keine Extra-Mail an den Kunden gesendet.
+            Reihenfolge 1–7. Felder mit * sind Pflicht. Es wird keine Extra-Mail
+            an den Kunden gesendet.
           </DialogDescription>
         </DialogHeader>
 
@@ -349,6 +594,17 @@ export function MailTicketImportDialog({
             <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-sm text-emerald-950 dark:border-emerald-400/30 dark:bg-emerald-500/12 dark:text-emerald-100">
               Ticket #{createdId} ist in Maringo angelegt.
             </p>
+            {attachNote ? (
+              <p className="text-xs text-muted-foreground">{attachNote}</p>
+            ) : null}
+            {stampWarning ? (
+              <p
+                role="status"
+                className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-950 dark:border-amber-400/30 dark:bg-amber-500/12 dark:text-amber-100"
+              >
+                {stampWarning}
+              </p>
+            ) : null}
             <a
               href={`/maringo?open=${createdId}`}
               className={cn(
@@ -374,10 +630,12 @@ export function MailTicketImportDialog({
               </p>
             ) : null}
 
-            <div className="space-y-2 rounded-xl border border-border/60 bg-muted/15 p-3">
-              <p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">
-                Ansprechpartner
-              </p>
+            <ImportSection
+              n={1}
+              title="Ansprechpartner"
+              required
+              hint="Name frei, E-Mail Pflicht."
+            >
               <div className="space-y-1">
                 <Label htmlFor="mail-tk-contact">Name</Label>
                 <Input
@@ -390,7 +648,10 @@ export function MailTicketImportDialog({
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="mail-tk-email">E-Mail</Label>
+                <Label htmlFor="mail-tk-email">
+                  E-Mail
+                  <RequiredMark />
+                </Label>
                 <Input
                   id="mail-tk-email"
                   type="email"
@@ -399,180 +660,337 @@ export function MailTicketImportDialog({
                   placeholder="name@firma.ch"
                   maxLength={120}
                   autoComplete="off"
+                  required
                 />
               </div>
-            </div>
-
-            {lookupState === "loading" ? (
-              <p className="text-xs text-muted-foreground" role="status">
-                Suche Geschäftspartner zur Absender-Adresse…
-              </p>
-            ) : null}
-            {lookupState === "empty" && contactEmail.includes("@") ? (
-              <p className="text-xs text-muted-foreground">
-                Kein Treffer zur E-Mail — bitte ein Projekt suchen. Der Kunde
-                folgt aus dem gewählten Projekt.
-              </p>
-            ) : null}
-            {suggestions.length > 0 ? (
-              <div className="space-y-1.5">
-                <p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Vorschläge — bitte wählen
+              {lookupState === "loading" ? (
+                <p className="text-xs text-muted-foreground" role="status">
+                  Suche Geschäftspartner zur Absender-Adresse…
                 </p>
-                <ul className="space-y-1.5">
-                  {suggestions.map((s) => {
-                    const active =
-                      s.cardCode === cardCode &&
-                      (s.projectNumber || "") === projectNumber;
-                    const label = s.projectNumber
-                      ? `${s.name} · ${s.projectNumber}`
-                      : s.name;
-                    return (
-                      <li
-                        key={`${s.cardCode}-${s.projectNumber || "none"}-${s.source}`}
-                      >
+              ) : null}
+              {lookupState === "empty" && contactEmail.includes("@") ? (
+                <p className="text-xs text-muted-foreground">
+                  Kein Treffer zur E-Mail — bitte unter 2 ein Projekt suchen.
+                </p>
+              ) : null}
+              {suggestions.length > 0 ? (
+                <div className="space-y-1.5">
+                  <p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Vorschläge — bitte wählen
+                  </p>
+                  <ul className="space-y-1.5">
+                    {suggestions.map((s) => {
+                      const active =
+                        s.cardCode === cardCode &&
+                        (s.projectNumber || "") === projectNumber;
+                      const label = s.projectNumber
+                        ? `${s.name} · ${s.projectNumber}`
+                        : s.name;
+                      return (
+                        <li
+                          key={`${s.cardCode}-${s.projectNumber || "none"}-${s.source}`}
+                        >
+                          <Button
+                            type="button"
+                            variant={active ? "secondary" : "outline"}
+                            className="h-auto min-h-11 w-full items-start justify-start whitespace-normal px-3 py-2 text-left text-sm"
+                            onClick={() => applySuggestion(s)}
+                          >
+                            <span className="min-w-0">
+                              <span className="block break-words font-medium leading-snug">
+                                {label}
+                              </span>
+                              {s.contactName ? (
+                                <span className="mt-0.5 block text-xs text-muted-foreground">
+                                  {s.contactName}
+                                </span>
+                              ) : null}
+                            </span>
+                          </Button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ) : null}
+            </ImportSection>
+
+            <ImportSection
+              n={2}
+              title="Projekt"
+              required
+              hint="Kunde folgt aus dem gewählten Projekt."
+            >
+              <div className="space-y-1">
+                <Label htmlFor="mail-tk-project">
+                  Projekt
+                  <RequiredMark />
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="mail-tk-project"
+                    value={projectOpen ? projectQuery : projectLabel || projectQuery}
+                    onChange={(e) => {
+                      setProjectQuery(e.target.value);
+                      setProjectOpen(true);
+                    }}
+                    onFocus={() => {
+                      setProjectOpen(true);
+                      setProjectQuery("");
+                    }}
+                    placeholder="Suche z.B. Werk oder P200000"
+                    autoComplete="off"
+                    required={!projectNumber}
+                  />
+                  {projectOpen ? (
+                    <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-border bg-background shadow-lg">
+                      {loadingProjects ? (
+                        <p className="px-2.5 py-2 text-xs text-muted-foreground">
+                          Lade…
+                        </p>
+                      ) : projects.length === 0 ? (
+                        <p className="px-2.5 py-2 text-xs text-muted-foreground">
+                          Keine Treffer
+                        </p>
+                      ) : (
+                        <ul>
+                          {projects.slice(0, 80).map((p) => (
+                            <li key={`${p.keyInternal}-${p.matchcode}`}>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                className="h-auto w-full flex-col items-start justify-start px-2.5 py-1.5 text-left text-xs font-normal hover:bg-muted"
+                                onClick={() => selectProject(p)}
+                              >
+                                <span className="font-medium">{p.matchcode}</span>
+                                <span className="text-muted-foreground">
+                                  {p.keyVisible || p.keyInternal}
+                                  {p.company
+                                    ? ` · Mandant ${p.company}`
+                                    : ""}
+                                </span>
+                              </Button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="mail-tk-customer">Kunde</Label>
+                <Input
+                  id="mail-tk-customer"
+                  value={
+                    customerName
+                      ? `${customerName}${cardCode ? ` (${cardCode})` : ""}`
+                      : cardCode
+                  }
+                  readOnly
+                  placeholder="Folgt aus dem Projekt"
+                  className="bg-muted"
+                />
+                {customerChoices.length > 1 ? (
+                  <ul className="mt-1 space-y-1">
+                    {customerChoices.map((c) => (
+                      <li key={c.cardCode}>
                         <Button
                           type="button"
-                          variant={active ? "secondary" : "outline"}
-                          className="h-auto min-h-11 w-full items-start justify-start whitespace-normal px-3 py-2 text-left text-sm"
-                          onClick={() => applySuggestion(s)}
+                          variant={
+                            c.cardCode === cardCode ? "secondary" : "outline"
+                          }
+                          className="h-auto min-h-11 w-full justify-start whitespace-normal px-3 py-2 text-left text-sm"
+                          onClick={() => {
+                            setCardCode(c.cardCode);
+                            setCustomerName(c.name);
+                          }}
                         >
-                          <span className="min-w-0">
-                            <span className="block break-words font-medium leading-snug">
-                              {label}
-                            </span>
-                            {s.contactName ? (
-                              <span className="mt-0.5 block text-xs text-muted-foreground">
-                                {s.contactName}
-                              </span>
-                            ) : null}
-                          </span>
+                          {c.name} ({c.cardCode})
                         </Button>
                       </li>
-                    );
-                  })}
-                </ul>
+                    ))}
+                  </ul>
+                ) : null}
               </div>
-            ) : null}
+            </ImportSection>
 
-            <div className="space-y-1">
-              <Label htmlFor="mail-tk-customer">Kunde</Label>
-              <Input
-                id="mail-tk-customer"
-                value={
-                  customerName
-                    ? `${customerName}${cardCode ? ` (${cardCode})` : ""}`
-                    : cardCode
-                }
-                readOnly
-                placeholder="Folgt aus dem Projekt"
-                className="bg-muted"
-              />
-              {customerChoices.length > 1 ? (
-                <ul className="mt-1 space-y-1">
-                  {customerChoices.map((c) => (
-                    <li key={c.cardCode}>
+            <ImportSection
+              n={3}
+              title="Mandant / Company"
+              required
+              hint="SAP-Schema aus dem Projekt — vorgefüllt, änderbar."
+            >
+              <div className="space-y-1">
+                <Label htmlFor="mail-tk-company">
+                  Company
+                  <RequiredMark />
+                </Label>
+                <Input
+                  id="mail-tk-company"
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  step={1}
+                  value={companyId ?? ""}
+                  onChange={(e) => {
+                    const n = parseMariCompanyId(e.target.value);
+                    setCompanyId(n);
+                  }}
+                  placeholder={projectNumber ? "aus Projekt" : "zuerst Projekt"}
+                  required
+                />
+                {companyLabel && companyId != null ? (
+                  <p className="text-xs text-muted-foreground">{companyLabel}</p>
+                ) : null}
+              </div>
+              {companies.length > 0 ? (
+                <ul className="flex flex-wrap gap-1.5">
+                  {companies.map((c) => (
+                    <li key={c.id}>
                       <Button
                         type="button"
-                        variant={
-                          c.cardCode === cardCode ? "secondary" : "outline"
-                        }
-                        className="h-auto min-h-11 w-full justify-start whitespace-normal px-3 py-2 text-left text-sm"
-                        onClick={() => {
-                          setCardCode(c.cardCode);
-                          setCustomerName(c.name);
-                        }}
+                        variant={c.id === companyId ? "secondary" : "outline"}
+                        className="h-9 min-h-9 px-3 text-xs"
+                        onClick={() => setCompanyId(c.id)}
                       >
-                        {c.name} ({c.cardCode})
+                        {formatMariCompanyLabel(c.id, c.name)}
                       </Button>
                     </li>
                   ))}
                 </ul>
               ) : null}
-            </div>
+            </ImportSection>
 
-            <div className="space-y-1">
-              <Label htmlFor="mail-tk-project">Projekt</Label>
-              <div className="relative">
+            <ImportSection
+              n={4}
+              title="Vertrag"
+              required={contracts.length > 0}
+              hint={
+                contracts.length > 0
+                  ? "Zum Projekt gefiltert — bitte wählen."
+                  : "Kein Vertrag in der Liste — optional."
+              }
+            >
+              <MariKeyPairPicker
+                id="mail-tk-contract"
+                label={
+                  contracts.length > 0 ? "Vertrag *" : "Vertrag"
+                }
+                value={contractId}
+                options={contracts}
+                placeholder="Vertrag wählen…"
+                emptyLabel="Kein Vertrag nötig"
+                disabled={!projectNumber}
+                onChange={setContractId}
+              />
+            </ImportSection>
+
+            <ImportSection n={5} title="Betreff" required>
+              <div className="space-y-1">
+                <Label htmlFor="mail-tk-subject">
+                  Betreff
+                  <RequiredMark />
+                </Label>
                 <Input
-                  id="mail-tk-project"
-                  value={projectOpen ? projectQuery : projectLabel || projectQuery}
-                  onChange={(e) => {
-                    setProjectQuery(e.target.value);
-                    setProjectOpen(true);
-                  }}
-                  onFocus={() => {
-                    setProjectOpen(true);
-                    setProjectQuery("");
-                  }}
-                  placeholder="Suche z.B. Werk oder P200000"
-                  autoComplete="off"
+                  id="mail-tk-subject"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  maxLength={250}
+                  required
                 />
-                {projectOpen ? (
-                  <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-border bg-background shadow-lg">
-                    {loadingProjects ? (
-                      <p className="px-2.5 py-2 text-xs text-muted-foreground">
-                        Lade…
-                      </p>
-                    ) : projects.length === 0 ? (
-                      <p className="px-2.5 py-2 text-xs text-muted-foreground">
-                        Keine Treffer
-                      </p>
-                    ) : (
-                      <ul>
-                        {projects.slice(0, 80).map((p) => (
-                          <li key={`${p.keyInternal}-${p.matchcode}`}>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              className="h-auto w-full flex-col items-start justify-start px-2.5 py-1.5 text-left text-xs font-normal hover:bg-muted"
-                              onClick={() => selectProject(p)}
-                            >
-                              <span className="font-medium">{p.matchcode}</span>
-                              <span className="text-muted-foreground">
-                                {p.keyVisible || p.keyInternal}
-                              </span>
-                            </Button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                ) : null}
               </div>
-            </div>
+            </ImportSection>
 
-            <MariKeyPairPicker
-              id="mail-tk-contract"
-              label="Vertrag"
-              value={contractId}
-              options={contracts}
-              placeholder="Vertrag wählen…"
-              emptyLabel="Kein Vertrag nötig"
-              disabled={!projectNumber}
-              onChange={setContractId}
-            />
+            <ImportSection
+              n={6}
+              title="Mail-Text"
+              hint={
+                isHtml
+                  ? "HTML-Mail — formatierte Vorschau, direkt editierbar. Wird als HTML an MARI gesendet."
+                  : "Nur-Text — bis zum Absenden editierbar."
+              }
+            >
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Label htmlFor="mail-tk-body" id="mail-tk-body-label">
+                    {isHtml ? "HTML-Beschreibung" : "Beschreibung"}
+                  </Label>
+                  {isHtml ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 min-h-9 text-xs"
+                      onClick={() => reapplySignatureStrip()}
+                    >
+                      Signaturbilder entfernen
+                    </Button>
+                  ) : null}
+                </div>
+                {isHtml ? (
+                  <MailHtmlImportEditor
+                    html={body}
+                    syncKey={htmlSyncKey}
+                    labelledBy="mail-tk-body-label"
+                    onChange={setBody}
+                  />
+                ) : (
+                  <Textarea
+                    id="mail-tk-body"
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    maxLength={8000}
+                    className="min-h-36 text-sm"
+                  />
+                )}
+              </div>
+            </ImportSection>
 
-            <div className="space-y-1">
-              <Label htmlFor="mail-tk-subject">Betreff</Label>
-              <Input
-                id="mail-tk-subject"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                maxLength={250}
-                required
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="mail-tk-body">Beschreibung</Label>
-              <Textarea
-                id="mail-tk-body"
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                maxLength={8000}
-                className="min-h-28 text-sm"
-              />
-            </div>
+            <ImportSection
+              n={7}
+              title="Anhänge"
+              hint={
+                attachments.length > 0
+                  ? "Alle vorausgewählt. Signaturbilder sind ausgeblendet."
+                  : "Keine Dateianhänge in dieser Mail."
+              }
+            >
+              {attachments.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Keine Anhänge.</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {attachments.map((a) => {
+                    const checked = selectedAttachIds.includes(a.id);
+                    return (
+                      <li key={a.id}>
+                        <label className="flex min-h-11 cursor-pointer items-start gap-2.5 rounded-xl bg-muted/40 px-3 py-2 text-sm">
+                          <input
+                            type="checkbox"
+                            className="mt-1 size-4"
+                            checked={checked}
+                            onChange={() => {
+                              setSelectedAttachIds((prev) =>
+                                prev.includes(a.id)
+                                  ? prev.filter((id) => id !== a.id)
+                                  : [...prev, a.id]
+                              );
+                            }}
+                          />
+                          <span className="min-w-0 flex-1 break-words leading-snug">
+                            <span className="font-medium">{a.name}</span>
+                            {formatBytes(a.size) ? (
+                              <span className="mt-0.5 block text-xs text-muted-foreground">
+                                {formatBytes(a.size)}
+                              </span>
+                            ) : null}
+                          </span>
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </ImportSection>
 
             <Button
               type="submit"

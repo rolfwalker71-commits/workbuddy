@@ -12,6 +12,14 @@ import {
   createMariIssue,
   joinMariContactPerson,
 } from "@/lib/mari/create-issue";
+import { parseMariCompanyId } from "@/lib/mari/companies-shared";
+import { attachMicrosoftMailFilesToTicket } from "@/lib/mari/attach-mail-files";
+import { stampMicrosoftMailAsTicketImport } from "@/lib/microsoft/mail-ticket-stamp";
+import {
+  hasMicrosoftMailScope,
+  isMicrosoftConnected,
+  resolveMicrosoftUserId,
+} from "@/lib/microsoft/oauth";
 import {
   listMyTickets,
   normalizeMariEmployeeNumber,
@@ -182,22 +190,30 @@ export async function GET(request: Request) {
 
 const CreateIssueSchema = z.object({
   briefDescription: z.string().trim().min(1).max(250),
-  requestText: z.string().trim().max(8000).optional().default(""),
+  requestText: z.string().trim().max(80_000).optional().default(""),
+  requestIsHtml: z.boolean().optional(),
   contactPerson: z.string().trim().max(250).nullable().optional(),
   contactName: z.string().trim().max(200).nullable().optional(),
   contactEmail: z.string().trim().max(120).nullable().optional(),
   cardCode: z.string().trim().max(50).nullable().optional(),
   projectNumber: z.string().trim().min(1).max(40),
+  company: z.number().int().positive(),
   contractId: z.number().int().nonnegative().nullable().optional(),
   contractPositionId: z.number().int().nonnegative().nullable().optional(),
   handledBy: z.string().trim().max(20).nullable().optional(),
   supportGroupId: z.number().int().nonnegative().nullable().optional(),
   priority: z.number().int().positive().nullable().optional(),
   medium: z.number().int().nonnegative().nullable().optional(),
+  microsoftMessageId: z.string().trim().max(512).nullable().optional(),
+  attachmentIds: z.array(z.string().trim().min(1).max(256)).max(40).optional(),
+  strippedContentIds: z
+    .array(z.string().trim().min(1).max(256))
+    .max(40)
+    .optional(),
 });
 
 export async function POST(request: Request) {
-  return withMariModule(async () => {
+  return withMariModule(async (auth) => {
     if (!hasMariConfig()) {
       return NextResponse.json(
         { error: "MARI nicht konfiguriert." },
@@ -224,13 +240,23 @@ export async function POST(request: Request) {
         parsed.data.contactEmail
       );
 
+    const company = parseMariCompanyId(parsed.data.company);
+    if (company == null) {
+      return NextResponse.json(
+        { error: "Mandant/Company fehlt." },
+        { status: 400 }
+      );
+    }
+
     try {
       const { ticket, payload } = await createMariIssue({
         briefDescription: parsed.data.briefDescription,
         requestText: parsed.data.requestText,
+        requestIsHtml: parsed.data.requestIsHtml === true,
         contactPerson,
         cardCode: parsed.data.cardCode,
         projectNumber: parsed.data.projectNumber,
+        company,
         contractId: parsed.data.contractId,
         contractPositionId: parsed.data.contractPositionId,
         handledBy: parsed.data.handledBy,
@@ -238,7 +264,78 @@ export async function POST(request: Request) {
         priority: parsed.data.priority,
         medium: parsed.data.medium,
       });
-      return NextResponse.json({ ok: true, ticket, payload });
+
+      let mailAttachments: {
+        attached: Array<{ name: string; attachmentId: number }>;
+        errors: string[];
+      } = { attached: [], errors: [] };
+      let mailStamp: {
+        ok: boolean;
+        category: string | null;
+        error: string | null;
+      } = { ok: false, category: null, error: null };
+      const messageId = parsed.data.microsoftMessageId?.trim() || "";
+      const attachIds = parsed.data.attachmentIds || [];
+      const userId = resolveMicrosoftUserId(auth);
+      const msReady =
+        userId != null &&
+        isMicrosoftConnected(userId) &&
+        hasMicrosoftMailScope(userId);
+
+      if (messageId && attachIds.length > 0) {
+        if (!msReady || userId == null) {
+          mailAttachments.errors.push(
+            "Outlook-Anhänge: Microsoft 365 nicht verbunden."
+          );
+        } else {
+          mailAttachments = await attachMicrosoftMailFilesToTicket({
+            userId,
+            messageId,
+            issueId: ticket.issueId,
+            attachmentIds: attachIds,
+            strippedContentIds: parsed.data.strippedContentIds || null,
+          });
+        }
+      }
+
+      if (messageId) {
+        if (!msReady || userId == null) {
+          mailStamp = {
+            ok: false,
+            category: null,
+            error: "Outlook-Stempel: Microsoft 365 nicht verbunden.",
+          };
+        } else {
+          try {
+            const stamped = await stampMicrosoftMailAsTicketImport(
+              userId,
+              messageId
+            );
+            mailStamp = {
+              ok: true,
+              category: stamped.category,
+              error: null,
+            };
+          } catch (stampErr) {
+            mailStamp = {
+              ok: false,
+              category: null,
+              error:
+                stampErr instanceof Error
+                  ? stampErr.message
+                  : String(stampErr),
+            };
+          }
+        }
+      }
+
+      return NextResponse.json({
+        ok: true,
+        ticket,
+        payload,
+        mailAttachments,
+        mailStamp,
+      });
     } catch (err) {
       const message =
         err instanceof MariApiError

@@ -85,18 +85,25 @@ type RawKeyPair = {
   sKeyInternal?: string | null;
   nIndent?: number | null;
   bIndentParent?: boolean | null;
+  nCompany?: number | null;
+  Company?: number | null;
+  nCompanyID?: number | null;
 };
 
 function mapKeyPair(raw: RawKeyPair): MariKeyPair | null {
   const keyInternal = String(raw.sKeyInternal || "").trim();
   const matchcode = String(raw.sMatchcode || "").trim();
   if (!keyInternal && !matchcode) return null;
+  const companyRaw = raw.nCompany ?? raw.Company ?? raw.nCompanyID;
+  const companyNum = Number(companyRaw);
   return {
     matchcode: matchcode || keyInternal,
     keyVisible: String(raw.sKeyVisible || "").trim(),
     keyInternal: keyInternal || matchcode,
     indent: Number(raw.nIndent) || 0,
     indentParent: Boolean(raw.bIndentParent),
+    company:
+      Number.isInteger(companyNum) && companyNum > 0 ? companyNum : null,
   };
 }
 

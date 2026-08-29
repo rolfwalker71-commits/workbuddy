@@ -6,14 +6,18 @@ import {
   isMicrosoftConnected,
   resolveMicrosoftUserId,
 } from "@/lib/microsoft/oauth";
-import { listMicrosoftPdfAttachments } from "@/lib/microsoft/mail-attachments";
+import {
+  listMicrosoftMessageAttachments,
+  listMicrosoftPdfAttachments,
+  listMicrosoftTicketFileAttachments,
+} from "@/lib/microsoft/mail-attachments";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-export async function GET(_request: Request, context: Ctx) {
+export async function GET(request: Request, context: Ctx) {
   ensureInitialized();
   const auth = await requireModule("microsoft");
   if (isAuthError(auth)) return auth;
@@ -34,6 +38,22 @@ export async function GET(_request: Request, context: Ctx) {
   }
 
   try {
+    const url = new URL(request.url);
+    const all = url.searchParams.get("all") === "1";
+    if (all) {
+      const listed = await listMicrosoftMessageAttachments(userId, id);
+      const files = listMicrosoftTicketFileAttachments(listed);
+      return NextResponse.json({
+        attachments: files.map((a) => ({
+          id: a.id,
+          name: a.name,
+          size: a.size,
+          contentType: a.contentType,
+          isInline: a.isInline,
+          contentId: a.contentId,
+        })),
+      });
+    }
     const pdfs = await listMicrosoftPdfAttachments(userId, id);
     return NextResponse.json({
       attachments: pdfs.map((a) => ({

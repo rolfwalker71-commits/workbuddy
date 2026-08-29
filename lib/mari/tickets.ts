@@ -34,6 +34,7 @@ import {
   normalizeMariDueDate,
   sanitizeMariProjectNumber,
 } from "@/lib/mari/timekeeping-shared";
+import { companyFromMariIssue } from "@/lib/mari/companies-shared";
 
 export type { MariTimelineKind, MariTimelineSide } from "@/lib/mari/timeline-side";
 export {
@@ -107,6 +108,8 @@ export type MariTicketListItem = {
   stdFreigabe: string | null;
   /** AI-Kurzinfo (Topic/Category) */
   aiLabel: string | null;
+  /** SAP-Mandant (clsImportSupportIssue.Company / B1-Schema) */
+  company: number | null;
   /** Projektnummer (z.B. P200000) */
   projectNumber: string | null;
   phaseId: number | null;
@@ -565,6 +568,7 @@ ORDER BY
           ? null
           : String(r.StdFreigabe).trim(),
       aiLabel: ai,
+      company: null,
       projectNumber: sanitizeMariProjectNumber(r.ProjectNumber, {
         addressMatchcode: r.AddressMatchcode || null,
         cardCode: r.CardCode || null,
@@ -1181,6 +1185,7 @@ WHERE i."IssueID"=${issueId}`
     mediumName,
     stdFreigabe,
     aiLabel,
+    company: companyFromMariIssue(issue),
     projectNumber,
     phaseId,
     phaseName,

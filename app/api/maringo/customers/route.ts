@@ -8,6 +8,10 @@ import {
   normalizeMariEmail,
   searchMariCustomers,
 } from "@/lib/mari/customers";
+import {
+  listMariCompanies,
+  lookupMariCompanyForProject,
+} from "@/lib/mari/companies";
 import { sanitizeMariProjectNumber } from "@/lib/mari/timekeeping-shared";
 
 export const runtime = "nodejs";
@@ -32,6 +36,10 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const emailRaw = (url.searchParams.get("email") || "").trim();
     const projectRaw = (url.searchParams.get("projectNumber") || "").trim();
+    if (url.searchParams.get("companies") === "1") {
+      const companies = await listMariCompanies();
+      return NextResponse.json({ configured: true, companies });
+    }
     if (emailRaw) {
       const email = normalizeMariEmail(emailRaw);
       if (!email) {
@@ -57,11 +65,15 @@ export async function GET(request: Request) {
           projectNumber: projectRaw,
         });
       }
-      const customers = await lookupMariCustomersForProject(projectNumber);
+      const [customers, company] = await Promise.all([
+        lookupMariCustomersForProject(projectNumber),
+        lookupMariCompanyForProject(projectNumber),
+      ]);
       return NextResponse.json({
         configured: true,
         customers,
         projectNumber,
+        company,
       });
     }
     const q = (url.searchParams.get("q") || "").trim();

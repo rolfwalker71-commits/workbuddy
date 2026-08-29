@@ -72,6 +72,7 @@ function mapToDetail(m: GraphMessage): MailMessageDetail | null {
   return {
     ...base,
     to: to || null,
+    bodyContentType: isHtml ? "html" : "text",
     bodyText: bodyText.slice(0, 12_000) || null,
     bodyHtml: isHtml ? rawBody.slice(0, 80_000) : null,
   };

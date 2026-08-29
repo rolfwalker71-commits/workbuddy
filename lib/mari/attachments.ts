@@ -419,3 +419,67 @@ export function countImageAttachmentMetas(
 export function isImageAttachmentRow(row: MariAttachmentApiRow): boolean {
   return isImageAttachment(row);
 }
+
+export type MariFileAttachmentPostResult = {
+  attachmentId: number;
+  issueId: number;
+  orgFilename: string;
+};
+
+/**
+ * Datei-Anhang via POST /api/SupportIssueAttachment (DocumentData Base64).
+ * AttachmentTyp 3 = Mail-Eingang (wie eingehende Ticket-Mails).
+ */
+export async function postMariFileAttachment(params: {
+  issueId: number;
+  filename: string;
+  mimeType: string;
+  bytes: Buffer;
+}): Promise<MariFileAttachmentPostResult> {
+  const issueId = params.issueId;
+  if (!Number.isInteger(issueId) || issueId <= 0) {
+    throw new MariApiError("Ungültige Issue-ID", 400);
+  }
+  const filename = (params.filename || "anhang").trim() || "anhang";
+  if (!params.bytes?.length) {
+    throw new MariApiError("Anhang leer", 400);
+  }
+  const mime = normalizeMariMime(params.mimeType, filename);
+  const body = {
+    IssueID: issueId,
+    OrgFilename: filename.slice(0, 250),
+    MimeType: mime,
+    DocumentData: params.bytes.toString("base64"),
+    AttachmentTyp: 3,
+    Internal: false,
+    AttachmentSubject: filename.slice(0, 250),
+    DisableNotificationSettings: true,
+  };
+  const res = await mariJson<{
+    AttachmentID?: number;
+    IssueID?: number;
+    IMPORT_Feedback?: number;
+    IMPORT_ErrorMessage?: string | null;
+  }>("/api/SupportIssueAttachment", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const attachmentId = Number(res.AttachmentID);
+  if (!Number.isInteger(attachmentId) || attachmentId <= 0) {
+    throw new MariApiError(
+      res.IMPORT_ErrorMessage || "MARI lieferte keine AttachmentID",
+      502,
+      res
+    );
+  }
+  const errMsg = (res.IMPORT_ErrorMessage || "").trim();
+  if (errMsg) {
+    throw new MariApiError(errMsg, 502, res);
+  }
+  return {
+    attachmentId,
+    issueId: Number(res.IssueID) || issueId,
+    orgFilename: filename,
+  };
+}

@@ -51,7 +51,7 @@ import {
 } from "@/lib/users/organization";
 import type { HomeAbsenceState } from "@/lib/dashboard/home-surfaces-shared";
 import type { PresenceStatus } from "@/lib/presence/status";
-import { formatSwissDate, formatSwissDateRange } from "@/lib/utils/dates";
+import { formatSwissDateRange } from "@/lib/utils/dates";
 
 type OrgFilter = "" | UserOrganization;
 type BoardView = "day" | "week";
@@ -64,6 +64,7 @@ function formatLongDeDate(ymd: string): string {
     weekday: "long",
     day: "numeric",
     month: "long",
+    year: "numeric",
   }).format(new Date(`${ymd}T12:00:00Z`));
 }
 
@@ -415,9 +416,11 @@ export function PresenceTeamBoard() {
                 ? formatSwissDateRange(weekDays[0], weekDays[4])
                 : formatLongDeDate(ymd)}
             </p>
-            <p className="text-xs text-muted-foreground">
-              {view === "week" ? "Montag bis Freitag" : formatSwissDate(ymd)}
-            </p>
+            {view === "week" ? (
+              <p className="text-xs text-muted-foreground">
+                Montag bis Freitag
+              </p>
+            ) : null}
           </div>
           <Button
             type="button"

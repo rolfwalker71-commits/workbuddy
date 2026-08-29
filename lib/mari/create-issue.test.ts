@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildMariIssueCreateBody,
-  DEFAULT_SUPPORT_COMPANY_ID,
   DEFAULT_SUPPORT_PRODUCT_ID,
   joinMariContactPerson,
 } from "@/lib/mari/create-issue";
@@ -52,6 +51,7 @@ test("buildMariIssueCreateBody uses PATCH/GET field names", () => {
       contactPerson: "Anna; anna@firma.ch",
       cardCode: "C1000",
       projectNumber: "P200000",
+      company: 2,
       contractId: 44,
       handledBy: "M1010",
     },
@@ -63,7 +63,7 @@ test("buildMariIssueCreateBody uses PATCH/GET field names", () => {
   );
   assert.equal(body.BriefDescription, "Drucker klemmt");
   assert.equal(body.Project, "P200000");
-  assert.equal(body.Company, DEFAULT_SUPPORT_COMPANY_ID);
+  assert.equal(body.Company, 2);
   assert.equal(body.BusinessPartnerCode, "C1000");
   assert.equal(body.ContractID, 44);
   assert.equal(body.ContactPerson, "Anna; anna@firma.ch");
@@ -78,4 +78,43 @@ test("buildMariIssueCreateBody uses PATCH/GET field names", () => {
   assert.equal(body.Medium, 3);
   assert.match(String(body.RequestText), /Seit heute kein Papier/);
   assert.equal("CardCode" in body, false);
+});
+
+test("buildMariIssueCreateBody keeps mail HTML and rejects missing company", () => {
+  const body = buildMariIssueCreateBody(
+    {
+      briefDescription: "HTML Mail",
+      requestText: "<p>Hallo</p><br />Text",
+      requestIsHtml: true,
+      projectNumber: "P200000",
+      company: 1,
+    },
+    { employeeNumber: "M1010" }
+  );
+  assert.equal(body.RequestText, "<p>Hallo</p><br />Text");
+  assert.equal(body.Company, 1);
+  const asText = buildMariIssueCreateBody(
+    {
+      briefDescription: "Text",
+      requestText: "Zeile 1\nZeile 2",
+      requestIsHtml: false,
+      projectNumber: "P200000",
+      company: 1,
+    },
+    { employeeNumber: "M1010" }
+  );
+  assert.equal(asText.RequestText, "Zeile 1<br />Zeile 2");
+  assert.throws(
+    () =>
+      buildMariIssueCreateBody(
+        {
+          briefDescription: "x",
+          requestText: "y",
+          projectNumber: "P200000",
+          company: 0,
+        },
+        { employeeNumber: "M1010" }
+      ),
+    /Mandant/
+  );
 });

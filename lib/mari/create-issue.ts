@@ -15,6 +15,10 @@ import {
 import {
   sanitizeMariProjectNumber,
 } from "@/lib/mari/timekeeping-shared";
+import { parseMariCompanyId } from "@/lib/mari/companies-shared";
+import { looksLikeMariHtml } from "@/lib/mari/internal-note";
+import { sanitizeMailHtml } from "@/lib/mail/mail-html-display";
+import { looksLikeHtmlBody } from "@/lib/mail/strip-signature-images";
 
 /** Wie in patchTicketFields — Fallback wenn ProductID fehlt. */
 export const DEFAULT_SUPPORT_PRODUCT_ID = 100001;
@@ -31,6 +35,10 @@ export type MariIssueCreateInput = {
   contactPerson?: string | null;
   cardCode?: string | null;
   projectNumber: string;
+  /** True when Outlook/Graph delivered HTML — RequestText stays HTML. */
+  requestIsHtml?: boolean;
+  /** SAP-Mandant (MPSysConnections / B1-Schema). Pflicht — aus Projekt, änderbar. */
+  company: number;
   contractId?: number | null;
   contractPositionId?: number | null;
   handledBy?: string | null;
@@ -62,8 +70,20 @@ export function joinMariContactPerson(
   return joinContactPerson(name || "", email || "");
 }
 
-function toMariRequestHtml(plain: string): string {
-  const escaped = plain
+const MARI_HTML_MAX = 80_000;
+const MARI_TEXT_MAX = 16_000;
+
+function toMariRequestHtml(plain: string, isHtml?: boolean): string {
+  const trimmed = plain.trim();
+  if (
+    isHtml ||
+    looksLikeMariHtml(trimmed) ||
+    looksLikeHtmlBody(trimmed)
+  ) {
+    return sanitizeMailHtml(trimmed).slice(0, MARI_HTML_MAX);
+  }
+  const escaped = trimmed
+    .slice(0, MARI_TEXT_MAX)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
@@ -82,6 +102,13 @@ export function buildMariIssueCreateBody(
   if (!pn) {
     throw new MariApiError("Projektnummer ungültig.", 400);
   }
+  const company = parseMariCompanyId(input.company);
+  if (company == null) {
+    throw new MariApiError(
+      "Mandant/Company fehlt — bitte aus dem Projekt übernehmen oder setzen.",
+      400
+    );
+  }
   const subject = input.briefDescription.trim().slice(0, 250);
   if (!subject) {
     throw new MariApiError("Betreff fehlt.", 400);
@@ -90,14 +117,16 @@ export function buildMariIssueCreateBody(
     normalizeMariEmployeeNumber(input.handledBy) ||
     normalizeMariEmployeeNumber(ctx.employeeNumber);
   const cardCode = normalizeMariCardCode(input.cardCode);
-  const requestPlain = input.requestText.trim().slice(0, 8000);
+  const requestPlain = input.requestText.trim();
   const contact = (input.contactPerson || "").trim();
 
   const body: Record<string, unknown> = {
     BriefDescription: subject,
-    RequestText: requestPlain ? toMariRequestHtml(requestPlain) : subject,
+    RequestText: requestPlain
+      ? toMariRequestHtml(requestPlain, input.requestIsHtml)
+      : subject,
     ContactPerson: contact || null,
-    Company: DEFAULT_SUPPORT_COMPANY_ID,
+    Company: company,
     Project: pn,
     Status: NEW_STATUS_ID,
     ProductID: DEFAULT_SUPPORT_PRODUCT_ID,
@@ -189,6 +218,12 @@ export async function createMariIssue(
   if (!pn) {
     throw new MariApiError(
       "Projektnummer fehlt — bitte ein Projekt aus der Liste wählen.",
+      400
+    );
+  }
+  if (parseMariCompanyId(input.company) == null) {
+    throw new MariApiError(
+      "Mandant/Company fehlt — bitte aus dem Projekt übernehmen oder setzen.",
       400
     );
   }

@@ -23,9 +23,13 @@ export type MailAttachment = {
   size: number;
 };
 
+export type MailBodyContentType = "html" | "text";
+
 export type MailMessage = MailListItem & {
   to: string | null;
   cc?: string | null;
+  /** Graph/Outlook: body.contentType. HTML mails keep bodyHtml for ticket import. */
+  bodyContentType?: MailBodyContentType;
   bodyHtml: string | null;
   bodyText: string | null;
   attachments?: MailAttachment[];
