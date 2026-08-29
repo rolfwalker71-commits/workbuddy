@@ -206,7 +206,9 @@ export function MailChronikList({
   blacklistOpen?: boolean;
   onBlacklistOpenChange?: (open: boolean) => void;
 }) {
+  const t = useT();
   const [openId, setOpenId] = useState<string | null>(null);
+  const [openProvider, setOpenProvider] = useState<MailChronikProvider>(provider);
   const [webLink, setWebLink] = useState<string | null>(null);
   const [openFolder, setOpenFolder] = useState<"inbox" | "sent" | null>(null);
   const [openFromEmail, setOpenFromEmail] = useState<string | null>(null);
@@ -249,9 +251,6 @@ export function MailChronikList({
   );
   const hasInRange = visibleItems.some((m) => m.inRange !== false);
   const hiddenFromView = items.length - visibleItems.length;
-
-  const t = useT();
-  const [openProvider, setOpenProvider] = useState<MailChronikProvider>(provider);
 
   const openMail = useCallback(
     async (item: ChronikMail) => {
@@ -301,7 +300,7 @@ export function MailChronikList({
         setDetailLoading(false);
       }
     },
-    [provider]
+    [provider, t]
   );
 
   const openSenderEmail =
