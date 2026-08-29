@@ -14,6 +14,9 @@ import {
   mergeNotificationPrefs,
   type UserNotificationPrefs,
 } from "@/lib/realtime/prefs-client";
+import { useLocale, useT } from "@/components/i18n/locale-provider";
+import { notifyReasonDisplayLabel } from "@/lib/i18n/display";
+import type { MessageKey } from "@/lib/i18n";
 
 type CatalogItem = {
   reason: NotifyReason;
@@ -21,11 +24,11 @@ type CatalogItem = {
   domain: "maringo" | "microsoft" | "google" | "app";
 };
 
-const DOMAIN_LABEL: Record<CatalogItem["domain"], string> = {
-  microsoft: "Microsoft 365",
-  google: "Google Workspace",
-  maringo: "Maringo Support",
-  app: "WorkBuddy",
+const DOMAIN_KEY: Record<CatalogItem["domain"], MessageKey | null> = {
+  microsoft: "nav.microsoft",
+  google: "nav.google",
+  maringo: "nav.maringo",
+  app: null,
 };
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -54,37 +57,41 @@ function pushSubscriptionPayload(sub: PushSubscription): {
     json.keys?.p256dh || bufferToBase64Url(sub.getKey("p256dh"));
   const auth = json.keys?.auth || bufferToBase64Url(sub.getKey("auth"));
   if (!json.endpoint || !p256dh || !auth) {
-    throw new Error("Push-Subscription unvollständig (Keys fehlen).");
+    throw new Error("PUSH_INCOMPLETE");
   }
   return { endpoint: json.endpoint, keys: { p256dh, auth } };
 }
 
-function explainPushError(err: unknown): string {
+function explainPushError(
+  err: unknown,
+  t: (key: MessageKey, params?: Record<string, string | number | null | undefined>) => string
+): string {
   const msg = err instanceof Error ? err.message : String(err);
   const name =
     err && typeof err === "object" && "name" in err
       ? String((err as { name: unknown }).name)
       : "";
+  if (msg === "PUSH_INCOMPLETE") return t("account.pushIncomplete");
   if (/secure|https|insecure/i.test(msg) || name === "SecurityError") {
-    return "Push braucht HTTPS (oder localhost). Bitte Buddy über die HTTPS-URL öffnen — nicht nur http://IP:Port.";
+    return t("account.pushNeedsHttps");
   }
   if (/push service|AbortError|Registration failed/i.test(msg) || name === "AbortError") {
-    return `${msg} — Unter Windows: Chrome/Edge-Benachrichtigungen in den Windows-Einstellungen erlauben; ggf. Buddy als App installieren.`;
+    return t("account.pushWinHint", { msg });
   }
   if (/applicationServerKey|InvalidAccessError/i.test(msg)) {
-    return "VAPID-Public-Key ungültig — Seite neu laden und Push erneut aktivieren.";
+    return t("account.vapidInvalid");
   }
-  return msg || "Push aktivieren fehlgeschlagen.";
+  return msg || t("account.pushEnableFailed");
 }
 
-async function ensureServiceWorkerRegistration(): Promise<ServiceWorkerRegistration> {
+async function ensureServiceWorkerRegistration(
+  t: (key: MessageKey, params?: Record<string, string | number | null | undefined>) => string
+): Promise<ServiceWorkerRegistration> {
   if (!("serviceWorker" in navigator)) {
-    throw new Error("Dieser Browser unterstützt keinen Service Worker.");
+    throw new Error(t("account.noServiceWorker"));
   }
   if (!window.isSecureContext) {
-    throw new Error(
-      "Kein sicherer Kontext (HTTPS). Buddy unter HTTPS öffnen."
-    );
+    throw new Error(t("account.noSecureContext"));
   }
   const existing = await navigator.serviceWorker.getRegistration("/");
   const reg =
@@ -107,9 +114,7 @@ async function ensureServiceWorkerRegistration(): Promise<ServiceWorkerRegistrat
         setTimeout(
           () =>
             reject(
-              new Error(
-                "Service Worker startet nicht. Seite neu laden und erneut versuchen."
-              )
+              new Error(t("account.swNotStarting"))
             ),
           15000
         )
@@ -120,6 +125,8 @@ async function ensureServiceWorkerRegistration(): Promise<ServiceWorkerRegistrat
 }
 
 export function NotificationPrefsPanel() {
+  const t = useT();
+  const { locale } = useLocale();
   const [prefs, setPrefs] = useState<UserNotificationPrefs>(() =>
     mergeNotificationPrefs(null)
   );

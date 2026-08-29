@@ -171,7 +171,7 @@ export function MicrosoftTeamsPanel({
   const [patchingKey, setPatchingKey] = useState<string | null>(null);
   const [applyCard, setApplyCard] = useState<TeamsInboxCard | null>(null);
   const [open, setOpen] = useState<OpenTarget | null>(null);
-  const [threadTitle, setThreadTitle] = useState("Chat");
+  const [threadTitle, setThreadTitle] = useState("");
   const [threadWebUrl, setThreadWebUrl] = useState<string | null>(null);
   const [threadChatId, setThreadChatId] = useState<string | null>(null);
   const [threadChatType, setThreadChatType] =
@@ -812,7 +812,13 @@ export function MicrosoftTeamsPanel({
                       ) : (
                         <>
                           <span className="mt-0.5 block text-xs text-muted-foreground">
-                            {card.typeLabel}
+                            {card.kind === "channel"
+                              ? t("microsoft.channel")
+                              : card.chatType === "meeting"
+                                ? t("microsoft.meeting")
+                                : card.chatType === "group"
+                                  ? t("microsoft.group")
+                                  : t("microsoft.chat")}
                             {time ? ` · ${time}` : ""}
                           </span>
                           {card.preview ? (
@@ -1051,7 +1057,7 @@ export function MicrosoftTeamsPanel({
                             className="rounded-2xl bg-muted px-3 py-2 text-sm"
                           >
                             <p className="text-[0.6875rem] font-semibold text-muted-foreground">
-                              {m.from || "Unbekannt"}
+                              {m.from || t("common.unknown")}
                               {m.createdAt
                                 ? ` · ${formatSwissDateTime(m.createdAt)}`
                                 : ""}

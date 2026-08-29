@@ -123,7 +123,7 @@ export function SettingsMicrosoftCalendarsPanel() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -368,8 +368,8 @@ export function SettingsMicrosoftCalendarsPanel() {
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {types.map((t) => (
-                                      <SelectItem key={t.id} value={t.id}>
+                                    {types.map((typeRow) => (
+                                      <SelectItem key={typeRow.id} value={typeRow.id}>
                                         {icsTypeDisplayLabel(typeRow.id, locale, typeRow.label)}
                                       </SelectItem>
                                     ))}
@@ -377,7 +377,7 @@ export function SettingsMicrosoftCalendarsPanel() {
                                 </Select>
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs">Farbe</Label>
+                                <Label className="text-xs">{t("common.color")}</Label>
                                 <div className="flex flex-wrap items-center gap-1.5">
                                   {PRESET_COLORS.map((hex) => (
                                     <Button
@@ -424,10 +424,9 @@ export function SettingsMicrosoftCalendarsPanel() {
                                   }
                                 />
                                 <span>
-                                  Relevant für Terminplanung
+                                  {t("settings.planningRelevant")}
                                   <span className="mt-0.5 block text-[0.6875rem] text-muted-foreground/90">
-                                    Aus = nur Referenz: sichtbar, ohne Fokus /
-                                    Konflikte
+                                    {t("settings.planningOffHint")}
                                   </span>
                                 </span>
                               </label>
@@ -436,10 +435,10 @@ export function SettingsMicrosoftCalendarsPanel() {
                           {d.on && isWorkCalendarType(d.type) ? (
                             <p className="text-[0.6875rem] text-muted-foreground">
                               {d.type === "work_rolf"
-                                ? "Arbeit Rolf: AI-Bilder mit Mann."
+                                ? t("settings.workRolfHint")
                                 : d.type === "work_valentyna"
-                                  ? "Arbeit Valentyna: AI-Bilder mit Frau."
-                                  : "Arbeit: AI-Bilder standardmässig mit Mann (außer Valentyna im Kalendernamen)."}
+                                  ? t("settings.workValentynaHint")
+                                  : t("settings.workHint")}
                             </p>
                           ) : null}
                         </div>
@@ -456,7 +455,7 @@ export function SettingsMicrosoftCalendarsPanel() {
                 disabled={saving || !dirty}
                 onClick={() => void save()}
               >
-                Auswahl speichern
+                {t("settings.saveSelection")}
               </Button>
               <Button
                 type="button"
@@ -464,7 +463,7 @@ export function SettingsMicrosoftCalendarsPanel() {
                 disabled={saving}
                 onClick={() => void load()}
               >
-                Neu laden
+                {t("common.reload")}
               </Button>
             </div>
           </>

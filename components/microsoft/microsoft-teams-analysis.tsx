@@ -20,7 +20,9 @@ import {
   analysisEventsNeedSlot,
   type AnalysisDraftEvent,
 } from "@/components/mail/analysis-event-draft-card";
+import { useT } from "@/components/i18n/locale-provider";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
+import type { MessageKey, TranslateParams } from "@/lib/i18n";
 import type {
   TeamsAnalysisEvent,
   TeamsAnalysisReply,
@@ -56,18 +58,28 @@ type TeamsDraftEvent = AnalysisDraftEvent & {
   sourceChatTitle?: string | null;
 };
 
-function dayMetaFromJson(json: {
-  chatsAnalyzed?: number;
-  chatsConsidered?: number;
-  channelsAnalyzed?: number;
-  channelsConsidered?: number;
-}): string {
-  const chats = `${json.chatsAnalyzed || 0} von ${json.chatsConsidered || 0} Chats`;
-  const channels = `${json.channelsAnalyzed || 0} von ${json.channelsConsidered || 0} Kanälen`;
-  return `${chats} · ${channels} (heute)`;
+function dayMetaFromJson(
+  json: {
+    chatsAnalyzed?: number;
+    chatsConsidered?: number;
+    channelsAnalyzed?: number;
+    channelsConsidered?: number;
+  },
+  t: (key: MessageKey, params?: TranslateParams) => string
+): string {
+  const chats = t("microsoft.chatsOf", {
+    done: json.chatsAnalyzed || 0,
+    total: json.chatsConsidered || 0,
+  });
+  const channels = t("microsoft.channelsOf", {
+    done: json.channelsAnalyzed || 0,
+    total: json.channelsConsidered || 0,
+  });
+  return `${chats} · ${channels}${t("microsoft.todaySuffix")}`;
 }
 
 export function useTeamsAnalysis(options?: { hydrateDay?: boolean }) {
+  const t = useT();
   const [analysis, setAnalysis] = useState<TeamsChatAnalysis | null>(null);
   const [usedAi, setUsedAi] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -93,7 +105,7 @@ export function useTeamsAnalysis(options?: { hydrateDay?: boolean }) {
     if (next) {
       setAnalysis(next);
       setUsedAi(Boolean(json.usedAi ?? (json.job as { usedAi?: boolean } | null)?.usedAi));
-      setMeta(dayMetaFromJson(json));
+      setMeta(dayMetaFromJson(json, t));
     }
     const keys =
       (json.threadKeys as string[] | undefined) ||
@@ -108,7 +120,7 @@ export function useTeamsAnalysis(options?: { hydrateDay?: boolean }) {
       setError(
         (typeof json.error === "string" && json.error) ||
           job?.error ||
-          "Tagesanalyse fehlgeschlagen."
+          t("microsoft.dayAnalysisFailedDot")
       );
     }
   }
@@ -118,12 +130,12 @@ export function useTeamsAnalysis(options?: { hydrateDay?: boolean }) {
       await new Promise((r) => setTimeout(r, 1500));
       const res = await fetch("/api/microsoft/teams/analyze");
       const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-      if (!res.ok) throw new Error((json.error as string) || "Analyse fehlgeschlagen");
+      if (!res.ok) throw new Error((json.error as string) || t("microsoft.analysisFailed"));
       if (json.status === "running") continue;
       applyDayJson(json);
       return;
     }
-    throw new Error("Tagesanalyse dauert zu lange.");
+    throw new Error(t("microsoft.dayAnalysisSlow"));
   }
 
   useEffect(() => {
@@ -166,11 +178,11 @@ export function useTeamsAnalysis(options?: { hydrateDay?: boolean }) {
         await pollDayJob();
         return;
       }
-      if (!res.ok) throw new Error((json.error as string) || "Analyse fehlgeschlagen");
+      if (!res.ok) throw new Error((json.error as string) || t("microsoft.analysisFailed"));
       setAnalysis(json.analysis as TeamsChatAnalysis);
       setUsedAi(Boolean(json.usedAi));
       if (json.scope === "day") {
-        setMeta(dayMetaFromJson(json));
+        setMeta(dayMetaFromJson(json, t));
       } else {
         setMeta(null);
       }
@@ -199,16 +211,16 @@ export function useTeamsAnalysis(options?: { hydrateDay?: boolean }) {
         }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || "Übernehmen fehlgeschlagen");
+      if (!res.ok) throw new Error(json.error || t("common.actionFailed"));
       const bits = [
-        json.taskOk ? `${json.taskOk} Aufgabe(n)` : null,
-        json.eventOk ? `${json.eventOk} Termin(e)` : null,
-        json.issueId ? `Ticket #${json.issueId}` : null,
+        json.taskOk ? t("microsoft.nTasksParen", { count: json.taskOk }) : null,
+        json.eventOk ? t("microsoft.nEventsParen", { count: json.eventOk }) : null,
+        json.issueId ? t("microsoft.ticketHash", { id: json.issueId }) : null,
       ].filter(Boolean);
       setStatus(
         bits.length
-          ? `${bits.join(" · ")} übernommen.`
-          : "Nichts angelegt."
+          ? t("microsoft.appliedBits", { bits: bits.join(" · ") })
+          : t("microsoft.nothingCreated")
       );
       if (json.errors?.length) {
         setError((json.errors as string[]).join(" · "));
@@ -238,7 +250,7 @@ export function useTeamsAnalysis(options?: { hydrateDay?: boolean }) {
 export function TeamsAnalysisTrigger({
   loading,
   disabled,
-  label = "Analysieren",
+  label,
   onAnalyze,
   className,
 }: {
@@ -248,6 +260,7 @@ export function TeamsAnalysisTrigger({
   onAnalyze: () => void;
   className?: string;
 }) {
+  const t = useT();
   return (
     <Button
       type="button"
@@ -260,7 +273,7 @@ export function TeamsAnalysisTrigger({
         className={cn("size-3.5", loading && "animate-pulse")}
         strokeWidth={APP_ICON_STROKE}
       />
-      {loading ? "Analyse läuft…" : label}
+      {loading ? t("microsoft.analysisRunning") : label ?? t("tickets.analyze")}
     </Button>
   );
 }
@@ -286,6 +299,7 @@ export function TeamsAnalysisResults({
   compact?: boolean;
   onApply: (payload: TeamsApplyPayload) => void;
 }) {
+  const t = useT();
   const [picks, setPicks] = useState<Picks>({ tasks: {}, events: {} });
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [draftTasks, setDraftTasks] = useState<TeamsAnalysisTask[]>([]);
@@ -403,8 +417,7 @@ export function TeamsAnalysisResults({
   if (!analysis && !loading && !error) {
     return (
       <p className="text-xs text-muted-foreground">
-        Analyse vorschlagen — nichts wird automatisch nach To Do oder Kalender
-        geschrieben.
+        {t("microsoft.suggestAnalysis")}
       </p>
     );
   }

@@ -17,6 +17,7 @@ import { TIMEKEEPING_INT_BEMERKUNG_OPTIONS } from "@/lib/mari/timekeeping-udfs";
 import type { MariTimeBookFavorite } from "@/lib/mari/time-book-favorites";
 import { isAllowedCompanyEmail } from "@/lib/auth/allowed-email";
 import {
+  ATTENDEE_CONTACT_REASON,
   partnerSuggestionChipLabel,
   partnerSuggestionChipReason,
   type MariEmailPartnerSuggestion,
@@ -30,6 +31,15 @@ import {
   timeBookInitialBillableDirty,
   timeBookPostHours,
 } from "@/lib/mari/time-book-hours";
+import { useT } from "@/components/i18n/locale-provider";
+import type { MessageKey } from "@/lib/i18n";
+
+const REMARK_OPTION_LABEL: Record<string, MessageKey> = {
+  Umbuchen: "timekeeping.remarkRepost",
+  Verrechnen: "timekeeping.remarkBill",
+  Rueckfrage: "timekeeping.remarkAsk",
+  Begründung: "timekeeping.remarkReason",
+};
 
 export type TimeBookFormDefaults = {
   dayOfService?: string;
@@ -82,7 +92,7 @@ function zurichTodayYmd(): string {
 
 export function MaringoTimeBookForm({
   defaults,
-  submitLabel = "Buchen",
+  submitLabel,
   onSubmit,
   className,
   layout = "compact",
@@ -111,6 +121,8 @@ export function MaringoTimeBookForm({
   /** Hinweis unter den Stundenfeldern (z.B. Vorlage aus Termindauer). */
   hoursHint?: string | null;
 }) {
+  const t = useT();
+  const resolvedSubmit = submitLabel ?? t("common.book");
   const [dayOfService, setDayOfService] = useState(
     defaults?.dayOfService || zurichTodayYmd()
   );
@@ -195,7 +207,7 @@ export function MaringoTimeBookForm({
     try {
       const res = await fetch("/api/maringo/timekeeping/favorites");
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Favoriten laden fehlgeschlagen");
+      if (!res.ok) throw new Error(data.error || t("timekeeping.loadFavoritesFailed"));
       setFavorites((data.favorites || []) as MariTimeBookFavorite[]);
     } catch {
       /* Favoriten optional — Maske bleibt nutzbar */
@@ -224,7 +236,7 @@ export function MaringoTimeBookForm({
         );
         const data = await res.json().catch(() => ({}));
         if (cancelled) return;
-        if (!res.ok) throw new Error(data.error || "Teilnehmer-Suche fehlgeschlagen");
+        if (!res.ok) throw new Error(data.error || t("timekeeping.attendeeSearchFailed"));
         const next = (data.suggestions || []) as MariEmailPartnerSuggestion[];
         setAttendeeHits(next);
       } catch {
@@ -245,7 +257,7 @@ export function MaringoTimeBookForm({
         `/api/maringo/timekeeping/projects?q=${encodeURIComponent(q)}`
       );
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Projekte laden fehlgeschlagen");
+      if (!res.ok) throw new Error(data.error || t("tickets.loadProjectsFailed"));
       setProjects((data.projects || []) as MariKeyPair[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -278,7 +290,7 @@ export function MaringoTimeBookForm({
         );
         const co = await coRes.json().catch(() => ({}));
         if (cancelled) return;
-        if (!coRes.ok) throw new Error(co.error || "Verträge laden fehlgeschlagen");
+        if (!coRes.ok) throw new Error(co.error || t("timekeeping.loadContractsFailed"));
         const nextContracts = (co.contracts || []) as MariKeyPair[];
         setContracts(nextContracts);
         const found =
@@ -319,7 +331,7 @@ export function MaringoTimeBookForm({
         );
         const data = await res.json().catch(() => ({}));
         if (cancelled) return;
-        if (!res.ok) throw new Error(data.error || "Positionen laden fehlgeschlagen");
+        if (!res.ok) throw new Error(data.error || t("timekeeping.loadPositionsFailed"));
         const next = (data.positions || []) as MariKeyPair[];
         setPositions(next);
         const foundPos = findMariKeyPair(next, contractPositionId);
@@ -437,7 +449,7 @@ export function MaringoTimeBookForm({
       body: JSON.stringify(favoritePayloadFromForm(name)),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Favorit speichern fehlgeschlagen");
+    if (!res.ok) throw new Error(data.error || t("timekeeping.saveFavoriteFailed"));
     await loadFavorites();
     return data.favorite as MariTimeBookFavorite | undefined;
   }
@@ -449,7 +461,7 @@ export function MaringoTimeBookForm({
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setError(data.error || "Favorit löschen fehlgeschlagen");
+      setError(data.error || t("timekeeping.deleteFavoriteFailed"));
       return;
     }
     setFavorites((prev) => prev.filter((f) => f.id !== id));
@@ -462,34 +474,34 @@ export function MaringoTimeBookForm({
     const hours = parseBookHours(hoursRaw);
     const hoursBillable = parseBookHours(hoursBillableRaw);
     if (!projectNumber) {
-      setError("Bitte Projekt wählen.");
+      setError(t("timekeeping.chooseProject"));
       return;
     }
     if (contracts.length > 0 && !contractId && !defaults?.contractOptional) {
-      setError("Bitte Vertrag wählen.");
+      setError(t("timekeeping.chooseContractErr"));
       return;
     }
     if (positions.length > 0 && !contractPositionId) {
-      setError("Bitte Vertragsposition wählen.");
+      setError(t("timekeeping.choosePositionErr"));
       return;
     }
     if (!activity.trim()) {
-      setError("Aktivität fehlt.");
+      setError(t("timekeeping.activityMissing"));
       return;
     }
     if (hours == null || !isValidBookHours(hours)) {
-      setError("Geleistete Stunden ungültig (0–24).");
+      setError(t("timekeeping.hoursInvalid"));
       return;
     }
     if (hoursBillable == null || !isValidBookHours(hoursBillable)) {
-      setError("Verrechenbare Stunden ungültig (0–24).");
+      setError(t("timekeeping.billableInvalid"));
       return;
     }
     const posted = timeBookPostHours(hours, hoursBillable);
     if (enableFavorites && saveAsFavorite) {
       const name = (favoriteName.trim() || activity.trim()).slice(0, 80);
       if (!name) {
-        setError("Name für Favorit fehlt.");
+        setError(t("timekeeping.favoriteNameMissing"));
         return;
       }
     }
@@ -543,11 +555,11 @@ export function MaringoTimeBookForm({
     setError(null);
     setHint(null);
     if (!projectNumber) {
-      setError("Bitte Projekt wählen.");
+      setError(t("timekeeping.chooseProject"));
       return;
     }
     if (!activity.trim()) {
-      setError("Aktivität fehlt.");
+      setError(t("timekeeping.activityMissing"));
       return;
     }
     const name = (
@@ -591,13 +603,15 @@ export function MaringoTimeBookForm({
         <div className="space-y-1.5">
           <div className="flex items-center gap-1.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-muted-foreground">
             <Star className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-            Favoriten
+            {t("common.favorites")}
           </div>
           {favoritesLoading && favorites.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Lade Favoriten…</p>
+            <p className="text-xs text-muted-foreground">
+              {t("timekeeping.loadingFavorites")}
+            </p>
           ) : favorites.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              Noch keine Favoriten — unten «Als Favorit speichern» wählen.
+              {t("timekeeping.noFavorites")}
             </p>
           ) : (
             <div className="flex flex-wrap gap-1.5">
@@ -621,8 +635,10 @@ export function MaringoTimeBookForm({
                     variant="ghost"
                     size="icon-sm"
                     className="mr-0.5 text-muted-foreground hover:text-rose-700"
-                    aria-label={`Favorit «${fav.name}» löschen`}
-                    title="Löschen"
+                    aria-label={t("timekeeping.deleteFavoriteAria", {
+                      name: fav.name,
+                    })}
+                    title={t("common.delete")}
                     onClick={() => void deleteFavorite(fav.id)}
                   >
                     <X className="size-3.5" strokeWidth={APP_ICON_STROKE} />
@@ -638,21 +654,27 @@ export function MaringoTimeBookForm({
         <div className="space-y-1.5">
           <div className="flex items-center gap-1.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-muted-foreground">
             <Users className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-            Teilnehmer / Kunde
+            {t("timekeeping.attendeesCustomer")}
           </div>
           {partnersLoading && partnerHits.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              Suche zu Betreff und Teilnehmern…
+              {t("timekeeping.searchingAttendees")}
             </p>
           ) : partnerHits.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              Kein Treffer zu Betreff oder Teilnehmern — Projekt suchen.
+              {t("timekeeping.noAttendeeHits")}
             </p>
           ) : (
             <div className="flex flex-wrap gap-1.5">
               {partnerHits.map((s) => {
                 const label = partnerSuggestionChipLabel(s);
-                const why = partnerSuggestionChipReason(s);
+                const rawWhy = partnerSuggestionChipReason(s);
+                const why =
+                  rawWhy === "Aus dem Betreff"
+                    ? t("timekeeping.fromSubject")
+                    : rawWhy === ATTENDEE_CONTACT_REASON
+                      ? t("timekeeping.attendeeContact")
+                      : rawWhy;
                 const titleParts = [why, s.contactName, s.matchedEmail].filter(
                   Boolean
                 );
@@ -678,8 +700,7 @@ export function MaringoTimeBookForm({
             </div>
           )}
           <p className="text-xs leading-snug text-muted-foreground">
-            Nur aus diesem Termin: Betreff (C-/P-/V oder Name ab 4 Buchstaben)
-            und externe Teilnehmer-Mails. Kollegen-Adressen werden ignoriert.
+            {t("timekeeping.attendeeHint")}
           </p>
         </div>
       ) : null}
@@ -695,7 +716,7 @@ export function MaringoTimeBookForm({
         >
           <div className="space-y-1">
             <Label htmlFor="tk-date" className="block truncate">
-              Datum
+              {t("common.date")}
             </Label>
             <Input
               id="tk-date"
@@ -707,7 +728,7 @@ export function MaringoTimeBookForm({
           </div>
           <div className="space-y-1">
             <Label htmlFor="tk-hours" className="block leading-snug">
-              Geleistet
+              {t("timekeeping.worked")}
             </Label>
             <Input
               id="tk-hours"
@@ -722,13 +743,13 @@ export function MaringoTimeBookForm({
                 );
               }}
               placeholder="0.25"
-              title="Arbeitszeit (MARI Stunden). Solange Verrechenbar nicht geändert wurde, wird der Wert übernommen."
+              title={t("timekeeping.hoursHintWorked")}
               aria-describedby="tk-hours-hint"
             />
           </div>
           <div className="space-y-1">
             <Label htmlFor="tk-billable-h" className="block leading-snug">
-              Verrechenbar
+              {t("timekeeping.billable")}
             </Label>
             <Input
               id="tk-billable-h"
@@ -740,19 +761,18 @@ export function MaringoTimeBookForm({
                 setHoursBillableRaw(e.target.value);
               }}
               placeholder="0.25"
-              title="Fakturiert (MARI Fakt.). Ändern stoppt die Übernahme aus Geleistet — Geleistet bleibt unverändert."
+              title={t("timekeeping.hoursHintBillable")}
               aria-describedby="tk-hours-hint"
             />
           </div>
         </div>
         <p id="tk-hours-hint" className="text-xs leading-snug text-muted-foreground">
-          {hoursHint ||
-            "Geleistet füllt Verrechenbar mit, bis Sie Verrechenbar selbst ändern."}
+          {hoursHint || t("timekeeping.hoursFollowHint")}
         </p>
       </div>
 
       <div className="space-y-1">
-        <Label htmlFor="tk-project">Projekt</Label>
+        <Label htmlFor="tk-project">{t("common.project")}</Label>
         <div className="relative">
           <Input
             id="tk-project"
@@ -765,18 +785,18 @@ export function MaringoTimeBookForm({
               setProjectOpen(true);
               setProjectQuery("");
             }}
-            placeholder="Suche z.B. Werk oder P200000"
+            placeholder={t("timekeeping.searchProjectPh")}
             autoComplete="off"
           />
           {projectOpen ? (
             <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-border bg-background shadow-lg">
               {loadingProjects ? (
                 <p className="px-2.5 py-2 text-xs text-muted-foreground">
-                  Lade…
+                  {t("common.loading")}
                 </p>
               ) : projects.length === 0 ? (
                 <p className="px-2.5 py-2 text-xs text-muted-foreground">
-                  Keine Treffer
+                  {t("common.noResults")}
                 </p>
               ) : (
                 <ul>
@@ -805,7 +825,7 @@ export function MaringoTimeBookForm({
       <div className="space-y-3">
         <MariKeyPairPicker
           id="tk-contract"
-          label="Vertrag"
+          label={t("timekeeping.contract")}
           value={contractId}
           valueLabel={
             findMariKeyPair(contracts, contractId)
@@ -815,8 +835,8 @@ export function MaringoTimeBookForm({
                 (contractId || null)
           }
           options={contracts}
-          placeholder="Vertrag wählen…"
-          emptyLabel="Kein Vertrag nötig"
+          placeholder={t("timekeeping.chooseContract")}
+          emptyLabel={t("timekeeping.noContractNeeded")}
           disabled={!projectNumber}
           onChange={(next) => {
             setContractId(next);
@@ -826,10 +846,10 @@ export function MaringoTimeBookForm({
         {positions.length > 0 ? (
           <MariKeyPairPicker
             id="tk-pos"
-            label="Vertragsposition"
+            label={t("timekeeping.contractPosition")}
             value={contractPositionId}
             options={positions}
-            placeholder="Position wählen…"
+            placeholder={t("timekeeping.choosePosition")}
             onChange={setContractPositionId}
           />
         ) : null}
@@ -837,24 +857,24 @@ export function MaringoTimeBookForm({
 
       <div className={cn("grid gap-3", wide && "lg:grid-cols-2")}>
         <div className="space-y-1">
-          <Label htmlFor="tk-activity">Aktivität</Label>
+          <Label htmlFor="tk-activity">{t("timekeeping.activity")}</Label>
           <Input
             id="tk-activity"
             value={activity}
             onChange={(e) => setActivity(e.target.value)}
             maxLength={100}
-            placeholder="z.B. Daily Call ANG CH"
+            placeholder={t("timekeeping.activityPh")}
             required
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="tk-memo">Memo</Label>
+          <Label htmlFor="tk-memo">{t("timekeeping.memo")}</Label>
           <Textarea
             id="tk-memo"
             value={memoText}
             onChange={(e) => setMemoText(e.target.value)}
             rows={wide ? 2 : 3}
-            placeholder="Optional — z.B. Ort, Thema, Nacharbeit"
+            placeholder={t("timekeeping.memoPh")}
           />
         </div>
       </div>
@@ -862,7 +882,7 @@ export function MaringoTimeBookForm({
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1">
           <Label htmlFor="tk-int-bemerkung">
-            Interne Bemerkung zur Verrechnung
+            {t("timekeeping.internalRemark")}
           </Label>
           <select
             id="tk-int-bemerkung"
@@ -873,19 +893,21 @@ export function MaringoTimeBookForm({
             <option value="">—</option>
             {TIMEKEEPING_INT_BEMERKUNG_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
-                {o.label}
+                {REMARK_OPTION_LABEL[o.value]
+                  ? t(REMARK_OPTION_LABEL[o.value])
+                  : o.label}
               </option>
             ))}
           </select>
         </div>
         <div className="space-y-1">
-          <Label htmlFor="tk-nuller">Grund für Nullerstunden</Label>
+          <Label htmlFor="tk-nuller">{t("timekeeping.zeroHoursReason")}</Label>
           <Input
             id="tk-nuller"
             value={zeroHoursReason}
             onChange={(e) => setZeroHoursReason(e.target.value)}
             maxLength={500}
-            placeholder="Optional"
+            placeholder={t("timekeeping.optionalPh")}
           />
         </div>
       </div>
@@ -903,22 +925,20 @@ export function MaringoTimeBookForm({
                 }
               }}
             />
-            Als Favorit speichern
+            {t("timekeeping.saveAsFavorite")}
           </label>
           {saveAsFavorite ? (
             <div className="space-y-1">
-              <Label htmlFor="tk-fav-name">Favoritenname</Label>
+              <Label htmlFor="tk-fav-name">{t("timekeeping.favoriteName")}</Label>
               <Input
                 id="tk-fav-name"
                 value={favoriteName}
                 onChange={(e) => setFavoriteName(e.target.value)}
                 maxLength={80}
-                placeholder="z.B. Daily ANG"
+                placeholder={t("timekeeping.favoriteNamePh")}
               />
               <p className="text-[0.6875rem] text-muted-foreground">
-                Speichert Projekt, Vertrag, Aktivität, Memo, Geleistet und
-                Verrechenbar (ohne Datum). Beim Buchen mit — oder nur Favorit
-                speichern.
+                {t("timekeeping.favoriteHint")}
               </p>
             </div>
           ) : null}
@@ -927,7 +947,7 @@ export function MaringoTimeBookForm({
 
       <div className="flex flex-wrap items-center gap-2 pt-1">
         <Button type="submit" size="sm" disabled={busy}>
-          {busy ? "Speichere…" : submitLabel}
+          {busy ? t("common.saving") : resolvedSubmit}
         </Button>
         {enableFavorites && saveAsFavorite ? (
           <Button
@@ -937,7 +957,7 @@ export function MaringoTimeBookForm({
             disabled={busy}
             onClick={() => void saveFavoriteOnly()}
           >
-            Nur Favorit speichern
+            {t("timekeeping.saveFavoriteOnly")}
           </Button>
         ) : null}
         {projectOpen ? (
@@ -947,7 +967,7 @@ export function MaringoTimeBookForm({
             variant="ghost"
             onClick={() => setProjectOpen(false)}
           >
-            Projektliste schliessen
+            {t("timekeeping.closeProjectList")}
           </Button>
         ) : null}
       </div>
