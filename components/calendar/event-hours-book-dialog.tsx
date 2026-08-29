@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { MaringoTimeBookDialog } from "@/components/maringo/maringo-time-book-dialog";
 import type { TimeBookFormDefaults } from "@/components/maringo/maringo-time-book-form";
+import type { MariEmailPartnerSuggestion } from "@/lib/mari/customers";
 import { calendarEventToBookDefaults } from "@/lib/mari/event-title-tokens";
 import { formatMariProjectLabel } from "@/lib/mari/timekeeping-shared";
 import type { WorkspaceEventMari } from "@/lib/workspace/event-mari-shared";
@@ -37,11 +38,17 @@ export function EventHoursBookDialog({
   onBooked?: () => void;
 }) {
   const [defaults, setDefaults] = useState<TimeBookFormDefaults | null>(null);
+  const [subjectSuggestions, setSubjectSuggestions] = useState<
+    MariEmailPartnerSuggestion[]
+  >([]);
+  const [initialHint, setInitialHint] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!open || !event) {
       setDefaults(null);
+      setSubjectSuggestions([]);
+      setInitialHint(null);
       return;
     }
     const issueId =
@@ -92,16 +99,58 @@ export function EventHoursBookDialog({
         }
       }
       if (cancelled) return;
-      setDefaults(
-        calendarEventToBookDefaults({
-          title: event.title,
-          date: event.date,
-          startHm: event.time,
-          endHm: event.endTime,
-          memo: event.mari?.memo || event.title,
-          ticket,
-        })
-      );
+      const next = calendarEventToBookDefaults({
+        title: event.title,
+        date: event.date,
+        startHm: event.time,
+        endHm: event.endTime,
+        memo: event.mari?.memo || event.title,
+        ticket,
+      });
+      let titleSuggestions: MariEmailPartnerSuggestion[] = [];
+      let titleHint: string | null = null;
+      try {
+        const titleRes = await fetch(
+          `/api/maringo/customers?eventTitle=${encodeURIComponent(event.title.slice(0, 200))}`
+        );
+        const titleData = await titleRes.json().catch(() => ({}));
+        if (titleRes.ok) {
+          titleSuggestions = (titleData.suggestions ||
+            []) as MariEmailPartnerSuggestion[];
+          const prefill = titleData.prefill as
+            | {
+                projectNumber?: string | null;
+                projectLabel?: string | null;
+                contractId?: number | null;
+                hint?: string | null;
+              }
+            | undefined;
+          const ticketProject = (ticket?.projectNumber || "").trim();
+          if (!ticketProject && prefill?.projectNumber) {
+            next.projectNumber = prefill.projectNumber;
+            next.projectLabel = formatMariProjectLabel(
+              prefill.projectNumber,
+              prefill.projectLabel || prefill.projectNumber
+            );
+            if (
+              next.contractId == null &&
+              prefill.contractId != null &&
+              prefill.contractId > 0
+            ) {
+              next.contractId = prefill.contractId;
+            }
+            titleHint = prefill.hint || null;
+          } else if (prefill?.hint && !ticketProject) {
+            titleHint = prefill.hint;
+          }
+        }
+      } catch {
+        titleSuggestions = [];
+      }
+      if (cancelled) return;
+      setSubjectSuggestions(titleSuggestions);
+      setInitialHint(titleHint);
+      setDefaults(next);
       setLoading(false);
     })();
     return () => {
@@ -142,6 +191,8 @@ export function EventHoursBookDialog({
           : null
       }
       attendeeEmails={event?.attendeeEmails}
+      subjectSuggestions={subjectSuggestions}
+      initialHint={initialHint}
       preserveEventPrefillOnChips
       hoursHint={HOURS_HINT}
       onBooked={onBooked}

@@ -1,9 +1,17 @@
 /**
  * Optional Outlook-Betreff-Konvention für Stundenbuchung.
- * Nur Prefill — nie still buchen.
+ * Nur Prefill / Chips — nie still buchen.
+ *
+ *   C1471  → Kunde bekannt → Vorschlag Projekt + Vertrag
+ *   P600111 → Projekt bekannt → Vorschlag Kunde + Vertrag
+ *   V60011100 → Vertrag bekannt → Vorschlag Kunde + Projekt
+ *   Filados → Freitext → optional nur Kunde
+ *
+ * Spezifischer gewinnt: P vor C fürs Projekt. Nicht gegeneinander anschreiben.
  *
  *   P600111 · Support Tanner
  *   P600111 V60011100 · Workshop
+ *   C1471 · Support Filados
  */
 
 export const DEFAULT_EVENT_ACTIVITY = "Besprechung";
@@ -11,6 +19,8 @@ export const DEFAULT_EVENT_ACTIVITY = "Besprechung";
 export type EventTitleTokens = {
   projectNumber: string | null;
   contractVisible: string | null;
+  /** Erster C-CardCode im Betreff (z.B. C1471). */
+  cardCode: string | null;
   activity: string;
   memo: string;
   hasTokens: boolean;
@@ -33,7 +43,62 @@ export type CalendarEventBookDefaults = {
 
 const PROJECT_TOKEN_RE = /\bP\d{3,}\b/i;
 const CONTRACT_TOKEN_RE = /\bV\d{6,}\b/gi;
+const CUSTOMER_TOKEN_RE = /\bC\d{3,}\b/i;
 const ACTIVITY_SEP_RE = /[·|]/;
+
+/** Kurze/generische Betreff-Wörter — keine Kundensuche. */
+const EVENT_TITLE_NAME_STOPWORDS = new Set([
+  "termin",
+  "meeting",
+  "call",
+  "daily",
+  "support",
+  "workshop",
+  "besprechung",
+  "intern",
+  "internal",
+  "kunde",
+  "kundentermin",
+  "teams",
+  "zoom",
+  "outlook",
+  "sync",
+  "standup",
+  "review",
+  "planung",
+  "abstimmung",
+  "update",
+  "status",
+  "weekly",
+  "monthly",
+  "morning",
+  "afternoon",
+  "ohne",
+  "projekt",
+  "test",
+  "und",
+  "mit",
+  "für",
+  "von",
+  "beim",
+  "oder",
+  "the",
+  "and",
+  "for",
+  "with",
+  "from",
+  "online",
+  "onsite",
+  "office",
+  "homeoffice",
+  "kickoff",
+  "demo",
+  "training",
+  "schulung",
+  "intro",
+  "followup",
+  "nacharbeit",
+]);
 
 /** Quarter-hours between HH:mm times. Null if missing or end ≤ start. */
 export function hoursBetweenHm(
@@ -71,6 +136,7 @@ export function parseEventTitleTokens(
     return {
       projectNumber: null,
       contractVisible: null,
+      cardCode: null,
       activity: DEFAULT_EVENT_ACTIVITY,
       memo: "",
       hasTokens: false,
@@ -91,7 +157,11 @@ export function parseEventTitleTokens(
     }
   }
 
-  const hasTokens = projectNumber != null || contractVisible != null;
+  const customerMatch = CUSTOMER_TOKEN_RE.exec(memo);
+  const cardCode = customerMatch ? customerMatch[0].toUpperCase() : null;
+
+  const hasTokens =
+    projectNumber != null || contractVisible != null || cardCode != null;
   let activity: string;
   if (hasTokens) {
     const sepIdx = memo.search(ACTIVITY_SEP_RE);
@@ -100,6 +170,7 @@ export function parseEventTitleTokens(
         .slice(sepIdx + 1)
         .replace(/\bP\d{3,}\b/gi, "")
         .replace(/\bV\d{6,}\b/gi, "")
+        .replace(/\bC\d{3,}\b/gi, "")
         .replace(/\s+/g, " ")
         .trim();
     } else {
@@ -114,10 +185,53 @@ export function parseEventTitleTokens(
   return {
     projectNumber,
     contractVisible,
+    cardCode,
     activity: activity.slice(0, 100),
     memo: memo.slice(0, 500),
     hasTokens,
   };
+}
+
+/** Freitext-Kandidaten für eine konservative Kundensuche (min. 4 Zeichen). */
+export function eventTitleNameCandidates(
+  subject: string | null | undefined
+): string[] {
+  const stripped = (subject || "")
+    .replace(/\bP\d{3,}\b/gi, " ")
+    .replace(/\bV\d{6,}\b/gi, " ")
+    .replace(/\bC\d{3,}\b/gi, " ")
+    .replace(/[·|/,;:()[\]-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const words = stripped.match(/[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß0-9']{3,}/g) || [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const w of words) {
+    const key = w.toLowerCase();
+    if (EVENT_TITLE_NAME_STOPWORDS.has(key)) continue;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(w);
+  }
+  return out.sort((a, b) => b.length - a.length).slice(0, 2);
+}
+
+/** Exakt oder beginnt-mit — keine Contains-Treffer auf kurze Wörter. */
+export function isConfidentCustomerNameHit(
+  query: string,
+  name: string,
+  cardCode?: string | null
+): boolean {
+  const q = query.trim().toLowerCase();
+  if (q.length < 4) return false;
+  const n = name.trim().toLowerCase();
+  const code = (cardCode || "").trim().toLowerCase();
+  if (code === q || n === q) return true;
+  if (n.startsWith(q)) return true;
+  const first = n.split(/\s+/)[0] || "";
+  if (first === q) return true;
+  if (q.length >= 5 && first.startsWith(q)) return true;
+  return false;
 }
 
 /**

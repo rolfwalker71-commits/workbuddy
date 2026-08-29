@@ -4,7 +4,9 @@ import {
   calendarEventToBookDefaults,
   DEFAULT_EVENT_ACTIVITY,
   eventBookHoursFromDuration,
+  eventTitleNameCandidates,
   hoursBetweenHm,
+  isConfidentCustomerNameHit,
   parseEventTitleTokens,
 } from "./event-title-tokens.ts";
 
@@ -12,6 +14,7 @@ test("parseEventTitleTokens reads P and V plus activity after ·", () => {
   const a = parseEventTitleTokens("P600111 · Support Tanner");
   assert.equal(a.projectNumber, "P600111");
   assert.equal(a.contractVisible, null);
+  assert.equal(a.cardCode, null);
   assert.equal(a.activity, "Support Tanner");
   assert.equal(a.memo, "P600111 · Support Tanner");
   assert.equal(a.hasTokens, true);
@@ -44,6 +47,32 @@ test("parseEventTitleTokens without tokens keeps title as activity", () => {
   assert.equal(parsed.contractVisible, null);
   assert.equal(parsed.activity, "Kundentermin Tanner");
   assert.equal(parsed.memo, "Kundentermin Tanner");
+});
+
+test("parseEventTitleTokens reads C-card and strips it from activity", () => {
+  const parsed = parseEventTitleTokens("C1471 · Support Filados");
+  assert.equal(parsed.cardCode, "C1471");
+  assert.equal(parsed.projectNumber, null);
+  assert.equal(parsed.activity, "Support Filados");
+  assert.equal(parsed.hasTokens, true);
+});
+
+test("parseEventTitleTokens keeps P over C for project", () => {
+  const parsed = parseEventTitleTokens("P600111 C1471 · Workshop");
+  assert.equal(parsed.projectNumber, "P600111");
+  assert.equal(parsed.cardCode, "C1471");
+  assert.equal(parsed.activity, "Workshop");
+});
+
+test("eventTitleNameCandidates keeps Filados and skips stopwords", () => {
+  assert.deepEqual(eventTitleNameCandidates("Filados Daily Call"), ["Filados"]);
+  assert.deepEqual(eventTitleNameCandidates("C1471 · Support"), []);
+});
+
+test("isConfidentCustomerNameHit is exact or starts-with only", () => {
+  assert.equal(isConfidentCustomerNameHit("Filados", "Filados AG"), true);
+  assert.equal(isConfidentCustomerNameHit("fil", "Filados AG"), false);
+  assert.equal(isConfidentCustomerNameHit("ados", "Filados AG"), false);
 });
 
 test("parseEventTitleTokens empty subject is Besprechung", () => {

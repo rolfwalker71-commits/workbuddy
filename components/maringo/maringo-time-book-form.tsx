@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Star, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,6 +67,11 @@ function nonBillableFrom(hours: number, hoursBillable: number): number {
   return Math.max(0, Math.round((hours - hoursBillable) * 100) / 100);
 }
 
+/** Checkbox «Alle Stunden verrechenbar» — equality, not «hoursBillable > 0». */
+function isAllHoursBillable(hours: number, hoursBillable: number): boolean {
+  return hours > 0 && Math.abs(hours - hoursBillable) < 0.005;
+}
+
 export function MaringoTimeBookForm({
   defaults,
   submitLabel = "Buchen",
@@ -75,6 +80,8 @@ export function MaringoTimeBookForm({
   layout = "compact",
   enableFavorites = true,
   attendeeEmails,
+  subjectSuggestions,
+  initialHint,
   preserveEventPrefillOnChips = false,
   hoursHint,
 }: {
@@ -87,6 +94,10 @@ export function MaringoTimeBookForm({
   enableFavorites?: boolean;
   /** Teilnehmer-Adressen — Kundenvorschläge als Chips, nie Autobuchen. */
   attendeeEmails?: string[] | null;
+  /** Betreff C/P/V/Name — Chips, nie Autobuchen. */
+  subjectSuggestions?: MariEmailPartnerSuggestion[] | null;
+  /** Hinweis nach Betreff-Prefill. */
+  initialHint?: string | null;
   /** Favorit/Chip ändert Projekt, nicht Stunden/Memo aus dem Termin. */
   preserveEventPrefillOnChips?: boolean;
   /** Hinweis unter den Stundenfeldern (z.B. Vorlage aus Termindauer). */
@@ -130,12 +141,20 @@ export function MaringoTimeBookForm({
         (defaults?.billable === false ? 0 : defaults?.hours ?? 0.25)
     )
   );
-  const [billable, setBillable] = useState(
-    defaults?.billable ?? (defaults?.hoursBillable ?? 0.25) > 0
-  );
+  const initialHours = defaults?.hours ?? 0.25;
+  const initialBillableH =
+    defaults?.hoursBillable ??
+    (defaults?.billable === false ? 0 : initialHours);
+  const [billable, setBillable] = useState(() => {
+    if (defaults?.billable === false) return false;
+    if (defaults?.hoursBillable != null) {
+      return isAllHoursBillable(initialHours, initialBillableH);
+    }
+    return defaults?.billable ?? true;
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hint, setHint] = useState<string | null>(null);
+  const [hint, setHint] = useState<string | null>(initialHint ?? null);
   const [projectOpen, setProjectOpen] = useState(false);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [favorites, setFavorites] = useState<MariTimeBookFavorite[]>([]);
@@ -145,17 +164,28 @@ export function MaringoTimeBookForm({
   const [contractVisible] = useState(
     (defaults?.contractVisible || "").trim()
   );
-  const initialHours = defaults?.hours ?? 0.25;
-  const initialBillableH =
-    defaults?.hoursBillable ??
-    (defaults?.billable === false ? 0 : initialHours);
   const [nonBillableRaw, setNonBillableRaw] = useState(
     String(nonBillableFrom(initialHours, initialBillableH))
   );
-  const [partnerHits, setPartnerHits] = useState<MariEmailPartnerSuggestion[]>(
-    []
-  );
+  const [attendeeHits, setAttendeeHits] = useState<
+    MariEmailPartnerSuggestion[]
+  >([]);
   const [partnersLoading, setPartnersLoading] = useState(false);
+  const partnerHits = useMemo(() => {
+    const seen = new Set<string>();
+    const out: MariEmailPartnerSuggestion[] = [];
+    for (const row of [...(subjectSuggestions || []), ...attendeeHits]) {
+      const key = `${row.cardCode}::${row.projectNumber || ""}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(row);
+    }
+    return out;
+  }, [subjectSuggestions, attendeeHits]);
+  const showCustomerChips =
+    Boolean(attendeeEmails && attendeeEmails.length > 0) ||
+    Boolean(subjectSuggestions && subjectSuggestions.length > 0) ||
+    partnersLoading;
 
   const loadFavorites = useCallback(async () => {
     if (!enableFavorites) return;
@@ -182,7 +212,7 @@ export function MaringoTimeBookForm({
       .filter((e) => e.includes("@"))
       .slice(0, 5);
     if (emails.length === 0) {
-      setPartnerHits([]);
+      setAttendeeHits([]);
       return;
     }
     let cancelled = false;
@@ -196,9 +226,9 @@ export function MaringoTimeBookForm({
         if (cancelled) return;
         if (!res.ok) throw new Error(data.error || "Teilnehmer-Suche fehlgeschlagen");
         const next = (data.suggestions || []) as MariEmailPartnerSuggestion[];
-        setPartnerHits(next.filter((s) => s.projectNumber));
+        setAttendeeHits(next.filter((s) => s.projectNumber));
       } catch {
-        if (!cancelled) setPartnerHits([]);
+        if (!cancelled) setAttendeeHits([]);
       } finally {
         if (!cancelled) setPartnersLoading(false);
       }
@@ -328,12 +358,17 @@ export function MaringoTimeBookForm({
   function onHoursChange(raw: string) {
     setHoursRaw(raw);
     const h = parseHours(raw);
-    const hb = parseHours(hoursBillableRaw);
-    if (h == null || hb == null) return;
-    const nextHb = hb > h ? h : hb;
+    if (h == null) return;
+    if (billable) {
+      setHoursBillableRaw(String(h));
+      syncNonBillable(h, h);
+      return;
+    }
+    const hb = parseHours(hoursBillableRaw) ?? 0;
+    const nextHb = Math.min(Math.max(0, hb), h > 0 ? h : hb);
     if (nextHb !== hb) setHoursBillableRaw(String(nextHb));
-    setBillable(nextHb > 0);
     syncNonBillable(h, nextHb);
+    if (isAllHoursBillable(h, nextHb)) setBillable(true);
   }
 
   function onBillableHoursChange(raw: string) {
@@ -343,8 +378,8 @@ export function MaringoTimeBookForm({
     if (hb == null) return;
     const clamped = Math.min(Math.max(0, hb), h > 0 ? h : hb);
     if (clamped !== hb) setHoursBillableRaw(String(clamped));
-    setBillable(clamped > 0);
     syncNonBillable(h, clamped);
+    setBillable(isAllHoursBillable(h, clamped));
   }
 
   function onNonBillableChange(raw: string) {
@@ -355,13 +390,14 @@ export function MaringoTimeBookForm({
     const clampedNb = Math.min(Math.max(0, nb), h > 0 ? h : nb);
     const hb = Math.max(0, Math.round((h - clampedNb) * 100) / 100);
     setHoursBillableRaw(String(hb));
-    setBillable(hb > 0);
+    setBillable(isAllHoursBillable(h, hb));
   }
 
   function onBillableToggle(next: boolean) {
     setBillable(next);
+    if (!next) return;
     const h = parseHours(hoursRaw) ?? 0;
-    const hb = next ? h || 0.25 : 0;
+    const hb = h || 0.25;
     setHoursBillableRaw(String(hb));
     syncNonBillable(h || hb, hb);
   }
@@ -382,19 +418,24 @@ export function MaringoTimeBookForm({
     setActivity(fav.activity);
     if (!preserveEventPrefillOnChips) {
       setMemoText(fav.memoText || "");
-      setBillable(fav.billable);
       const h = fav.hours;
-      const hb = fav.billable ? fav.hoursBillable ?? fav.hours : 0;
+      const hb = fav.hoursBillable ?? (fav.billable ? fav.hours : 0);
       setHoursRaw(String(h));
       setHoursBillableRaw(String(hb));
+      setBillable(isAllHoursBillable(h, hb));
       syncNonBillable(h, hb);
     }
     setProjectOpen(false);
   }
 
   function applyPartnerChip(s: MariEmailPartnerSuggestion) {
-    if (!s.projectNumber) return;
     setError(null);
+    if (!s.projectNumber) {
+      setHint(`Kunde «${s.name}» aus dem Betreff — Projekt wählen.`);
+      setProjectQuery(s.name);
+      setProjectOpen(true);
+      return;
+    }
     setHint(
       `Vorschlag «${s.name}» — Projekt prüfen, dann buchen. Stunden und Memo bleiben die Vorlage.`
     );
@@ -409,7 +450,10 @@ export function MaringoTimeBookForm({
 
   function favoritePayloadFromForm(name: string) {
     const hours = parseHours(hoursRaw) ?? 0.25;
-    const hoursBillable = parseHours(hoursBillableRaw) ?? (billable ? hours : 0);
+    const hoursBillable = Math.min(
+      Math.max(0, parseHours(hoursBillableRaw) ?? (billable ? hours : 0)),
+      hours
+    );
     return {
       name: name.trim(),
       projectNumber,
@@ -421,8 +465,8 @@ export function MaringoTimeBookForm({
       activity: activity.trim(),
       memoText: memoText.trim() || null,
       hours,
-      hoursBillable: billable ? Math.min(hoursBillable, hours) : 0,
-      billable,
+      hoursBillable,
+      billable: hoursBillable > 0,
     };
   }
 
@@ -627,24 +671,26 @@ export function MaringoTimeBookForm({
         </div>
       ) : null}
 
-      {attendeeEmails && attendeeEmails.length > 0 ? (
+      {showCustomerChips ? (
         <div className="space-y-1.5">
           <div className="flex items-center gap-1.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-muted-foreground">
             <Users className="size-3.5" strokeWidth={APP_ICON_STROKE} />
             Teilnehmer / Kunde
           </div>
           {partnersLoading && partnerHits.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Suche zu Teilnehmern…</p>
+            <p className="text-xs text-muted-foreground">
+              Suche zu Betreff und Teilnehmern…
+            </p>
           ) : partnerHits.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              Kein Kunden-Treffer zu den Teilnehmern — Projekt suchen.
+              Kein Treffer zu Betreff oder Teilnehmern — Projekt suchen.
             </p>
           ) : (
             <div className="flex flex-wrap gap-1.5">
               {partnerHits.map((s) => {
                 const label = s.projectNumber
                   ? `${s.name} · ${s.projectNumber}`
-                  : s.name;
+                  : `${s.name} · ${s.cardCode}`;
                 return (
                   <Button
                     key={`${s.cardCode}-${s.projectNumber || "none"}-${s.source}`}
@@ -661,6 +707,10 @@ export function MaringoTimeBookForm({
               })}
             </div>
           )}
+          <p className="text-xs leading-snug text-muted-foreground">
+            Aus Betreff (C-/P-/V-Code oder Name) und Termin-Teilnehmern —
+            Vorschläge für Kunde, Projekt und Vertrag.
+          </p>
         </div>
       ) : null}
 

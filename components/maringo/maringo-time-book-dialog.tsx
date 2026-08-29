@@ -12,6 +12,7 @@ import {
   type TimeBookFormDefaults,
   type TimeBookFormValues,
 } from "@/components/maringo/maringo-time-book-form";
+import type { MariEmailPartnerSuggestion } from "@/lib/mari/customers";
 
 export type CalendarBookStampInput = {
   eventId: string;
@@ -34,6 +35,8 @@ export function MaringoTimeBookDialog({
   onBooked,
   calendarEvent,
   attendeeEmails,
+  subjectSuggestions,
+  initialHint,
   preserveEventPrefillOnChips,
   hoursHint,
 }: {
@@ -49,6 +52,8 @@ export function MaringoTimeBookDialog({
   /** Nach erfolgreicher Buchung Stempel `booked` schreiben. */
   calendarEvent?: CalendarBookStampInput | null;
   attendeeEmails?: string[] | null;
+  subjectSuggestions?: MariEmailPartnerSuggestion[] | null;
+  initialHint?: string | null;
   preserveEventPrefillOnChips?: boolean;
   hoursHint?: string | null;
 }) {
@@ -107,6 +112,8 @@ export function MaringoTimeBookDialog({
           submitLabel={submitLabel}
           onSubmit={submit}
           attendeeEmails={attendeeEmails}
+          subjectSuggestions={subjectSuggestions}
+          initialHint={initialHint}
           preserveEventPrefillOnChips={preserveEventPrefillOnChips}
           hoursHint={hoursHint}
         />

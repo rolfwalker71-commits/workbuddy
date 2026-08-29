@@ -4,10 +4,12 @@ import { MariApiError, requireMariConfig } from "@/lib/mari/client";
 import { hasMariConfig } from "@/lib/mari/config";
 import {
   lookupMariCustomersForProject,
+  lookupMariPartnersByCardCode,
   lookupMariPartnersByEmail,
   lookupMariPartnersByEmails,
   normalizeMariEmail,
   searchMariCustomers,
+  suggestMariPartnersFromEventTitle,
 } from "@/lib/mari/customers";
 import {
   listMariCompanies,
@@ -37,6 +39,8 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const emailRaw = (url.searchParams.get("email") || "").trim();
     const emailsRaw = (url.searchParams.get("emails") || "").trim();
+    const cardCodeRaw = (url.searchParams.get("cardCode") || "").trim();
+    const eventTitleRaw = (url.searchParams.get("eventTitle") || "").trim();
     const projectRaw = (url.searchParams.get("projectNumber") || "").trim();
     if (url.searchParams.get("companies") === "1") {
       const companies = await listMariCompanies();
@@ -69,6 +73,23 @@ export async function GET(request: Request) {
         configured: true,
         suggestions,
         email,
+      });
+    }
+    if (cardCodeRaw) {
+      const suggestions = await lookupMariPartnersByCardCode(cardCodeRaw);
+      return NextResponse.json({
+        configured: true,
+        suggestions,
+        cardCode: cardCodeRaw,
+      });
+    }
+    if (eventTitleRaw) {
+      const result = await suggestMariPartnersFromEventTitle(
+        eventTitleRaw.slice(0, 200)
+      );
+      return NextResponse.json({
+        configured: true,
+        ...result,
       });
     }
     if (projectRaw) {
