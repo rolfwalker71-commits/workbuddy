@@ -6,6 +6,7 @@ import {
   classifyEventMeetingKind,
   eventBookingSeriesKey,
   formatBookBodyMarker,
+  formatBookedHoursLine,
   formatEventBookingLine,
   parseBookRefFromBody,
   parseBookRefFromCategories,
@@ -191,6 +192,24 @@ test("title name Filados without attendees still shows Kunde", () => {
   });
   assert.ok(ref);
   assert.equal(formatEventBookingLine(ref), "Filados");
+});
+
+test("formatBookedHoursLine prefixes recognition", () => {
+  assert.equal(formatBookedHoursLine(null), "In Stundenerfassung");
+  assert.equal(
+    formatBookedHoursLine({
+      cardCode: "C1471",
+      customerName: "Filados AG",
+      projectNumber: "P600111",
+      projectLabel: "Support",
+      contractId: 88,
+      contractVisible: "V60011100",
+      source: "pinned",
+      meetingKind: "mixed",
+      contractOptional: false,
+    }),
+    "In Stundenerfassung: Filados AG · P600111 · V60011100"
+  );
 });
 
 test("ticket beats guess; pin beats ticket", () => {

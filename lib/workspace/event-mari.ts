@@ -1,9 +1,9 @@
 import { hasMariConfig } from "@/lib/mari/config";
 import {
-  getMariCalendarStampForEvent,
   listPendingMariCalendarStamps,
   parseMariIssueIdFromBody,
   parseMariIssueIdFromCategories,
+  resolveMariCalendarStampForEvent,
   type MariCalendarStamp,
 } from "@/lib/mari/calendar-stamp";
 import {
@@ -73,6 +73,7 @@ function mariFromParts(
     issueId,
     stampStatus: stamp?.status ?? null,
     hours: stamp?.hours ?? null,
+    hoursBillable: stamp?.hoursBillable ?? null,
     memo: stamp?.memo ?? null,
     cardCode: ticket?.cardCode ?? null,
     briefDescription: ticket?.briefDescription ?? null,
@@ -93,7 +94,7 @@ export async function attachMariToEvents<T extends EventMariLinkSource>(
   const stamps: Array<MariCalendarStamp | null> = events.map((event) => {
     if (event.provider && event.provider !== "microsoft") return null;
     try {
-      return getMariCalendarStampForEvent(
+      return resolveMariCalendarStampForEvent(
         userId,
         event.id,
         eventBookingSeriesKey({
@@ -147,6 +148,7 @@ export async function attachMariToEvents<T extends EventMariLinkSource>(
           issueId: 0,
           stampStatus: stamp?.status ?? null,
           hours: stamp?.hours ?? null,
+          hoursBillable: stamp?.hoursBillable ?? null,
           memo: stamp?.memo ?? null,
           cardCode: null,
           briefDescription: null,

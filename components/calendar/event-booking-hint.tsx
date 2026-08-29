@@ -3,14 +3,19 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { EventBookingAttachDialog } from "@/components/calendar/event-booking-attach-dialog";
+import { HoursSplitBagel } from "@/components/ui/hours-split-bagel";
 import {
   classifyEventMeetingKind,
   eventBookingRefHasCodes,
+  formatBookedHoursLine,
   formatEventBookingLine,
   type EventBookingRef,
   type EventMeetingKind,
 } from "@/lib/mari/event-booking-ref";
-import type { WorkspaceEventMari } from "@/lib/workspace/event-mari-shared";
+import {
+  hoursSplitFromStamp,
+  type WorkspaceEventMari,
+} from "@/lib/workspace/event-mari-shared";
 import type { WorkspaceProvider } from "@/lib/workspace/merge-today";
 
 const guessCache = new Map<string, Promise<EventBookingRef | null>>();
@@ -112,6 +117,24 @@ export function EventBookingHint({
   const line = formatEventBookingLine(shown);
   const quiet = !line;
   const booked = event.mari?.stampStatus === "booked";
+  const split = hoursSplitFromStamp(
+    event.mari?.hours,
+    event.mari?.hoursBillable
+  );
+
+  if (booked) {
+    return (
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+        <HoursSplitBagel
+          billable={split.billable}
+          nonBillable={split.nonBillable}
+        />
+        <p className="min-w-0 text-xs leading-snug text-muted-foreground">
+          {formatBookedHoursLine(shown)}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
@@ -128,17 +151,15 @@ export function EventBookingHint({
           {line}
         </button>
       )}
-      {!booked ? (
-        <Button
-          type="button"
-          variant="link"
-          size="xs"
-          className="h-auto min-h-0 px-0 py-0 text-xs font-medium"
-          onClick={() => setOverlayOpen(true)}
-        >
-          Ändern
-        </Button>
-      ) : null}
+      <Button
+        type="button"
+        variant="link"
+        size="xs"
+        className="h-auto min-h-0 px-0 py-0 text-xs font-medium"
+        onClick={() => setOverlayOpen(true)}
+      >
+        Ändern
+      </Button>
       <EventBookingAttachDialog
         open={overlayOpen}
         onOpenChange={setOverlayOpen}

@@ -126,6 +126,14 @@ export function formatEventBookingLine(
   return parts.join(" · ");
 }
 
+/** Booked card line: prefix + Kunde · Projekt · Vertrag. */
+export function formatBookedHoursLine(
+  ref: EventBookingRef | null | undefined
+): string {
+  const line = formatEventBookingLine(ref);
+  return line ? `In Stundenerfassung: ${line}` : "In Stundenerfassung";
+}
+
 export function buddyBookKpvCategory(ref: EventBookingRef): string {
   const card = (ref.cardCode || "").trim().toUpperCase();
   const proj = (ref.projectNumber || "").trim().toUpperCase();

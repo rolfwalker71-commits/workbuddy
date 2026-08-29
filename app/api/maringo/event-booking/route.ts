@@ -4,11 +4,9 @@ import { withMariModule } from "@/lib/mari/with-module";
 import { hasMariConfig } from "@/lib/mari/config";
 import { recognizeEventBooking } from "@/lib/mari/event-booking";
 import { upsertMariCalendarBookingRef } from "@/lib/mari/calendar-stamp";
-import { stampMicrosoftEventBooking } from "@/lib/microsoft/event-booking-stamp";
 import {
   applyMeetingKind,
   classifyEventMeetingKind,
-  eventBookingGraphEventId,
   eventBookingSeriesKey,
   type EventBookingRef,
 } from "@/lib/mari/event-booking-ref";
@@ -101,10 +99,6 @@ export async function POST(request: Request) {
       seriesMasterId: body.seriesMasterId,
       iCalUId: body.iCalUId,
     });
-    const graphEventId = eventBookingGraphEventId({
-      eventId: body.eventId,
-      seriesMasterId: body.seriesMasterId,
-    });
     const stamp = upsertMariCalendarBookingRef({
       userId: auth.userId,
       eventId: body.eventId,
@@ -122,26 +116,12 @@ export async function POST(request: Request) {
       contractVisible: booking.contractVisible,
     });
 
-    let graph = { graph: false, error: null as string | null };
-    try {
-      graph = await stampMicrosoftEventBooking(
-        auth.userId,
-        graphEventId,
-        booking
-      );
-    } catch (err) {
-      graph = {
-        graph: false,
-        error: err instanceof Error ? err.message : String(err),
-      };
-    }
-
     return NextResponse.json({
       ok: true,
       booking,
       stamp: { eventId: stamp.eventId, bookingPinned: stamp.bookingPinned },
-      graph: graph.graph,
-      graphError: graph.error,
+      graph: false,
+      graphError: null,
     });
   });
 }

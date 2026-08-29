@@ -49,16 +49,17 @@ function withDonePrefix(subject: string): string {
   return `${BUDDY_DONE_PREFIX}${s}`.slice(0, 255);
 }
 
-/** Heutige Termine (alle aktivierten Google-Kalender) für den Hub-Kalender-Tab. */
+/** Termine eines Tages (alle aktivierten Google-Kalender) für den Hub-Kalender-Tab. */
 export async function listGoogleEventsToday(
   userId: number,
-  request?: Request | null
+  request?: Request | null,
+  dayYmd?: string
 ): Promise<GoogleReviewEvent[]> {
-  const today = zurichYmd();
+  const day = dayYmd || zurichYmd();
   const events = await listGoogleCalendarEventsInRange(
     userId,
-    today,
-    today,
+    day,
+    day,
     request
   );
   return events.map((e) => {

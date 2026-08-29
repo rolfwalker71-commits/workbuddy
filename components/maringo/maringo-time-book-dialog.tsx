@@ -22,6 +22,14 @@ export type CalendarBookStampInput = {
   endHm?: string | null;
   title: string;
   issueId?: number | null;
+  seriesMasterId?: string | null;
+  iCalUId?: string | null;
+  cardCode?: string | null;
+  customerName?: string | null;
+  projectNumber?: string | null;
+  projectLabel?: string | null;
+  contractId?: number | null;
+  contractVisible?: string | null;
 };
 
 export function MaringoTimeBookDialog({
@@ -88,8 +96,21 @@ export function MaringoTimeBookDialog({
           title: calendarEvent.title,
           memo: values.memoText || null,
           hours: values.hours,
+          hoursBillable: values.hoursBillable,
           issueId: calendarEvent.issueId ?? values.issueId ?? null,
           bookedLineId: Number.isInteger(lineId) && lineId > 0 ? lineId : null,
+          seriesMasterId: calendarEvent.seriesMasterId ?? null,
+          iCalUId: calendarEvent.iCalUId ?? null,
+          cardCode: values.cardCode || calendarEvent.cardCode || null,
+          customerName: values.customerName || calendarEvent.customerName || null,
+          projectNumber: values.projectNumber || calendarEvent.projectNumber || null,
+          projectLabel: values.projectLabel || calendarEvent.projectLabel || null,
+          contractId:
+            values.contractId != null
+              ? values.contractId
+              : calendarEvent.contractId ?? null,
+          contractVisible:
+            values.contractVisible || calendarEvent.contractVisible || null,
         }),
       }).catch(() => undefined);
     }

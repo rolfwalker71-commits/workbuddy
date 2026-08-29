@@ -8,6 +8,7 @@ import {
 } from "@/lib/google/oauth";
 import { isDayCloseRitualId } from "@/lib/dashboard/day-close-ritual";
 import { attachDayCloseRitualGoogle } from "@/lib/dashboard/day-close-status";
+import { parseCalendarDay } from "@/lib/calendar/date-range";
 import { zurichYmd } from "@/lib/microsoft/time";
 import { attachMariToEvents } from "@/lib/workspace/event-mari";
 
@@ -25,10 +26,20 @@ export async function GET(request: Request) {
       { status: 400 }
     );
   }
+  const parsed = parseCalendarDay(
+    new URL(request.url).searchParams.get("date")
+  );
+  if (!parsed.ok) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
+  }
   try {
     const today = zurichYmd();
-    const raw = await listGoogleEventsToday(userId, request);
-    const withRitual = await attachDayCloseRitualGoogle(userId, today, raw);
+    const day = parsed.date;
+    const raw = await listGoogleEventsToday(userId, request, day);
+    const withRitual =
+      day === today
+        ? await attachDayCloseRitualGoogle(userId, today, raw)
+        : raw;
     // Full day for Kalender — do not drop past items (overview grace is Home-only).
     const events = await attachMariToEvents(
       userId,

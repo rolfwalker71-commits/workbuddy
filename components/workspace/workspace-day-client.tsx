@@ -51,6 +51,10 @@ import {
   isSlotDurationPreset,
   SLOT_DURATION_PRESETS,
 } from "@/lib/calendar/slot-duration";
+import {
+  calendarDayLookbackFrom,
+  clampCalendarDay,
+} from "@/lib/calendar/date-range";
 import { weekdayLabel } from "@/lib/utils/weekday";
 import { useAuth } from "@/components/auth/auth-provider";
 import { AdhocEventDialog } from "@/components/calendar/adhoc-event-dialog";
@@ -642,6 +646,7 @@ export function WorkspaceDayClient({
   );
 
   const [events, setEvents] = useState<WorkspaceCalEvent[]>([]);
+  const [calDate, setCalDate] = useState(() => zurichYmdClient());
   const [detailEvent, setDetailEvent] = useState<WorkspaceCalEvent | null>(null);
   const [hoursBookEvent, setHoursBookEvent] =
     useState<WorkspaceCalEvent | null>(null);
@@ -655,6 +660,7 @@ export function WorkspaceDayClient({
               issueId: e.mari?.issueId ?? 0,
               stampStatus: e.mari?.stampStatus ?? null,
               hours: e.mari?.hours ?? null,
+              hoursBillable: e.mari?.hoursBillable ?? null,
               memo: e.mari?.memo ?? null,
               cardCode: e.mari?.cardCode ?? booking.cardCode,
               briefDescription: e.mari?.briefDescription ?? null,
@@ -757,9 +763,10 @@ export function WorkspaceDayClient({
     setError(null);
     try {
       const fetches: Promise<WorkspaceCalEvent[]>[] = [];
+      const qs = new URLSearchParams({ date: calDate });
       if (msConnected) {
         fetches.push(
-          fetch("/api/microsoft/calendar/today")
+          fetch(`/api/microsoft/calendar/today?${qs}`)
             .then(async (res) => {
               const json = await res.json();
               if (!res.ok) throw new Error(json.error || "Outlook-Kalender fehlgeschlagen");
@@ -773,7 +780,7 @@ export function WorkspaceDayClient({
       }
       if (googleConnected) {
         fetches.push(
-          fetch("/api/google/calendar/today")
+          fetch(`/api/google/calendar/today?${qs}`)
             .then(async (res) => {
               const json = await res.json();
               if (!res.ok) throw new Error(json.error || "Google-Kalender fehlgeschlagen");
@@ -792,7 +799,7 @@ export function WorkspaceDayClient({
     } finally {
       setCalLoading(false);
     }
-  }, [msConnected, googleConnected]);
+  }, [msConnected, googleConnected, calDate]);
 
   const loadMail = useCallback(async (from?: string, to?: string) => {
     const clamped = clampMailRange(from || mailFrom, to || mailTo);
@@ -923,11 +930,14 @@ export function WorkspaceDayClient({
 
   useEffect(() => {
     if (anyConnected) {
-      void loadCalendar();
       void loadMail(mailFrom, mailTo);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- initial load when connected
   }, [anyConnected]);
+
+  useEffect(() => {
+    if (anyConnected) void loadCalendar();
+  }, [anyConnected, loadCalendar]);
 
   useEffect(() => {
     if (routeHint === "google" && googleConnected) {
@@ -1915,10 +1925,40 @@ export function WorkspaceDayClient({
             <section className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-[0.9375rem] font-semibold">
-                  Heute · {openEvents.length} offen /{" "}
+                  {calDate === zurichYmdClient() ? "Heute" : "Tag"} ·{" "}
+                  {openEvents.length} offen /{" "}
                   {visibleEvents.filter((e) => e.done).length} erledigt
                 </h2>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="wb-cal-day" className="text-xs text-muted-foreground">
+                      Tag
+                    </Label>
+                    <Input
+                      id="wb-cal-day"
+                      type="date"
+                      className="h-9 w-auto min-w-[9.5rem]"
+                      value={calDate}
+                      min={calendarDayLookbackFrom(zurichYmdClient())}
+                      max={zurichYmdClient()}
+                      onValueChange={(v) => {
+                        if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+                        const next = clampCalendarDay(v, zurichYmdClient());
+                        if (next === calDate) return;
+                        setCalDate(next);
+                      }}
+                    />
+                  </div>
+                  {calDate !== zurichYmdClient() ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setCalDate(zurichYmdClient())}
+                    >
+                      Heute
+                    </Button>
+                  ) : null}
                   <Button
                     type="button"
                     size="sm"
@@ -1949,7 +1989,7 @@ export function WorkspaceDayClient({
                   day: "numeric",
                   month: "long",
                   year: "numeric",
-                }).format(new Date())}
+                }).format(new Date(`${calDate}T12:00:00`))}
               </p>
 
               {reviewMode ? (
@@ -1963,7 +2003,7 @@ export function WorkspaceDayClient({
                 <p className="text-sm text-muted-foreground">Lade Termine…</p>
               ) : visibleEvents.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  Keine Termine für heute.
+                  Keine Termine für diesen Tag.
                 </p>
               ) : (
                 <ul className="space-y-3">

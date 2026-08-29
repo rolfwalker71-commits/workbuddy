@@ -40,6 +40,8 @@ export type CalendarEventBookDefaults = {
   hoursBillable: number;
   billable: true;
   contractOptional?: boolean;
+  cardCode?: string | null;
+  customerName?: string | null;
 };
 
 const PROJECT_TOKEN_RE = /\bP\d{3,}\b/i;
@@ -261,6 +263,8 @@ export function calendarEventToBookDefaults(input: {
     projectLabel?: string | null;
     contractId?: number | null;
     contractVisible?: string | null;
+    cardCode?: string | null;
+    customerName?: string | null;
     source?: string | null;
     contractOptional?: boolean;
   } | null;
@@ -329,5 +333,7 @@ export function calendarEventToBookDefaults(input: {
     billable: true,
     contractOptional:
       input.contractOptional === true || stored?.contractOptional === true,
+    cardCode: stored?.cardCode || tokens.cardCode || null,
+    customerName: stored?.customerName || null,
   };
 }

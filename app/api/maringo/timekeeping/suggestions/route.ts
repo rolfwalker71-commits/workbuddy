@@ -6,6 +6,7 @@ import {
   markMariCalendarEventBooked,
   updateMariCalendarStampStatus,
 } from "@/lib/mari/calendar-stamp";
+import { eventBookingSeriesKey } from "@/lib/mari/event-booking-ref";
 import { zurichYmd } from "@/lib/microsoft/time";
 
 export const runtime = "nodejs";
@@ -21,6 +22,8 @@ const PatchSchema = z.object({
 const BookedStampSchema = z.object({
   eventProvider: z.enum(["microsoft"]),
   eventId: z.string().trim().min(1),
+  seriesMasterId: z.string().trim().max(400).nullable().optional(),
+  iCalUId: z.string().trim().max(400).nullable().optional(),
   calendarId: z.string().trim().max(400).nullable().optional(),
   eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   startHm: z.string().trim().max(8).nullable().optional(),
@@ -28,8 +31,15 @@ const BookedStampSchema = z.object({
   title: z.string().trim().min(1).max(300),
   memo: z.string().trim().max(2000).nullable().optional(),
   hours: z.number().min(0.01).max(24).nullable().optional(),
+  hoursBillable: z.number().min(0).max(24).nullable().optional(),
   issueId: z.number().int().nonnegative().nullable().optional(),
   bookedLineId: z.number().int().positive().nullable().optional(),
+  cardCode: z.string().trim().max(50).nullable().optional(),
+  customerName: z.string().trim().max(200).nullable().optional(),
+  projectNumber: z.string().trim().max(40).nullable().optional(),
+  projectLabel: z.string().trim().max(200).nullable().optional(),
+  contractId: z.number().int().nonnegative().nullable().optional(),
+  contractVisible: z.string().trim().max(40).nullable().optional(),
 });
 
 /** Pending Maringo→calendar stamps for evening time-booking review. */
@@ -92,6 +102,11 @@ export async function POST(request: Request) {
       userId: auth.userId,
       eventProvider: "microsoft",
       eventId: body.eventId,
+      seriesKey: eventBookingSeriesKey({
+        eventId: body.eventId,
+        seriesMasterId: body.seriesMasterId,
+        iCalUId: body.iCalUId,
+      }),
       calendarId: body.calendarId ?? null,
       issueId: body.issueId ?? null,
       eventDate: body.eventDate,
@@ -100,7 +115,14 @@ export async function POST(request: Request) {
       title: body.title,
       memo: body.memo ?? null,
       hours: body.hours ?? null,
+      hoursBillable: body.hoursBillable ?? null,
       bookedLineId: body.bookedLineId ?? null,
+      cardCode: body.cardCode ?? null,
+      customerName: body.customerName ?? null,
+      projectNumber: body.projectNumber ?? null,
+      projectLabel: body.projectLabel ?? null,
+      contractId: body.contractId ?? null,
+      contractVisible: body.contractVisible ?? null,
     });
     return NextResponse.json({ ok: true, stamp });
   });

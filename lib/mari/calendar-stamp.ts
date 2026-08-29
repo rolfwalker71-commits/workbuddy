@@ -66,6 +66,7 @@ export type MariCalendarStamp = {
   title: string;
   memo: string | null;
   hours: number | null;
+  hoursBillable: number | null;
   status: MariCalendarStampStatus;
   bookedLineId: number | null;
   cardCode: string | null;
@@ -135,6 +136,7 @@ function ensureMariCalendarStampBookingColumns(
     ["contract_visible", "TEXT"],
     ["booking_pinned", "INTEGER NOT NULL DEFAULT 0"],
     ["series_key", "TEXT"],
+    ["hours_billable", "REAL"],
   ];
   for (const [name, ddl] of adds) {
     if (!names.has(name)) {
@@ -247,16 +249,79 @@ export function getMariCalendarStampForEvent(
       .prepare(
         `SELECT * FROM mari_calendar_stamps
          WHERE user_id = ? AND event_provider = 'microsoft' AND series_key = ?
+           AND (booking_pinned = 1 OR event_id = ? OR event_id = ?)
          ORDER BY booking_pinned DESC, updated_at DESC
          LIMIT 1`
       )
-      .get(userId, series) as Record<string, unknown> | undefined;
+      .get(userId, series, occurrence, series) as
+      | Record<string, unknown>
+      | undefined;
     if (byCol) return mapStampRow(byCol);
   }
   if (occurrence && occurrence !== series) {
     return getMariCalendarStamp(userId, "microsoft", occurrence);
   }
   return occurrence ? getMariCalendarStamp(userId, "microsoft", occurrence) : null;
+}
+
+function stampHasBookingCodes(stamp: MariCalendarStamp | null): boolean {
+  if (!stamp) return false;
+  return Boolean(
+    (stamp.cardCode || "").trim() ||
+      (stamp.customerName || "").trim() ||
+      (stamp.projectNumber || "").trim() ||
+      (stamp.projectLabel || "").trim() ||
+      (stamp.contractVisible || "").trim() ||
+      (stamp.contractId != null && stamp.contractId > 0)
+  );
+}
+
+/**
+ * Occurrence booked status + series pin (Kunde/Projekt/Vertrag).
+ * A sibling occurrence's booked row never wins.
+ */
+export function resolveMariCalendarStampForEvent(
+  userId: number,
+  eventId: string,
+  seriesKey?: string | null
+): MariCalendarStamp | null {
+  requireUserId(userId);
+  ensureMariCalendarStampsTable();
+  const occurrenceId = (eventId || "").trim();
+  const series = (seriesKey || "").trim();
+  const occurrence = occurrenceId
+    ? getMariCalendarStamp(userId, "microsoft", occurrenceId)
+    : null;
+  const seriesStamp =
+    series && series !== occurrenceId
+      ? getMariCalendarStampForEvent(userId, occurrenceId, series)
+      : null;
+  if (!occurrence && !seriesStamp) return null;
+  if (!seriesStamp || occurrence?.eventId === seriesStamp.eventId) {
+    return occurrence || seriesStamp;
+  }
+  const booked = occurrence?.status === "booked" ? occurrence : null;
+  const pin = stampHasBookingCodes(occurrence)
+    ? occurrence
+    : stampHasBookingCodes(seriesStamp)
+      ? seriesStamp
+      : occurrence || seriesStamp;
+  const base = booked || occurrence || seriesStamp;
+  return {
+    ...base,
+    status: booked ? "booked" : base.status,
+    hours: booked?.hours ?? base.hours,
+    hoursBillable: booked?.hoursBillable ?? base.hoursBillable,
+    bookedLineId: booked?.bookedLineId ?? base.bookedLineId,
+    cardCode: pin?.cardCode ?? base.cardCode,
+    customerName: pin?.customerName ?? base.customerName,
+    projectNumber: pin?.projectNumber ?? base.projectNumber,
+    projectLabel: pin?.projectLabel ?? base.projectLabel,
+    contractId: pin?.contractId ?? base.contractId,
+    contractVisible: pin?.contractVisible ?? base.contractVisible,
+    bookingPinned: Boolean(pin?.bookingPinned || base.bookingPinned),
+    seriesKey: base.seriesKey || seriesStamp.seriesKey || series || null,
+  };
 }
 
 export function listPendingMariCalendarStamps(
@@ -386,6 +451,7 @@ export function markMariCalendarEventBooked(input: {
   userId: number;
   eventProvider?: "microsoft";
   eventId: string;
+  seriesKey?: string | null;
   calendarId?: string | null;
   issueId?: number | null;
   eventDate: string;
@@ -394,7 +460,14 @@ export function markMariCalendarEventBooked(input: {
   title: string;
   memo?: string | null;
   hours?: number | null;
+  hoursBillable?: number | null;
   bookedLineId?: number | null;
+  cardCode?: string | null;
+  customerName?: string | null;
+  projectNumber?: string | null;
+  projectLabel?: string | null;
+  contractId?: number | null;
+  contractVisible?: string | null;
 }): MariCalendarStamp {
   const userId = requireUserId(input.userId);
   ensureMariCalendarStampsTable();
@@ -405,7 +478,13 @@ export function markMariCalendarEventBooked(input: {
     (input.startHm && input.endHm
       ? hoursBetweenHm(input.startHm, input.endHm)
       : null);
-  const existing = getMariCalendarStamp(userId, "microsoft", input.eventId);
+  const seriesKey =
+    (input.seriesKey || "").trim() || (input.eventId || "").trim() || null;
+  const occurrence = getMariCalendarStamp(userId, "microsoft", input.eventId);
+  const pin = seriesKey
+    ? getMariCalendarStampForEvent(userId, input.eventId, seriesKey)
+    : occurrence;
+  const existing = occurrence || pin;
   const issueId =
     input.issueId != null && input.issueId > 0
       ? input.issueId
@@ -416,14 +495,24 @@ export function markMariCalendarEventBooked(input: {
   const title =
     input.title.trim() ||
     (issueId > 0 ? `Ticket #${issueId}` : "Termin");
+  const hoursBillable =
+    input.hoursBillable != null && Number.isFinite(input.hoursBillable)
+      ? Math.max(0, Number(input.hoursBillable))
+      : existing?.hoursBillable ?? hours;
+  const pick = (next?: string | null, fallback?: string | null) =>
+    (next || "").trim() || (fallback || "").trim() || null;
   db.prepare(
     `INSERT INTO mari_calendar_stamps (
       user_id, owner_key, event_provider, event_id, calendar_id, issue_id, event_date,
-      start_hm, end_hm, title, memo, hours, status, booked_line_id,
+      start_hm, end_hm, title, memo, hours, hours_billable, status, booked_line_id,
+      card_code, customer_name, project_number, project_label,
+      contract_id, contract_visible, booking_pinned, series_key,
       created_at, updated_at
     ) VALUES (
       @userId, @ownerKey, 'microsoft', @eventId, @calendarId, @issueId, @eventDate,
-      @startHm, @endHm, @title, @memo, @hours, 'booked', @bookedLineId,
+      @startHm, @endHm, @title, @memo, @hours, @hoursBillable, 'booked', @bookedLineId,
+      @cardCode, @customerName, @projectNumber, @projectLabel,
+      @contractId, @contractVisible, @bookingPinned, @seriesKey,
       @now, @now
     )
     ON CONFLICT(user_id, event_provider, event_id) DO UPDATE SET
@@ -438,8 +527,16 @@ export function markMariCalendarEventBooked(input: {
       title = excluded.title,
       memo = excluded.memo,
       hours = excluded.hours,
+      hours_billable = excluded.hours_billable,
       status = 'booked',
       booked_line_id = COALESCE(excluded.booked_line_id, mari_calendar_stamps.booked_line_id),
+      card_code = COALESCE(excluded.card_code, mari_calendar_stamps.card_code),
+      customer_name = COALESCE(excluded.customer_name, mari_calendar_stamps.customer_name),
+      project_number = COALESCE(excluded.project_number, mari_calendar_stamps.project_number),
+      project_label = COALESCE(excluded.project_label, mari_calendar_stamps.project_label),
+      contract_id = COALESCE(excluded.contract_id, mari_calendar_stamps.contract_id),
+      contract_visible = COALESCE(excluded.contract_visible, mari_calendar_stamps.contract_visible),
+      series_key = COALESCE(excluded.series_key, mari_calendar_stamps.series_key),
       owner_key = excluded.owner_key,
       updated_at = excluded.updated_at`
   ).run({
@@ -454,7 +551,19 @@ export function markMariCalendarEventBooked(input: {
     title,
     memo: input.memo?.trim() || existing?.memo || null,
     hours,
+    hoursBillable,
     bookedLineId: input.bookedLineId ?? null,
+    cardCode: pick(input.cardCode, existing?.cardCode),
+    customerName: pick(input.customerName, existing?.customerName),
+    projectNumber: pick(input.projectNumber, existing?.projectNumber),
+    projectLabel: pick(input.projectLabel, existing?.projectLabel),
+    contractId:
+      input.contractId != null && Number.isInteger(input.contractId)
+        ? input.contractId
+        : existing?.contractId ?? null,
+    contractVisible: pick(input.contractVisible, existing?.contractVisible),
+    bookingPinned: existing?.bookingPinned ? 1 : 0,
+    seriesKey,
     now,
   });
   return getMariCalendarStamp(userId, "microsoft", input.eventId)!;
@@ -604,6 +713,8 @@ function mapStampRow(row: Record<string, unknown>): MariCalendarStamp {
     title: String(row.title || ""),
     memo: (row.memo as string) || null,
     hours: row.hours == null ? null : Number(row.hours),
+    hoursBillable:
+      row.hours_billable == null ? null : Number(row.hours_billable),
     status: row.status as MariCalendarStampStatus,
     bookedLineId:
       row.booked_line_id == null ? null : Number(row.booked_line_id),

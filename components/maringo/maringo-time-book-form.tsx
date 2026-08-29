@@ -38,6 +38,8 @@ export type TimeBookFormDefaults = {
   zeroHoursReason?: string | null;
   /** Internal meetings: Vertrag typically not required. */
   contractOptional?: boolean;
+  cardCode?: string | null;
+  customerName?: string | null;
 };
 
 export type TimeBookFormValues = {
@@ -53,6 +55,9 @@ export type TimeBookFormValues = {
   issueId?: number | null;
   internalRemarkVerr: string | null;
   zeroHoursReason: string | null;
+  contractVisible?: string | null;
+  cardCode?: string | null;
+  customerName?: string | null;
 };
 
 function zurichTodayYmd(): string {
@@ -517,6 +522,13 @@ export function MaringoTimeBookForm({
         issueId: defaults?.issueId ?? null,
         internalRemarkVerr: internalRemarkVerr.trim() || null,
         zeroHoursReason: zeroHoursReason.trim() || null,
+        contractVisible:
+          contracts.find((c) => c.keyInternal === String(contractId))
+            ?.keyVisible ||
+          contractVisible ||
+          null,
+        cardCode: defaults?.cardCode ?? null,
+        customerName: defaults?.customerName ?? null,
       });
       if (enableFavorites && saveAsFavorite) {
         const name = (favoriteName.trim() || activity.trim()).slice(0, 80);

@@ -9,13 +9,14 @@ import {
 } from "@/lib/microsoft/oauth";
 import { isDayCloseRitualId } from "@/lib/dashboard/day-close-ritual";
 import { attachDayCloseRitualMs } from "@/lib/dashboard/day-close-status";
+import { parseCalendarDay } from "@/lib/calendar/date-range";
 import { zurichYmd } from "@/lib/microsoft/time";
 import { attachMariToEvents } from "@/lib/workspace/event-mari";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   ensureInitialized();
   const auth = await requireModule("microsoft");
   if (isAuthError(auth)) return auth;
@@ -26,15 +27,25 @@ export async function GET() {
       { status: 400 }
     );
   }
+  const parsed = parseCalendarDay(
+    new URL(request.url).searchParams.get("date")
+  );
+  if (!parsed.ok) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
+  }
   try {
     const today = zurichYmd();
+    const day = parsed.date;
     const { events: agenda } = await listMicrosoftAgendaInRange(
       userId,
-      today,
-      today
+      day,
+      day
     );
     const raw = agenda.map(microsoftAgendaToReviewEvent);
-    const withRitual = await attachDayCloseRitualMs(userId, today, raw);
+    const withRitual =
+      day === today
+        ? await attachDayCloseRitualMs(userId, today, raw)
+        : raw;
     // Full day for Kalender — do not drop past items (overview grace is Home-only).
     const events = await attachMariToEvents(
       userId,

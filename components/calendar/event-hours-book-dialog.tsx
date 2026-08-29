@@ -126,6 +126,10 @@ export function EventHoursBookDialog({
         contractOptional:
           meetingKind === "internal" || stored?.contractOptional === true,
       });
+      if (preferStored && stored) {
+        next.cardCode = stored.cardCode;
+        next.customerName = stored.customerName;
+      }
       let titleSuggestions: MariEmailPartnerSuggestion[] = [];
       let titleHint: string | null = null;
       if (preferStored) {
@@ -215,6 +219,15 @@ export function EventHoursBookDialog({
               endHm: event.endTime ?? null,
               title: event.title,
               issueId,
+              seriesMasterId: event.seriesMasterId ?? null,
+              iCalUId: event.iCalUId ?? null,
+              cardCode:
+                event.mari?.booking?.cardCode ?? event.mari?.cardCode ?? null,
+              customerName: event.mari?.booking?.customerName ?? null,
+              projectNumber: event.mari?.booking?.projectNumber ?? null,
+              projectLabel: event.mari?.booking?.projectLabel ?? null,
+              contractId: event.mari?.booking?.contractId ?? null,
+              contractVisible: event.mari?.booking?.contractVisible ?? null,
             }
           : null
       }

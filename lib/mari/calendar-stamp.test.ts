@@ -74,11 +74,19 @@ test("markMariCalendarEventBooked stamps hours-only and keeps ticket issueId", a
     endHm: "10:00",
     title: "Kundentermin",
     hours: 1.5,
+    hoursBillable: 1,
     bookedLineId: 77,
+    customerName: "Filados AG",
+    projectNumber: "P600111",
+    contractVisible: "V60011100",
   });
   assert.equal(hoursOnly.status, "booked");
   assert.equal(hoursOnly.issueId, HOURS_ONLY_STAMP_ISSUE_ID);
   assert.equal(hoursOnly.hours, 1.5);
+  assert.equal(hoursOnly.hoursBillable, 1);
+  assert.equal(hoursOnly.customerName, "Filados AG");
+  assert.equal(hoursOnly.projectNumber, "P600111");
+  assert.equal(hoursOnly.contractVisible, "V60011100");
   assert.equal(hoursOnly.bookedLineId, 77);
   assert.equal(
     listPendingMariCalendarStamps(1, { onDate: "2026-08-29" }).length,
@@ -147,4 +155,71 @@ test("booking pin on series key is found on later occurrences", async () => {
   assert.equal(later.projectNumber, "P100");
   assert.equal(later.bookingPinned, true);
   assert.equal(later.issueId, 0);
+});
+
+test("booked occurrence keeps series pin and does not mark siblings booked", async () => {
+  process.env.WORKBUDDY_SESSION_SECRET =
+    "a-secure-test-secret-with-more-than-32-characters";
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "wb-stamp-occ-"));
+  process.env.DATABASE_PATH = path.join(tmp, "test.sqlite");
+
+  const { resetDbForTests } = await import("../db/client.ts");
+  resetDbForTests();
+  const {
+    markMariCalendarEventBooked,
+    resolveMariCalendarStampForEvent,
+    upsertMariCalendarBookingRef,
+  } = await import("./calendar-stamp.ts");
+  const { hoursSplitFromStamp } = await import(
+    "../workspace/event-mari-shared.ts"
+  );
+
+  upsertMariCalendarBookingRef({
+    userId: 1,
+    eventId: "occurrence-monday",
+    seriesKey: "master-weekly",
+    eventDate: "2026-08-24",
+    startHm: "09:00",
+    endHm: "10:00",
+    title: "Daily Infra",
+    customerName: "Intern",
+    projectNumber: "P100",
+    projectLabel: "Infra Intern",
+    contractId: 0,
+  });
+
+  markMariCalendarEventBooked({
+    userId: 1,
+    eventId: "occurrence-monday",
+    seriesKey: "master-weekly",
+    eventDate: "2026-08-24",
+    title: "Daily Infra",
+    hours: 1,
+    hoursBillable: 0.75,
+  });
+
+  const monday = resolveMariCalendarStampForEvent(
+    1,
+    "occurrence-monday",
+    "master-weekly"
+  );
+  assert.ok(monday);
+  assert.equal(monday.status, "booked");
+  assert.equal(monday.hours, 1);
+  assert.equal(monday.hoursBillable, 0.75);
+  assert.equal(monday.projectNumber, "P100");
+  assert.equal(monday.customerName, "Intern");
+  const split = hoursSplitFromStamp(monday.hours, monday.hoursBillable);
+  assert.equal(split.billable, 0.75);
+  assert.equal(split.nonBillable, 0.25);
+
+  const tuesday = resolveMariCalendarStampForEvent(
+    1,
+    "occurrence-tuesday",
+    "master-weekly"
+  );
+  assert.ok(tuesday);
+  assert.equal(tuesday.status, "pending");
+  assert.equal(tuesday.projectNumber, "P100");
+  assert.equal(tuesday.bookingPinned, true);
 });

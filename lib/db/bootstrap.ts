@@ -116,6 +116,7 @@ function ensureMariCalendarStampOwner(db: Database.Database): void {
     ["contract_visible", "TEXT"],
     ["booking_pinned", "INTEGER NOT NULL DEFAULT 0"],
     ["series_key", "TEXT"],
+    ["hours_billable", "REAL"],
   ];
   const afterOwner = tableColumnNames(db, "mari_calendar_stamps");
   for (const [name, ddl] of bookingAdds) {
