@@ -5,6 +5,7 @@ import {
   formatSwissDateRange,
   formatSwissDateTime,
   toSwissDate,
+  toSwissWeekday,
 } from "./dates.ts";
 
 test("formatSwissDate turns YYYY-MM-DD into dd.mm.yyyy", () => {
@@ -34,6 +35,15 @@ test("formatSwissDateTime keeps date-only fields without dummy 00:00", () => {
   assert.equal(formatSwissDateTime("2026-08-24"), "24.08.2026");
   assert.equal(formatSwissDateTime("2026-08-24T00:00:00"), "24.08.2026");
   assert.equal(formatSwissDateTime("2026-08-24T00:00:00.000Z"), "24.08.2026");
+});
+
+test("toSwissWeekday is calendar-day safe (no UTC shift of YYYY-MM-DD)", () => {
+  assert.equal(toSwissWeekday("2026-08-08"), "Samstag");
+  assert.equal(toSwissWeekday("08.08.2026"), "Samstag");
+  assert.equal(toSwissWeekday("2026-08-24"), "Montag");
+  assert.equal(toSwissWeekday("2026-01-01"), "Donnerstag");
+  assert.equal(toSwissWeekday(""), "");
+  assert.equal(toSwissWeekday(null), "");
 });
 
 test("formatSwissDateRange formats week spans", () => {

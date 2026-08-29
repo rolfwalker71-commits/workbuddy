@@ -1,6 +1,10 @@
 /** Client-sichere Typen & Pure Helpers für MARI-Zeiterfassung (kein Node/SQLite). */
 
-import { formatSwissDate, formatSwissDateRange } from "@/lib/utils/dates";
+import {
+  formatSwissDate,
+  formatSwissDateRange,
+  toSwissWeekday,
+} from "@/lib/utils/dates";
 
 export const TIMEKEEPING_SOURCE_SUPPORT_ISSUE = 2;
 
@@ -516,7 +520,11 @@ export function formatPeriodLabel(
   fromDate: string,
   toDate: string
 ): string {
-  if (period === "day") return formatSwissDate(fromDate);
+  if (period === "day") {
+    const weekday = toSwissWeekday(fromDate);
+    const date = formatSwissDate(fromDate);
+    return weekday ? `${weekday}, ${date}` : date;
+  }
   return formatSwissDateRange(fromDate, toDate);
 }
 

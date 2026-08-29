@@ -8,6 +8,7 @@ import {
   formatMariContractLabel,
   formatMariContractListLine,
   formatMariContractListLines,
+  formatPeriodLabel,
   timeLineToBookPrefill,
   type MariKeyPair,
 } from "./timekeeping-shared.ts";
@@ -208,4 +209,13 @@ test("timeLineToBookPrefill keeps Vertrag number from list line", () => {
   );
   assert.equal(prefill.contractId, 88421);
   assert.equal(prefill.contractVisible, "V60011100");
+});
+
+test("formatPeriodLabel prefixes German weekday on a single day", () => {
+  assert.equal(formatPeriodLabel("day", "2026-08-08", "2026-08-08"), "Samstag, 08.08.2026");
+  assert.equal(formatPeriodLabel("day", "2026-08-24", "2026-08-24"), "Montag, 24.08.2026");
+  assert.equal(
+    formatPeriodLabel("week", "2026-08-24", "2026-08-30"),
+    "24.08.2026 – 30.08.2026"
+  );
 });
