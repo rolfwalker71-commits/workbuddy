@@ -85,28 +85,20 @@ function roundStampHours(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-/** Bagel: billable vs remainder. Missing billable ⇒ all hours billable. */
+/** Bagel: Geleistet vs Verrechenbar independently. Missing billable ⇒ same as hours. */
 export function hoursSplitFromStamp(
   hours: number | null | undefined,
   hoursBillable: number | null | undefined
-): { hours: number; billable: number; nonBillable: number } {
+): { hours: number; billable: number } {
+  const rawWorked =
+    hours != null && Number.isFinite(hours) ? Math.max(0, hours) : null;
   const rawBillable =
     hoursBillable != null && Number.isFinite(hoursBillable)
       ? Math.max(0, hoursBillable)
       : null;
-  const rawTotal =
-    hours != null && Number.isFinite(hours)
-      ? Math.max(0, hours)
-      : (rawBillable ?? 0);
-  const total = roundStampHours(rawTotal);
-  const billable = roundStampHours(
-    rawBillable == null ? total : Math.min(total, rawBillable)
-  );
-  return {
-    hours: total,
-    billable,
-    nonBillable: roundStampHours(Math.max(0, total - billable)),
-  };
+  const worked = roundStampHours(rawWorked ?? rawBillable ?? 0);
+  const billable = roundStampHours(rawBillable ?? worked);
+  return { hours: worked, billable };
 }
 
 export type HomePendingStamp = {

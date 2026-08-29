@@ -239,8 +239,8 @@ export function isConfidentCustomerNameHit(
 
 /**
  * Prefill for the time-book dialog from a calendar event.
- * Ticket project/contract win over title tokens. Hours always come from
- * the event duration (editable later — never locked).
+ * Ticket project/contract win over title tokens. Geleistet and Verrechenbar
+ * both default to the event duration (1:1); each is independently editable.
  */
 export function calendarEventToBookDefaults(input: {
   title: string;

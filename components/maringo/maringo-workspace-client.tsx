@@ -4345,6 +4345,7 @@ export function MaringoWorkspaceClient() {
                                 contractPositionId: detail.contractPositionId,
                                 activity: detail.briefDescription.slice(0, 100),
                                 hours: 0.25,
+                                hoursBillable: 0.25,
                                 billable: true,
                               }
                             : null
@@ -4466,6 +4467,7 @@ export function MaringoWorkspaceClient() {
                 contractPositionId: detail.contractPositionId,
                 activity: detail.briefDescription.slice(0, 100),
                 hours: 0.25,
+                hoursBillable: 0.25,
                 billable: true,
               }
             : null)

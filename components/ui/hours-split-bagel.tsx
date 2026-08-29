@@ -2,17 +2,14 @@
 
 import { useId } from "react";
 import { BagelHoleLabel } from "@/components/ui/bagel-hole-label";
+import {
+  bagelHoursAriaLabel,
+  formatBookHours,
+} from "@/lib/mari/time-book-hours";
 import { cn } from "@/lib/utils";
 
+const WORKED_COLOR = "#64748b";
 const BILLABLE_COLOR = "#047857";
-const NON_BILLABLE_COLOR = "#94a3b8";
-
-function formatHours(n: number): string {
-  return n.toLocaleString("de-CH", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
 
 function polar(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = ((angleDeg - 90) * Math.PI) / 180;
@@ -54,27 +51,27 @@ const LABEL_CLASS = {
 } as const;
 
 export function HoursSplitBagel({
+  worked,
   billable,
-  nonBillable,
   size = "sm",
   className,
 }: {
+  worked: number;
   billable: number;
-  nonBillable: number;
   size?: keyof typeof SIZE_CLASS;
   className?: string;
 }) {
   const gradId = useId();
-  const total = billable + nonBillable;
+  const sliceTotal = worked + billable;
   const cx = BAGEL_VIEW / 2;
   const cy = BAGEL_VIEW / 2;
   const rOuter = BAGEL_VIEW / 2 - 1;
   const rInner = rOuter * 0.58;
-  const ariaLabel = `Verrechenbar ${formatHours(billable)} h, nicht verrechenbar ${formatHours(nonBillable)} h`;
+  const ariaLabel = bagelHoursAriaLabel(worked, billable);
 
   return (
     <div className={cn("relative shrink-0", SIZE_CLASS[size], className)}>
-      {total <= 0 ? (
+      {sliceTotal <= 0 ? (
         <svg
           viewBox={`0 0 ${BAGEL_VIEW} ${BAGEL_VIEW}`}
           className="block size-full"
@@ -90,7 +87,7 @@ export function HoursSplitBagel({
             strokeWidth={rOuter - rInner}
           />
         </svg>
-      ) : billable <= 0 || nonBillable <= 0 ? (
+      ) : worked <= 0 || billable <= 0 ? (
         <svg
           viewBox={`0 0 ${BAGEL_VIEW} ${BAGEL_VIEW}`}
           className="block size-full"
@@ -102,7 +99,7 @@ export function HoursSplitBagel({
             cy={cy}
             r={(rOuter + rInner) / 2}
             fill="none"
-            stroke={billable > 0 ? BILLABLE_COLOR : NON_BILLABLE_COLOR}
+            stroke={worked > 0 ? WORKED_COLOR : BILLABLE_COLOR}
             strokeWidth={rOuter - rInner}
           />
         </svg>
@@ -132,9 +129,9 @@ export function HoursSplitBagel({
                 rOuter,
                 rInner,
                 0,
-                (billable / total) * 360
+                (worked / sliceTotal) * 360
               )}
-              fill={BILLABLE_COLOR}
+              fill={WORKED_COLOR}
             />
             <path
               d={describeDonutSlice(
@@ -142,10 +139,10 @@ export function HoursSplitBagel({
                 cy,
                 rOuter,
                 rInner,
-                (billable / total) * 360,
+                (worked / sliceTotal) * 360,
                 360
               )}
-              fill={NON_BILLABLE_COLOR}
+              fill={BILLABLE_COLOR}
             />
           </g>
         </svg>
@@ -157,7 +154,7 @@ export function HoursSplitBagel({
             LABEL_CLASS[size]
           )}
         >
-          {formatHours(total)}
+          {formatBookHours(worked)}
         </span>
       </BagelHoleLabel>
     </div>

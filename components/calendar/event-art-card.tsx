@@ -51,8 +51,8 @@ function EventArtCardHeader({ event }: { event: EventArtCardModel }) {
       {split ? (
         <span className="flex shrink-0 items-center self-center pr-1.5">
           <HoursSplitBagel
+            worked={split.hours}
             billable={split.billable}
-            nonBillable={split.nonBillable}
             size="lg"
           />
         </span>

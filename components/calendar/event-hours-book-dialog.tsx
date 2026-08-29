@@ -33,7 +33,7 @@ export type HoursBookableEvent = {
 };
 
 const HOURS_HINT =
-  "Vorlage aus der Termindauer: verrechenbar = Dauer, nicht verrechenbar = 0. Anpassen erhöht die Summe — der Outlook-Termin bleibt unverändert.";
+  "Vorlage aus der Termindauer: Geleistet und Verrechenbar = Dauer. Beide unabhängig anpassbar — der Outlook-Termin bleibt unverändert.";
 
 export function EventHoursBookDialog({
   event,

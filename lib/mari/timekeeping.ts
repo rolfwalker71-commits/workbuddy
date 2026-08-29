@@ -68,7 +68,7 @@ export const MariTimeLineCreateSchema = z.object({
   projectNumber: z.string().trim().min(1).max(40),
   activity: z.string().trim().min(1).max(100),
   memoText: z.string().trim().max(2000).nullable().optional(),
-  hours: z.number().min(0.01).max(24),
+  hours: z.number().min(0).max(24),
   hoursBillable: z.number().min(0).max(24),
   contractId: z.number().int().nonnegative(),
   contractPositionId: z.number().int().nonnegative().nullable().optional(),
@@ -425,7 +425,7 @@ export async function createTimeKeepingLine(
     normalizeMariEmployeeNumber(cfg.employeeNumber);
   if (!emp) throw new MariApiError("Personalnummer ungültig.", 400);
 
-  const hoursBillable = Math.min(parsed.hoursBillable, parsed.hours);
+  const hoursBillable = parsed.hoursBillable;
   const resolved =
     parsed.phaseId != null && parsed.phaseId > 0
       ? { phaseId: parsed.phaseId, phaseName: "" }

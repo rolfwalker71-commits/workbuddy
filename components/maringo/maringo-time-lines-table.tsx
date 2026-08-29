@@ -204,7 +204,6 @@ export function MaringoTimeLinesTable({
   lines,
   totalHours,
   billableHours,
-  nonBillableHours,
   emptyText = "Keine Buchungen.",
   className,
   onEdit,
@@ -235,8 +234,6 @@ export function MaringoTimeLinesTable({
   const billable =
     billableHours ??
     Math.round(lines.reduce((s, l) => s + l.hoursBillable, 0) * 100) / 100;
-  const nonBillable =
-    nonBillableHours ?? Math.round((total - billable) * 100) / 100;
 
   const showActions = Boolean(onEdit || onDuplicate || onDelete);
 
@@ -253,13 +250,12 @@ export function MaringoTimeLinesTable({
       <MariHoursSplitSummary
         totalHours={total}
         billableHours={billable}
-        nonBillableHours={nonBillable}
         lineCount={lines.length}
         totalHint="Ticket"
       />
     ) : summaryVariant === "text" ? (
       <p className="text-[0.6875rem] text-muted-foreground">
-        Summe{" "}
+        geleistet{" "}
         <span className="font-semibold tabular-nums text-foreground">
           {formatHours(total)} h
         </span>
@@ -267,11 +263,6 @@ export function MaringoTimeLinesTable({
         verrechenbar{" "}
         <span className="font-semibold tabular-nums text-emerald-800">
           {formatHours(billable)} h
-        </span>
-        {" · "}
-        nicht verrechenbar{" "}
-        <span className="font-semibold tabular-nums">
-          {formatHours(nonBillable)} h
         </span>
       </p>
     ) : null;
@@ -336,8 +327,8 @@ export function MaringoTimeLinesTable({
                         approved={l.approved}
                       />
                       <span className="tabular-nums">
-                        verr. {formatHours(l.hoursBillable)} h
-                        {l.billable ? "" : " · nicht verr."}
+                        geleistet {formatHours(l.hours)} h · verr.{" "}
+                        {formatHours(l.hoursBillable)} h
                       </span>
                     </div>
                   </div>
@@ -372,7 +363,7 @@ export function MaringoTimeLinesTable({
               <th className="px-2 py-1.5">Aktivität / Memo</th>
               <th className="px-2 py-1.5">Bearbeiter</th>
               <th className="px-2 py-1.5">Freigabe</th>
-              <th className="px-2 py-1.5 text-right">Std.</th>
+              <th className="px-2 py-1.5 text-right">Geleistet</th>
               <th className="px-2 py-1.5 text-right">Verr.</th>
               {showActions ? (
                 <th className="px-2 py-1.5 text-right">Aktion</th>
@@ -418,15 +409,6 @@ export function MaringoTimeLinesTable({
                   </td>
                   <td className="px-2 py-1.5 text-right tabular-nums">
                     {formatHours(l.hoursBillable)}
-                    {l.billable ? (
-                      <span className="ml-1 text-[0.5625rem] text-emerald-700">
-                        ja
-                      </span>
-                    ) : (
-                      <span className="ml-1 text-[0.5625rem] text-muted-foreground">
-                        nein
-                      </span>
-                    )}
                   </td>
                   {showActions ? (
                     <td className="px-2 py-1.5">

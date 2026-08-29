@@ -210,8 +210,8 @@ test("booked occurrence keeps series pin and does not mark siblings booked", asy
   assert.equal(monday.projectNumber, "P100");
   assert.equal(monday.customerName, "Intern");
   const split = hoursSplitFromStamp(monday.hours, monday.hoursBillable);
+  assert.equal(split.hours, 1);
   assert.equal(split.billable, 0.75);
-  assert.equal(split.nonBillable, 0.25);
 
   const tuesday = resolveMariCalendarStampForEvent(
     1,

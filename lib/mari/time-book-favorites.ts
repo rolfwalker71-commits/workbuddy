@@ -27,7 +27,7 @@ export const MariTimeBookFavoriteCreateSchema = z.object({
   contractPositionId: z.number().int().nonnegative().nullable().optional(),
   activity: z.string().trim().min(1).max(100),
   memoText: z.string().trim().max(2000).nullable().optional(),
-  hours: z.number().min(0.01).max(24).optional(),
+  hours: z.number().min(0).max(24).optional(),
   hoursBillable: z.number().min(0).max(24).nullable().optional(),
   billable: z.boolean().optional(),
 });
@@ -98,13 +98,9 @@ export function createMariTimeBookFavorite(
   const parsed = MariTimeBookFavoriteCreateSchema.parse(input);
   const now = new Date().toISOString();
   const hours = parsed.hours ?? 0.25;
-  const billable = parsed.billable ?? true;
   const hoursBillable =
-    parsed.hoursBillable != null
-      ? Math.min(parsed.hoursBillable, hours)
-      : billable
-        ? hours
-        : 0;
+    parsed.hoursBillable != null ? parsed.hoursBillable : hours;
+  const billable = parsed.billable ?? hoursBillable > 0;
 
   const maxSort = getDb()
     .prepare(

@@ -110,6 +110,7 @@ test("calendarEventToBookDefaults uses duration hours and title tokens", () => {
   assert.equal(d.memoText, "P600111 V60011100 · Workshop");
   assert.equal(d.hours, 1.25);
   assert.equal(d.hoursBillable, 1.25);
+  assert.equal(d.hours, d.hoursBillable);
   assert.equal(d.issueId, null);
 });
 

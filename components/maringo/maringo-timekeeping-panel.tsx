@@ -409,6 +409,7 @@ export function MaringoTimekeepingPanel({
   const formDefaults: TimeBookFormDefaults = {
     dayOfService: date,
     hours: 0.25,
+    hoursBillable: 0.25,
     billable: true,
     ...(bookDefaults || {}),
     ...(duplicateDefaults || {}),
