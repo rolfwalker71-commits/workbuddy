@@ -1,0 +1,39 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {
+  isMariCustomerCardCode,
+  pickMariProjectCustomer,
+} from "@/lib/mari/customers";
+
+test("isMariCustomerCardCode accepts C-cards only", () => {
+  assert.equal(isMariCustomerCardCode("C1507"), true);
+  assert.equal(isMariCustomerCardCode("c1507"), true);
+  assert.equal(isMariCustomerCardCode("V1356"), false);
+  assert.equal(isMariCustomerCardCode("S1000"), false);
+  assert.equal(isMariCustomerCardCode(""), false);
+  assert.equal(isMariCustomerCardCode(null), false);
+});
+
+test("pickMariProjectCustomer drops vendors and duplicate C-cards", () => {
+  assert.deepEqual(
+    pickMariProjectCustomer([
+      { cardCode: "C1507", name: "M. Tanner AG" },
+      { cardCode: "C1507", name: "M. Tanner AG" },
+      { cardCode: "V1356", name: "Adrian Lenherr" },
+    ]),
+    { cardCode: "C1507", name: "M. Tanner AG" }
+  );
+  assert.deepEqual(
+    pickMariProjectCustomer([
+      { cardCode: "c1507", name: "M. Tanner AG" },
+      { cardCode: "C1507", name: "M. Tanner AG (alt)" },
+      { cardCode: "V1356", name: "Adrian Lenherr" },
+    ]),
+    { cardCode: "c1507", name: "M. Tanner AG" }
+  );
+  assert.equal(
+    pickMariProjectCustomer([{ cardCode: "V1356", name: "Adrian Lenherr" }]),
+    null
+  );
+  assert.equal(pickMariProjectCustomer([]), null);
+});

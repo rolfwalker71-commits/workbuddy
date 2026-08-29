@@ -22,20 +22,13 @@ import {
   MAIL_TICKET_HTML_MAX,
   stripOutlookSignatureImages,
 } from "@/lib/mail/strip-signature-images";
-import type {
-  MariCustomerOption,
-  MariEmailPartnerSuggestion,
-} from "@/lib/mari/customers";
-import {
-  formatMariCompanyLabel,
-  parseMariCompanyId,
-  type MariCompanyOption,
-} from "@/lib/mari/companies-shared";
-import type { MariKeyPair } from "@/lib/mari/timekeeping-shared";
+import type { MariEmailPartnerSuggestion } from "@/lib/mari/customers";
+import { parseMariCompanyId } from "@/lib/mari/companies-shared";
 import {
   formatMariProjectLabel,
   looksLikeMariProjectNumber,
   sanitizeMariProjectNumber,
+  type MariKeyPair,
 } from "@/lib/mari/timekeeping-shared";
 import { showActionFeedback } from "@/lib/ui/action-feedback";
 import { cn } from "@/lib/utils";
@@ -70,37 +63,27 @@ function RequiredMark() {
   );
 }
 
-function ImportSection({
-  n,
+function FieldGroup({
   title,
   required,
   hint,
   children,
 }: {
-  n: number;
   title: string;
   required?: boolean;
   hint?: string;
   children: ReactNode;
 }) {
   return (
-    <section className="space-y-2.5 rounded-2xl bg-card p-3 shadow-sm ring-1 ring-foreground/10">
-      <header className="flex items-start gap-2.5">
-        <span
-          className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold tabular-nums text-foreground"
-          aria-hidden
-        >
-          {n}
-        </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold leading-snug">
-            {title}
-            {required ? <RequiredMark /> : null}
-          </h3>
-          {hint ? (
-            <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
-          ) : null}
-        </div>
+    <section className="space-y-2">
+      <header>
+        <h3 className="text-sm font-semibold leading-snug">
+          {title}
+          {required ? <RequiredMark /> : null}
+        </h3>
+        {hint ? (
+          <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
+        ) : null}
       </header>
       {children}
     </section>
@@ -143,9 +126,6 @@ export function MailTicketImportDialog({
   >("idle");
   const [cardCode, setCardCode] = useState("");
   const [customerName, setCustomerName] = useState("");
-  const [customerChoices, setCustomerChoices] = useState<MariCustomerOption[]>(
-    []
-  );
   const [projectQuery, setProjectQuery] = useState("");
   const [projects, setProjects] = useState<MariKeyPair[]>([]);
   const [projectNumber, setProjectNumber] = useState("");
@@ -153,7 +133,6 @@ export function MailTicketImportDialog({
   const [projectOpen, setProjectOpen] = useState(false);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [companyId, setCompanyId] = useState<number | null>(null);
-  const [companies, setCompanies] = useState<MariCompanyOption[]>([]);
   const [contracts, setContracts] = useState<MariKeyPair[]>([]);
   const [contractId, setContractId] = useState("");
   const [attachments, setAttachments] = useState<MailAttachRow[]>([]);
@@ -208,7 +187,6 @@ export function MailTicketImportDialog({
     setLookupState("idle");
     setCardCode("");
     setCustomerName("");
-    setCustomerChoices([]);
     setProjectQuery("");
     setProjects([]);
     setProjectNumber("");
@@ -225,24 +203,6 @@ export function MailTicketImportDialog({
     setAttachNote(null);
     setStampWarning(null);
   }, [open, mail?.from, mail?.fromName, mail?.subject, mail?.bodyHtml, mail?.bodyText, mail?.snippet, mail?.bodyContentType]);
-
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch("/api/maringo/customers?companies=1");
-        const data = await res.json().catch(() => ({}));
-        if (cancelled || !res.ok) return;
-        setCompanies((data.companies || []) as MariCompanyOption[]);
-      } catch {
-        /* optional */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [open]);
 
   useEffect(() => {
     if (!open || !mail?.messageId) return;
@@ -389,20 +349,14 @@ export function MailTicketImportDialog({
         if (nextContracts.length === 1) {
           setContractId(nextContracts[0]!.keyInternal);
         }
-        const customers = (customerData.customers ||
-          []) as MariCustomerOption[];
-        if (customers.length === 1) {
-          setCardCode(customers[0]!.cardCode);
-          setCustomerName(customers[0]!.name);
-          setCustomerChoices([]);
-        } else if (customers.length > 1) {
-          setCustomerChoices(customers);
-          if (!customers.some((c) => c.cardCode === cardCode)) {
-            setCardCode("");
-            setCustomerName("");
-          }
-        } else if (!cardCode) {
-          setCustomerChoices([]);
+        const customers = (customerData.customers || []) as Array<{
+          cardCode: string;
+          name: string;
+        }>;
+        const customer = customers[0];
+        if (customer) {
+          setCardCode(customer.cardCode);
+          setCustomerName(customer.name);
         }
         const fromProject = parseMariCompanyId(customerData.company);
         if (fromProject != null) {
@@ -423,7 +377,6 @@ export function MailTicketImportDialog({
   function applySuggestion(s: MariEmailPartnerSuggestion) {
     setCardCode(s.cardCode);
     setCustomerName(s.name);
-    setCustomerChoices([]);
     if (s.contactName && !contactName.trim()) {
       setContactName(s.contactName);
     }
@@ -453,7 +406,6 @@ export function MailTicketImportDialog({
     setContractId("");
     setCardCode("");
     setCustomerName("");
-    setCustomerChoices([]);
     const fromList = parseMariCompanyId(p.company);
     if (fromList != null) setCompanyId(fromList);
   }
@@ -475,7 +427,9 @@ export function MailTicketImportDialog({
     }
     const company = parseMariCompanyId(companyId);
     if (company == null) {
-      setError("Mandant/Company ist Pflicht — aus dem Projekt oder manuell.");
+      setError(
+        "Mandant zum Projekt fehlt — Ticket kann nicht angelegt werden."
+      );
       return;
     }
     if (contracts.length > 0 && !contractId) {
@@ -568,13 +522,9 @@ export function MailTicketImportDialog({
     }
   }
 
-  const companyLabel =
-    companyId != null
-      ? formatMariCompanyLabel(
-          companyId,
-          companies.find((c) => c.id === companyId)?.name
-        )
-      : "";
+  const customerLine = customerName
+    ? `${customerName}${cardCode ? ` (${cardCode})` : ""}`
+    : cardCode;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -584,8 +534,7 @@ export function MailTicketImportDialog({
             Ticket aus Mail erstellen
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Reihenfolge 1–7. Felder mit * sind Pflicht. Es wird keine Extra-Mail
-            an den Kunden gesendet.
+            Felder mit * sind Pflicht. Keine Extra-Mail an den Kunden.
           </DialogDescription>
         </DialogHeader>
 
@@ -619,7 +568,7 @@ export function MailTicketImportDialog({
         ) : (
           <form
             onSubmit={(e) => void handleSubmit(e)}
-            className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3"
+            className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3"
           >
             {error ? (
               <p
@@ -630,38 +579,39 @@ export function MailTicketImportDialog({
               </p>
             ) : null}
 
-            <ImportSection
-              n={1}
+            <FieldGroup
               title="Ansprechpartner"
               required
               hint="Name frei, E-Mail Pflicht."
             >
-              <div className="space-y-1">
-                <Label htmlFor="mail-tk-contact">Name</Label>
-                <Input
-                  id="mail-tk-contact"
-                  value={contactName}
-                  onChange={(e) => setContactName(e.target.value)}
-                  placeholder="z.B. Frau Muster"
-                  maxLength={200}
-                  autoComplete="off"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="mail-tk-email">
-                  E-Mail
-                  <RequiredMark />
-                </Label>
-                <Input
-                  id="mail-tk-email"
-                  type="email"
-                  value={contactEmail}
-                  onChange={(e) => setContactEmail(e.target.value)}
-                  placeholder="name@firma.ch"
-                  maxLength={120}
-                  autoComplete="off"
-                  required
-                />
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="mail-tk-contact">Name</Label>
+                  <Input
+                    id="mail-tk-contact"
+                    value={contactName}
+                    onChange={(e) => setContactName(e.target.value)}
+                    placeholder="z.B. Frau Muster"
+                    maxLength={200}
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="mail-tk-email">
+                    E-Mail
+                    <RequiredMark />
+                  </Label>
+                  <Input
+                    id="mail-tk-email"
+                    type="email"
+                    value={contactEmail}
+                    onChange={(e) => setContactEmail(e.target.value)}
+                    placeholder="name@firma.ch"
+                    maxLength={120}
+                    autoComplete="off"
+                    required
+                  />
+                </div>
               </div>
               {lookupState === "loading" ? (
                 <p className="text-xs text-muted-foreground" role="status">
@@ -670,15 +620,15 @@ export function MailTicketImportDialog({
               ) : null}
               {lookupState === "empty" && contactEmail.includes("@") ? (
                 <p className="text-xs text-muted-foreground">
-                  Kein Treffer zur E-Mail — bitte unter 2 ein Projekt suchen.
+                  Kein Treffer zur E-Mail — bitte ein Projekt suchen.
                 </p>
               ) : null}
               {suggestions.length > 0 ? (
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Vorschläge — bitte wählen
+                    Vorschläge
                   </p>
-                  <ul className="space-y-1.5">
+                  <ul className="flex flex-col gap-1">
                     {suggestions.map((s) => {
                       const active =
                         s.cardCode === cardCode &&
@@ -693,7 +643,7 @@ export function MailTicketImportDialog({
                           <Button
                             type="button"
                             variant={active ? "secondary" : "outline"}
-                            className="h-auto min-h-11 w-full items-start justify-start whitespace-normal px-3 py-2 text-left text-sm"
+                            className="h-auto min-h-11 w-full items-start justify-start whitespace-normal px-2.5 py-1.5 text-left text-sm"
                             onClick={() => applySuggestion(s)}
                           >
                             <span className="min-w-0">
@@ -713,13 +663,12 @@ export function MailTicketImportDialog({
                   </ul>
                 </div>
               ) : null}
-            </ImportSection>
+            </FieldGroup>
 
-            <ImportSection
-              n={2}
+            <FieldGroup
               title="Projekt"
               required
-              hint="Kunde folgt aus dem gewählten Projekt."
+              hint="Kunde und Mandant folgen aus dem Projekt."
             >
               <div className="space-y-1">
                 <Label htmlFor="mail-tk-project">
@@ -729,7 +678,9 @@ export function MailTicketImportDialog({
                 <div className="relative">
                   <Input
                     id="mail-tk-project"
-                    value={projectOpen ? projectQuery : projectLabel || projectQuery}
+                    value={
+                      projectOpen ? projectQuery : projectLabel || projectQuery
+                    }
                     onChange={(e) => {
                       setProjectQuery(e.target.value);
                       setProjectOpen(true);
@@ -762,12 +713,11 @@ export function MailTicketImportDialog({
                                 className="h-auto w-full flex-col items-start justify-start px-2.5 py-1.5 text-left text-xs font-normal hover:bg-muted"
                                 onClick={() => selectProject(p)}
                               >
-                                <span className="font-medium">{p.matchcode}</span>
+                                <span className="font-medium">
+                                  {p.matchcode}
+                                </span>
                                 <span className="text-muted-foreground">
                                   {p.keyVisible || p.keyInternal}
-                                  {p.company
-                                    ? ` · Mandant ${p.company}`
-                                    : ""}
                                 </span>
                               </Button>
                             </li>
@@ -778,105 +728,20 @@ export function MailTicketImportDialog({
                   ) : null}
                 </div>
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="mail-tk-customer">Kunde</Label>
-                <Input
-                  id="mail-tk-customer"
-                  value={
-                    customerName
-                      ? `${customerName}${cardCode ? ` (${cardCode})` : ""}`
-                      : cardCode
-                  }
-                  readOnly
-                  placeholder="Folgt aus dem Projekt"
-                  className="bg-muted"
-                />
-                {customerChoices.length > 1 ? (
-                  <ul className="mt-1 space-y-1">
-                    {customerChoices.map((c) => (
-                      <li key={c.cardCode}>
-                        <Button
-                          type="button"
-                          variant={
-                            c.cardCode === cardCode ? "secondary" : "outline"
-                          }
-                          className="h-auto min-h-11 w-full justify-start whitespace-normal px-3 py-2 text-left text-sm"
-                          onClick={() => {
-                            setCardCode(c.cardCode);
-                            setCustomerName(c.name);
-                          }}
-                        >
-                          {c.name} ({c.cardCode})
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-            </ImportSection>
-
-            <ImportSection
-              n={3}
-              title="Mandant / Company"
-              required
-              hint="SAP-Schema aus dem Projekt — vorgefüllt, änderbar."
-            >
-              <div className="space-y-1">
-                <Label htmlFor="mail-tk-company">
-                  Company
-                  <RequiredMark />
-                </Label>
-                <Input
-                  id="mail-tk-company"
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
-                  step={1}
-                  value={companyId ?? ""}
-                  onChange={(e) => {
-                    const n = parseMariCompanyId(e.target.value);
-                    setCompanyId(n);
-                  }}
-                  placeholder={projectNumber ? "aus Projekt" : "zuerst Projekt"}
-                  required
-                />
-                {companyLabel && companyId != null ? (
-                  <p className="text-xs text-muted-foreground">{companyLabel}</p>
-                ) : null}
-              </div>
-              {companies.length > 0 ? (
-                <ul className="flex flex-wrap gap-1.5">
-                  {companies.map((c) => (
-                    <li key={c.id}>
-                      <Button
-                        type="button"
-                        variant={c.id === companyId ? "secondary" : "outline"}
-                        className="h-9 min-h-9 px-3 text-xs"
-                        onClick={() => setCompanyId(c.id)}
-                      >
-                        {formatMariCompanyLabel(c.id, c.name)}
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </ImportSection>
-
-            <ImportSection
-              n={4}
-              title="Vertrag"
-              required={contracts.length > 0}
-              hint={
-                contracts.length > 0
-                  ? "Zum Projekt gefiltert — bitte wählen."
-                  : "Kein Vertrag in der Liste — optional."
-              }
-            >
+              <p
+                className="text-sm leading-snug text-muted-foreground"
+                aria-live="polite"
+              >
+                <span className="font-medium text-foreground">Kunde</span>
+                {customerLine ? (
+                  <> · {customerLine}</>
+                ) : (
+                  <> · folgt aus dem Projekt</>
+                )}
+              </p>
               <MariKeyPairPicker
                 id="mail-tk-contract"
-                label={
-                  contracts.length > 0 ? "Vertrag *" : "Vertrag"
-                }
+                label={contracts.length > 0 ? "Vertrag *" : "Vertrag"}
                 value={contractId}
                 options={contracts}
                 placeholder="Vertrag wählen…"
@@ -884,11 +749,11 @@ export function MailTicketImportDialog({
                 disabled={!projectNumber}
                 onChange={setContractId}
               />
-            </ImportSection>
+            </FieldGroup>
 
-            <ImportSection n={5} title="Betreff" required>
+            <FieldGroup title="Betreff" required>
               <div className="space-y-1">
-                <Label htmlFor="mail-tk-subject">
+                <Label htmlFor="mail-tk-subject" className="sr-only">
                   Betreff
                   <RequiredMark />
                 </Label>
@@ -900,14 +765,13 @@ export function MailTicketImportDialog({
                   required
                 />
               </div>
-            </ImportSection>
+            </FieldGroup>
 
-            <ImportSection
-              n={6}
+            <FieldGroup
               title="Mail-Text"
               hint={
                 isHtml
-                  ? "HTML-Mail — formatierte Vorschau, direkt editierbar. Wird als HTML an MARI gesendet."
+                  ? "HTML-Mail — formatierte Vorschau, direkt editierbar."
                   : "Nur-Text — bis zum Absenden editierbar."
               }
             >
@@ -944,10 +808,9 @@ export function MailTicketImportDialog({
                   />
                 )}
               </div>
-            </ImportSection>
+            </FieldGroup>
 
-            <ImportSection
-              n={7}
+            <FieldGroup
               title="Anhänge"
               hint={
                 attachments.length > 0
@@ -958,12 +821,12 @@ export function MailTicketImportDialog({
               {attachments.length === 0 ? (
                 <p className="text-xs text-muted-foreground">Keine Anhänge.</p>
               ) : (
-                <ul className="space-y-1.5">
+                <ul className="space-y-1">
                   {attachments.map((a) => {
                     const checked = selectedAttachIds.includes(a.id);
                     return (
                       <li key={a.id}>
-                        <label className="flex min-h-11 cursor-pointer items-start gap-2.5 rounded-xl bg-muted/40 px-3 py-2 text-sm">
+                        <label className="flex min-h-11 cursor-pointer items-start gap-2.5 rounded-xl bg-muted px-3 py-2 text-sm">
                           <input
                             type="checkbox"
                             className="mt-1 size-4"
@@ -990,7 +853,7 @@ export function MailTicketImportDialog({
                   })}
                 </ul>
               )}
-            </ImportSection>
+            </FieldGroup>
 
             <Button
               type="submit"

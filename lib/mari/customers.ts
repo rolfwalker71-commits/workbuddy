@@ -5,6 +5,37 @@ export type MariCustomerOption = {
   name: string;
 };
 
+/** SAP B1: C… = Kunde, V…/S… = Lieferant. */
+export function isMariCustomerCardCode(
+  cardCode: string | null | undefined
+): boolean {
+  const v = (cardCode || "").trim();
+  return v.length > 0 && /^C/i.test(v);
+}
+
+/**
+ * Ein Vertrag/Projekt gehört zu genau einem Kunden.
+ * Ticket-Historie kann denselben CardCode doppelt und Lieferanten (V…) mitliefern.
+ */
+export function pickMariProjectCustomer(
+  rows: MariCustomerOption[]
+): MariCustomerOption | null {
+  const unique: MariCustomerOption[] = [];
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const cardCode = normalizeMariCardCode(r.cardCode);
+    if (!cardCode) continue;
+    const key = cardCode.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push({
+      cardCode,
+      name: (r.name || "").trim() || cardCode,
+    });
+  }
+  return unique.find((c) => isMariCustomerCardCode(c.cardCode)) || null;
+}
+
 function sqlQuote(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;
 }
@@ -58,12 +89,24 @@ function mapCustomerRows(
   const seen = new Set<string>();
   for (const r of rows) {
     const cardCode = normalizeMariCardCode(r.CardCode);
-    if (!cardCode || seen.has(cardCode)) continue;
-    seen.add(cardCode);
+    if (!cardCode) continue;
+    const key = cardCode.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
     const name = (r.Name || "").trim() || cardCode;
     out.push({ cardCode, name });
   }
   return out;
+}
+
+async function trySql<T extends Record<string, unknown>>(
+  sql: string
+): Promise<T[] | null> {
+  try {
+    return await mariSql<T>(sql);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -519,17 +562,44 @@ export async function lookupMariPartnersByEmail(
   return out.slice(0, 20);
 }
 
-/** Kunde(n) zu einer Projektnummer — aus der Ticket-Historie. */
-export async function lookupMariCustomersForProject(
-  projectNumberRaw: string
-): Promise<MariCustomerOption[]> {
-  requireMariConfig();
-  const { sanitizeMariProjectNumber } = await import(
-    "@/lib/mari/timekeeping-shared"
-  );
-  const pn = sanitizeMariProjectNumber(projectNumberRaw);
-  if (!pn) return [];
-  const rows = await mariSql<{
+async function customerFromProjectMaster(
+  pn: string
+): Promise<MariCustomerOption | null> {
+  const queries = [
+    `SELECT TOP 1 p."CardCode" AS "CardCode",
+  COALESCE(p."CardName", p."AddressMatchcode", p."Name") AS "Name"
+FROM "MARIProject" p
+WHERE p."ProjectNumber" = ${sqlQuote(pn)}
+  AND p."CardCode" IS NOT NULL
+  AND p."CardCode" <> ''`,
+    `SELECT TOP 1 p."CardCode" AS "CardCode",
+  COALESCE(p."CardName", p."Name") AS "Name"
+FROM "MARIProjects" p
+WHERE p."ProjectNumber" = ${sqlQuote(pn)}
+  AND p."CardCode" IS NOT NULL
+  AND p."CardCode" <> ''`,
+    `SELECT TOP 1 p."CardCode" AS "CardCode",
+  COALESCE(c."CardName", p."PrjName") AS "Name"
+FROM "OPRJ" p
+LEFT JOIN "OCRD" c ON c."CardCode" = p."CardCode"
+WHERE p."PrjCode" = ${sqlQuote(pn)}
+  AND p."CardCode" IS NOT NULL
+  AND p."CardCode" <> ''`,
+  ];
+  for (const sql of queries) {
+    const rows = await trySql<{ CardCode: string | null; Name: string | null }>(
+      sql
+    );
+    const picked = pickMariProjectCustomer(mapCustomerRows(rows || []));
+    if (picked) return picked;
+  }
+  return null;
+}
+
+async function customerFromProjectTickets(
+  pn: string
+): Promise<MariCustomerOption | null> {
+  const rows = await trySql<{
     CardCode: string | null;
     Name: string | null;
   }>(
@@ -545,5 +615,24 @@ WHERE i."ProjectNumber" = ${sqlQuote(pn)}
 GROUP BY i."CardCode"
 ORDER BY COUNT(*) DESC`
   );
-  return mapCustomerRows(rows);
+  return pickMariProjectCustomer(mapCustomerRows(rows || []));
+}
+
+/**
+ * Kunde zum Projekt: Stamm (MARIProject / OPRJ), sonst häufigster C-CardCode
+ * aus der Ticket-Historie. Lieferanten (V…) und Duplikate entfallen.
+ */
+export async function lookupMariCustomersForProject(
+  projectNumberRaw: string
+): Promise<MariCustomerOption[]> {
+  requireMariConfig();
+  const { sanitizeMariProjectNumber } = await import(
+    "@/lib/mari/timekeeping-shared"
+  );
+  const pn = sanitizeMariProjectNumber(projectNumberRaw);
+  if (!pn) return [];
+  const fromMaster = await customerFromProjectMaster(pn);
+  if (fromMaster) return [fromMaster];
+  const fromTickets = await customerFromProjectTickets(pn);
+  return fromTickets ? [fromTickets] : [];
 }
