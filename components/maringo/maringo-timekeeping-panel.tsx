@@ -21,6 +21,7 @@ import {
   formatMariProjectLabel,
   resolveTimePeriodRange,
   shiftTimePeriodAnchor,
+  timeLineToBookPrefill,
   type MariTimeLine,
   type MariTimePeriod,
 } from "@/lib/mari/timekeeping-shared";
@@ -260,6 +261,7 @@ export function MaringoTimekeepingPanel({
     const full = data.line as {
       serviceDate: string;
       projectNumber: string;
+      projectCustomer?: string | null;
       activity: string;
       memo: string | null;
       hours: number;
@@ -271,23 +273,27 @@ export function MaringoTimekeepingPanel({
       internalRemarkVerr?: string | null;
       zeroHoursReason?: string | null;
     };
+    const prefill = timeLineToBookPrefill(
+      {
+        serviceDate: full.serviceDate,
+        projectNumber: full.projectNumber,
+        projectCustomer: full.projectCustomer,
+        activity: full.activity,
+        memo: full.memo,
+        hours: full.hours,
+        hoursBillable: full.hoursBillable,
+        billable: full.billable,
+        contractId: full.contractId,
+        contractPositionId: full.contractPositionId,
+        issueId: full.issueId,
+        internalRemarkVerr: full.internalRemarkVerr,
+        zeroHoursReason: full.zeroHoursReason,
+      },
+      line
+    );
     return {
-      dayOfService: full.serviceDate || line.serviceDate,
-      projectNumber: full.projectNumber || line.projectNumber,
-      projectLabel: formatMariProjectLabel(
-        full.projectNumber || line.projectNumber,
-        line.projectCustomer
-      ),
-      contractId: full.contractId || null,
-      contractPositionId: full.contractPositionId || null,
-      activity: full.activity || line.activity,
-      memoText: full.memo || line.memo || "",
-      hours: full.hours ?? line.hours,
-      hoursBillable: full.hoursBillable ?? line.hoursBillable,
-      billable: full.billable ?? line.billable,
-      issueId: full.issueId ?? (ticketMode ? ticketIssueId : null),
-      internalRemarkVerr: full.internalRemarkVerr ?? line.internalRemarkVerr,
-      zeroHoursReason: full.zeroHoursReason ?? line.zeroHoursReason,
+      ...prefill,
+      issueId: prefill.issueId ?? (ticketMode ? ticketIssueId : null),
     };
   }
 

@@ -10,6 +10,7 @@ import {
   replaceTimeKeepingLine,
   TIMEKEEPING_SOURCE_SUPPORT_ISSUE,
 } from "@/lib/mari/timekeeping";
+import { firstPositiveInt } from "@/lib/mari/timekeeping-shared";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,8 +37,14 @@ export async function GET(
     return NextResponse.json({ error: "Buchungs-ID ungültig." }, { status: 400 });
   }
   try {
-    const detail = await getTimeKeepingLineDetail(lineId);
+    const detail = await getTimeKeepingLineDetail(lineId).catch(() => null);
     const raw = await getTimeKeepingLine(lineId).catch(() => null);
+    if (!detail && !raw) {
+      return NextResponse.json(
+        { error: "Buchung nicht gefunden." },
+        { status: 404 }
+      );
+    }
     const hours = detail?.hours ?? (Number(raw?.Hours) || 0);
     const hoursBillable =
       detail?.hoursBillable ?? (Number(raw?.HoursBillable) || 0);
@@ -66,8 +73,8 @@ export async function GET(
         hours,
         hoursBillable,
         billable: hoursBillable > 0,
-        contractId: detail?.contractId ?? (Number(raw?.ContractID) || 0),
-        contractPositionId: Number(raw?.ContractPositionID) || 0,
+        contractId: firstPositiveInt(detail?.contractId, raw?.ContractID),
+        contractPositionId: firstPositiveInt(raw?.ContractPositionID),
         issueId:
           srcType === TIMEKEEPING_SOURCE_SUPPORT_ISSUE && srcId > 0
             ? srcId

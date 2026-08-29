@@ -8,8 +8,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { cn } from "@/lib/utils";
-import type { MariKeyPair } from "@/lib/mari/timekeeping-shared";
-import { formatMariProjectLabel } from "@/lib/mari/timekeeping-shared";
+import {
+  findMariKeyPair,
+  formatMariProjectLabel,
+  type MariKeyPair,
+} from "@/lib/mari/timekeeping-shared";
 import { TIMEKEEPING_INT_BEMERKUNG_OPTIONS } from "@/lib/mari/timekeeping-udfs";
 import type { MariTimeBookFavorite } from "@/lib/mari/time-book-favorites";
 import { isAllowedCompanyEmail } from "@/lib/auth/allowed-email";
@@ -265,29 +268,29 @@ export function MaringoTimeBookForm({
       return;
     }
     let cancelled = false;
+    const keepContractId = contractId;
+    const includeInactive = Boolean(keepContractId || contractVisible);
     (async () => {
       try {
+        const qs = includeInactive ? "?activeOnly=0" : "";
         const coRes = await fetch(
-          `/api/maringo/timekeeping/projects/${encodeURIComponent(projectNumber)}/contracts`
+          `/api/maringo/timekeeping/projects/${encodeURIComponent(projectNumber)}/contracts${qs}`
         );
         const co = await coRes.json().catch(() => ({}));
         if (cancelled) return;
         if (!coRes.ok) throw new Error(co.error || "Verträge laden fehlgeschlagen");
         const nextContracts = (co.contracts || []) as MariKeyPair[];
         setContracts(nextContracts);
-        const visible = contractVisible.toUpperCase();
-        const byVisible = visible
-          ? nextContracts.find(
-              (c) =>
-                c.keyVisible.toUpperCase() === visible ||
-                c.matchcode.toUpperCase() === visible
-            )
-          : undefined;
-        if (contractId && nextContracts.some((c) => c.keyInternal === contractId)) {
-          // keep preset
-        } else if (byVisible) {
-          setContractId(byVisible.keyInternal);
-        } else if (!contractId && nextContracts.length === 1) {
+        const found =
+          findMariKeyPair(nextContracts, keepContractId) ||
+          findMariKeyPair(nextContracts, contractVisible);
+        if (found) {
+          if (found.keyInternal !== keepContractId) {
+            setContractId(found.keyInternal);
+          }
+        } else if (keepContractId) {
+          // keep preset even if not in the list — do not clear on load
+        } else if (nextContracts.length === 1) {
           setContractId(nextContracts[0]!.keyInternal);
         }
       } catch (err) {
@@ -319,12 +322,14 @@ export function MaringoTimeBookForm({
         if (!res.ok) throw new Error(data.error || "Positionen laden fehlgeschlagen");
         const next = (data.positions || []) as MariKeyPair[];
         setPositions(next);
-        if (
-          contractPositionId &&
-          !next.some((p) => p.keyInternal === contractPositionId)
-        ) {
-          // keep
-        } else if (!contractPositionId && next.length === 1) {
+        const foundPos = findMariKeyPair(next, contractPositionId);
+        if (foundPos) {
+          if (foundPos.keyInternal !== contractPositionId) {
+            setContractPositionId(foundPos.keyInternal);
+          }
+        } else if (contractPositionId) {
+          // keep preset
+        } else if (next.length === 1) {
           setContractPositionId(next[0]!.keyInternal);
         }
       } catch (err) {
@@ -506,8 +511,7 @@ export function MaringoTimeBookForm({
         internalRemarkVerr: internalRemarkVerr.trim() || null,
         zeroHoursReason: zeroHoursReason.trim() || null,
         contractVisible:
-          contracts.find((c) => c.keyInternal === String(contractId))
-            ?.keyVisible ||
+          findMariKeyPair(contracts, contractId)?.keyVisible ||
           contractVisible ||
           null,
         cardCode: defaults?.cardCode ?? null,
@@ -803,6 +807,13 @@ export function MaringoTimeBookForm({
           id="tk-contract"
           label="Vertrag"
           value={contractId}
+          valueLabel={
+            findMariKeyPair(contracts, contractId)
+              ? null
+              : contractVisible ||
+                defaults?.contractVisible ||
+                (contractId || null)
+          }
           options={contracts}
           placeholder="Vertrag wählen…"
           emptyLabel="Kein Vertrag nötig"

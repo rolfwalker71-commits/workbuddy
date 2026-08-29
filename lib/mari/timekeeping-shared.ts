@@ -56,6 +56,125 @@ export type MariTimeLine = {
   warning?: string | null;
 };
 
+/**
+ * First integer greater than 0. Zero must not win over a later REST ContractID
+ * (`detail.contractId ?? raw.ContractID` keeps 0 and drops the real id).
+ */
+export function firstPositiveInt(...vals: unknown[]): number {
+  for (const v of vals) {
+    if (v == null || v === "") continue;
+    const n = Number(v);
+    if (Number.isInteger(n) && n > 0) return n;
+  }
+  return 0;
+}
+
+/** Match a MARI key pair by internal id, visible token, or numeric ContractID. */
+export function findMariKeyPair(
+  options: MariKeyPair[],
+  id: string | number | null | undefined
+): MariKeyPair | undefined {
+  if (id == null || id === "") return undefined;
+  const raw = String(id).trim();
+  if (!raw) return undefined;
+  const n = Number(raw);
+  const up = raw.toUpperCase();
+  return options.find((o) => {
+    if (o.keyInternal === raw || o.keyVisible === raw) return true;
+    if (Number.isInteger(n) && n > 0) {
+      return Number(o.keyInternal) === n || Number(o.keyVisible) === n;
+    }
+    return (
+      o.keyVisible.toUpperCase() === up || o.matchcode.toUpperCase() === up
+    );
+  });
+}
+
+export type TimeLineBookPrefillSource = {
+  serviceDate?: string | null;
+  projectNumber?: string | null;
+  projectCustomer?: string | null;
+  projectLabel?: string | null;
+  activity?: string | null;
+  memo?: string | null;
+  hours?: number | null;
+  hoursBillable?: number | null;
+  billable?: boolean | null;
+  contractId?: number | null;
+  contractPositionId?: number | null;
+  contractVisible?: string | null;
+  issueId?: number | null;
+  internalRemarkVerr?: string | null;
+  zeroHoursReason?: string | null;
+  customerName?: string | null;
+  cardCode?: string | null;
+};
+
+export type TimeLineBookPrefill = {
+  dayOfService: string;
+  projectNumber: string;
+  projectLabel: string;
+  contractId: number | null;
+  contractPositionId: number | null;
+  contractVisible: string | null;
+  activity: string;
+  memoText: string;
+  hours: number;
+  hoursBillable: number;
+  billable: boolean;
+  issueId: number | null;
+  internalRemarkVerr: string | null;
+  zeroHoursReason: string | null;
+  customerName: string | null;
+  cardCode: string | null;
+};
+
+/** Prefill for edit/duplicate: keep Kunde, Projekt and Vertrag from the saved line. */
+export function timeLineToBookPrefill(
+  full: TimeLineBookPrefillSource,
+  line?: TimeLineBookPrefillSource | null
+): TimeLineBookPrefill {
+  const projectNumber = (full.projectNumber || line?.projectNumber || "").trim();
+  const customerName =
+    (
+      full.customerName ||
+      full.projectCustomer ||
+      line?.customerName ||
+      line?.projectCustomer ||
+      ""
+    ).trim() || null;
+  const contractId = firstPositiveInt(full.contractId, line?.contractId);
+  const contractPositionId = firstPositiveInt(
+    full.contractPositionId,
+    line?.contractPositionId
+  );
+  const hours = full.hours ?? line?.hours ?? 0;
+  const hoursBillable = full.hoursBillable ?? line?.hoursBillable ?? 0;
+  const issueId = firstPositiveInt(full.issueId, line?.issueId);
+  return {
+    dayOfService: (full.serviceDate || line?.serviceDate || "").slice(0, 10),
+    projectNumber,
+    projectLabel:
+      (full.projectLabel || "").trim() ||
+      formatMariProjectLabel(projectNumber, customerName),
+    contractId: contractId > 0 ? contractId : null,
+    contractPositionId: contractPositionId > 0 ? contractPositionId : null,
+    contractVisible:
+      (full.contractVisible || line?.contractVisible || "").trim() || null,
+    activity: (full.activity || line?.activity || "").trim(),
+    memoText: full.memo || line?.memo || "",
+    hours,
+    hoursBillable,
+    billable: full.billable ?? line?.billable ?? hoursBillable > 0,
+    issueId: issueId > 0 ? issueId : null,
+    internalRemarkVerr:
+      full.internalRemarkVerr ?? line?.internalRemarkVerr ?? null,
+    zeroHoursReason: full.zeroHoursReason ?? line?.zeroHoursReason ?? null,
+    customerName,
+    cardCode: (full.cardCode || line?.cardCode || "").trim() || null,
+  };
+}
+
 /** Anzeige «Kunde (Projektnummer)» — ohne Doppelung, wenn Name die Nummer schon enthält. */
 export function formatMariProjectLabel(
   projectNumber: string | null | undefined,

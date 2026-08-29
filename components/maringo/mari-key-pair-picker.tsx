@@ -6,7 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { cn } from "@/lib/utils";
-import type { MariKeyPair } from "@/lib/mari/timekeeping-shared";
+import {
+  findMariKeyPair,
+  type MariKeyPair,
+} from "@/lib/mari/timekeeping-shared";
 
 function formatKeyPair(row: MariKeyPair): string {
   return [row.keyVisible, row.matchcode].filter(Boolean).join(" · ");
@@ -58,7 +61,7 @@ export function MariKeyPairPicker({
     };
   }, [open]);
 
-  const selected = options.find((o) => o.keyInternal === value);
+  const selected = findMariKeyPair(options, value);
   const display = selected
     ? formatKeyPair(selected)
     : value
@@ -118,7 +121,9 @@ export function MariKeyPairPicker({
           </li>
           {options.map((o) => {
             const text = formatKeyPair(o);
-            const active = o.keyInternal === value;
+            const active = selected
+              ? o.keyInternal === selected.keyInternal
+              : o.keyInternal === value;
             return (
               <li key={o.keyInternal} role="option" aria-selected={active}>
                 <Button

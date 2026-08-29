@@ -10,6 +10,7 @@ import { normalizeMariEmployeeNumber } from "@/lib/mari/tickets";
 import {
   addDaysYmd,
   approvalStatusLabel,
+  firstPositiveInt,
   formatPeriodLabel,
   mapApprovalMode,
   resolveTimePeriodRange,
@@ -215,7 +216,7 @@ function mapSqlLine(r: Record<string, unknown>): MariTimeLine {
     hours,
     hoursBillable,
     billable: hoursBillable > 0,
-    contractId: Number(r.ContractID) || 0,
+    contractId: firstPositiveInt(r.ContractID),
     sourceType,
     sourceReference: Number(r.SourceReference) || 0,
     timeStart: r.TimeStart ? String(r.TimeStart) : null,
@@ -533,7 +534,7 @@ export async function createTimeKeepingLine(
         hours,
         hoursBillable: hb,
         billable: hb > 0,
-        contractId: Number(one.ContractID) || parsed.contractId,
+        contractId: firstPositiveInt(one.ContractID, parsed.contractId),
         sourceType: Number(one.SourceReferenceType) || 0,
         sourceReference: Number(one.SourceReferenceID) || 0,
         timeStart: null,
@@ -606,6 +607,19 @@ WHERE t."TimeSheetEntryID" = ${lineId}`
   );
   const line = rows[0] ? mapSqlLine(rows[0]) : null;
   if (!line || line.lineId <= 0) return null;
+  if (line.contractId <= 0) {
+    try {
+      const extra = await mariSql<Record<string, unknown>>(
+        `SELECT TOP 1 t."ContractID" AS "ContractID"
+FROM "MARIProjectTimeKeepingLines" t
+WHERE t."TimeSheetEntryID" = ${lineId}`
+      );
+      const cid = firstPositiveInt(extra[0]?.ContractID);
+      if (cid > 0) line.contractId = cid;
+    } catch {
+      /* View ohne ContractID — GET-Route nutzt REST ContractID */
+    }
+  }
   const [enriched] = await enrichTimeLinesProjectCustomer([line]);
   return enriched || line;
 }
