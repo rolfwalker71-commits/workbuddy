@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  contractFieldsFromMariRow,
   findMariKeyPair,
   firstPositiveInt,
+  formatMariContractLabel,
+  formatMariContractListLine,
   timeLineToBookPrefill,
   type MariKeyPair,
 } from "./timekeeping-shared.ts";
@@ -81,4 +84,76 @@ test("timeLineToBookPrefill falls back to list-line contract when detail is 0", 
   );
   assert.equal(prefill.contractId, 88421);
   assert.equal(prefill.projectLabel, "Bübchen Werke (P600084)");
+});
+
+test("contractFieldsFromMariRow uses ContractID / AbsID and MARI number + name", () => {
+  const fromSql = contractFieldsFromMariRow({
+    ContractID: 0,
+    AbsID: 88421,
+    Contract: "V60011100",
+    ContractName: "Wartung 2026",
+  });
+  assert.equal(fromSql.contractId, 88421);
+  assert.equal(fromSql.contractNumber, "V60011100");
+  assert.equal(fromSql.contractName, "Wartung 2026");
+
+  const empty = contractFieldsFromMariRow({ ContractID: 0, AbsID: 0 });
+  assert.equal(empty.contractId, 0);
+  assert.equal(empty.contractNumber, null);
+  assert.equal(empty.contractName, null);
+});
+
+test("formatMariContractLabel joins number and Bezeichnung without inventing", () => {
+  assert.equal(
+    formatMariContractLabel("V60011100", "Wartung 2026"),
+    "V60011100 · Wartung 2026"
+  );
+  assert.equal(formatMariContractLabel("V60011100", "V60011100"), "V60011100");
+  assert.equal(formatMariContractLabel(null, "Wartung"), "Wartung");
+  assert.equal(formatMariContractLabel("", ""), null);
+});
+
+test("formatMariContractListLine shows Kein Vertrag only when no contract was booked", () => {
+  assert.equal(
+    formatMariContractListLine({
+      contractId: 88421,
+      contractNumber: "V60011100",
+      contractName: "Wartung 2026",
+    }),
+    "V60011100 · Wartung 2026"
+  );
+  assert.equal(
+    formatMariContractListLine({ contractId: 88421 }),
+    null
+  );
+  assert.equal(
+    formatMariContractListLine({ contractId: 0 }),
+    "Kein Vertrag"
+  );
+  assert.equal(
+    formatMariContractListLine({ contractId: null, contractNumber: null }),
+    "Kein Vertrag"
+  );
+});
+
+test("timeLineToBookPrefill keeps Vertrag number from list line", () => {
+  const prefill = timeLineToBookPrefill(
+    {
+      serviceDate: "2026-08-12",
+      projectNumber: "P600084",
+      activity: "Analyse",
+      hours: 1.5,
+      hoursBillable: 1.5,
+      contractId: 88421,
+    },
+    {
+      projectNumber: "P600084",
+      contractId: 88421,
+      contractNumber: "V60011100",
+      hours: 1.5,
+      hoursBillable: 1.5,
+    }
+  );
+  assert.equal(prefill.contractId, 88421);
+  assert.equal(prefill.contractVisible, "V60011100");
 });

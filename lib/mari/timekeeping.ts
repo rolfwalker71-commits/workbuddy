@@ -10,6 +10,8 @@ import { normalizeMariEmployeeNumber } from "@/lib/mari/tickets";
 import {
   addDaysYmd,
   approvalStatusLabel,
+  contractFieldsFromMariRow,
+  findMariKeyPair,
   firstPositiveInt,
   formatPeriodLabel,
   mapApprovalMode,
@@ -130,7 +132,7 @@ function roundHours(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-const TIME_LINE_SQL_SELECT = `
+const TIME_LINE_SQL_SELECT_CORE = `
   t."TimeSheetEntryID",
   t."ServiceDate",
   t."EmployeeNumber",
@@ -152,6 +154,25 @@ const TIME_LINE_SQL_SELECT = `
   t."USER_Begruendung" AS "ZeroHoursReason",
   i."AddressMatchcode" AS "AddressMatchcode"
 `;
+
+const TIME_LINE_SQL_SELECT = `${TIME_LINE_SQL_SELECT_CORE},
+  t."ContractID"`;
+
+async function mariSqlTimeLines(
+  top: number,
+  fromWhereOrder: string
+): Promise<Record<string, unknown>[]> {
+  const tail = `SELECT TOP ${top}\n`;
+  try {
+    return await mariSql<Record<string, unknown>>(
+      `${tail}${TIME_LINE_SQL_SELECT}\n${fromWhereOrder}`
+    );
+  } catch {
+    return mariSql<Record<string, unknown>>(
+      `${tail}${TIME_LINE_SQL_SELECT_CORE}\n${fromWhereOrder}`
+    );
+  }
+}
 
 async function enrichTimeLinesProjectCustomer(
   lines: MariTimeLine[]
@@ -179,6 +200,50 @@ async function enrichTimeLinesProjectCustomer(
       projectCustomer: fromProject || l.projectCustomer,
     };
   });
+}
+
+async function enrichTimeLinesContracts(
+  lines: MariTimeLine[]
+): Promise<MariTimeLine[]> {
+  if (lines.length === 0) return lines;
+  const needLookup = new Set<string>();
+  for (const l of lines) {
+    if (l.contractId <= 0) continue;
+    if (l.contractNumber && l.contractName) continue;
+    const pn = l.projectNumber.trim();
+    if (pn) needLookup.add(pn);
+  }
+  if (needLookup.size === 0) return lines;
+  const byPn = new Map<string, MariKeyPair[]>();
+  await Promise.all(
+    [...needLookup].map(async (pn) => {
+      try {
+        byPn.set(pn, await listContractsForProject(pn, false));
+      } catch {
+        /* Vertragsbezeichnung optional */
+      }
+    })
+  );
+  return lines.map((l) => {
+    if (l.contractId <= 0) return l;
+    if (l.contractNumber && l.contractName) return l;
+    const hit = findMariKeyPair(
+      byPn.get(l.projectNumber.trim()) || [],
+      l.contractId
+    );
+    if (!hit) return l;
+    const number = (hit.keyVisible || "").trim() || null;
+    const name = (hit.matchcode || "").trim() || null;
+    return {
+      ...l,
+      contractNumber: l.contractNumber || number,
+      contractName: l.contractName || name,
+    };
+  });
+}
+
+async function enrichTimeLines(lines: MariTimeLine[]): Promise<MariTimeLine[]> {
+  return enrichTimeLinesContracts(await enrichTimeLinesProjectCustomer(lines));
 }
 
 function mapSqlLine(r: Record<string, unknown>): MariTimeLine {
@@ -216,7 +281,7 @@ function mapSqlLine(r: Record<string, unknown>): MariTimeLine {
     hours,
     hoursBillable,
     billable: hoursBillable > 0,
-    contractId: firstPositiveInt(r.ContractID),
+    ...contractFieldsFromMariRow(r),
     sourceType,
     sourceReference: Number(r.SourceReference) || 0,
     timeStart: r.TimeStart ? String(r.TimeStart) : null,
@@ -360,10 +425,9 @@ export async function listTimeLinesForDay(input: {
   const { fromDate, toDate, toExclusive } = resolveTimePeriodRange(ymd, period);
   const empQ = emp.replace(/'/g, "''");
   const top = period === "day" ? 200 : 2000;
-  const rows = await mariSql<Record<string, unknown>>(
-    `SELECT TOP ${top}
-${TIME_LINE_SQL_SELECT}
-FROM "MARIProjectTimeKeepingLines" t
+  const rows = await mariSqlTimeLines(
+    top,
+    `FROM "MARIProjectTimeKeepingLines" t
 LEFT JOIN "MARIEmployeeMaster" e
   ON e."EmployeeNumber" = t."EmployeeNumber"
 LEFT JOIN "MARISupportIssue" i
@@ -387,7 +451,7 @@ ORDER BY t."ServiceDate", t."TimeSheetEntryID"`
     period,
     fromDate,
     toDate,
-    await enrichTimeLinesProjectCustomer(lines)
+    await enrichTimeLines(lines)
   );
 }
 
@@ -398,10 +462,9 @@ export async function listTimeLinesForTicket(
   if (!Number.isInteger(issueId) || issueId <= 0) {
     throw new MariApiError("Ticket-ID ungültig.", 400);
   }
-  const rows = await mariSql<Record<string, unknown>>(
-    `SELECT TOP 200
-${TIME_LINE_SQL_SELECT}
-FROM "MARIProjectTimeKeepingLines" t
+  const rows = await mariSqlTimeLines(
+    200,
+    `FROM "MARIProjectTimeKeepingLines" t
 LEFT JOIN "MARIEmployeeMaster" e
   ON e."EmployeeNumber" = t."EmployeeNumber"
 LEFT JOIN "MARISupportIssue" i
@@ -411,9 +474,7 @@ WHERE t."SourceReference" = ${issueId}
   AND t."SourceType" = ${TIMEKEEPING_SOURCE_SUPPORT_ISSUE}
 ORDER BY t."ServiceDate" DESC, t."TimeSheetEntryID" DESC`
   );
-  return enrichTimeLinesProjectCustomer(
-    rows.map(mapSqlLine).filter((l) => l.lineId > 0)
-  );
+  return enrichTimeLines(rows.map(mapSqlLine).filter((l) => l.lineId > 0));
 }
 
 export async function createTimeKeepingLine(
@@ -534,7 +595,12 @@ export async function createTimeKeepingLine(
         hours,
         hoursBillable: hb,
         billable: hb > 0,
-        contractId: firstPositiveInt(one.ContractID, parsed.contractId),
+        ...contractFieldsFromMariRow(one),
+        contractId: firstPositiveInt(
+          one.ContractID,
+          one.AbsID,
+          parsed.contractId
+        ),
         sourceType: Number(one.SourceReferenceType) || 0,
         sourceReference: Number(one.SourceReferenceID) || 0,
         timeStart: null,
@@ -566,6 +632,8 @@ export async function createTimeKeepingLine(
     hoursBillable,
     billable: hoursBillable > 0,
     contractId: parsed.contractId,
+    contractNumber: null,
+    contractName: null,
     sourceType: parsed.issueId ? TIMEKEEPING_SOURCE_SUPPORT_ISSUE : 0,
     sourceReference: parsed.issueId || 0,
     timeStart: null,
@@ -594,10 +662,9 @@ export async function getTimeKeepingLineDetail(
   if (!Number.isInteger(lineId) || lineId <= 0) {
     throw new MariApiError("Buchungs-ID ungültig.", 400);
   }
-  const rows = await mariSql<Record<string, unknown>>(
-    `SELECT TOP 1
-${TIME_LINE_SQL_SELECT}
-FROM "MARIProjectTimeKeepingLines" t
+  const rows = await mariSqlTimeLines(
+    1,
+    `FROM "MARIProjectTimeKeepingLines" t
 LEFT JOIN "MARIEmployeeMaster" e
   ON e."EmployeeNumber" = t."EmployeeNumber"
 LEFT JOIN "MARISupportIssue" i
@@ -620,7 +687,7 @@ WHERE t."TimeSheetEntryID" = ${lineId}`
       /* View ohne ContractID — GET-Route nutzt REST ContractID */
     }
   }
-  const [enriched] = await enrichTimeLinesProjectCustomer([line]);
+  const [enriched] = await enrichTimeLines([line]);
   return enriched || line;
 }
 

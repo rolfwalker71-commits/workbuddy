@@ -43,6 +43,10 @@ export type MariTimeLine = {
   hoursBillable: number;
   billable: boolean;
   contractId: number;
+  /** Sichtbare Vertragsnummer (z.B. V60011100), wenn MARI sie liefert. */
+  contractNumber: string | null;
+  /** Vertragsbezeichnung (Matchcode), wenn bekannt. */
+  contractName: string | null;
   sourceType: number;
   sourceReference: number;
   timeStart: string | null;
@@ -103,6 +107,8 @@ export type TimeLineBookPrefillSource = {
   contractId?: number | null;
   contractPositionId?: number | null;
   contractVisible?: string | null;
+  contractNumber?: string | null;
+  contractName?: string | null;
   issueId?: number | null;
   internalRemarkVerr?: string | null;
   zeroHoursReason?: string | null;
@@ -160,7 +166,13 @@ export function timeLineToBookPrefill(
     contractId: contractId > 0 ? contractId : null,
     contractPositionId: contractPositionId > 0 ? contractPositionId : null,
     contractVisible:
-      (full.contractVisible || line?.contractVisible || "").trim() || null,
+      (
+        full.contractVisible ||
+        full.contractNumber ||
+        line?.contractVisible ||
+        line?.contractNumber ||
+        ""
+      ).trim() || null,
     activity: (full.activity || line?.activity || "").trim(),
     memoText: full.memo || line?.memo || "",
     hours,
@@ -173,6 +185,51 @@ export function timeLineToBookPrefill(
     customerName,
     cardCode: (full.cardCode || line?.cardCode || "").trim() || null,
   };
+}
+
+/** Vertragsfelder aus einer MARI-Zeile (SQL oder REST) — keine erfundenen Labels. */
+export function contractFieldsFromMariRow(r: Record<string, unknown>): {
+  contractId: number;
+  contractNumber: string | null;
+  contractName: string | null;
+} {
+  const contractId = firstPositiveInt(r.ContractID, r.AbsID, r.ContractId);
+  const contractNumber =
+    String(
+      r.ContractNumber || r.ContractVisible || r.Contract || ""
+    ).trim() || null;
+  const contractName =
+    String(r.ContractName || r.ContractMatchcode || "").trim() || null;
+  return { contractId, contractNumber, contractName };
+}
+
+/** Anzeige «Nummer · Bezeichnung» — wie der Vertrag-Picker, ohne Doppelung. */
+export function formatMariContractLabel(
+  contractNumber?: string | null,
+  contractName?: string | null
+): string | null {
+  const num = (contractNumber || "").trim();
+  const name = (contractName || "").trim();
+  if (num && name && name !== num) return `${num} · ${name}`;
+  if (num) return num;
+  if (name) return name;
+  return null;
+}
+
+/**
+ * Zweite Zeile unter dem Kunden: Vertrag oder «Kein Vertrag».
+ * Hat die Buchung eine ContractID, aber noch keine MARI-Bezeichnung — Zeile weglassen
+ * (keine leere Zeile, keine erfundene Nummer).
+ */
+export function formatMariContractListLine(input: {
+  contractId?: number | null;
+  contractNumber?: string | null;
+  contractName?: string | null;
+}): string | null {
+  const label = formatMariContractLabel(input.contractNumber, input.contractName);
+  if (label) return label;
+  if (firstPositiveInt(input.contractId) > 0) return null;
+  return "Kein Vertrag";
 }
 
 /** Anzeige «Kunde (Projektnummer)» — ohne Doppelung, wenn Name die Nummer schon enthält. */

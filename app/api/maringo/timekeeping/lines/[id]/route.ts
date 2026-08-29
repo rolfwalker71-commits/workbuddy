@@ -74,6 +74,8 @@ export async function GET(
         hoursBillable,
         billable: hoursBillable > 0,
         contractId: firstPositiveInt(detail?.contractId, raw?.ContractID),
+        contractNumber: detail?.contractNumber || null,
+        contractName: detail?.contractName || null,
         contractPositionId: firstPositiveInt(raw?.ContractPositionID),
         issueId:
           srcType === TIMEKEEPING_SOURCE_SUPPORT_ISSUE && srcId > 0

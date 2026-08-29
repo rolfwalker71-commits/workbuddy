@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChevronRight, Copy, Pencil, Trash2 } from "lucide-react";
 import {
   approvalStatusLabel,
+  formatMariContractListLine,
   type MariApprovalStatus,
   type MariTimeLine,
 } from "@/lib/mari/timekeeping-shared";
@@ -54,13 +55,35 @@ function ProjectWithCustomer({
     customer.endsWith(` ${pn}`)
   ) {
     return (
-      <span className="min-w-0 truncate font-bold text-foreground">{customer}</span>
+      <span className="min-w-0 break-words font-bold leading-snug text-foreground">
+        {customer}
+      </span>
     );
   }
   return (
     <span className="inline-flex min-w-0 max-w-full flex-wrap items-baseline gap-x-1.5 gap-y-0">
-      <span className="min-w-0 truncate font-bold text-foreground">{customer}</span>
+      <span className="min-w-0 break-words font-bold leading-snug text-foreground">
+        {customer}
+      </span>
       <span className="font-medium tabular-nums text-muted-foreground">({pn})</span>
+    </span>
+  );
+}
+
+function ProjectAndContract({ line }: { line: MariTimeLine }) {
+  const contractLine = formatMariContractListLine(line);
+  return (
+    <span className="inline-flex min-w-0 max-w-full flex-col gap-0.5 leading-snug">
+      <ProjectWithCustomer
+        projectNumber={line.projectNumber}
+        projectCustomer={line.projectCustomer}
+      />
+      {contractLine ? (
+        <span className="break-words text-[0.625rem] font-normal text-muted-foreground">
+          <span className="sr-only">Vertrag: </span>
+          {contractLine}
+        </span>
+      ) : null}
     </span>
   );
 }
@@ -286,10 +309,7 @@ export function MaringoTimeLinesTable({
                       <span className="font-semibold">
                         <ServiceDateLabel serviceDate={l.serviceDate} />
                       </span>
-                      <ProjectWithCustomer
-                        projectNumber={l.projectNumber}
-                        projectCustomer={l.projectCustomer}
-                      />
+                      <ProjectAndContract line={l} />
                       <span className="ml-auto font-semibold tabular-nums text-foreground">
                         {formatHours(l.hours)} h
                       </span>
@@ -386,10 +406,7 @@ export function MaringoTimeLinesTable({
                     />
                   </td>
                   <td className="px-2 py-1.5 align-middle">
-                    <ProjectWithCustomer
-                      projectNumber={l.projectNumber}
-                      projectCustomer={l.projectCustomer}
-                    />
+                    <ProjectAndContract line={l} />
                   </td>
                   <td className="max-w-[20rem] px-2 py-1.5">
                     <p className="font-medium leading-snug">{l.activity || "–"}</p>

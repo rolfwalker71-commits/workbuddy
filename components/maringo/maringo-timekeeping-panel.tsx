@@ -268,6 +268,8 @@ export function MaringoTimekeepingPanel({
       hoursBillable: number;
       billable: boolean;
       contractId: number;
+      contractNumber?: string | null;
+      contractName?: string | null;
       contractPositionId: number;
       issueId: number | null;
       internalRemarkVerr?: string | null;
@@ -284,6 +286,10 @@ export function MaringoTimekeepingPanel({
         hoursBillable: full.hoursBillable,
         billable: full.billable,
         contractId: full.contractId,
+        contractVisible:
+          full.contractNumber ||
+          line.contractNumber ||
+          null,
         contractPositionId: full.contractPositionId,
         issueId: full.issueId,
         internalRemarkVerr: full.internalRemarkVerr,
