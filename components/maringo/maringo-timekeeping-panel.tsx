@@ -25,6 +25,7 @@ import {
   type MariTimeLine,
   type MariTimePeriod,
 } from "@/lib/mari/timekeeping-shared";
+import { formatOvertimeHours } from "@/lib/mari/timekeeping-overtime-shared";
 import {
   MaringoTimeBookForm,
   type TimeBookFormDefaults,
@@ -84,6 +85,7 @@ export function MaringoTimekeepingPanel({
   const [totalHours, setTotalHours] = useState(0);
   const [billableHours, setBillableHours] = useState(0);
   const [nonBillableHours, setNonBillableHours] = useState(0);
+  const [overtimeHours, setOvertimeHours] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -159,10 +161,16 @@ export function MaringoTimekeepingPanel({
       setTotalHours(Number(data.totalHours) || 0);
       setBillableHours(Number(data.billableHours) || 0);
       setNonBillableHours(Number(data.nonBillableHours) || 0);
+      setOvertimeHours(
+        data.overtimeHours == null || !Number.isFinite(Number(data.overtimeHours))
+          ? null
+          : Number(data.overtimeHours)
+      );
       setFromDate(String(data.fromDate || ymd));
       setToDate(String(data.toDate || ymd));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      setOvertimeHours(null);
     } finally {
       setLoading(false);
     }
@@ -489,6 +497,9 @@ export function MaringoTimekeepingPanel({
                           : loading
                             ? " · Lade…"
                             : ` · ${lines.length} Buchung${lines.length === 1 ? "" : "en"}`}
+                        {overtimeHours != null
+                          ? ` · Überstunden ${formatOvertimeHours(overtimeHours)}`
+                          : ""}
                       </p>
                     ) : null}
                   </div>
@@ -611,6 +622,10 @@ export function MaringoTimekeepingPanel({
                   totalHours={totalHours}
                   billableHours={billableHours}
                   nonBillableHours={nonBillableHours}
+                  overtimeHours={overtimeHours}
+                  overtimeHint={
+                    period === "day" ? "Saldo" : `Stand ${formatPeriodLabel("day", date, date)}`
+                  }
                   footnote={
                     loading
                       ? "Lade Buchungen…"

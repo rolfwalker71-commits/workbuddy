@@ -416,6 +416,11 @@ export type MariDayTimeSummary = {
   totalHours: number;
   billableHours: number;
   nonBillableHours: number;
+  /**
+   * Maringo Tag-grid Überstunden as of `date` (running saldo).
+   * Null when calendar/period data is missing.
+   */
+  overtimeHours: number | null;
 };
 
 export function mapApprovalMode(raw: unknown): {

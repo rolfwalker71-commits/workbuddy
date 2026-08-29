@@ -2,6 +2,7 @@
 
 import { HoursSplitBagel } from "@/components/ui/hours-split-bagel";
 import { formatBookHours } from "@/lib/mari/time-book-hours";
+import { formatOvertimeHours } from "@/lib/mari/timekeeping-overtime-shared";
 import { cn } from "@/lib/utils";
 
 const WORKED_COLOR = "#64748b";
@@ -13,6 +14,8 @@ export function MariHoursSplitSummary({
   lineCount,
   footnote,
   totalHint = "Zeitraum",
+  overtimeHours = null,
+  overtimeHint = null,
   className,
 }: {
   totalHours: number;
@@ -24,6 +27,9 @@ export function MariHoursSplitSummary({
   footnote?: string;
   /** Untertitel unter «Geleistet». */
   totalHint?: string | null;
+  /** Maringo Tag-grid Überstunden (running saldo). Hidden when null. */
+  overtimeHours?: number | null;
+  overtimeHint?: string | null;
   className?: string;
 }) {
   const hint =
@@ -42,7 +48,12 @@ export function MariHoursSplitSummary({
       <HoursSplitBagel worked={totalHours} billable={billableHours} size="lg" />
 
       <div className="min-w-0 flex-1 space-y-1">
-        <div className="grid grid-cols-2 gap-1.5">
+        <div
+          className={cn(
+            "grid gap-1.5",
+            overtimeHours != null ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2"
+          )}
+        >
           <div className="rounded-md border border-border/60 bg-background/80 px-1.5 py-1">
             <p className="flex items-center gap-1 text-[0.5625rem] font-semibold uppercase tracking-wide text-muted-foreground">
               <span
@@ -80,6 +91,51 @@ export function MariHoursSplitSummary({
               </span>
             </p>
           </div>
+          {overtimeHours != null ? (
+            <div
+              className={cn(
+                "col-span-2 rounded-md border px-1.5 py-1 sm:col-span-1",
+                overtimeHours < 0
+                  ? "border-rose-200/70 bg-rose-50/60 dark:border-rose-400/30 dark:bg-rose-500/12"
+                  : overtimeHours > 0
+                    ? "border-amber-200/70 bg-amber-50/60 dark:border-amber-400/30 dark:bg-amber-500/12"
+                    : "border-border/60 bg-background/80"
+              )}
+            >
+              <p
+                className={cn(
+                  "text-[0.5625rem] font-semibold uppercase tracking-wide",
+                  overtimeHours < 0
+                    ? "text-rose-900/80 dark:text-rose-100"
+                    : overtimeHours > 0
+                      ? "text-amber-950/80 dark:text-amber-100"
+                      : "text-muted-foreground"
+                )}
+              >
+                Überstunden
+              </p>
+              <p
+                className={cn(
+                  "mt-0.5 text-[0.8125rem] font-black tabular-nums leading-none",
+                  overtimeHours < 0
+                    ? "text-rose-950 dark:text-rose-50"
+                    : overtimeHours > 0
+                      ? "text-amber-950 dark:text-amber-50"
+                      : "text-foreground"
+                )}
+              >
+                {formatOvertimeHours(overtimeHours)}
+                <span className="ml-0.5 text-[0.625rem] font-semibold opacity-70">
+                  h
+                </span>
+              </p>
+              {overtimeHint ? (
+                <p className="mt-px text-[0.5625rem] text-muted-foreground">
+                  {overtimeHint}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         {hint ? (
           <p className="text-[0.625rem] text-muted-foreground">{hint}</p>

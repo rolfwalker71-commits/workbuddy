@@ -23,6 +23,7 @@ import {
   type MariTimeLine,
   type MariTimePeriod,
 } from "@/lib/mari/timekeeping-shared";
+import { getMariOvertimeHoursForDay } from "@/lib/mari/timekeeping-overtime";
 import {
   buildTimekeepingUserDefinedFieldValues,
   mergeTimekeepingUdfIntoMemo,
@@ -417,6 +418,7 @@ function summarizeLines(
     totalHours,
     billableHours,
     nonBillableHours: roundHours(Math.max(0, totalHours - billableHours)),
+    overtimeHours: null,
   };
 }
 
@@ -531,9 +533,10 @@ export async function listTimeLinesForDay(input: {
   const { fromDate, toDate, toExclusive } = resolveTimePeriodRange(ymd, period);
   const empQ = emp.replace(/'/g, "''");
   const top = period === "day" ? 200 : 2000;
-  const rows = await mariSqlTimeLines(
-    top,
-    `FROM "MARIProjectTimeKeepingLines" t
+  const [rows, overtimeHours] = await Promise.all([
+    mariSqlTimeLines(
+      top,
+      `FROM "MARIProjectTimeKeepingLines" t
 LEFT JOIN "MARIEmployeeMaster" e
   ON e."EmployeeNumber" = t."EmployeeNumber"
 LEFT JOIN "MARISupportIssue" i
@@ -543,7 +546,11 @@ WHERE t."EmployeeNumber" = '${empQ}'
   AND t."ServiceDate" >= '${fromDate}'
   AND t."ServiceDate" < '${toExclusive}'
 ORDER BY t."ServiceDate", t."TimeSheetEntryID"`
-  );
+    ),
+    getMariOvertimeHoursForDay({ employeeNumber: emp, dateYmd: ymd }).catch(
+      () => null
+    ),
+  ]);
   const lines = rows
     .map(mapSqlLine)
     .filter(
@@ -552,13 +559,16 @@ ORDER BY t."ServiceDate", t."TimeSheetEntryID"`
         l.serviceDate >= fromDate &&
         l.serviceDate <= toDate
     );
-  return summarizeLines(
-    ymd,
-    period,
-    fromDate,
-    toDate,
-    await enrichTimeLines(lines)
-  );
+  return {
+    ...summarizeLines(
+      ymd,
+      period,
+      fromDate,
+      toDate,
+      await enrichTimeLines(lines)
+    ),
+    overtimeHours,
+  };
 }
 
 export async function listTimeLinesForTicket(
