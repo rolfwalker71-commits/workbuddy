@@ -195,7 +195,7 @@ test("title name Filados without attendees still shows Kunde", () => {
 });
 
 test("formatBookedHoursLine prefixes recognition", () => {
-  assert.equal(formatBookedHoursLine(null), "In Stundenerfassung");
+  assert.equal(formatBookedHoursLine(null), "Zeiterfassung");
   assert.equal(
     formatBookedHoursLine({
       cardCode: "C1471",
@@ -208,7 +208,7 @@ test("formatBookedHoursLine prefixes recognition", () => {
       meetingKind: "mixed",
       contractOptional: false,
     }),
-    "In Stundenerfassung: Filados AG · P600111 · V60011100"
+    "Zeiterfassung: Filados AG · P600111 · V60011100"
   );
 });
 

@@ -3,19 +3,14 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { EventBookingAttachDialog } from "@/components/calendar/event-booking-attach-dialog";
-import { HoursSplitBagel } from "@/components/ui/hours-split-bagel";
 import {
   classifyEventMeetingKind,
   eventBookingRefHasCodes,
-  formatBookedHoursLine,
   formatEventBookingLine,
   type EventBookingRef,
   type EventMeetingKind,
 } from "@/lib/mari/event-booking-ref";
-import {
-  hoursSplitFromStamp,
-  type WorkspaceEventMari,
-} from "@/lib/workspace/event-mari-shared";
+import { type WorkspaceEventMari } from "@/lib/workspace/event-mari-shared";
 import type { WorkspaceProvider } from "@/lib/workspace/merge-today";
 
 const guessCache = new Map<string, Promise<EventBookingRef | null>>();
@@ -117,21 +112,18 @@ export function EventBookingHint({
   const line = formatEventBookingLine(shown);
   const quiet = !line;
   const booked = event.mari?.stampStatus === "booked";
-  const split = hoursSplitFromStamp(
-    event.mari?.hours,
-    event.mari?.hoursBillable
-  );
 
   if (booked) {
     return (
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-        <HoursSplitBagel
-          billable={split.billable}
-          nonBillable={split.nonBillable}
-        />
-        <p className="min-w-0 text-xs leading-snug text-muted-foreground">
-          {formatBookedHoursLine(shown)}
-        </p>
+        <span className="inline-flex h-7 items-center rounded-full bg-emerald-100 px-2.5 text-sm font-semibold text-emerald-950 dark:bg-emerald-500/25 dark:text-emerald-50">
+          Zeiterfassung
+        </span>
+        {line ? (
+          <p className="min-w-0 text-sm leading-snug text-muted-foreground">
+            {line}
+          </p>
+        ) : null}
       </div>
     );
   }

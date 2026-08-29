@@ -18,7 +18,7 @@ import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 
 type Colleague = {
   key: string;
-  source: "workbuddy" | "chat";
+  source: "workbuddy" | "chat" | "self";
   userId: number | null;
   displayName: string;
   email: string | null;
@@ -200,7 +200,9 @@ export function TicketColleaguePingDialog({
                       {c.displayName}
                     </span>
                     <span className="text-xs leading-snug text-muted-foreground break-words">
-                      {c.email || "Microsoft verbunden"}
+                      {c.source === "self"
+                        ? "Testhilfe · Nachricht an dich selbst"
+                        : c.email || "Microsoft verbunden"}
                       {c.source === "chat" ? " · bestehender Chat" : ""}
                     </span>
                   </button>

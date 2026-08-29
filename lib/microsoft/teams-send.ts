@@ -1,4 +1,5 @@
 import { graphJson, MicrosoftGraphError } from "@/lib/microsoft/graph";
+import { teamsChatUserMessage } from "@/lib/microsoft/teams-chats";
 import { parseChannelThreadKey } from "@/lib/microsoft/teams-thread-state";
 
 export type TeamsReplyTarget =
@@ -47,7 +48,7 @@ export async function sendTeamsChatMessage(
   try {
     const created = await graphJson<{ id?: string }>(
       userId,
-      `/me/chats/${encodeURIComponent(id)}/messages`,
+      `/chats/${encodeURIComponent(id)}/messages`,
       {
         method: "POST",
         body: graphMessageBody(text, options?.contentType ?? "text"),
@@ -58,11 +59,8 @@ export async function sendTeamsChatMessage(
     }
     return { id: created.id };
   } catch (error) {
-    if (error instanceof MicrosoftGraphError && error.status === 403) {
-      throw new Error(
-        "ChatMessage.Send fehlt. Unter Konto Microsoft 365 neu verbinden."
-      );
-    }
+    const message = teamsChatUserMessage(error, "ChatMessage.Send");
+    if (message) throw new Error(message);
     throw error;
   }
 }

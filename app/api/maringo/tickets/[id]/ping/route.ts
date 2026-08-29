@@ -91,7 +91,7 @@ export async function POST(request: Request, context: Ctx) {
           ? error.status || 502
           : needsReconnect
             ? 403
-            : /nicht gefunden|selbst informieren|Kollege wählen|keine Microsoft/i.test(
+            : /nicht gefunden|Kollege wählen|keine Microsoft/i.test(
                   message
                 )
               ? 400

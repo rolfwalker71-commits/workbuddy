@@ -131,7 +131,7 @@ export function formatBookedHoursLine(
   ref: EventBookingRef | null | undefined
 ): string {
   const line = formatEventBookingLine(ref);
-  return line ? `In Stundenerfassung: ${line}` : "In Stundenerfassung";
+  return line ? `Zeiterfassung: ${line}` : "Zeiterfassung";
 }
 
 export function buddyBookKpvCategory(ref: EventBookingRef): string {

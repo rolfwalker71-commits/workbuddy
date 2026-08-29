@@ -2,7 +2,12 @@
 
 import type { ReactNode } from "react";
 import { resolveEventArt, type EventArtSubject } from "@/lib/calendar/event-art";
+import { HoursSplitBagel } from "@/components/ui/hours-split-bagel";
 import { ProviderBadge } from "@/components/workspace/provider-badge";
+import {
+  hoursSplitFromStamp,
+  type WorkspaceEventMari,
+} from "@/lib/workspace/event-mari-shared";
 import type { WorkspaceProvider } from "@/lib/workspace/merge-today";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +19,7 @@ export type EventArtCardModel = EventArtSubject & {
   done?: boolean;
   provider?: WorkspaceProvider;
   location?: string | null;
+  mari?: WorkspaceEventMari | null;
 };
 
 function EventArtCardHeader({ event }: { event: EventArtCardModel }) {
@@ -21,6 +27,10 @@ function EventArtCardHeader({ event }: { event: EventArtCardModel }) {
   const when = event.isAllDay
     ? "Ganztägig"
     : [event.time, event.endTime].filter(Boolean).join("–") || "Heute";
+  const booked = event.mari?.stampStatus === "booked";
+  const split = booked
+    ? hoursSplitFromStamp(event.mari?.hours, event.mari?.hoursBillable)
+    : null;
   return (
     <>
       <span className="min-w-0 flex-1 px-3 py-2.5">
@@ -38,6 +48,15 @@ function EventArtCardHeader({ event }: { event: EventArtCardModel }) {
           {event.location ? ` · ${event.location}` : ""}
         </span>
       </span>
+      {split ? (
+        <span className="flex shrink-0 items-center self-center pr-1.5">
+          <HoursSplitBagel
+            billable={split.billable}
+            nonBillable={split.nonBillable}
+            size="lg"
+          />
+        </span>
+      ) : null}
       <img
         src={art.right.src}
         alt={art.right.alt}

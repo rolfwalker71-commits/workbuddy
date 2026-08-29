@@ -12,7 +12,10 @@ import {
 } from "@/lib/microsoft/oauth";
 import {
   findExistingOneOnOneChat,
+  findExistingSelfChat,
   getOrCreateOneOnOneChat,
+  getOrCreateSelfChat,
+  teamsChatUserMessage,
 } from "@/lib/microsoft/teams-chats";
 import { sendTeamsChatMessage } from "@/lib/microsoft/teams-send";
 import { getAppUserById } from "@/lib/users/queries";
@@ -59,15 +62,21 @@ export async function pingColleagueAboutTicket(input: {
     if (!colleague || !colleague.active) {
       throw new Error("Kollege nicht gefunden.");
     }
-    if (colleague.id === actorUserId) {
-      throw new Error("Du kannst dich nicht selbst informieren.");
-    }
     const tokens = readMicrosoftUserTokens(colleague.id);
     microsoftId = tokens?.microsoftId?.trim() || microsoftId;
     email = tokens?.email?.trim() || colleague.email?.trim() || email;
   }
 
-  if (!microsoftId && !email && !existingChatId) {
+  const actorTokens = readMicrosoftUserTokens(actorUserId);
+  const actorMsId = actorTokens?.microsoftId?.trim() || "";
+  const actorEmail = (actorTokens?.email || "").trim().toLowerCase();
+  const targetingSelf =
+    (input.colleagueUserId != null &&
+      input.colleagueUserId === actorUserId) ||
+    Boolean(microsoftId && actorMsId && microsoftId === actorMsId) ||
+    Boolean(email && actorEmail && email.toLowerCase() === actorEmail);
+
+  if (!targetingSelf && !microsoftId && !email && !existingChatId) {
     throw new Error(
       "Kollege hat keine Microsoft-Id. Nur Personen, die Microsoft verbunden haben."
     );
@@ -78,34 +87,58 @@ export async function pingColleagueAboutTicket(input: {
   const link = ticketPingLink(ticket.issueId, input.request);
   const html = formatTicketPingHtml(fields, link);
 
-  let chatId = existingChatId;
-  let created = false;
-  if (!chatId) {
-    const existing = await findExistingOneOnOneChat(actorUserId, {
-      microsoftId,
-      email,
-    });
-    if (existing) {
-      chatId = existing;
-    } else if (!hasMicrosoftChatCreateScope(actorUserId)) {
-      throw new Error(
-        "Chat.Create fehlt. Unter Konto Microsoft 365 neu verbinden."
-      );
-    } else {
-      const chat = await getOrCreateOneOnOneChat(actorUserId, {
-        microsoftId,
-        email,
-      });
-      chatId = chat.chatId;
-      created = chat.created;
+  try {
+    let chatId = existingChatId;
+    let created = false;
+    if (!chatId) {
+      if (targetingSelf) {
+        const existing = await findExistingSelfChat(actorUserId);
+        if (existing) {
+          chatId = existing;
+        } else if (!hasMicrosoftChatCreateScope(actorUserId)) {
+          throw new Error(
+            "Chat.Create fehlt. Unter Konto Microsoft 365 neu verbinden."
+          );
+        } else {
+          const chat = await getOrCreateSelfChat(actorUserId);
+          chatId = chat.chatId;
+          created = chat.created;
+        }
+      } else {
+        const existing = await findExistingOneOnOneChat(actorUserId, {
+          microsoftId,
+          email,
+        });
+        if (existing) {
+          chatId = existing;
+        } else if (!hasMicrosoftChatCreateScope(actorUserId)) {
+          throw new Error(
+            "Chat.Create fehlt. Unter Konto Microsoft 365 neu verbinden."
+          );
+        } else {
+          const chat = await getOrCreateOneOnOneChat(actorUserId, {
+            microsoftId,
+            email,
+          });
+          chatId = chat.chatId;
+          created = chat.created;
+        }
+      }
     }
-  }
 
-  if (!chatId) {
-    throw new Error("Kein Teams-Chat für diesen Kollegen.");
+    if (!chatId) {
+      throw new Error("Kein Teams-Chat für diesen Kollegen.");
+    }
+    const sent = await sendTeamsChatMessage(actorUserId, chatId, html, {
+      contentType: "html",
+    });
+    return { chatId, messageId: sent.id, created };
+  } catch (error) {
+    const message = teamsChatUserMessage(
+      error,
+      targetingSelf ? "Chat.Create" : "ChatMessage.Send"
+    );
+    if (message) throw new Error(message);
+    throw error;
   }
-  const sent = await sendTeamsChatMessage(actorUserId, chatId, html, {
-    contentType: "html",
-  });
-  return { chatId, messageId: sent.id, created };
 }

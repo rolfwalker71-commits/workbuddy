@@ -293,6 +293,60 @@ export function oneOnOneChatMatchesPeer(
   });
 }
 
+/** 1:1 / notes chat that only contains the signed-in user (Chat with self). */
+export function isSelfOnlyChat(
+  members: GraphChat["members"],
+  myId: string | null
+): boolean {
+  const list = members || [];
+  if (!list.length || !myId) return false;
+  if (otherChatMembers(list, myId).length > 0) return false;
+  return list.some((m) => m.userId?.trim() === myId);
+}
+
+export function targetIsSelfPeer(
+  me: { id?: string | null; mail?: string | null; userPrincipalName?: string | null },
+  target: { microsoftId?: string | null; email?: string | null }
+): boolean {
+  const meId = me.id?.trim() || "";
+  const wantId = target.microsoftId?.trim() || "";
+  if (meId && wantId && meId === wantId) return true;
+  const wantEmail = normEmail(target.email);
+  if (!wantEmail) return false;
+  return (
+    normEmail(me.mail) === wantEmail ||
+    normEmail(me.userPrincipalName) === wantEmail
+  );
+}
+
+export function teamsChatUserMessage(
+  error: unknown,
+  missingScope: "Chat.Create" | "ChatMessage.Send"
+): string | null {
+  if (!(error instanceof MicrosoftGraphError)) return null;
+  if (error.status === 403) {
+    return `${missingScope} fehlt. Unter Konto Microsoft 365 neu verbinden.`;
+  }
+  if (error.status === 405) {
+    return "Teams erlaubt diese Chat-Aktion nicht. Unter Konto Microsoft 365 neu verbinden.";
+  }
+  if (error.status === 400) {
+    return missingScope === "Chat.Create"
+      ? "Teams hat den Chat nicht angelegt. Bitte später erneut versuchen."
+      : "Teams hat die Nachricht nicht angenommen. Bitte später erneut versuchen.";
+  }
+  return `Teams hat die Aktion nicht angenommen (Fehler ${error.status}). Bitte später erneut versuchen.`;
+}
+
+function throwTeamsChatGraphError(
+  error: unknown,
+  missingScope: "Chat.Create" | "ChatMessage.Send"
+): never {
+  const message = teamsChatUserMessage(error, missingScope);
+  if (message) throw new Error(message);
+  throw error;
+}
+
 async function listGraphChatsWithMembers(
   userId: number
 ): Promise<{ chats: GraphChat[]; myId: string | null }> {
@@ -390,26 +444,12 @@ function memberBinding(userKey: string) {
   };
 }
 
-/** POST /me/chats — Chat.Create. Graph may return an existing 1:1. */
-export async function createOneOnOneChat(
+async function postCreateChat(
   userId: number,
-  target: { microsoftId?: string | null; email?: string | null }
+  members: ReturnType<typeof memberBinding>[]
 ): Promise<string> {
-  const otherKey = target.microsoftId?.trim() || target.email?.trim() || "";
-  if (!otherKey) {
-    throw new Error("Kollege hat keine Microsoft-Id und keine E-Mail.");
-  }
-  let meId: string | null = null;
   try {
-    meId = (await getMicrosoftMe(userId)).id;
-  } catch {
-    meId = null;
-  }
-  const members = meId
-    ? [memberBinding(meId), memberBinding(otherKey)]
-    : [memberBinding(otherKey)];
-  try {
-    const created = await graphJson<{ id?: string }>(userId, "/me/chats", {
+    const created = await graphJson<{ id?: string }>(userId, "/chats", {
       method: "POST",
       body: JSON.stringify({
         chatType: "oneOnOne",
@@ -421,19 +461,108 @@ export async function createOneOnOneChat(
     }
     return created.id;
   } catch (error) {
+    throwTeamsChatGraphError(error, "Chat.Create");
+  }
+}
+
+export async function findExistingSelfChat(
+  userId: number
+): Promise<string | null> {
+  try {
+    const { chats, myId } = await listGraphChatsWithMembers(userId);
+    if (!myId) return null;
+    for (const chat of chats) {
+      if (!chat.id) continue;
+      const type = asChatType(chat.chatType);
+      if (type !== "oneOnOne" && type !== "unknown") continue;
+      if (isSelfOnlyChat(chat.members, myId)) return chat.id;
+    }
+    return null;
+  } catch (error) {
     if (error instanceof MicrosoftGraphError && error.status === 403) {
-      throw new Error(
-        "Chat.Create fehlt. Unter Konto Microsoft 365 neu verbinden."
-      );
+      return null;
     }
     throw error;
   }
+}
+
+/** POST /chats with only the current user — Graph «chat with self». */
+export async function createSelfChat(userId: number): Promise<string> {
+  let meId: string | null = null;
+  try {
+    meId = (await getMicrosoftMe(userId)).id?.trim() || null;
+  } catch {
+    meId = null;
+  }
+  if (!meId) {
+    throw new Error(
+      "Microsoft-Konto ohne Benutzer-Id. Unter Konto Microsoft 365 neu verbinden."
+    );
+  }
+  try {
+    return await postCreateChat(userId, [memberBinding(meId)]);
+  } catch (error) {
+    const existing = await findExistingSelfChat(userId);
+    if (existing) return existing;
+    if (
+      error instanceof Error &&
+      /Chat\.Create fehlt|neu verbinden/i.test(error.message)
+    ) {
+      throw error;
+    }
+    throw new Error(
+      "Teams hat den Selbst-Chat nicht angelegt. Öffne in Teams einmal «Chat mit dir selbst», dann hier erneut senden."
+    );
+  }
+}
+
+export async function getOrCreateSelfChat(
+  userId: number
+): Promise<{ chatId: string; created: boolean }> {
+  const existing = await findExistingSelfChat(userId);
+  if (existing) return { chatId: existing, created: false };
+  const chatId = await createSelfChat(userId);
+  return { chatId, created: true };
+}
+
+/** POST /chats — Chat.Create. Graph may return an existing 1:1. */
+export async function createOneOnOneChat(
+  userId: number,
+  target: { microsoftId?: string | null; email?: string | null }
+): Promise<string> {
+  const otherKey = target.microsoftId?.trim() || target.email?.trim() || "";
+  if (!otherKey) {
+    throw new Error("Kollege hat keine Microsoft-Id und keine E-Mail.");
+  }
+  let me: Awaited<ReturnType<typeof getMicrosoftMe>> | null = null;
+  try {
+    me = await getMicrosoftMe(userId);
+  } catch {
+    me = null;
+  }
+  if (me && targetIsSelfPeer(me, target)) {
+    return createSelfChat(userId);
+  }
+  const meId = me?.id?.trim() || null;
+  const members = meId
+    ? [memberBinding(meId), memberBinding(otherKey)]
+    : [memberBinding(otherKey)];
+  return postCreateChat(userId, members);
 }
 
 export async function getOrCreateOneOnOneChat(
   userId: number,
   target: { microsoftId?: string | null; email?: string | null }
 ): Promise<{ chatId: string; created: boolean }> {
+  let me: Awaited<ReturnType<typeof getMicrosoftMe>> | null = null;
+  try {
+    me = await getMicrosoftMe(userId);
+  } catch {
+    me = null;
+  }
+  if (me && targetIsSelfPeer(me, target)) {
+    return getOrCreateSelfChat(userId);
+  }
   const existing = await findExistingOneOnOneChat(userId, target);
   if (existing) return { chatId: existing, created: false };
   const chatId = await createOneOnOneChat(userId, target);

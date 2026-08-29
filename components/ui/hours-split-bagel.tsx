@@ -41,33 +41,43 @@ function describeDonutSlice(
   ].join(" ");
 }
 
+const BAGEL_VIEW = 64;
+
+const SIZE_CLASS = {
+  sm: "size-8",
+  lg: "size-[3.5rem]",
+} as const;
+
+const LABEL_CLASS = {
+  sm: "text-[0.5rem]",
+  lg: "text-xs",
+} as const;
+
 export function HoursSplitBagel({
   billable,
   nonBillable,
-  size = 32,
+  size = "sm",
   className,
 }: {
   billable: number;
   nonBillable: number;
-  size?: number;
+  size?: keyof typeof SIZE_CLASS;
   className?: string;
 }) {
   const gradId = useId();
   const total = billable + nonBillable;
-  const cx = size / 2;
-  const cy = size / 2;
-  const rOuter = size / 2 - 1;
+  const cx = BAGEL_VIEW / 2;
+  const cy = BAGEL_VIEW / 2;
+  const rOuter = BAGEL_VIEW / 2 - 1;
   const rInner = rOuter * 0.58;
   const ariaLabel = `Verrechenbar ${formatHours(billable)} h, nicht verrechenbar ${formatHours(nonBillable)} h`;
 
   return (
-    <div className={cn("relative shrink-0", className)}>
+    <div className={cn("relative shrink-0", SIZE_CLASS[size], className)}>
       {total <= 0 ? (
         <svg
-          width={size}
-          height={size}
-          viewBox={`0 0 ${size} ${size}`}
-          className="block"
+          viewBox={`0 0 ${BAGEL_VIEW} ${BAGEL_VIEW}`}
+          className="block size-full"
           role="img"
           aria-label={ariaLabel}
         >
@@ -82,10 +92,8 @@ export function HoursSplitBagel({
         </svg>
       ) : billable <= 0 || nonBillable <= 0 ? (
         <svg
-          width={size}
-          height={size}
-          viewBox={`0 0 ${size} ${size}`}
-          className="block"
+          viewBox={`0 0 ${BAGEL_VIEW} ${BAGEL_VIEW}`}
+          className="block size-full"
           role="img"
           aria-label={ariaLabel}
         >
@@ -100,10 +108,8 @@ export function HoursSplitBagel({
         </svg>
       ) : (
         <svg
-          width={size}
-          height={size}
-          viewBox={`0 0 ${size} ${size}`}
-          className="block"
+          viewBox={`0 0 ${BAGEL_VIEW} ${BAGEL_VIEW}`}
+          className="block size-full"
           role="img"
           aria-label={ariaLabel}
         >
@@ -145,7 +151,12 @@ export function HoursSplitBagel({
         </svg>
       )}
       <BagelHoleLabel>
-        <span className="text-[0.5rem] font-black tabular-nums tracking-tight">
+        <span
+          className={cn(
+            "font-black tabular-nums tracking-tight",
+            LABEL_CLASS[size]
+          )}
+        >
           {formatHours(total)}
         </span>
       </BagelHoleLabel>

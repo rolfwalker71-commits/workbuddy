@@ -4,12 +4,15 @@ import {
   saveMicrosoftUserTokens,
 } from "@/lib/microsoft/oauth";
 import { getMicrosoftMe } from "@/lib/microsoft/graph";
-import { listOneOnOneChatPeers } from "@/lib/microsoft/teams-chats";
-import { listAppUsers } from "@/lib/users/queries";
+import {
+  findExistingSelfChat,
+  listOneOnOneChatPeers,
+} from "@/lib/microsoft/teams-chats";
+import { getAppUserById, listAppUsers } from "@/lib/users/queries";
 
 export type TicketPingColleague = {
   key: string;
-  source: "workbuddy" | "chat";
+  source: "workbuddy" | "chat" | "self";
   userId: number | null;
   displayName: string;
   email: string | null;
@@ -85,12 +88,46 @@ export async function listWorkbuddyMicrosoftColleagues(
   return out;
 }
 
+async function selfAsTestColleague(
+  actorUserId: number
+): Promise<TicketPingColleague | null> {
+  const user = getAppUserById(actorUserId);
+  if (!user || !user.active) return null;
+  if (!isMicrosoftConnected(actorUserId)) return null;
+  const tokens = readMicrosoftUserTokens(actorUserId);
+  const microsoftId =
+    tokens?.microsoftId?.trim() || (await backfillMicrosoftId(actorUserId));
+  const email = tokens?.email?.trim() || user.email?.trim() || null;
+  if (!microsoftId && !email) return null;
+  let chatId: string | null = null;
+  try {
+    chatId = await findExistingSelfChat(actorUserId);
+  } catch {
+    chatId = null;
+  }
+  return {
+    key: colleagueKey({ userId: user.id, microsoftId, email }),
+    source: "self",
+    userId: user.id,
+    displayName: "Ich (Test)",
+    email,
+    microsoftId,
+    chatId,
+  };
+}
+
 export async function listTicketPingColleagues(
   actorUserId: number
 ): Promise<TicketPingColleague[]> {
   const workbuddy = await listWorkbuddyMicrosoftColleagues(actorUserId);
   const seen = new Set<string>();
   const out: TicketPingColleague[] = [];
+  const self = await selfAsTestColleague(actorUserId);
+  if (self) {
+    seen.add(colleagueKey({ microsoftId: self.microsoftId, email: self.email }));
+    if (self.userId != null) seen.add(`u:${self.userId}`);
+    out.push(self);
+  }
   for (const row of workbuddy) {
     seen.add(colleagueKey({ microsoftId: row.microsoftId, email: row.email }));
     if (row.userId != null) seen.add(`u:${row.userId}`);
