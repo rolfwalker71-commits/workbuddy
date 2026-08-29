@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { MicrosoftMailComposeDialog } from "@/components/microsoft/microsoft-mail-compose-dialog";
 import { MicrosoftMailQuickActions } from "@/components/microsoft/microsoft-mail-quick-actions";
+import { MailTicketImportDialog } from "@/components/mail/mail-ticket-import-dialog";
 import { MailHtmlBody } from "@/components/mail/mail-html-body";
 import { cn } from "@/lib/utils";
 import type { MsMailItem } from "@/lib/microsoft/mail-day";
@@ -196,6 +197,14 @@ export function MailChronikList({
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [ticketImportOpen, setTicketImportOpen] = useState(false);
+  const [ticketImportMail, setTicketImportMail] = useState<{
+    from?: string | null;
+    fromName?: string | null;
+    subject?: string | null;
+    bodyText?: string | null;
+    snippet?: string | null;
+  } | null>(null);
 
   const threads = useMemo(() => buildMailChronikThreads(items), [items]);
   const hasInRange = items.some((m) => m.inRange !== false);
@@ -371,6 +380,17 @@ export function MailChronikList({
                   unread={detail?.unread}
                   folder={openFolder}
                   onReply={() => setComposeOpen(true)}
+                  onCreateTicket={() => {
+                    setTicketImportMail({
+                      from: detail?.from || openFromEmail,
+                      fromName: detail?.fromName || null,
+                      subject: detail?.subject || openSubject,
+                      bodyText: detail?.bodyText || detail?.snippet || null,
+                      snippet: detail?.snippet || null,
+                    });
+                    setTicketImportOpen(true);
+                    setOpenId(null);
+                  }}
                   onChanged={(action) => {
                     if (
                       action === "archive" ||
@@ -423,6 +443,14 @@ export function MailChronikList({
           }
           defaultBody=""
           onSent={() => onItemsChanged?.()}
+        />
+      ) : null}
+
+      {openProvider === "microsoft" ? (
+        <MailTicketImportDialog
+          open={ticketImportOpen}
+          onOpenChange={setTicketImportOpen}
+          mail={ticketImportMail}
         />
       ) : null}
     </>

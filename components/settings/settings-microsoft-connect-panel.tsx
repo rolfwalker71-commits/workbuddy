@@ -47,6 +47,7 @@ export function SettingsMicrosoftConnectPanel() {
   const { refresh: refreshAuth } = useAuth();
   const [data, setData] = useState<Connection | null>(null);
   const [teamsEnabled, setTeamsEnabled] = useState(true);
+  const [teamsModuleEnabled, setTeamsModuleEnabled] = useState(true);
   const [teamsSaving, setTeamsSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -72,6 +73,7 @@ export function SettingsMicrosoftConnectPanel() {
         const accJson = await accRes.json().catch(() => ({}));
         if (accRes.ok) {
           setTeamsEnabled(accJson.teamsEnabled !== false);
+          setTeamsModuleEnabled(accJson.teamsModuleEnabled !== false);
         }
       } catch {
         /* keep default on */
@@ -350,15 +352,22 @@ export function SettingsMicrosoftConnectPanel() {
                 type="checkbox"
                 className="mt-1 size-4 accent-[var(--brand-docs)]"
                 checked={teamsEnabled}
-                disabled={teamsSaving}
+                disabled={teamsSaving || !teamsModuleEnabled}
                 onChange={(e) => void saveTeamsEnabled(e.target.checked)}
               />
               <div className="min-w-0 space-y-1">
-                <Label htmlFor="ms-teams-enabled" className="cursor-pointer">
+                <Label
+                  htmlFor="ms-teams-enabled"
+                  className={
+                    teamsModuleEnabled ? "cursor-pointer" : "cursor-not-allowed"
+                  }
+                >
                   Teams
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  Chats, Kanäle, Analyse und Karte auf Home.
+                  {teamsModuleEnabled
+                    ? "Chats, Kanäle, Analyse und Karte auf Home."
+                    : "Vom Admin ausgeschaltet"}
                 </p>
               </div>
             </div>

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { withMariModule } from "@/lib/mari/with-module";
 import { zurichYmd } from "@/lib/microsoft/time";
 import { MariApiError, requireMariConfig } from "@/lib/mari/client";
@@ -7,6 +8,10 @@ import { getMariUnconfiguredPublic } from "@/lib/mari/settings";
 import { mapPrimaryMariCalendarStampsByIssueIds } from "@/lib/mari/calendar-stamp";
 import { parseCardCodesParam } from "@/lib/mari/customers";
 import { parseStatusIdsParam, WORK_STATUS_IDS } from "@/lib/mari/status";
+import {
+  createMariIssue,
+  joinMariContactPerson,
+} from "@/lib/mari/create-issue";
 import {
   listMyTickets,
   normalizeMariEmployeeNumber,
@@ -172,5 +177,77 @@ export async function GET(request: Request) {
       { status }
     );
   }
+  });
+}
+
+const CreateIssueSchema = z.object({
+  briefDescription: z.string().trim().min(1).max(250),
+  requestText: z.string().trim().max(8000).optional().default(""),
+  contactPerson: z.string().trim().max(250).nullable().optional(),
+  contactName: z.string().trim().max(200).nullable().optional(),
+  contactEmail: z.string().trim().max(120).nullable().optional(),
+  cardCode: z.string().trim().max(50).nullable().optional(),
+  projectNumber: z.string().trim().min(1).max(40),
+  contractId: z.number().int().nonnegative().nullable().optional(),
+  contractPositionId: z.number().int().nonnegative().nullable().optional(),
+  handledBy: z.string().trim().max(20).nullable().optional(),
+  supportGroupId: z.number().int().nonnegative().nullable().optional(),
+  priority: z.number().int().positive().nullable().optional(),
+  medium: z.number().int().nonnegative().nullable().optional(),
+});
+
+export async function POST(request: Request) {
+  return withMariModule(async () => {
+    if (!hasMariConfig()) {
+      return NextResponse.json(
+        { error: "MARI nicht konfiguriert." },
+        { status: 503 }
+      );
+    }
+
+    const json = await request.json().catch(() => null);
+    const parsed = CreateIssueSchema.safeParse(json);
+    if (!parsed.success) {
+      return NextResponse.json(
+        {
+          error: "Ungültige Eingabe",
+          details: parsed.error.flatten(),
+        },
+        { status: 400 }
+      );
+    }
+
+    const contactPerson =
+      parsed.data.contactPerson?.trim() ||
+      joinMariContactPerson(
+        parsed.data.contactName,
+        parsed.data.contactEmail
+      );
+
+    try {
+      const { ticket, payload } = await createMariIssue({
+        briefDescription: parsed.data.briefDescription,
+        requestText: parsed.data.requestText,
+        contactPerson,
+        cardCode: parsed.data.cardCode,
+        projectNumber: parsed.data.projectNumber,
+        contractId: parsed.data.contractId,
+        contractPositionId: parsed.data.contractPositionId,
+        handledBy: parsed.data.handledBy,
+        supportGroupId: parsed.data.supportGroupId,
+        priority: parsed.data.priority,
+        medium: parsed.data.medium,
+      });
+      return NextResponse.json({ ok: true, ticket, payload });
+    } catch (err) {
+      const message =
+        err instanceof MariApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : String(err);
+      const status = err instanceof MariApiError ? err.status || 502 : 502;
+      return NextResponse.json({ error: message }, { status });
+    }
   });
 }

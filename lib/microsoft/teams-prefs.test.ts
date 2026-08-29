@@ -17,6 +17,7 @@ test("teams preference turns off only for explicit false", () => {
   assert.equal(parseTeamsEnabled(0), false);
   assert.equal(parseTeamsEnabled(false), false);
   assert.equal(parseTeamsEnabled("0"), false);
+  assert.equal(parseTeamsEnabled("false"), false);
 });
 
 test("teams preference persists on the user row and defaults on", async () => {
@@ -50,4 +51,43 @@ test("teams preference persists on the user row and defaults on", async () => {
   updateAppUser(user.id, { teamsEnabled: true });
   assert.equal(isUserTeamsEnabled(user.id), true);
   assert.equal(getAppUserById(user.id)?.teams_enabled, 1);
+});
+
+test("global teams module defaults on and gates the user toggle", async () => {
+  process.env.WORKBUDDY_SESSION_SECRET =
+    "a-secure-test-secret-with-more-than-32-characters";
+  process.env.WORKBUDDY_USERNAME = "admin";
+  process.env.WORKBUDDY_PASSWORD_HASH = "scrypt:x:y";
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "wb-teams-mod-"));
+  process.env.DATABASE_PATH = path.join(tmp, "test.sqlite");
+
+  const { resetDbForTests } = await import("../db/client.ts");
+  resetDbForTests();
+  const { createAppUser, updateAppUser } = await import("../users/queries.ts");
+  const {
+    isTeamsEnabledForUser,
+    isTeamsModuleEnabled,
+    isUserTeamsEnabled,
+    setTeamsModuleEnabled,
+  } = await import("./teams-prefs.ts");
+
+  const user = createAppUser({
+    username: "teams-mod",
+    email: "teams-mod@example.com",
+    displayName: "Teams Mod",
+    passwordHash: "hash",
+  });
+
+  assert.equal(isTeamsModuleEnabled(), true);
+  assert.equal(isTeamsEnabledForUser(user.id), true);
+
+  setTeamsModuleEnabled(false);
+  assert.equal(isTeamsModuleEnabled(), false);
+  assert.equal(isUserTeamsEnabled(user.id), true);
+  assert.equal(isTeamsEnabledForUser(user.id), false);
+
+  setTeamsModuleEnabled(true);
+  updateAppUser(user.id, { teamsEnabled: false });
+  assert.equal(isTeamsModuleEnabled(), true);
+  assert.equal(isTeamsEnabledForUser(user.id), false);
 });

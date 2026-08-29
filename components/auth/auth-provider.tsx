@@ -19,6 +19,7 @@ export type AuthMe = {
   showTodayHub?: boolean;
   modules?: string[];
   teamsEnabled?: boolean;
+  teamsModuleEnabled?: boolean;
 };
 
 type AuthContextValue = {
@@ -52,6 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           data.kind === "admin" ? true : Boolean(data.showTodayHub),
         modules: Array.isArray(data.modules) ? data.modules : [],
         teamsEnabled: data.teamsEnabled !== false,
+        teamsModuleEnabled: data.teamsModuleEnabled !== false,
       });
     } catch {
       setMe(null);

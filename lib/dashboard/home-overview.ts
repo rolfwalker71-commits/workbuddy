@@ -7,7 +7,7 @@ import {
   isMicrosoftConnected,
 } from "@/lib/microsoft/oauth";
 import { getLatestTeamsChatSnippet } from "@/lib/microsoft/teams-chats";
-import { isUserTeamsEnabled } from "@/lib/microsoft/teams-prefs";
+import { isTeamsEnabledForUser } from "@/lib/microsoft/teams-prefs";
 import {
   countTeamsThreadsByInbox,
   getLatestOpenTeamsThread,
@@ -205,7 +205,7 @@ export async function getHomeOverview(
   const unreadCount = msConnected ? cached.microsoftUnread : null;
   const googleUnread = googleConnected ? cached.googleUnread : null;
   const weather = cached.weather;
-  const teamsEnabled = isUserTeamsEnabled(userId);
+  const teamsEnabled = isTeamsEnabledForUser(userId);
   const teamsOpenCount =
     userId != null && msConnected && teamsEnabled
       ? countTeamsThreadsByInbox(userId, "open")
@@ -394,7 +394,7 @@ export async function getHomeDetails(
         )
       : Promise.resolve(emptyTasks()),
     msConnected &&
-    isUserTeamsEnabled(userId) &&
+    isTeamsEnabledForUser(userId) &&
     hasMicrosoftChatScope(userId)
       ? withTimeout(getLatestTeamsChatSnippet(userId), HOME_PROVIDER_TIMEOUT_MS, null)
       : Promise.resolve(null),

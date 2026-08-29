@@ -1,0 +1,79 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {
+  buildMariIssueCreateBody,
+  DEFAULT_SUPPORT_PRODUCT_ID,
+  joinMariContactPerson,
+} from "@/lib/mari/create-issue";
+import { NEW_STATUS_ID } from "@/lib/mari/status";
+import { SUPPORT_HOTLINE_CLASS_TYPE } from "@/lib/mari/tickets";
+import { normalizeMariEmail } from "@/lib/mari/customers";
+import { excerptMailBody, parseMailSender } from "@/lib/mail/mail-contact";
+
+test("normalizeMariEmail accepts a simple address", () => {
+  assert.equal(normalizeMariEmail("  Anna@Firma.CH "), "anna@firma.ch");
+  assert.equal(normalizeMariEmail("not-an-email"), null);
+  assert.equal(normalizeMariEmail("a@b.c;drop"), null);
+});
+
+test("parseMailSender reads Outlook from / fromName", () => {
+  assert.deepEqual(
+    parseMailSender({
+      from: "anna@firma.ch",
+      fromName: "Anna Muster",
+    }),
+    { name: "Anna Muster", email: "anna@firma.ch" }
+  );
+  assert.deepEqual(
+    parseMailSender({ from: "Anna Muster <anna@firma.ch>" }),
+    { name: "Anna Muster", email: "anna@firma.ch" }
+  );
+});
+
+test("excerptMailBody trims and caps", () => {
+  assert.equal(excerptMailBody("  Hallo  "), "Hallo");
+  assert.equal(excerptMailBody("x".repeat(10), null, 8), `${"x".repeat(8)}…`);
+});
+
+test("joinMariContactPerson matches Kopf «Name; E-Mail»", () => {
+  assert.equal(
+    joinMariContactPerson("Herr Lucas Castro", "lucas@firma.ch"),
+    "Herr Lucas Castro; lucas@firma.ch"
+  );
+  assert.equal(joinMariContactPerson("", "lucas@firma.ch"), "lucas@firma.ch");
+});
+
+test("buildMariIssueCreateBody uses PATCH/GET field names", () => {
+  const body = buildMariIssueCreateBody(
+    {
+      briefDescription: "Drucker klemmt",
+      requestText: "Seit heute kein Papier.",
+      contactPerson: "Anna; anna@firma.ch",
+      cardCode: "C1000",
+      projectNumber: "P200000",
+      contractId: 44,
+      handledBy: "M1010",
+    },
+    {
+      employeeNumber: "M1010",
+      phaseId: 9,
+      mediumId: 3,
+    }
+  );
+  assert.equal(body.BriefDescription, "Drucker klemmt");
+  assert.equal(body.Project, "P200000");
+  assert.equal(body.BusinessPartnerCode, "C1000");
+  assert.equal(body.ContractID, 44);
+  assert.equal(body.ContactPerson, "Anna; anna@firma.ch");
+  assert.equal(body.Status, NEW_STATUS_ID);
+  assert.equal(body.ProductID, DEFAULT_SUPPORT_PRODUCT_ID);
+  assert.equal(body.ParentType, 0);
+  assert.equal(body.EditorType, 3);
+  assert.equal(body.HotlineClassType, SUPPORT_HOTLINE_CLASS_TYPE);
+  assert.equal(body.Responsible, "M1010");
+  assert.equal(body.ResponsibleType, 3);
+  assert.equal(body.PhaseID, 9);
+  assert.equal(body.Medium, 3);
+  assert.match(String(body.RequestText), /Seit heute kein Papier/);
+  assert.equal("CardCode" in body, false);
+});

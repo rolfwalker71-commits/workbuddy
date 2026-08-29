@@ -85,6 +85,10 @@ function weekdayLong(ymd: string): string {
 const WEEK_SELF_CHIP =
   "h-auto min-h-0 w-fit max-w-[calc(100%-0.25rem)] px-1.5 py-0.5 leading-none";
 
+/** Same 5-col geometry as colleague week cells (card uses px-3). */
+const WEEK_DAY_GRID = "grid grid-cols-5 gap-1.5";
+const WEEK_DAY_INSET = "px-3";
+
 function WeekSelfDayCell({
   day,
   today,
@@ -529,7 +533,7 @@ export function PresenceTeamBoard() {
             <p className="text-xs text-muted-foreground">
               Tippe einen Tag, um ihn zu setzen.
             </p>
-            <div className="grid grid-cols-5 gap-1.5">
+            <div className={cn(WEEK_DAY_GRID, WEEK_DAY_INSET)}>
               {weekDays.map((day) => {
                 const person = weekSelfByYmd[day];
                 return (
@@ -570,7 +574,7 @@ export function PresenceTeamBoard() {
                       <p className="mb-2 text-[0.7rem] text-muted-foreground">
                         {organizationLabel(person.organization)}
                       </p>
-                      <div className="grid grid-cols-5 gap-1.5">
+                      <div className={WEEK_DAY_GRID}>
                         {weekDays.map((day) => {
                           const cell = (weekByYmd[day]?.people || []).find(
                             (row) => row.userId === person.userId

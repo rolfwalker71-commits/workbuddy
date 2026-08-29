@@ -13,6 +13,7 @@ import {
   isMicrosoftConnected,
   resolveMicrosoftUserId,
 } from "@/lib/microsoft/oauth";
+import { requireTeamsFeature } from "@/lib/microsoft/teams-prefs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -64,6 +65,8 @@ export async function POST(request: Request) {
 
   try {
     if (body.teamId || body.channelId) {
+      const denied = requireTeamsFeature(userId);
+      if (denied) return denied;
       if (!body.teamId || !body.channelId) {
         return NextResponse.json(
           { error: "teamId und channelId gehören zusammen." },
@@ -130,6 +133,8 @@ export async function POST(request: Request) {
           source: fromTranscript.length > 0 ? "transcript" : "meeting_chat",
         });
       }
+      const chatDenied = requireTeamsFeature(userId);
+      if (chatDenied) return chatDenied;
       if (!hasMicrosoftChatMessageScope(userId)) {
         return NextResponse.json(
           {

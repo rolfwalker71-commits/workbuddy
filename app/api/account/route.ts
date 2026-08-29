@@ -14,7 +14,10 @@ import {
   getCompanyAiPublic,
   omitPersonalAiAccountPut,
 } from "@/lib/ai/company-provider";
-import { parseTeamsEnabled } from "@/lib/microsoft/teams-prefs";
+import {
+  isTeamsModuleEnabled,
+  parseTeamsEnabled,
+} from "@/lib/microsoft/teams-prefs";
 
 function openaiAccountPayload(row: AppUserRow | null) {
   const company = getCompanyAiPublic();
@@ -44,6 +47,7 @@ function accountPayload(userId: number) {
       hasGoogleOauthClient: Boolean(row?.google_oauth_client_secret_enc),
     },
     teamsEnabled: parseTeamsEnabled(row?.teams_enabled),
+    teamsModuleEnabled: isTeamsModuleEnabled(),
   };
 }
 

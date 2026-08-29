@@ -8,6 +8,7 @@ import {
   MailOpen,
   Mail,
   Reply,
+  Ticket,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ export function MicrosoftMailQuickActions({
   unread,
   folder,
   onReply,
+  onCreateTicket,
   onChanged,
   className,
 }: {
@@ -35,6 +37,7 @@ export function MicrosoftMailQuickActions({
   unread?: boolean;
   folder?: "inbox" | "sent" | string | null;
   onReply?: () => void;
+  onCreateTicket?: () => void;
   onChanged?: (action: MutateAction) => void;
   className?: string;
 }) {
@@ -94,6 +97,19 @@ export function MicrosoftMailQuickActions({
         >
           <Reply className="size-3.5" strokeWidth={APP_ICON_STROKE} />
           Antworten
+        </Button>
+      ) : null}
+      {onCreateTicket ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled={Boolean(busy)}
+          onClick={onCreateTicket}
+          className="gap-1.5"
+        >
+          <Ticket className="size-3.5" strokeWidth={APP_ICON_STROKE} />
+          Ticket erstellen
         </Button>
       ) : null}
       {!isSent ? (

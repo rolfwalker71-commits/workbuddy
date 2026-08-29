@@ -266,6 +266,17 @@ export async function mariPatchIssue(
   });
 }
 
+/** POST /api/SupportIssue — neues Ticket (nicht /wopi/). */
+export async function mariPostIssue(
+  body: Record<string, unknown>
+): Promise<MariPatchResult> {
+  return mariJson<MariPatchResult>("/api/SupportIssue", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 export async function mariGetIssue(
   issueId: number
 ): Promise<Record<string, unknown>> {

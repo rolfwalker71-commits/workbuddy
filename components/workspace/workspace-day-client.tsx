@@ -599,7 +599,8 @@ export function WorkspaceDayClient({
     (pathname.startsWith("/google") ? "google" : "microsoft");
   const wantMs = scope === "microsoft" && modules.includes("microsoft");
   const wantGoogle = scope === "google" && modules.includes("google");
-  const teamsEnabled = me?.teamsEnabled !== false;
+  const teamsEnabled =
+    me?.teamsEnabled !== false && me?.teamsModuleEnabled !== false;
   const routeHint = scope;
 
   const [tab, setTab] = useState<Tab>(() =>

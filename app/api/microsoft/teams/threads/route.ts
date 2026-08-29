@@ -15,10 +15,7 @@ import {
   isMicrosoftConnected,
   resolveMicrosoftUserId,
 } from "@/lib/microsoft/oauth";
-import {
-  isUserTeamsEnabled,
-  teamsPreferenceOffResponse,
-} from "@/lib/microsoft/teams-prefs";
+import { requireTeamsFeature } from "@/lib/microsoft/teams-prefs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,9 +39,8 @@ function teamsThreadAuth() {
   return requireModule("microsoft").then((auth) => {
     if (isAuthError(auth)) return { error: auth as NextResponse };
     const userId = resolveMicrosoftUserId(auth);
-    if (!isUserTeamsEnabled(userId)) {
-      return { error: teamsPreferenceOffResponse() };
-    }
+    const denied = requireTeamsFeature(userId);
+    if (denied) return { error: denied };
     if (userId == null || !isMicrosoftConnected(userId)) {
       return {
         error: NextResponse.json(
