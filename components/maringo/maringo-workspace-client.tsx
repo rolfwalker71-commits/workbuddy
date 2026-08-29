@@ -76,7 +76,7 @@ import {
 } from "@/lib/mari/status";
 import { statusDisplayLabel } from "@/lib/i18n/display";
 import { useLocale, useT } from "@/components/i18n/locale-provider";
-import type { MessageKey } from "@/lib/i18n";
+import type { MessageKey, TranslateParams } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { showActionFeedback } from "@/lib/ui/action-feedback";
 import { formatTicketIdList } from "@/lib/mari/ticket-bulk";
@@ -138,7 +138,6 @@ import {
   TTV_LOOKBACK_DAYS_MAX,
   TTV_LOOKBACK_DAYS_MIN,
   sanitizeTtvLookbackDays,
-  ttvLookbackLabel,
 } from "@/lib/mari/ttv";
 import { MariCustomerChip } from "@/components/maringo/mari-customer-chip";
 import {
@@ -147,7 +146,6 @@ import {
   MariTicketFlyoutRail,
   MARI_FLYOUT_MS,
   MARI_SECONDARY_FLYOUT_COMPACT_WIDTH_CLASS,
-  MARI_SECONDARY_FLYOUT_META,
   MARI_SECONDARY_FLYOUT_WIDTH_CLASS,
   toggleMariSecondaryFlyout,
   useFlyoutPresence,
@@ -155,7 +153,6 @@ import {
   type MariSecondaryFlyoutId,
 } from "@/components/maringo/maringo-flyout-chrome";
 import {
-  timelineSideLabel,
   isMariMailStubText,
   type MariTimelineSide,
 } from "@/lib/mari/timeline-side";
@@ -182,6 +179,48 @@ import { TicketColleaguePingDialog } from "@/components/maringo/ticket-colleague
 import { TtvDutyChip } from "@/components/maringo/ttv-duty-chip";
 import { TtvDutyPanel } from "@/components/maringo/ttv-duty-panel";
 import { CustomerWorkspacePanel } from "@/components/maringo/customer-workspace-panel";
+
+type TFn = (key: MessageKey, params?: TranslateParams) => string;
+
+function ttvLookbackDisplay(days: number, tr: TFn): string {
+  const n = sanitizeTtvLookbackDays(days) ?? DEFAULT_TTV_LOOKBACK_DAYS;
+  if (n === 1) return tr("tickets.lookbackToday");
+  return tr("tickets.lookbackDays", { count: n });
+}
+
+const LIST_META_LABEL: Record<MariListMetaField, MessageKey> = {
+  kunde: "tickets.listMetaKunde",
+  projekt: "tickets.listMetaProjekt",
+  vertrag: "tickets.listMetaVertrag",
+  aktivitaet: "tickets.listMetaAktivitaet",
+  seit: "tickets.listMetaSeit",
+  geaendert: "tickets.listMetaGeaendert",
+};
+
+const LIST_META_HINT: Record<MariListMetaField, MessageKey> = {
+  kunde: "tickets.listMetaKundeHint",
+  projekt: "tickets.listMetaProjektHint",
+  vertrag: "tickets.listMetaVertragHint",
+  aktivitaet: "tickets.listMetaAktivitaetHint",
+  seit: "tickets.listMetaSeitHint",
+  geaendert: "tickets.listMetaGeaendertHint",
+};
+
+const FLYOUT_TITLE: Record<MariSecondaryFlyoutId, MessageKey> = {
+  verlauf: "tickets.flyoutTimeline",
+  kopf: "tickets.flyoutKopf",
+  buchen: "tickets.flyoutBook",
+  buchungen: "tickets.flyoutHours",
+  anzeige: "tickets.flyoutFields",
+};
+
+const FLYOUT_DESC: Record<MariSecondaryFlyoutId, MessageKey> = {
+  verlauf: "tickets.flyoutTimelineDesc",
+  kopf: "tickets.flyoutKopfDesc",
+  buchen: "tickets.flyoutBookDesc",
+  buchungen: "tickets.flyoutHoursDesc",
+  anzeige: "tickets.flyoutFieldsDesc",
+};
 
 function ReplyLangToggle({
   lang,
@@ -819,7 +858,7 @@ function TicketReviewToggle({
 }
 
 export function MaringoWorkspaceClient() {
-  const t = useT();
+  const tr = useT();
   const { locale } = useLocale();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -1188,7 +1227,7 @@ export function MaringoWorkspaceClient() {
         }
         setConfigured(true);
         setPasswordUnreadable(false);
-        if (!res.ok) throw new Error(data.error || t("tickets.listFailed"));
+        if (!res.ok) throw new Error(data.error || tr("tickets.listFailed"));
         setTickets(Array.isArray(data.tickets) ? data.tickets : []);
         applyStamps(data.calendarStamps);
         if (typeof data.defaultHandledBy === "string" && data.defaultHandledBy) {
@@ -1219,7 +1258,7 @@ export function MaringoWorkspaceClient() {
         }
         setConfigured(true);
         setPasswordUnreadable(false);
-        if (!res.ok) throw new Error(data.error || t("tickets.listFailed"));
+        if (!res.ok) throw new Error(data.error || tr("tickets.listFailed"));
         setTickets(Array.isArray(data.tickets) ? data.tickets : []);
         applyStamps(data.calendarStamps);
         if (typeof data.defaultHandledBy === "string" && data.defaultHandledBy) {
@@ -1243,7 +1282,7 @@ export function MaringoWorkspaceClient() {
       }
       setConfigured(true);
       setPasswordUnreadable(false);
-      if (!res.ok) throw new Error(data.error || t("tickets.listFailed"));
+      if (!res.ok) throw new Error(data.error || tr("tickets.listFailed"));
       setTickets(Array.isArray(data.tickets) ? data.tickets : []);
       applyStamps(data.calendarStamps);
       if (typeof data.defaultHandledBy === "string" && data.defaultHandledBy) {
@@ -1291,7 +1330,7 @@ export function MaringoWorkspaceClient() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(
-          typeof data.error === "string" ? data.error : t("tickets.searchFailed")
+          typeof data.error === "string" ? data.error : tr("tickets.searchFailed")
         );
       }
       const list: unknown[] = Array.isArray(data.tickets) ? data.tickets : [];
@@ -1367,7 +1406,7 @@ export function MaringoWorkspaceClient() {
     try {
       const res = await fetch(`/api/maringo/tickets/${id}`);
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || t("tickets.detailFailed"));
+      if (!res.ok) throw new Error(data.error || tr("tickets.detailFailed"));
       const ticket = data.ticket as MariTicketDetail;
       setDetail(ticket);
       setTicketCalendarStamp(
@@ -1441,7 +1480,7 @@ export function MaringoWorkspaceClient() {
         `/api/maringo/timekeeping/by-ticket?issueId=${id}`
       );
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || t("tickets.loadTicketBookFailed"));
+      if (!res.ok) throw new Error(data.error || tr("tickets.loadTicketBookFailed"));
       setTicketTimeLines((data.lines || []) as MariTimeLine[]);
     } catch {
       setTicketTimeLines([]);
@@ -1888,7 +1927,7 @@ export function MaringoWorkspaceClient() {
       const res = await fetch(`/api/maringo/tickets/${s.issueId}`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || t("tickets.loadTicketForBookFailed"));
+        throw new Error(data.error || tr("tickets.loadTicketForBookFailed"));
       }
       const ticket = data.ticket as MariTicketDetail | undefined;
       setPendingStampBook(s);
@@ -2001,7 +2040,7 @@ export function MaringoWorkspaceClient() {
       }),
     });
     const json = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(json.error || t("common.saveFailed"));
+    if (!res.ok) throw new Error(json.error || tr("common.saveFailed"));
     await loadSavedViews();
   }
 
@@ -2035,7 +2074,7 @@ export function MaringoWorkspaceClient() {
         body: JSON.stringify({ includeImages, attachmentIds, products }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || t("tickets.analyzeFailed"));
+      if (!res.ok) throw new Error(data.error || tr("tickets.analyzeFailed"));
       setAnalysis(data.analysis as MariTicketAnalysis);
       setAdoptedTodoKeys({});
       setImagesAnalyzed(Number(data.imagesAnalyzed) || 0);
@@ -2094,17 +2133,17 @@ export function MaringoWorkspaceClient() {
       );
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(json.error || t("tickets.createTodoFailed"));
+        throw new Error(json.error || tr("tickets.createTodoFailed"));
       }
       setAdoptedTodoKeys((prev) => ({ ...prev, [key]: true }));
       showActionFeedback({
-        headline: "Als To Do übernommen",
+        headline: tr("tickets.adoptedTodo"),
         detail: typeof json.task?.title === "string" ? json.task.title : key,
         tone: "success",
       });
     } catch (err) {
       showActionFeedback({
-        headline: "To Do fehlgeschlagen",
+        headline: tr("tickets.todoFailed"),
         detail: err instanceof Error ? err.message : String(err),
         tone: "error",
       });
@@ -2128,7 +2167,7 @@ export function MaringoWorkspaceClient() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          subject: "Antwort",
+          subject: tr("tickets.replySubject"),
           body: draft.slice(0, 4000),
           targetLang,
         }),
@@ -2136,11 +2175,11 @@ export function MaringoWorkspaceClient() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(
-          data.error || `Übersetzung fehlgeschlagen (${res.status})`
+          data.error || tr("tickets.translateFailed", { status: res.status })
         );
       }
       const body = String(data.body || "").trim();
-      if (!body) throw new Error("Übersetzung lieferte keinen Text.");
+      if (!body) throw new Error(tr("tickets.translateEmpty"));
       setAnalysis((prev) =>
         prev ? { ...prev, nextReplyDraft: body.slice(0, 2000) } : prev
       );
@@ -2170,7 +2209,7 @@ export function MaringoWorkspaceClient() {
   async function postAnalysisAsInternalNote() {
     if (!selectedId || !analysis) return;
     const ok = window.confirm(
-      "AI-Vorschläge als internen Kommentar auf dem Ticket speichern?\n\nNur für internes Support-Personal sichtbar — nicht für den Kunden."
+      tr("tickets.confirmSaveAnalysisInternal")
     );
     if (!ok) return;
     setPostingInternalNote(true);
@@ -2186,7 +2225,7 @@ export function MaringoWorkspaceClient() {
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || "Interner Kommentar fehlgeschlagen");
+        throw new Error(data.error || tr("tickets.internalFailed"));
       }
       if (data.ticket) {
         setDetail(data.ticket as MariTicketDetail);
@@ -2209,11 +2248,11 @@ export function MaringoWorkspaceClient() {
     if (!selectedId) return;
     const text = manualNoteDraft.trim();
     if (!text) {
-      setError("Kommentar ist leer.");
+      setError(tr("tickets.emptyComment"));
       return;
     }
     const ok = window.confirm(
-      "Internen Kommentar auf dem Ticket speichern?\n\nNur für internes Support-Personal sichtbar — nicht für den Kunden."
+      tr("tickets.confirmSaveInternal")
     );
     if (!ok) return;
     setPostingManualNote(true);
@@ -2230,7 +2269,7 @@ export function MaringoWorkspaceClient() {
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || "Interner Kommentar fehlgeschlagen");
+        throw new Error(data.error || tr("tickets.internalFailed"));
       }
       if (data.ticket) {
         setDetail(data.ticket as MariTicketDetail);
@@ -2239,7 +2278,7 @@ export function MaringoWorkspaceClient() {
       }
       setManualNoteDraft("");
       setManualNoteHint(
-        "Interner Kommentar gespeichert (nur intern sichtbar)."
+        tr("tickets.internalSaved")
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -2252,11 +2291,11 @@ export function MaringoWorkspaceClient() {
     if (!selectedId) return;
     const text = externalNoteDraft.trim();
     if (!text) {
-      setError("Kommentar ist leer.");
+      setError(tr("tickets.emptyComment"));
       return;
     }
     const ok = window.confirm(
-      "Externen Kommentar nach Maringo schreiben?\n\nSichtbar für den Kunden — Maringo kann daraus eine Mail auslösen."
+      tr("tickets.confirmWriteExternal")
     );
     if (!ok) return;
     setPostingExternalNote(true);
@@ -2273,7 +2312,7 @@ export function MaringoWorkspaceClient() {
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || "Externer Kommentar fehlgeschlagen");
+        throw new Error(data.error || tr("tickets.externalFailed"));
       }
       if (data.ticket) {
         setDetail(data.ticket as MariTicketDetail);
@@ -2281,7 +2320,7 @@ export function MaringoWorkspaceClient() {
         await loadDetail(selectedId);
       }
       setExternalNoteDraft("");
-      setExternalNoteHint("Externer Kommentar an Maringo geschrieben.");
+      setExternalNoteHint(tr("tickets.externalWritten"));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -2293,7 +2332,7 @@ export function MaringoWorkspaceClient() {
     if (!selectedId) return;
     if (externalNoteDraft.trim()) {
       const ok = window.confirm(
-        "AI-Entwurf ins Feld übernehmen?\n\nDer aktuelle Text im externen Kommentar wird ersetzt."
+        tr("tickets.confirmReplaceExternal")
       );
       if (!ok) return;
     }
@@ -2307,13 +2346,13 @@ export function MaringoWorkspaceClient() {
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || "AI-Entwurf fehlgeschlagen");
+        throw new Error(data.error || tr("tickets.aiDraftFailed"));
       }
       const text = String(data.text || "").trim();
-      if (!text) throw new Error("AI-Entwurf lieferte keinen Text.");
+      if (!text) throw new Error(tr("tickets.aiDraftEmpty"));
       setExternalNoteDraft(text);
       setExternalNoteHint(
-        "AI-Entwurf eingefügt — bitte prüfen, dann «Extern speichern»."
+        tr("tickets.aiDraftInserted")
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -2325,7 +2364,7 @@ export function MaringoWorkspaceClient() {
   async function deleteInternalNote(attachmentId: number) {
     if (!selectedId) return;
     const ok = window.confirm(
-      "Internen Kommentar wirklich löschen?\n\nDer Eintrag wird in Maringo entfernt."
+      tr("tickets.confirmDeleteInternal")
     );
     if (!ok) return;
     setDeletingAttachmentId(attachmentId);
@@ -2337,7 +2376,7 @@ export function MaringoWorkspaceClient() {
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || t("tickets.deleteFailed"));
+        throw new Error(data.error || tr("tickets.deleteFailed"));
       }
       if (data.ticket) {
         setDetail(data.ticket as MariTicketDetail);
@@ -2373,7 +2412,7 @@ export function MaringoWorkspaceClient() {
     if (!detail || !ticketCalendarStamp) return;
     const when = formatStampWhen(ticketCalendarStamp);
     const ok = window.confirm(
-      `Termin für Ticket #${detail.issueId} am ${when} wirklich entfernen?\n\nDer Termin wird in Microsoft 365 gelöscht und in WorkBuddy nicht mehr angezeigt.`
+      tr("tickets.confirmRemoveAppointment", { id: detail.issueId, when })
     );
     if (!ok) return;
     setRemovingTicketAppointment(true);
@@ -2391,13 +2430,13 @@ export function MaringoWorkspaceClient() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || "Termin konnte nicht entfernt werden.");
+        throw new Error(data.error || tr("tickets.appointmentRemoveFailed"));
       }
       await reloadTicketCalendarStamp(detail.issueId);
       void loadList();
       setSuggestionsRefresh((n) => n + 1);
       showActionFeedback({
-        headline: "Termin entfernt",
+        headline: tr("tickets.appointmentRemoved"),
         detail: `#${detail.issueId} · ${when}`,
         tone: "success",
       });
@@ -2405,7 +2444,7 @@ export function MaringoWorkspaceClient() {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
       showActionFeedback({
-        headline: "Termin nicht entfernt",
+        headline: tr("tickets.appointmentNotRemoved"),
         detail: message,
         tone: "error",
       });
@@ -2434,7 +2473,7 @@ export function MaringoWorkspaceClient() {
         body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || t("tickets.patchFailed"));
+      if (!res.ok) throw new Error(data.error || tr("tickets.patchFailed"));
       setDetail(data.ticket as MariTicketDetail);
       await loadList();
       return true;
@@ -2447,19 +2486,19 @@ export function MaringoWorkspaceClient() {
   }
 
   async function applyRecommendedStatus(statusId: number) {
-    const label = statusChipLabel(statusId);
+    const label = statusDisplayLabel(statusId, locale);
     const ok = await patchTicket({ status: statusId });
     if (ok) {
       showActionFeedback({
-        headline: "Status in Maringo gesetzt",
+        headline: tr("tickets.statusSetHeadline"),
         detail: label,
         tone: "success",
       });
       return;
     }
     showActionFeedback({
-      headline: "Status nicht gesetzt",
-      detail: "Maringo hat den Status nicht übernommen.",
+      headline: tr("tickets.statusNotSetHeadline"),
+      detail: tr("tickets.statusNotTaken"),
       tone: "error",
     });
   }
@@ -2506,7 +2545,7 @@ export function MaringoWorkspaceClient() {
       });
       const data = await res.json().catch(() => ({}));
       if (res.status === 400 || res.status === 503) {
-        throw new Error(data.error || t("tickets.patchFailed"));
+        throw new Error(data.error || tr("tickets.patchFailed"));
       }
       const succeeded = Array.isArray(data.succeeded)
         ? (data.succeeded as number[])
@@ -2515,7 +2554,7 @@ export function MaringoWorkspaceClient() {
         ? (data.failed as { issueId: number; error: string }[])
         : [];
       if (succeeded.length === 0 && failed.length === 0 && !res.ok) {
-        throw new Error(data.error || t("tickets.patchFailed"));
+        throw new Error(data.error || tr("tickets.patchFailed"));
       }
 
       if (
@@ -2545,18 +2584,26 @@ export function MaringoWorkspaceClient() {
       const idLabel = formatTicketIdList(succeeded, 8);
       const failHint =
         failed.length > 0
-          ? `Fehler bei ${formatTicketIdList(
-              failed.map((f) => f.issueId),
-              4
-            )}: ${failed[0]?.error || "unbekannt"}`
+          ? tr("tickets.failHint", {
+              ids: formatTicketIdList(
+                failed.map((f) => f.issueId),
+                4
+              ),
+              error: failed[0]?.error || tr("common.unknownLower"),
+            })
           : null;
 
       if (action === "delete") {
         showActionFeedback({
           headline:
             failed.length === 0
-              ? `${succeeded.length} Ticket${succeeded.length === 1 ? "" : "s"} gelöscht`
-              : `${succeeded.length} von ${issueIds.length} Tickets gelöscht`,
+              ? succeeded.length === 1
+                ? tr("tickets.deletedTickets", { count: succeeded.length })
+                : tr("tickets.deletedTicketsPlural", { count: succeeded.length })
+              : tr("tickets.deletedOf", {
+                  done: succeeded.length,
+                  total: issueIds.length,
+                }),
           detail: failHint || idLabel,
           tone: failed.length === 0 ? "success" : "error",
         });
@@ -2565,23 +2612,33 @@ export function MaringoWorkspaceClient() {
       if (action === "status") {
         const label =
           extra?.status != null
-            ? STATUS_LABELS[extra.status] || `Status ${extra.status}`
-            : "Status";
+            ? statusDisplayLabel(extra.status, locale, STATUS_LABELS[extra.status])
+            : tr("tickets.status");
         showActionFeedback({
           headline:
             failed.length === 0
-              ? `Status auf ${succeeded.length} Ticket${succeeded.length === 1 ? "" : "s"} gesetzt`
-              : `Status bei ${succeeded.length} von ${issueIds.length} gesetzt`,
+              ? succeeded.length === 1
+                ? tr("tickets.statusSetOn", { count: succeeded.length })
+                : tr("tickets.statusSetOnPlural", { count: succeeded.length })
+              : tr("tickets.statusSetOf", {
+                  done: succeeded.length,
+                  total: issueIds.length,
+                }),
           detail: failHint || label,
           tone: failed.length === 0 ? "success" : "error",
         });
         return;
       }
       showActionFeedback({
-        headline:
-          failed.length === 0
-            ? `Stichtag auf ${succeeded.length} Ticket${succeeded.length === 1 ? "" : "s"} gesetzt`
-            : `Stichtag bei ${succeeded.length} von ${issueIds.length} gesetzt`,
+          headline:
+            failed.length === 0
+              ? succeeded.length === 1
+                ? tr("tickets.dueSetOn", { count: succeeded.length })
+                : tr("tickets.dueSetOnPlural", { count: succeeded.length })
+              : tr("tickets.dueSetOf", {
+                  done: succeeded.length,
+                  total: issueIds.length,
+                }),
         detail:
           failHint ||
           (extra?.dueDate ? formatSwissDate(extra.dueDate) : idLabel),
@@ -2591,7 +2648,7 @@ export function MaringoWorkspaceClient() {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
       showActionFeedback({
-        headline: "Sammelaktion fehlgeschlagen",
+        headline: tr("tickets.bulkFailed"),
         detail: message,
         tone: "error",
       });
@@ -2613,7 +2670,7 @@ export function MaringoWorkspaceClient() {
     priority: number | null;
     medium: number | null;
   }) {
-    if (!selectedId) throw new Error("Kein Ticket gewählt.");
+    if (!selectedId) throw new Error(tr("tickets.noTicketChosen"));
     setPatching(true);
     setError(null);
     try {
@@ -2634,7 +2691,7 @@ export function MaringoWorkspaceClient() {
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || t("tickets.patchFailed"));
+      if (!res.ok) throw new Error(data.error || tr("tickets.patchFailed"));
       setDetail(data.ticket as MariTicketDetail);
       await loadList();
     } finally {
@@ -2645,18 +2702,18 @@ export function MaringoWorkspaceClient() {
   return (
     <div className="min-w-0 space-y-4 pb-10">
       <PageHeader
-        title="Maringo Support"
+        title={tr("nav.maringo")}
         description={
           ticketReview
-            ? "Support-Tickets, Verlauf und Kundenakte."
-            : "Support-Tickets, Verlauf, AI-Analyse und Stundenbuchung."
+            ? tr("tickets.supportDescReview")
+            : tr("tickets.supportDesc")
         }
         logo={<MaringoLogo className="size-8" />}
         tone={pageVisuals.maringo.tone}
       />
 
       <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-2">
-        <nav className={segmentedTrackClass} aria-label="Maringo Bereiche">
+        <nav className={segmentedTrackClass} aria-label={tr("tickets.areasAria")}>
           <Button
             type="button"
             variant="ghost"
@@ -2669,7 +2726,7 @@ export function MaringoWorkspaceClient() {
             className={segmentedTriggerClass(workspaceTab === "tickets")}
           >
             <Inbox className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
-            Tickets
+            {tr("home.tickets")}
           </Button>
           <Button
             type="button"
@@ -2683,7 +2740,7 @@ export function MaringoWorkspaceClient() {
             className={segmentedTriggerClass(workspaceTab === "hours")}
           >
             <Clock3 className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
-            Stunden
+            {tr("tickets.hours")}
           </Button>
           <Button
             type="button"
@@ -2697,7 +2754,7 @@ export function MaringoWorkspaceClient() {
             className={segmentedTriggerClass(workspaceTab === "kunde")}
           >
             <FolderOpen className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
-            Akte
+            {tr("common.file")}
           </Button>
           <Button
             type="button"
@@ -2711,7 +2768,7 @@ export function MaringoWorkspaceClient() {
             className={segmentedTriggerClass(workspaceTab === "ttv")}
           >
             <CalendarRange className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
-            TTV
+            {tr("tickets.ttv")}
           </Button>
         </nav>
         <TtvDutyChip
@@ -2730,17 +2787,17 @@ export function MaringoWorkspaceClient() {
           <CardContent className="space-y-3 p-4 text-sm">
             <p>
               {passwordUnreadable
-                ? "MARI-Zugang unvollständig. Unter "
-                : "MARI nicht bereit. Unter "}
+                ? tr("tickets.mariIncomplete")
+                : tr("tickets.mariNotReady")}
               <Link
                 href="/account"
                 className="font-semibold text-orange-900 underline underline-offset-2 dark:text-orange-200"
               >
-                Konto
+                {tr("common.account")}
               </Link>
               {passwordUnreadable
-                ? " die Personalnummer setzen; REST-Zugang kommt aus der .env."
-                : " die Personalnummer setzen. URL und REST-Zugang kommen vom Server."}
+                ? tr("tickets.setEmployeeRestEnv")
+                : tr("tickets.setEmployeeRestServer")}
             </p>
           </CardContent>
         </Card>
@@ -2792,21 +2849,29 @@ export function MaringoWorkspaceClient() {
                 checked={allVisibleSelected}
                 indeterminate={someVisibleSelected && !allVisibleSelected}
                 disabled={visibleIssueIds.length === 0 || bulkBusy}
-                label="Alle sichtbaren Tickets auswählen"
+                label={tr("tickets.selectAllVisible")}
                 onCheckedChange={toggleSelectAllVisible}
               />
               <div className="min-w-0">
-                <p className="text-[0.8125rem] font-black tracking-tight">Tickets</p>
+                <p className="text-[0.8125rem] font-black tracking-tight">{tr("home.tickets")}</p>
                 <p className="text-[0.6875rem] text-muted-foreground">
                   {selectedIssueIds.size > 0
-                    ? `${selectedIssueIds.size} von ${sortedTickets.length} ausgewählt`
+                    ? tr("tickets.selectedOf", {
+                        selected: selectedIssueIds.size,
+                        total: sortedTickets.length,
+                      })
                     : lookupBusy && searchedIssueId != null
-                      ? `Suche #${searchedIssueId}…`
+                      ? tr("tickets.searchHash", { id: searchedIssueId })
                       : listSearchQuery.trim()
-                        ? `${sortedTickets.length} Treffer`
+                        ? tr("tickets.hits", { count: sortedTickets.length })
                       : filterMode === "ttv"
-                        ? `${tickets.length} neu (${ttvLookbackLabel(ttvLookbackDays)})`
-                        : `${tickets.length} Ticket${tickets.length === 1 ? "" : "s"}`}
+                        ? tr("tickets.newCount", {
+                            count: tickets.length,
+                            window: ttvLookbackDisplay(ttvLookbackDays, tr),
+                          })
+                        : tickets.length === 1
+                          ? tr("tickets.ticketCount", { count: tickets.length })
+                          : tr("tickets.ticketCountPlural", { count: tickets.length })}
                 </p>
               </div>
             </div>
@@ -2822,7 +2887,7 @@ export function MaringoWorkspaceClient() {
                 className="size-8"
                 onClick={() => void loadList()}
                 disabled={listLoading}
-                aria-label="Aktualisieren"
+                aria-label={tr("common.refresh")}
               >
                 <RefreshCw
                   className={cn("size-4", listLoading && "animate-spin")}
@@ -2890,7 +2955,7 @@ export function MaringoWorkspaceClient() {
                         : "border-border/70 bg-background text-muted-foreground hover:bg-muted/40"
                     )}
                   >
-                    Überfällig
+                    {tr("common.overdue")}
                   </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger
@@ -2903,27 +2968,27 @@ export function MaringoWorkspaceClient() {
                         />
                       }
                     >
-                      Status · {statuses.length}
+                      {tr("tickets.statusCount", { count: statuses.length })}
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start" className="max-h-80 w-60 overflow-y-auto">
                       <DropdownMenuGroup>
-                        <DropdownMenuLabel>Status (Mehrfachauswahl)</DropdownMenuLabel>
+                        <DropdownMenuLabel>{tr("tickets.statusMulti")}</DropdownMenuLabel>
                         {ALL_STATUS_IDS.map((id) => (
                           <DropdownMenuCheckboxItem
                             key={id}
                             checked={statuses.includes(id)}
                             onCheckedChange={() => toggleStatus(id)}
                           >
-                            {STATUS_LABELS[id] || `Status ${id}`}
+                            {statusDisplayLabel(id, locale, STATUS_LABELS[id])}
                           </DropdownMenuCheckboxItem>
                         ))}
                       </DropdownMenuGroup>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={selectAllWorkStatuses}>
-                        Alle Arbeitsstatus
+                        {tr("tickets.allWorkStatuses")}
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={selectAllStatuses}>
-                        Alle Status
+                        {tr("tickets.allStatuses")}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -2935,7 +3000,7 @@ export function MaringoWorkspaceClient() {
                   variant="ghost"
                   size="sm"
                   onClick={() => setListSort("newest")}
-                  title="Neueste zuerst"
+                  title={tr("tickets.newestFirst")}
                   className={cn(
                     "h-auto rounded-full px-2 py-1 text-[0.6875rem] font-semibold",
                     listSort === "newest"
@@ -2944,14 +3009,14 @@ export function MaringoWorkspaceClient() {
                   )}
                 >
                   <ArrowDownAZ className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-                  Neu→Alt
+                  {tr("tickets.newestToOldest")}
                 </Button>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   onClick={() => setListSort("oldest")}
-                  title="Älteste zuerst"
+                  title={tr("tickets.oldestFirst")}
                   className={cn(
                     "h-auto rounded-full px-2 py-1 text-[0.6875rem] font-semibold",
                     listSort === "oldest"
@@ -2960,24 +3025,24 @@ export function MaringoWorkspaceClient() {
                   )}
                 >
                   <ArrowUpAZ className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-                  Alt→Neu
+                  {tr("tickets.oldestToNewest")}
                 </Button>
               </div>
             </div>
             {filterMode === "ttv" ? (
               <p className="truncate text-[0.6875rem] leading-snug text-muted-foreground">
-                Status NEU · {ttvLookbackLabel(ttvLookbackDays)} · alle
+                Status NEU · {ttvLookbackDisplay(ttvLookbackDays, tr)} · alle
                 Bearbeiter
               </p>
             ) : statuses.length > 0 ? (
               <p
                 className="truncate text-[0.6875rem] leading-snug text-muted-foreground"
                 title={statuses
-                  .map((id) => STATUS_LABELS[id] || `Status ${id}`)
+                  .map((id) => statusDisplayLabel(id, locale, STATUS_LABELS[id]))
                   .join(", ")}
               >
                 {statuses
-                  .map((id) => STATUS_LABELS[id] || `Status ${id}`)
+                  .map((id) => statusDisplayLabel(id, locale, STATUS_LABELS[id]))
                   .join(" · ")}
               </p>
             ) : null}
@@ -2985,7 +3050,7 @@ export function MaringoWorkspaceClient() {
               <div
                 className={segmentedTrackClass}
                 role="tablist"
-                aria-label="Ticket-Filter"
+                aria-label={tr("tickets.filterAria")}
               >
                 <Button
                   type="button"
@@ -3020,7 +3085,7 @@ export function MaringoWorkspaceClient() {
                   role="tab"
                   data-segment="true"
                   aria-selected={filterMode === "ttv"}
-                  title="Ticket-Tagesverantwortlicher — neue, noch nicht klassifizierte Tickets"
+                  title={tr("tickets.ttvFilterTitle")}
                   onClick={() => {
                     setFilterMode("ttv");
                     setListSort("newest");
@@ -3102,7 +3167,7 @@ export function MaringoWorkspaceClient() {
                           type="button"
                           variant="outline"
                           size="sm"
-                          title="Abwählen"
+                          title={tr("tickets.deselect")}
                           onClick={() => {
                             setSelectedCustomers((prev) =>
                               prev.filter((x) => x.cardCode !== c.cardCode)
@@ -3280,7 +3345,7 @@ export function MaringoWorkspaceClient() {
                   const id = parseTicketNumberQuery(listSearchQuery);
                   if (id != null) void lookupTicketByNumber(id);
                 }}
-                placeholder="Ticket-Nr., Betreff oder Kunde…"
+                placeholder={tr("tickets.searchPlaceholder")}
                 className="h-10 min-h-10 pr-10 pl-9 text-sm"
                 spellCheck={false}
                 autoComplete="off"
@@ -3292,7 +3357,7 @@ export function MaringoWorkspaceClient() {
                   variant="ghost"
                   size="icon"
                   className="absolute top-1/2 right-1 size-8 -translate-y-1/2"
-                  aria-label="Suche leeren"
+                  aria-label={tr("tickets.clearSearch")}
                   onClick={() => {
                     setListSearchQuery("");
                     setLookupTicket(null);
@@ -3327,13 +3392,13 @@ export function MaringoWorkspaceClient() {
           <ul className="min-h-0 flex-1 divide-y divide-border overflow-y-auto">
             {listLoading && tickets.length === 0 && !listSearchQuery.trim() ? (
               <li className="bg-card px-3 py-8 text-sm text-muted-foreground">
-                Lade Tickets…
+                {tr("tickets.loadingTickets")}
               </li>
             ) : null}
             {(lookupBusy || numberLookupPending) &&
             sortedTickets.length === 0 ? (
               <li className="bg-card px-3 py-8 text-center text-sm text-muted-foreground">
-                Suche Ticket #{searchedIssueId}…
+                {tr("tickets.searchingTicket", { id: searchedIssueId })}
               </li>
             ) : null}
             {!listLoading &&
@@ -3342,14 +3407,14 @@ export function MaringoWorkspaceClient() {
             sortedTickets.length === 0 ? (
               <li className="bg-card px-3 py-8 text-center text-sm text-muted-foreground">
                 {lookupMissId != null
-                  ? `Ticket #${lookupMissId} nicht gefunden.`
+                  ? tr("tickets.notFound", { id: lookupMissId })
                   : listSearchQuery.trim()
-                    ? `Keine Treffer für „${listSearchQuery.trim()}“.`
+                    ? tr("tickets.noHitsFor", { query: listSearchQuery.trim() })
                   : filterMode === "ttv"
-                    ? `Keine neuen Tickets (${ttvLookbackLabel(ttvLookbackDays)}).`
+                    ? tr("tickets.noNewTickets", { window: ttvLookbackDisplay(ttvLookbackDays, tr) })
                     : filterMode === "customer" && selectedCustomers.length === 0
-                      ? "Kunde wählen, um Tickets zu laden."
-                      : "Keine Tickets für die gewählten Filter."}
+                      ? tr("tickets.pickCustomerToLoad")
+                      : tr("tickets.noTicketsForFilters")}
               </li>
             ) : null}
             {sortedTickets.map((t, index) => {
@@ -3411,7 +3476,7 @@ export function MaringoWorkspaceClient() {
                         </span>
                         {!ticketReview && t.hasAnalysis ? (
                           <span
-                            title="AI-Analyse vorhanden"
+                            title={tr("tickets.analysisPresent")}
                             className="inline-flex shrink-0"
                           >
                             <Sparkles
@@ -3419,7 +3484,7 @@ export function MaringoWorkspaceClient() {
                               strokeWidth={APP_ICON_STROKE}
                               aria-hidden
                             />
-                            <span className="sr-only">AI-Analyse vorhanden</span>
+                            <span className="sr-only">{tr("tickets.analysisPresent")}</span>
                           </span>
                         ) : null}
                         <p className="min-w-0 truncate text-[0.8125rem] font-semibold leading-snug tracking-tight">
@@ -3534,7 +3599,7 @@ export function MaringoWorkspaceClient() {
                   ticketFlyoutPresence.entered ? "opacity-100" : "opacity-0"
                 )}
                 style={{ transitionDuration: `${MARI_FLYOUT_MS}ms` }}
-                aria-label="Flyout schliessen"
+                aria-label={tr("tickets.closeFlyout")}
                 onClick={closeTicketFlyout}
               />
               <MariMainFlyoutShell open={ticketFlyoutPresence.entered}>
@@ -3555,13 +3620,13 @@ export function MaringoWorkspaceClient() {
                           variant="ghost"
                           className="size-8"
                           onClick={closeTicketFlyout}
-                          aria-label="Schliessen"
+                          aria-label={tr("common.close")}
                         >
                           <X className="size-4" />
                         </Button>
                       </div>
                       <div className="flex flex-1 items-center justify-center p-8 text-sm text-muted-foreground">
-                        Lade Ticket…
+                        {tr("tickets.loadingTicket")}
                       </div>
                     </>
                   ) : detail ? (
@@ -3613,14 +3678,14 @@ export function MaringoWorkspaceClient() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-52">
                             <DropdownMenuGroup>
-                              <DropdownMenuLabel>Status setzen</DropdownMenuLabel>
+                              <DropdownMenuLabel>{tr("tickets.setStatus")}</DropdownMenuLabel>
                               {TICKET_EDIT_STATUS_IDS.map((id) => (
                                 <DropdownMenuItem
                                   key={id}
                                   disabled={patching || detail.status === id}
                                   onClick={() => void patchTicket({ status: id })}
                                 >
-                                  {STATUS_LABELS[id] || id}
+                                  {statusDisplayLabel(id, locale, STATUS_LABELS[id])}
                                 </DropdownMenuItem>
                               ))}
                             </DropdownMenuGroup>
@@ -3639,7 +3704,7 @@ export function MaringoWorkspaceClient() {
                           variant="ghost"
                           className="size-7 shrink-0 text-current hover:bg-black/5"
                           onClick={closeTicketFlyout}
-                          aria-label="Schliessen"
+                          aria-label={tr("common.close")}
                         >
                           <X className="size-4" />
                         </Button>
@@ -3648,16 +3713,16 @@ export function MaringoWorkspaceClient() {
                       <div className="shrink-0 space-y-2.5 border-b border-border/50 px-4 py-2.5">
                         <div className="rounded-xl border border-border/50 bg-muted/15 px-3 py-2">
                           <div className="grid gap-x-3 gap-y-1.5 sm:grid-cols-2 lg:grid-cols-3">
-                            <DetailField label="Typ">
+                            <DetailField label={tr("common.type")}>
                               {detail.issueTypeName || "–"}
                             </DetailField>
-                            <DetailField label="Produkt">
+                            <DetailField label={tr("tickets.product")}>
                               {detail.productName || "–"}
                             </DetailField>
-                            <DetailField label="Matchcode">
+                            <DetailField label={tr("tickets.matchcode")}>
                               {detail.addressMatchcode || "–"}
                             </DetailField>
-                            <DetailField label="Projekt">
+                            <DetailField label={tr("common.project")}>
                               {detail.projectNumber ? (
                                 <span className="inline-flex flex-wrap items-center gap-1.5 text-xs">
                                   {(
@@ -3684,25 +3749,25 @@ export function MaringoWorkspaceClient() {
                                 "–"
                               )}
                             </DetailField>
-                            <DetailField label="Vertrag">
+                            <DetailField label={tr("timekeeping.contract")}>
                               {detail.contractNumber ||
                                 (detail.contractId != null
                                   ? String(detail.contractId)
                                   : "–")}
                             </DetailField>
-                            <DetailField label="Phase">
+                            <DetailField label={tr("tickets.phase")}>
                               {detail.phaseName ||
                                 (detail.phaseId != null
                                   ? String(detail.phaseId)
                                   : "–")}
                             </DetailField>
-                            <DetailField label="Prio">
+                            <DetailField label={tr("tickets.prio")}>
                               <span className="inline-flex items-center gap-1">
                                 <Flag className="size-3 shrink-0 text-muted-foreground" />
                                 {detail.priorityName}
                               </span>
                             </DetailField>
-                            <DetailField label="Adresse">
+                            <DetailField label={tr("tickets.address")}>
                               <span className="inline-flex min-w-0 items-center gap-1">
                                 <User className="size-3 shrink-0 text-muted-foreground" />
                                 <span className="truncate">
@@ -3710,32 +3775,32 @@ export function MaringoWorkspaceClient() {
                                 </span>
                               </span>
                             </DetailField>
-                            <DetailField label="Zuständig">
+                            <DetailField label={tr("tickets.assigned")}>
                               {detail.handledByName || detail.handledBy || "–"}
                             </DetailField>
-                            <DetailField label="Supportgruppe">
+                            <DetailField label={tr("tickets.supportGroup")}>
                               {detail.supportGroupName || "–"}
                             </DetailField>
-                            <DetailField label="Ansprechpartner">
+                            <DetailField label={tr("tickets.contact")}>
                               {primaryContact(detail.contactPerson) || "–"}
                             </DetailField>
-                            <DetailField label="Datum">
+                            <DetailField label={tr("common.date")}>
                               {formatDateTimeShort(detail.requestDate) || "–"}
                             </DetailField>
-                            <DetailField label="Geändert am">
+                            <DetailField label={tr("tickets.changedAt")}>
                               {formatDateTimeShort(detail.changeAtDate) || "–"}
                             </DetailField>
-                            <DetailField label="Referenz">
+                            <DetailField label={tr("tickets.reference")}>
                               {detail.referenceText || "–"}
                             </DetailField>
-                            <DetailField label="Std. Freigabe">
+                            <DetailField label={tr("tickets.stdRelease")}>
                               <Button
                                 type="button"
                                 variant="link"
                                 size="sm"
                                 className="h-auto p-0 text-left font-medium text-orange-900 dark:text-orange-200"
                                 onClick={() => toggleSecondary("kopf")}
-                                title="Ticket-Kopf bearbeiten"
+                                title={tr("tickets.editKopf")}
                               >
                                 {detail.stdFreigabe
                                   ? `${detail.stdFreigabe} h`
@@ -3804,8 +3869,8 @@ export function MaringoWorkspaceClient() {
                             >
                               <Sparkles className="size-3.5" />
                               {analysisOpen
-                                ? "Analyse ausblenden"
-                                : "Analyse anzeigen"}
+                                ? tr("tickets.hideAnalysis")
+                                : tr("tickets.showAnalysis")}
                             </Button>
                           ) : null}
                           <Button
@@ -3817,7 +3882,7 @@ export function MaringoWorkspaceClient() {
                           >
                             <Sparkles className="size-3.5" />
                             {analyzing
-                              ? "Analysiert…"
+                              ? tr("tickets.analyzing")
                               : savedAnalyzedAt
                                 ? "Neu analysieren"
                                 : "AI analysieren"}
@@ -3842,7 +3907,7 @@ export function MaringoWorkspaceClient() {
                                 size="sm"
                                 variant="outline"
                                 disabled={removingTicketAppointment}
-                                title="Termin entfernen"
+                                title={tr("tickets.removeAppointment")}
                                 aria-label={`Termin entfernen · Ticket #${detail.issueId} · ${formatStampWhen(ticketCalendarStamp)}`}
                                 onClick={() => void removeTicketAppointment()}
                                 className="-ml-px rounded-l-none border-emerald-300 bg-emerald-50 px-2 text-emerald-950 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-800 dark:border-emerald-400/40 dark:bg-emerald-500/15 dark:text-emerald-100 dark:hover:border-rose-400/40 dark:hover:bg-rose-500/20 dark:hover:text-rose-100"
@@ -3865,7 +3930,7 @@ export function MaringoWorkspaceClient() {
                               type="button"
                               size="sm"
                               variant="outline"
-                              title="Termin aus Ticket — Slot suchen und anlegen"
+                              title={tr("tickets.appointmentFromTicket")}
                               onClick={() => setTicketCalendarOpen(true)}
                             >
                               <CalendarPlus className="size-3.5" />
@@ -3881,19 +3946,19 @@ export function MaringoWorkspaceClient() {
                             disabled={!detail.projectNumber}
                             title={
                               detail.projectNumber
-                                ? "Stunden auf dieses Ticket buchen"
-                                : "Ticket hat kein Projekt hinterlegt"
+                                ? tr("tickets.bookHoursOnTicket")
+                                : tr("tickets.noProject")
                             }
                             onClick={() => toggleSecondary("buchen")}
                           >
                             <Clock3 className="size-3.5" />
-                            Zeit buchen
+                            {tr("tickets.bookTime")}
                           </Button>
                           <Button
                             type="button"
                             size="sm"
                             variant="outline"
-                            title="Kollegen per Teams über dieses Ticket informieren"
+                            title={tr("tickets.pingColleagueTitle")}
                             onClick={() => setColleaguePingOpen(true)}
                             className="whitespace-normal"
                           >
@@ -3968,7 +4033,7 @@ export function MaringoWorkspaceClient() {
                                   </ul>
                                 ) : (
                                   <p className="text-muted-foreground">
-                                    Keine kritischen Lücken erkannt.
+                                    {tr("tickets.noCriticalGaps")}
                                   </p>
                                 )}
                                 {analysis.completeness.notes ? (
@@ -3982,16 +4047,16 @@ export function MaringoWorkspaceClient() {
                                   <div className="flex flex-wrap items-start justify-between gap-2">
                                     <div className="min-w-0">
                                       <p className="font-semibold">
-                                        Empfohlener Status
+                                        {tr("tickets.recommendedStatus")}
                                       </p>
                                       <p className="mt-0.5 text-sm">
-                                        {analysis.recommendedStatus.label ||
-                                          (analysis.recommendedStatus.statusId
-                                            ? statusChipLabel(
-                                                analysis.recommendedStatus
-                                                  .statusId
-                                              )
-                                            : "—")}
+                                        {analysis.recommendedStatus.statusId
+                                          ? statusDisplayLabel(
+                                              analysis.recommendedStatus.statusId,
+                                              locale,
+                                              analysis.recommendedStatus.label
+                                            )
+                                          : analysis.recommendedStatus.label || tr("common.dash")}
                                       </p>
                                       {analysis.recommendedStatus.reason ? (
                                         <p className="mt-1 text-[0.6875rem] text-muted-foreground">
@@ -4014,8 +4079,10 @@ export function MaringoWorkspaceClient() {
                                         }
                                         title={
                                           detail.status === recommendedStatusId
-                                            ? "Ticket hat diesen Status bereits"
-                                            : `Status «${statusChipLabel(recommendedStatusId)}» nach Maringo schreiben`
+                                            ? tr("tickets.alreadyThisStatus")
+                                            : tr("tickets.writeStatusToMaringo", {
+                                              status: statusDisplayLabel(recommendedStatusId, locale),
+                                            })
                                         }
                                         onClick={() =>
                                           void applyRecommendedStatus(
@@ -4030,8 +4097,8 @@ export function MaringoWorkspaceClient() {
                                           <Flag className="size-3.5" />
                                         )}
                                         {detail.status === recommendedStatusId
-                                          ? "Gesetzt"
-                                          : "Nach Maringo schreiben"}
+                                          ? tr("tickets.written")
+                                          : tr("tickets.writeToMaringo")}
                                       </Button>
                                     ) : null}
                                   </div>
@@ -4069,10 +4136,10 @@ export function MaringoWorkspaceClient() {
                                             ) : null}
                                             <p className="mt-1 text-[0.625rem] uppercase tracking-wide text-muted-foreground">
                                               {t.confidence === "high"
-                                                ? "Sicherheit hoch"
+                                                ? tr("tickets.confidenceHigh")
                                                 : t.confidence === "low"
-                                                  ? "Sicherheit tief"
-                                                  : "Sicherheit mittel"}
+                                                  ? tr("tickets.confidenceLow")
+                                                  : tr("tickets.confidenceMid")}
                                               {t.dueHint
                                                 ? ` · ${formatSwissDate(t.dueHint)}`
                                                 : ""}
@@ -4091,7 +4158,7 @@ export function MaringoWorkspaceClient() {
                                           >
                                             <ListTodo className="size-3.5" />
                                             {adopted
-                                              ? "Übernommen"
+                                              ? tr("tickets.adopted")
                                               : "Als To Do übernehmen"}
                                           </Button>
                                         </div>
@@ -4239,7 +4306,7 @@ export function MaringoWorkspaceClient() {
                                 <div>
                                   <div className="flex flex-wrap items-center justify-between gap-2">
                                     <p className="font-semibold">
-                                      Antwort-Entwurf
+                                      {tr("tickets.replyDraft")}
                                       {translatingReplyDraft
                                         ? " · übersetzt…"
                                         : ""}
@@ -4285,10 +4352,10 @@ export function MaringoWorkspaceClient() {
                                 >
                                   <Lock className="size-3.5" />
                                   {postingInternalNote
-                                    ? "Schreibe intern…"
+                                    ? tr("tickets.writingInternal")}
                                     : analysisInternalNotePostedAt
-                                      ? "Erneut als intern speichern"
-                                      : "Als internen Kommentar schreiben"}
+                                      ? tr("tickets.saveInternalAgain")
+                                      : tr("tickets.writeAsInternal")}
                                 </Button>
                                 {!analysisInternalNotePostedAt ? (
                                   <p className="text-[0.6875rem] text-orange-900/75 dark:text-orange-200/80">
@@ -4317,9 +4384,9 @@ export function MaringoWorkspaceClient() {
                               </p>
                               <p className="mt-1 text-xs text-muted-foreground">
                                 {ticketTimeLoading
-                                  ? "Lade Buchungen…"
+                                  ? tr("tickets.loadingBookings")}
                                   : ticketTimeLines.length === 0
-                                    ? "Noch keine Stundenbuchungen"
+                                    ? tr("tickets.noHourBookings")}
                                     : `${ticketTimeHoursTotal} Std · ${ticketTimeLines.length} Buchung${ticketTimeLines.length === 1 ? "" : "en"}`}
                               </p>
                             </div>
@@ -4333,14 +4400,14 @@ export function MaringoWorkspaceClient() {
                         <div>
                           <h3 className="mb-3 flex items-center gap-2 text-[0.8125rem] font-black tracking-tight">
                             <Lock className="size-3.5 text-muted-foreground" />
-                            Interner Kommentar
+                            {tr("tickets.internalComment")}
                           </h3>
                           <div className="rounded-2xl border border-amber-200/70 bg-amber-50/40 px-3.5 py-3 dark:border-amber-400/30 dark:bg-amber-500/10">
                             <Label
                               htmlFor="manual-internal-note"
                               className="sr-only"
                             >
-                              Interner Kommentar
+                              {tr("tickets.internalComment")}
                             </Label>
                             <Textarea
                               id="manual-internal-note"
@@ -4349,7 +4416,7 @@ export function MaringoWorkspaceClient() {
                               onChange={(e) =>
                                 setManualNoteDraft(e.target.value)
                               }
-                              placeholder="Eigene Notiz fürs Support-Team (nicht für den Kunden)…"
+                              placeholder={tr("tickets.internalPlaceholder")}
                               disabled={postingManualNote}
                               className="resize-y border-amber-200/80 bg-white/80 text-[0.8125rem] dark:border-amber-400/30 dark:bg-card"
                             />
@@ -4370,8 +4437,8 @@ export function MaringoWorkspaceClient() {
                               >
                                 <Lock className="size-3.5" />
                                 {postingManualNote
-                                  ? "Speichere…"
-                                  : "Intern speichern"}
+                                  ? tr("common.saving")
+                                  : tr("tickets.saveInternal")}
                               </Button>
                             </div>
                             {manualNoteHint ? (
@@ -4385,14 +4452,14 @@ export function MaringoWorkspaceClient() {
                         <div>
                           <h3 className="mb-3 flex items-center gap-2 text-[0.8125rem] font-black tracking-tight">
                             <Mail className="size-3.5 text-muted-foreground" />
-                            Externer Kommentar
+                            {tr("tickets.externalComment")}
                           </h3>
                           <div className="rounded-2xl border border-sky-200/70 bg-sky-50/40 px-3.5 py-3 dark:border-sky-400/30 dark:bg-sky-500/10">
                             <Label
                               htmlFor="manual-external-note"
                               className="sr-only"
                             >
-                              Externer Kommentar
+                              {tr("tickets.externalComment")}
                             </Label>
                             <Textarea
                               id="manual-external-note"
@@ -4401,7 +4468,7 @@ export function MaringoWorkspaceClient() {
                               onChange={(e) =>
                                 setExternalNoteDraft(e.target.value)
                               }
-                              placeholder="Antwort an den Kunden (sichtbar / Mail über Maringo)…"
+                              placeholder={tr("tickets.externalPlaceholder")}
                               disabled={
                                 postingExternalNote || draftingExternalNote
                               }
@@ -4421,13 +4488,13 @@ export function MaringoWorkspaceClient() {
                                   disabled={
                                     draftingExternalNote || postingExternalNote
                                   }
-                                  title="Kurzer Kundenkommentar: Eingang, ggf. fehlende Details, baldige Bearbeitung"
+                                  title={tr("tickets.aiDraftTitle")}
                                   onClick={() => void draftExternalNoteWithAi()}
                                 >
                                   <Sparkles className="size-3.5" />
                                   {draftingExternalNote
-                                    ? "Entwurf…"
-                                    : "AI-Entwurf"}
+                                    ? tr("tickets.drafting")
+                                    : tr("tickets.aiDraft")}
                                 </Button>
                                 <Button
                                   type="button"
@@ -4443,8 +4510,8 @@ export function MaringoWorkspaceClient() {
                                 >
                                   <Mail className="size-3.5" />
                                   {postingExternalNote
-                                    ? "Sende…"
-                                    : "Extern speichern"}
+                                    ? tr("tickets.sending")
+                                    : tr("tickets.saveExternal")}
                                 </Button>
                               </div>
                             </div>
@@ -4497,13 +4564,13 @@ export function MaringoWorkspaceClient() {
                           variant="ghost"
                           className="size-8"
                           onClick={closeTicketFlyout}
-                          aria-label="Schliessen"
+                          aria-label={tr("common.close")}
                         >
                           <X className="size-4" />
                         </Button>
                       </div>
                       <div className="flex flex-1 items-center justify-center p-8 text-sm text-muted-foreground">
-                        Ticket nicht geladen
+                        {tr("tickets.ticketNotLoaded")}
                       </div>
                     </>
                   )}
@@ -4514,7 +4581,6 @@ export function MaringoWorkspaceClient() {
                 if (ticketReview && (id === "buchen" || id === "buchungen")) {
                   return null;
                 }
-                const meta = MARI_SECONDARY_FLYOUT_META[id];
                 const widthClass =
                   id === "buchen" || id === "buchungen" || id === "kopf"
                     ? MARI_SECONDARY_FLYOUT_WIDTH_CLASS
@@ -4528,8 +4594,8 @@ export function MaringoWorkspaceClient() {
                 return (
                   <MariSecondaryFlyoutShell
                     key={id}
-                    title={meta.label}
-                    description={meta.description}
+                    title={tr(FLYOUT_TITLE[id])}
+                    description={tr(FLYOUT_DESC[id])}
                     onClose={() => closeSecondary(id)}
                     widthClass={widthClass}
                     stretchToRail={id === "verlauf"}
@@ -4568,15 +4634,15 @@ export function MaringoWorkspaceClient() {
                             )}
                           >
                             <ArrowUpAZ className="size-3.5" />
-                            Älteste oben
+                            {tr("tickets.oldestOnTop")}
                           </Button>
                         </div>
                         {sortedTimeline.length === 0 ? (
                           <div className="rounded-xl border border-dashed border-border/60 px-3 py-6 text-center text-sm text-muted-foreground">
                             <Inbox className="mx-auto mb-2 size-5 opacity-50" />
                             {detail?.requestTextPlain
-                              ? "Noch keine weiteren Verlaufseinträge."
-                              : "Kein Verlauf und kein Anfragetext vorhanden."}
+                              ? tr("tickets.noMoreTimeline")
+                              : tr("tickets.noTimeline")}
                           </div>
                         ) : (
                           <ol className="relative space-y-4 before:absolute before:top-2 before:bottom-2 before:left-[0.7rem] before:w-px before:bg-border">
@@ -4651,7 +4717,7 @@ export function MaringoWorkspaceClient() {
                     {id === "anzeige" ? (
                       <div className="space-y-3">
                         <p className="text-xs leading-relaxed text-muted-foreground">
-                          Felder in der Ticketliste (Meta-Zeile).
+                          {tr("tickets.listFieldsHint")}
                           {ticketReview
                             ? null
                             : " Vorhandene Werte werden bei «Zeit buchen» vorbelegt und können dort überschrieben werden."}
@@ -4689,10 +4755,10 @@ export function MaringoWorkspaceClient() {
                                   />
                                   <span className="min-w-0">
                                     <span className="block text-[0.8125rem] font-semibold">
-                                      {opt.label}
+                                      {tr(LIST_META_LABEL[opt.id])}
                                     </span>
                                     <span className="block text-[0.6875rem] text-muted-foreground">
-                                      {opt.hint}
+                                      {tr(LIST_META_HINT[opt.id])}
                                     </span>
                                   </span>
                                 </label>
@@ -4767,21 +4833,23 @@ export function MaringoWorkspaceClient() {
         }
         title={
           editBookLineId
-            ? `Buchung ändern · #${editBookLineId}`
+            ? tr("tickets.editBooking", { id: editBookLineId })
             : pendingStampBook
-              ? `Stunden aus Termin · Ticket #${pendingStampBook.issueId}`
+              ? tr("tickets.hoursFromEvent", { id: pendingStampBook.issueId })
               : detail
-                ? `Zeit buchen · Ticket #${detail.issueId}`
-                : "Zeit buchen"
+                ? tr("tickets.bookTimeTicket", { id: detail.issueId })
+                : tr("tickets.bookTime")
         }
         description={
           editBookLineId
-            ? "Speichern ersetzt die Zeile in MARI. Ticket-Verknüpfung bleibt erhalten."
+            ? tr("tickets.editBookingHint")
             : pendingStampBook
-              ? "Vorschlag aus gestempeltem Ticket-Termin — prüfen und buchen."
-              : "Buchung wird mit SourceReference auf dieses Ticket verknüpft."
+              ? tr("tickets.stampSuggestionHint")
+              : tr("tickets.sourceRefHint")
         }
-        submitLabel={editBookLineId ? "Speichern" : "Auf Ticket buchen"}
+        submitLabel={
+          editBookLineId ? tr("common.save") : tr("timekeeping.bookOnTicket")
+        }
         editLineId={editBookLineId}
         onBooked={() => {
           const stamp = pendingStampBook;
@@ -4825,9 +4893,11 @@ export function MaringoWorkspaceClient() {
         }
         defaultDurationMinutes={60}
         dialogTitle={
-          detail ? `Termin · Ticket #${detail.issueId}` : "Termin aus Ticket"
+          detail
+            ? tr("tickets.appointmentTicket", { id: detail.issueId })
+            : tr("tickets.appointmentFromTicketTitle")
         }
-        dialogDescription="Freien Slot suchen, Termin anlegen — wird für die Abend-Stundenbuchung gestempelt."
+        dialogDescription={tr("tickets.appointmentDialogHint")}
       />
     </div>
   );
