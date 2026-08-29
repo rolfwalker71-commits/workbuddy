@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Star, X } from "lucide-react";
+import { Star, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,7 @@ import type { MariKeyPair } from "@/lib/mari/timekeeping-shared";
 import { formatMariProjectLabel } from "@/lib/mari/timekeeping-shared";
 import { TIMEKEEPING_INT_BEMERKUNG_OPTIONS } from "@/lib/mari/timekeeping-udfs";
 import type { MariTimeBookFavorite } from "@/lib/mari/time-book-favorites";
+import type { MariEmailPartnerSuggestion } from "@/lib/mari/customers";
 import { MariKeyPairPicker } from "@/components/maringo/mari-key-pair-picker";
 
 export type TimeBookFormDefaults = {
@@ -20,6 +21,8 @@ export type TimeBookFormDefaults = {
   projectLabel?: string | null;
   contractId?: number | null;
   contractPositionId?: number | null;
+  /** Sichtbare Vertragsnummer (z.B. V60011100) — wird nachgeladen. */
+  contractVisible?: string | null;
   activity?: string;
   memoText?: string;
   hours?: number;
@@ -60,6 +63,10 @@ function parseHours(raw: string): number | null {
   return Math.round(n * 100) / 100;
 }
 
+function nonBillableFrom(hours: number, hoursBillable: number): number {
+  return Math.max(0, Math.round((hours - hoursBillable) * 100) / 100);
+}
+
 export function MaringoTimeBookForm({
   defaults,
   submitLabel = "Buchen",
@@ -67,6 +74,9 @@ export function MaringoTimeBookForm({
   className,
   layout = "compact",
   enableFavorites = true,
+  attendeeEmails,
+  preserveEventPrefillOnChips = false,
+  hoursHint,
 }: {
   defaults?: TimeBookFormDefaults | null;
   submitLabel?: string;
@@ -75,6 +85,12 @@ export function MaringoTimeBookForm({
   /** wide = volle Breite untereinander (Stunden-Tab); compact = Dialog */
   layout?: "wide" | "compact";
   enableFavorites?: boolean;
+  /** Teilnehmer-Adressen — Kundenvorschläge als Chips, nie Autobuchen. */
+  attendeeEmails?: string[] | null;
+  /** Favorit/Chip ändert Projekt, nicht Stunden/Memo aus dem Termin. */
+  preserveEventPrefillOnChips?: boolean;
+  /** Hinweis unter den Stundenfeldern (z.B. Vorlage aus Termindauer). */
+  hoursHint?: string | null;
 }) {
   const [dayOfService, setDayOfService] = useState(
     defaults?.dayOfService || zurichTodayYmd()
@@ -126,6 +142,20 @@ export function MaringoTimeBookForm({
   const [favoritesLoading, setFavoritesLoading] = useState(false);
   const [saveAsFavorite, setSaveAsFavorite] = useState(false);
   const [favoriteName, setFavoriteName] = useState("");
+  const [contractVisible] = useState(
+    (defaults?.contractVisible || "").trim()
+  );
+  const initialHours = defaults?.hours ?? 0.25;
+  const initialBillableH =
+    defaults?.hoursBillable ??
+    (defaults?.billable === false ? 0 : initialHours);
+  const [nonBillableRaw, setNonBillableRaw] = useState(
+    String(nonBillableFrom(initialHours, initialBillableH))
+  );
+  const [partnerHits, setPartnerHits] = useState<MariEmailPartnerSuggestion[]>(
+    []
+  );
+  const [partnersLoading, setPartnersLoading] = useState(false);
 
   const loadFavorites = useCallback(async () => {
     if (!enableFavorites) return;
@@ -145,6 +175,38 @@ export function MaringoTimeBookForm({
   useEffect(() => {
     void loadFavorites();
   }, [loadFavorites]);
+
+  useEffect(() => {
+    const emails = (attendeeEmails || [])
+      .map((e) => e.trim().toLowerCase())
+      .filter((e) => e.includes("@"))
+      .slice(0, 5);
+    if (emails.length === 0) {
+      setPartnerHits([]);
+      return;
+    }
+    let cancelled = false;
+    setPartnersLoading(true);
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/maringo/customers?emails=${encodeURIComponent(emails.join(","))}`
+        );
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!res.ok) throw new Error(data.error || "Teilnehmer-Suche fehlgeschlagen");
+        const next = (data.suggestions || []) as MariEmailPartnerSuggestion[];
+        setPartnerHits(next.filter((s) => s.projectNumber));
+      } catch {
+        if (!cancelled) setPartnerHits([]);
+      } finally {
+        if (!cancelled) setPartnersLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [attendeeEmails]);
 
   const loadProjects = useCallback(async (q: string) => {
     setLoadingProjects(true);
@@ -186,11 +248,18 @@ export function MaringoTimeBookForm({
         if (!coRes.ok) throw new Error(co.error || "Verträge laden fehlgeschlagen");
         const nextContracts = (co.contracts || []) as MariKeyPair[];
         setContracts(nextContracts);
-        if (
-          contractId &&
-          !nextContracts.some((c) => c.keyInternal === contractId)
-        ) {
+        const visible = contractVisible.toUpperCase();
+        const byVisible = visible
+          ? nextContracts.find(
+              (c) =>
+                c.keyVisible.toUpperCase() === visible ||
+                c.matchcode.toUpperCase() === visible
+            )
+          : undefined;
+        if (contractId && nextContracts.some((c) => c.keyInternal === contractId)) {
           // keep preset
+        } else if (byVisible) {
+          setContractId(byVisible.keyInternal);
         } else if (!contractId && nextContracts.length === 1) {
           setContractId(nextContracts[0]!.keyInternal);
         }
@@ -252,17 +321,57 @@ export function MaringoTimeBookForm({
     setContractPositionId("");
   }
 
+  function syncNonBillable(hours: number, hoursBillable: number) {
+    setNonBillableRaw(String(nonBillableFrom(hours, hoursBillable)));
+  }
+
+  function onHoursChange(raw: string) {
+    setHoursRaw(raw);
+    const h = parseHours(raw);
+    const hb = parseHours(hoursBillableRaw);
+    if (h == null || hb == null) return;
+    const nextHb = hb > h ? h : hb;
+    if (nextHb !== hb) setHoursBillableRaw(String(nextHb));
+    setBillable(nextHb > 0);
+    syncNonBillable(h, nextHb);
+  }
+
+  function onBillableHoursChange(raw: string) {
+    setHoursBillableRaw(raw);
+    const h = parseHours(hoursRaw) ?? 0;
+    const hb = parseHours(raw);
+    if (hb == null) return;
+    const clamped = Math.min(Math.max(0, hb), h > 0 ? h : hb);
+    if (clamped !== hb) setHoursBillableRaw(String(clamped));
+    setBillable(clamped > 0);
+    syncNonBillable(h, clamped);
+  }
+
+  function onNonBillableChange(raw: string) {
+    setNonBillableRaw(raw);
+    const h = parseHours(hoursRaw) ?? 0;
+    const nb = parseHours(raw);
+    if (nb == null) return;
+    const clampedNb = Math.min(Math.max(0, nb), h > 0 ? h : nb);
+    const hb = Math.max(0, Math.round((h - clampedNb) * 100) / 100);
+    setHoursBillableRaw(String(hb));
+    setBillable(hb > 0);
+  }
+
   function onBillableToggle(next: boolean) {
     setBillable(next);
     const h = parseHours(hoursRaw) ?? 0;
-    if (next) setHoursBillableRaw(String(h || 0.25));
-    else setHoursBillableRaw("0");
+    const hb = next ? h || 0.25 : 0;
+    setHoursBillableRaw(String(hb));
+    syncNonBillable(h || hb, hb);
   }
 
   function applyFavorite(fav: MariTimeBookFavorite) {
     setError(null);
     setHint(
-      `Favorit «${fav.name}» geladen — Datum und Stunden prüfen, dann buchen.`
+      preserveEventPrefillOnChips
+        ? `Favorit «${fav.name}» geladen — Stunden und Memo bleiben die Vorlage aus dem Termin.`
+        : `Favorit «${fav.name}» geladen — Datum und Stunden prüfen, dann buchen.`
     );
     setProjectNumber(fav.projectNumber);
     setProjectLabel(fav.projectLabel || fav.projectNumber);
@@ -271,13 +380,30 @@ export function MaringoTimeBookForm({
       fav.contractPositionId != null ? String(fav.contractPositionId) : ""
     );
     setActivity(fav.activity);
-    setMemoText(fav.memoText || "");
-    setBillable(fav.billable);
-    setHoursBillableRaw(
-      fav.billable ? String(fav.hoursBillable ?? fav.hours) : "0"
+    if (!preserveEventPrefillOnChips) {
+      setMemoText(fav.memoText || "");
+      setBillable(fav.billable);
+      const h = fav.hours;
+      const hb = fav.billable ? fav.hoursBillable ?? fav.hours : 0;
+      setHoursRaw(String(h));
+      setHoursBillableRaw(String(hb));
+      syncNonBillable(h, hb);
+    }
+    setProjectOpen(false);
+  }
+
+  function applyPartnerChip(s: MariEmailPartnerSuggestion) {
+    if (!s.projectNumber) return;
+    setError(null);
+    setHint(
+      `Vorschlag «${s.name}» — Projekt prüfen, dann buchen. Stunden und Memo bleiben die Vorlage.`
     );
-    // Typische Stunden aus Favorit übernehmen — leicht anpassbar
-    setHoursRaw(String(fav.hours));
+    setProjectNumber(s.projectNumber);
+    setProjectLabel(
+      formatMariProjectLabel(s.projectNumber, s.projectLabel || s.name)
+    );
+    setContractId(s.contractId != null && s.contractId > 0 ? String(s.contractId) : "");
+    setContractPositionId("");
     setProjectOpen(false);
   }
 
@@ -347,12 +473,16 @@ export function MaringoTimeBookForm({
       setError("Aktivität fehlt.");
       return;
     }
-    if (hours == null || hours <= 0) {
-      setError("Stunden ungültig (z.B. 0.25).");
+    if (hours == null || hours < 0.01 || hours > 24) {
+      setError("Stunden ungültig (0.01–24).");
       return;
     }
-    if (hoursBillable == null || hoursBillable < 0) {
-      setError("Verrechenbare Stunden ungültig.");
+    if (
+      hoursBillable == null ||
+      hoursBillable < 0 ||
+      hoursBillable > hours
+    ) {
+      setError("Verrechenbare Stunden: 0 bis höchstens die gebuchten Stunden.");
       return;
     }
     if (enableFavorites && saveAsFavorite) {
@@ -375,7 +505,7 @@ export function MaringoTimeBookForm({
         activity: activity.trim(),
         memoText: memoText.trim(),
         hours,
-        hoursBillable: billable ? Math.min(hoursBillable, hours) : 0,
+        hoursBillable: Math.min(Math.max(0, hoursBillable), hours),
         issueId: defaults?.issueId ?? null,
         internalRemarkVerr: internalRemarkVerr.trim() || null,
         zeroHoursReason: zeroHoursReason.trim() || null,
@@ -497,66 +627,115 @@ export function MaringoTimeBookForm({
         </div>
       ) : null}
 
-      <div
-        className={cn(
-          "grid gap-3",
-          wide
-            ? "grid-cols-1 sm:grid-cols-[minmax(9.5rem,11rem)_5.5rem_minmax(0,1fr)]"
-            : "grid-cols-1 sm:grid-cols-[minmax(9.5rem,1fr)_5.5rem] sm:[&>*:last-child]:col-span-2"
-        )}
-      >
-        <div className="space-y-1">
-          <Label htmlFor="tk-date" className="block truncate">
-            Datum
-          </Label>
-          <Input
-            id="tk-date"
-            type="date"
-            value={dayOfService}
-            onChange={(e) => setDayOfService(e.target.value)}
-            required
-          />
+      {attendeeEmails && attendeeEmails.length > 0 ? (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-1.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-muted-foreground">
+            <Users className="size-3.5" strokeWidth={APP_ICON_STROKE} />
+            Teilnehmer / Kunde
+          </div>
+          {partnersLoading && partnerHits.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Suche zu Teilnehmern…</p>
+          ) : partnerHits.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Kein Kunden-Treffer zu den Teilnehmern — Projekt suchen.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {partnerHits.map((s) => {
+                const label = s.projectNumber
+                  ? `${s.name} · ${s.projectNumber}`
+                  : s.name;
+                return (
+                  <Button
+                    key={`${s.cardCode}-${s.projectNumber || "none"}-${s.source}`}
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="h-auto max-w-full whitespace-normal rounded-full px-3 py-1.5 text-left text-xs font-medium leading-snug"
+                    title={s.contactName || label}
+                    onClick={() => applyPartnerChip(s)}
+                  >
+                    {label}
+                  </Button>
+                );
+              })}
+            </div>
+          )}
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="tk-hours" className="block truncate">
-            Stunden
-          </Label>
-          <Input
-            id="tk-hours"
-            inputMode="decimal"
-            className="tabular-nums"
-            value={hoursRaw}
-            onChange={(e) => {
-              setHoursRaw(e.target.value);
-              if (billable) setHoursBillableRaw(e.target.value);
-            }}
-            placeholder="0.25"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="tk-billable-h" className="block truncate">
-            Davon verrechenbar
-          </Label>
-          <div className="flex items-center gap-2">
+      ) : null}
+
+      <div className="space-y-2">
+        <div
+          className={cn(
+            "grid gap-3",
+            wide
+              ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
+              : "grid-cols-1 sm:grid-cols-2"
+          )}
+        >
+          <div className="space-y-1">
+            <Label htmlFor="tk-date" className="block truncate">
+              Datum
+            </Label>
+            <Input
+              id="tk-date"
+              type="date"
+              value={dayOfService}
+              onChange={(e) => setDayOfService(e.target.value)}
+              required
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="tk-hours" className="block truncate">
+              Stunden
+            </Label>
+            <Input
+              id="tk-hours"
+              inputMode="decimal"
+              className="tabular-nums"
+              value={hoursRaw}
+              onChange={(e) => onHoursChange(e.target.value)}
+              placeholder="0.25"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="tk-billable-h" className="block truncate">
+              Verrechenbar
+            </Label>
             <Input
               id="tk-billable-h"
               inputMode="decimal"
-              className="min-w-[5.5rem] flex-1 tabular-nums"
+              className="tabular-nums"
               value={hoursBillableRaw}
-              onChange={(e) => setHoursBillableRaw(e.target.value)}
-              disabled={!billable}
+              onChange={(e) => onBillableHoursChange(e.target.value)}
               placeholder="0.25"
             />
-            <label className="flex h-9 shrink-0 items-center gap-2 whitespace-nowrap text-[0.8125rem]">
-              <input
-                type="checkbox"
-                checked={billable}
-                onChange={(e) => onBillableToggle(e.target.checked)}
-              />
-              Verrechenbar
-            </label>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="tk-nonbillable-h" className="block truncate">
+              Nicht verrechenbar
+            </Label>
+            <Input
+              id="tk-nonbillable-h"
+              inputMode="decimal"
+              className="tabular-nums"
+              value={nonBillableRaw}
+              onChange={(e) => onNonBillableChange(e.target.value)}
+              placeholder="0"
+            />
           </div>
         </div>
+        <label className="flex items-center gap-2 text-[0.8125rem]">
+          <input
+            type="checkbox"
+            checked={billable}
+            onChange={(e) => onBillableToggle(e.target.checked)}
+          />
+          Alle Stunden verrechenbar
+        </label>
+        {hoursHint ? (
+          <p className="text-xs text-muted-foreground">{hoursHint}</p>
+        ) : null}
       </div>
 
       <div className="space-y-1">
@@ -655,7 +834,7 @@ export function MaringoTimeBookForm({
             value={memoText}
             onChange={(e) => setMemoText(e.target.value)}
             rows={wide ? 2 : 3}
-            placeholder="Optional"
+            placeholder="Optional — z.B. Ort, Thema, Nacharbeit"
           />
         </div>
       </div>

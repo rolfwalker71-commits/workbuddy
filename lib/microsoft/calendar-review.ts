@@ -149,6 +149,7 @@ export function microsoftAgendaToReviewEvent(
   meetUrl: string | null;
   calendarType: string;
   calendarName: string;
+  attendeeEmails: string[];
 } {
   const subject = (e.summary || "").trim() || "(ohne Titel)";
   const done =
@@ -180,6 +181,7 @@ export function microsoftAgendaToReviewEvent(
     meetUrl: e.meetUrl,
     calendarType: e.type,
     calendarName: e.calendarName,
+    attendeeEmails: e.attendeeEmails || [],
   };
 }
 

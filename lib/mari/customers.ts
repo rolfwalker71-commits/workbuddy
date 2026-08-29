@@ -562,6 +562,28 @@ export async function lookupMariPartnersByEmail(
   return out.slice(0, 20);
 }
 
+/** Merge partner suggestions for several attendee addresses (chips, no autobook). */
+export async function lookupMariPartnersByEmails(
+  emails: string[]
+): Promise<MariEmailPartnerSuggestion[]> {
+  const unique: string[] = [];
+  const seenEmail = new Set<string>();
+  for (const raw of emails) {
+    const email = normalizeMariEmail(raw);
+    if (!email || seenEmail.has(email)) continue;
+    seenEmail.add(email);
+    unique.push(email);
+    if (unique.length >= 5) break;
+  }
+  const seen = new Set<string>();
+  const out: MariEmailPartnerSuggestion[] = [];
+  for (const email of unique) {
+    const rows = await lookupMariPartnersByEmail(email);
+    for (const row of rows) pushSuggestion(out, seen, row);
+  }
+  return out.slice(0, 20);
+}
+
 async function customerFromProjectMaster(
   pn: string
 ): Promise<MariCustomerOption | null> {

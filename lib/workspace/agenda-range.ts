@@ -78,6 +78,7 @@ export async function loadWorkspaceAgendaInRange(
             meetUrl: e.meetUrl,
             calendarType: e.type,
             calendarName: e.calendarName,
+            attendeeEmails: e.attendeeEmails,
           })
         );
       } catch (error) {

@@ -5,6 +5,7 @@ import { hasMariConfig } from "@/lib/mari/config";
 import {
   lookupMariCustomersForProject,
   lookupMariPartnersByEmail,
+  lookupMariPartnersByEmails,
   normalizeMariEmail,
   searchMariCustomers,
 } from "@/lib/mari/customers";
@@ -35,10 +36,24 @@ export async function GET(request: Request) {
     requireMariConfig();
     const url = new URL(request.url);
     const emailRaw = (url.searchParams.get("email") || "").trim();
+    const emailsRaw = (url.searchParams.get("emails") || "").trim();
     const projectRaw = (url.searchParams.get("projectNumber") || "").trim();
     if (url.searchParams.get("companies") === "1") {
       const companies = await listMariCompanies();
       return NextResponse.json({ configured: true, companies });
+    }
+    if (emailsRaw) {
+      const emails = emailsRaw
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .slice(0, 8);
+      const suggestions = await lookupMariPartnersByEmails(emails);
+      return NextResponse.json({
+        configured: true,
+        suggestions,
+        emails,
+      });
     }
     if (emailRaw) {
       const email = normalizeMariEmail(emailRaw);

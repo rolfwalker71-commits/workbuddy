@@ -50,6 +50,7 @@ export type MicrosoftCalendarEvent = {
   isBirthday: boolean;
   planningRelevant: boolean;
   webLink: string | null;
+  attendeeEmails: string[];
 };
 
 function selectionsKey(userId: number): string {
@@ -297,7 +298,31 @@ type GraphEvent = {
   onlineMeetingUrl?: string | null;
   webLink?: string | null;
   categories?: string[] | null;
+  organizer?: {
+    emailAddress?: { name?: string | null; address?: string | null };
+  };
+  attendees?: Array<{
+    type?: string | null;
+    emailAddress?: { name?: string | null; address?: string | null };
+  }>;
 };
+
+function attendeeEmailsFromGraph(ev: GraphEvent): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const add = (raw?: string | null) => {
+    const email = (raw || "").trim().toLowerCase();
+    if (!email || !email.includes("@") || seen.has(email)) return;
+    seen.add(email);
+    out.push(email);
+  };
+  add(ev.organizer?.emailAddress?.address);
+  for (const a of ev.attendees || []) {
+    if ((a.type || "").toLowerCase() === "resource") continue;
+    add(a.emailAddress?.address);
+  }
+  return out.slice(0, 12);
+}
 
 function parseLocal(dt: GraphDateTime | undefined): {
   date: string;
@@ -351,7 +376,7 @@ export async function listMicrosoftCalendarEventsInRange(
           startDateTime: start,
           endDateTime: end,
           $select:
-            "id,subject,bodyPreview,body,start,end,isAllDay,location,onlineMeeting,onlineMeetingUrl,webLink,categories",
+            "id,subject,bodyPreview,body,start,end,isAllDay,location,onlineMeeting,onlineMeetingUrl,webLink,categories,organizer,attendees",
           $orderby: "start/dateTime",
           $top: "250",
         });
@@ -405,6 +430,7 @@ export async function listMicrosoftCalendarEventsInRange(
             isBirthday,
             planningRelevant,
             webLink: ev.webLink || null,
+            attendeeEmails: attendeeEmailsFromGraph(ev),
           });
         }
       } catch {

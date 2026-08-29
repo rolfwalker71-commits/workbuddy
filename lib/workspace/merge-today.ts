@@ -39,6 +39,7 @@ export type WorkspaceTodayEvent = {
   meetUrl?: string | null;
   calendarType?: string | null;
   calendarName?: string | null;
+  attendeeEmails?: string[];
   mari?: WorkspaceEventMari | null;
 };
 
@@ -142,6 +143,7 @@ export function toWorkspaceTodayEvent(input: {
   meetUrl?: string | null;
   calendarType?: string | null;
   calendarName?: string | null;
+  attendeeEmails?: string[] | null;
   mari?: WorkspaceEventMari | null;
 }): WorkspaceTodayEvent {
   const title =
@@ -170,6 +172,9 @@ export function toWorkspaceTodayEvent(input: {
     meetUrl: input.meetUrl ?? null,
     calendarType: input.calendarType ?? null,
     calendarName: input.calendarName ?? null,
+    attendeeEmails: Array.isArray(input.attendeeEmails)
+      ? input.attendeeEmails.filter((e) => typeof e === "string" && e.includes("@"))
+      : [],
     mari: input.mari ?? null,
   };
 }

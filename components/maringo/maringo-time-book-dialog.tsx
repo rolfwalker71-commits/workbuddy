@@ -13,6 +13,16 @@ import {
   type TimeBookFormValues,
 } from "@/components/maringo/maringo-time-book-form";
 
+export type CalendarBookStampInput = {
+  eventId: string;
+  calendarId?: string | null;
+  eventDate: string;
+  startHm?: string | null;
+  endHm?: string | null;
+  title: string;
+  issueId?: number | null;
+};
+
 export function MaringoTimeBookDialog({
   open,
   onOpenChange,
@@ -22,6 +32,10 @@ export function MaringoTimeBookDialog({
   submitLabel = "Auf Ticket buchen",
   editLineId,
   onBooked,
+  calendarEvent,
+  attendeeEmails,
+  preserveEventPrefillOnChips,
+  hoursHint,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -32,6 +46,11 @@ export function MaringoTimeBookDialog({
   /** Wenn gesetzt: PUT statt POST (löschen + neu in MARI). */
   editLineId?: number | null;
   onBooked?: () => void;
+  /** Nach erfolgreicher Buchung Stempel `booked` schreiben. */
+  calendarEvent?: CalendarBookStampInput | null;
+  attendeeEmails?: string[] | null;
+  preserveEventPrefillOnChips?: boolean;
+  hoursHint?: string | null;
 }) {
   async function submit(values: TimeBookFormValues) {
     const url = editLineId
@@ -49,6 +68,26 @@ export function MaringoTimeBookDialog({
           (editLineId ? "Änderung fehlgeschlagen" : "Buchung fehlgeschlagen")
       );
     }
+    if (calendarEvent && !editLineId) {
+      const lineId = Number(data.line?.lineId);
+      await fetch("/api/maringo/timekeeping/suggestions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventProvider: "microsoft",
+          eventId: calendarEvent.eventId,
+          calendarId: calendarEvent.calendarId ?? null,
+          eventDate: calendarEvent.eventDate,
+          startHm: calendarEvent.startHm ?? null,
+          endHm: calendarEvent.endHm ?? null,
+          title: calendarEvent.title,
+          memo: values.memoText || null,
+          hours: values.hours,
+          issueId: calendarEvent.issueId ?? values.issueId ?? null,
+          bookedLineId: Number.isInteger(lineId) && lineId > 0 ? lineId : null,
+        }),
+      }).catch(() => undefined);
+    }
     onOpenChange(false);
     onBooked?.();
   }
@@ -63,10 +102,13 @@ export function MaringoTimeBookDialog({
           ) : null}
         </DialogHeader>
         <MaringoTimeBookForm
-          key={`${editLineId || "new"}-${defaults?.issueId || "x"}-${defaults?.projectNumber || ""}-${open}`}
+          key={`${editLineId || "new"}-${defaults?.issueId || "x"}-${defaults?.projectNumber || ""}-${calendarEvent?.eventId || ""}-${open}`}
           defaults={defaults}
           submitLabel={submitLabel}
           onSubmit={submit}
+          attendeeEmails={attendeeEmails}
+          preserveEventPrefillOnChips={preserveEventPrefillOnChips}
+          hoursHint={hoursHint}
         />
       </DialogContent>
     </Dialog>

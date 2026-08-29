@@ -44,6 +44,7 @@ import { HomeWeatherWidget } from "./home-weather-widget";
 import { BagelHoleLabel } from "@/components/ui/bagel-hole-label";
 import { EventArtCard } from "@/components/calendar/event-art-card";
 import { EventDetailDialog } from "@/components/calendar/event-detail-dialog";
+import { EventHoursBookDialog } from "@/components/calendar/event-hours-book-dialog";
 import { EventMariActions } from "@/components/calendar/event-mari-actions";
 import { HomeDutyAbsenceBar } from "@/components/dashboard/home-duty-absence-bar";
 import { HomeNextQueue } from "@/components/dashboard/home-next-queue";
@@ -454,6 +455,8 @@ export function HomeOverview() {
   const [detailEvent, setDetailEvent] = useState<WorkspaceTodayEvent | null>(
     null
   );
+  const [hoursBookEvent, setHoursBookEvent] =
+    useState<WorkspaceTodayEvent | null>(null);
 
   useEffect(() => {
     const sync = () => setTaskDisplay(readMsTaskDisplayPrefs());
@@ -878,13 +881,16 @@ export function HomeOverview() {
                         event={ev}
                         onOpen={() => setDetailEvent(ev)}
                         footer={
-                          ev.mari ? (
+                          ev.provider === "microsoft" || ev.mari ? (
                             <EventMariActions
                               mari={ev.mari}
                               eventDate={ev.date}
                               endTime={ev.endTime}
                               time={ev.time}
                               isAllDay={ev.isAllDay}
+                              provider={ev.provider}
+                              calendarType={ev.calendarType}
+                              onBookHours={() => setHoursBookEvent(ev)}
                             />
                           ) : undefined
                         }
@@ -899,16 +905,38 @@ export function HomeOverview() {
                     if (!next) setDetailEvent(null);
                   }}
                   actions={
-                    detailEvent?.mari ? (
+                    detailEvent ? (
                       <EventMariActions
                         mari={detailEvent.mari}
                         eventDate={detailEvent.date}
                         endTime={detailEvent.endTime}
                         time={detailEvent.time}
                         isAllDay={detailEvent.isAllDay}
+                        provider={detailEvent.provider}
+                        calendarType={detailEvent.calendarType}
+                        onBookHours={() => setHoursBookEvent(detailEvent)}
                       />
                     ) : undefined
                   }
+                />
+                <EventHoursBookDialog
+                  event={hoursBookEvent}
+                  open={Boolean(hoursBookEvent)}
+                  onOpenChange={(next) => {
+                    if (!next) setHoursBookEvent(null);
+                  }}
+                  onBooked={() => {
+                    setHoursBookEvent(null);
+                    void fetch("/api/home/details")
+                      .then(async (res) => {
+                        if (!res.ok) return;
+                        const details = (await res.json()) as HomeDetailsPayload;
+                        setData((prev) =>
+                          prev ? mergeHomeOverviewDetails(prev, details) : prev
+                        );
+                      })
+                      .catch(() => undefined);
+                  }}
                 />
               </CardContent>
             </Card>

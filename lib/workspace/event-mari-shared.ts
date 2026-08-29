@@ -7,6 +7,7 @@ export type WorkspaceEventMari = {
   issueId: number;
   stampStatus: "pending" | "booked" | "dismissed" | null;
   hours: number | null;
+  memo?: string | null;
   cardCode: string | null;
   briefDescription: string | null;
   status: number | null;

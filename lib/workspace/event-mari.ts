@@ -57,6 +57,7 @@ function mariFromParts(
     issueId,
     stampStatus: stamp?.status ?? null,
     hours: stamp?.hours ?? null,
+    memo: stamp?.memo ?? null,
     cardCode: ticket?.cardCode ?? null,
     briefDescription: ticket?.briefDescription ?? null,
     status: ticket?.status ?? null,
@@ -82,7 +83,9 @@ export async function attachMariToEvents<T extends EventMariLinkSource>(
   });
 
   const issueIds = events.map((event, i) => {
-    return stamps[i]?.issueId ?? issueIdFromEvent(event);
+    const fromStamp = stamps[i]?.issueId;
+    if (fromStamp != null && fromStamp > 0) return fromStamp;
+    return issueIdFromEvent(event);
   });
   const tickets = await ticketsByIssueIds(
     issueIds.filter((id): id is number => id != null)
@@ -90,12 +93,31 @@ export async function attachMariToEvents<T extends EventMariLinkSource>(
 
   return events.map((event, i) => {
     const stamp = stamps[i];
-    const issueId = stamp?.issueId ?? issueIds[i];
-    if (issueId == null) return { ...event, mari: null };
-    return {
-      ...event,
-      mari: mariFromParts(issueId, stamp, tickets.get(issueId)),
-    };
+    const issueId = stamp?.issueId && stamp.issueId > 0
+      ? stamp.issueId
+      : issueIds[i];
+    if (issueId != null && issueId > 0) {
+      return {
+        ...event,
+        mari: mariFromParts(issueId, stamp, tickets.get(issueId)),
+      };
+    }
+    if (stamp) {
+      return {
+        ...event,
+        mari: {
+          issueId: 0,
+          stampStatus: stamp.status,
+          hours: stamp.hours,
+          memo: stamp.memo,
+          cardCode: null,
+          briefDescription: null,
+          status: null,
+          statusName: null,
+        },
+      };
+    }
+    return { ...event, mari: null };
   });
 }
 
