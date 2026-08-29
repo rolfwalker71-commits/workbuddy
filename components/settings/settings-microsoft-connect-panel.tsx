@@ -23,6 +23,7 @@ type Connection = {
   hasTasksScope?: boolean;
   hasChatScope?: boolean;
   hasChatMessageSendScope?: boolean;
+  hasChatCreateScope?: boolean;
   hasTeamScope?: boolean;
   hasChannelScope?: boolean;
   hasChannelListScopes?: boolean;
@@ -296,10 +297,11 @@ export function SettingsMicrosoftConnectPanel() {
                     OnlineMeetingTranscript.Read.All, Team.ReadBasic.All,
                     Channel.ReadBasic.All).
                   </p>
-                ) : !data.hasChatMessageSendScope ? (
+                ) : !data.hasChatCreateScope || !data.hasChatMessageSendScope ? (
                   <p className="text-xs text-amber-800">
-                    Teams-Antworten senden braucht ChatMessage.Send — bitte
-                    «Neu verbinden», damit das Token das neue Recht bekommt.
+                    Ticket-Ping und Teams-Antworten brauchen Chat.Create und
+                    ChatMessage.Send — bitte «Neu verbinden», damit das Token
+                    die neuen Rechte bekommt.
                   </p>
                 ) : (
                   <p className="text-xs text-muted-foreground">
@@ -308,6 +310,7 @@ export function SettingsMicrosoftConnectPanel() {
                     {data.hasTasksScope ? " · To Do" : ""}
                     {data.hasChatScope ? " · Teams-Chats" : ""}
                     {data.hasChatMessageSendScope ? " · Teams senden" : ""}
+                    {data.hasChatCreateScope ? " · Chat anlegen" : ""}
                     {data.hasChannelListScopes ? " · Teams-Kanäle" : ""}
                     {data.hasTranscriptScope ? " · Transkripte" : ""}.
                     {!data.hasTasksScope

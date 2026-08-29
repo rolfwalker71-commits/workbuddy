@@ -26,16 +26,20 @@ export function parseTeamsReplyTarget(input: {
   return { kind: "chat", chatId: threadKey };
 }
 
-function graphMessageBody(text: string) {
+function graphMessageBody(
+  text: string,
+  contentType: "text" | "html" = "text"
+) {
   return JSON.stringify({
-    body: { contentType: "text", content: text },
+    body: { contentType, content: text },
   });
 }
 
 export async function sendTeamsChatMessage(
   userId: number,
   chatId: string,
-  body: string
+  body: string,
+  options?: { contentType?: "text" | "html" }
 ): Promise<{ id: string }> {
   const id = chatId.trim();
   const text = body.trim();
@@ -44,7 +48,10 @@ export async function sendTeamsChatMessage(
     const created = await graphJson<{ id?: string }>(
       userId,
       `/me/chats/${encodeURIComponent(id)}/messages`,
-      { method: "POST", body: graphMessageBody(text) }
+      {
+        method: "POST",
+        body: graphMessageBody(text, options?.contentType ?? "text"),
+      }
     );
     if (!created.id) {
       throw new Error("Teams hat keine Nachrichten-Id zurückgegeben.");

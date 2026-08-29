@@ -12,6 +12,7 @@ test("Microsoft scopes include mail + calendar + tasks + Teams read", () => {
   assert.ok(MICROSOFT_OAUTH_SCOPES.includes("Tasks.ReadWrite"));
   assert.ok(MICROSOFT_OAUTH_SCOPES.includes("offline_access"));
   assert.ok(MICROSOFT_OAUTH_SCOPES.includes("Chat.Read"));
+  assert.ok(MICROSOFT_OAUTH_SCOPES.includes("Chat.Create"));
   assert.ok(MICROSOFT_OAUTH_SCOPES.includes("ChatMessage.Read"));
   assert.ok(MICROSOFT_OAUTH_SCOPES.includes("ChatMessage.Send"));
   assert.ok(MICROSOFT_OAUTH_SCOPES.includes("Team.ReadBasic.All"));

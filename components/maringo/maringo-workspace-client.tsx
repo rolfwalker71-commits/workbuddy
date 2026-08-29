@@ -28,6 +28,7 @@ import {
   ListTodo,
   Loader2,
   Lock,
+  Bell,
   Mail,
   MessageSquare,
   MoreHorizontal,
@@ -169,6 +170,7 @@ import {
   type MariTimeSuggestion,
 } from "@/components/maringo/maringo-time-suggestions-panel";
 import { TicketAnalyzeAttachmentPicker } from "@/components/maringo/ticket-analyze-attachment-picker";
+import { TicketColleaguePingDialog } from "@/components/maringo/ticket-colleague-ping-dialog";
 import { TtvDutyChip } from "@/components/maringo/ttv-duty-chip";
 import { TtvDutyPanel } from "@/components/maringo/ttv-duty-panel";
 import { CustomerWorkspacePanel } from "@/components/maringo/customer-workspace-panel";
@@ -837,6 +839,7 @@ export function MaringoWorkspaceClient() {
     {}
   );
   const [analyzePickerOpen, setAnalyzePickerOpen] = useState(false);
+  const [colleaguePingOpen, setColleaguePingOpen] = useState(false);
   const [postingInternalNote, setPostingInternalNote] = useState(false);
   const [translatingReplyDraft, setTranslatingReplyDraft] = useState(false);
   const [replyDraftLang, setReplyDraftLang] = useState<ReplyLang | null>(null);
@@ -3577,6 +3580,7 @@ export function MaringoWorkspaceClient() {
                             </Button>
                           )}
                           {!ticketReview ? (
+                            <>
                           <Button
                             type="button"
                             size="sm"
@@ -3592,6 +3596,18 @@ export function MaringoWorkspaceClient() {
                             <Clock3 className="size-3.5" />
                             Zeit buchen
                           </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            title="Kollegen per Teams über dieses Ticket informieren"
+                            onClick={() => setColleaguePingOpen(true)}
+                            className="whitespace-normal"
+                          >
+                            <Bell className="size-3.5" />
+                            Kollege informieren
+                          </Button>
+                            </>
                           ) : null}
                         </div>
                       </div>
@@ -4399,6 +4415,13 @@ export function MaringoWorkspaceClient() {
             document.body
           )
         : null}
+
+      <TicketColleaguePingDialog
+        open={colleaguePingOpen && detail != null && !ticketReview}
+        onOpenChange={setColleaguePingOpen}
+        issueId={detail?.issueId ?? 0}
+        ticketLabel={detail?.briefDescription ?? ""}
+      />
 
       <TicketAnalyzeAttachmentPicker
         open={analyzePickerOpen && !ticketReview}

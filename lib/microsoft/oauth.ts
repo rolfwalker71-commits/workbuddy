@@ -27,6 +27,7 @@ export const MICROSOFT_OAUTH_SCOPES = [
   "Calendars.ReadWrite",
   "Tasks.ReadWrite",
   "Chat.Read",
+  "Chat.Create",
   "ChatMessage.Read",
   "ChatMessage.Send",
   "Team.ReadBasic.All",
@@ -44,6 +45,8 @@ export type MicrosoftUserTokens = {
   expiryDate?: number | null;
   email?: string | null;
   displayName?: string | null;
+  /** Azure AD object id from Graph `/me` — needed for Chat.Create. */
+  microsoftId?: string | null;
   scope?: string | null;
   updatedAt: string;
 };
@@ -194,6 +197,11 @@ export function hasMicrosoftChatMessageSendScope(
   return scopeHas(scopeSet(userId), "ChatMessage.Send");
 }
 
+/** Create a 1:1 chat — missing until the user re-consents after this grant. */
+export function hasMicrosoftChatCreateScope(userId: number | null): boolean {
+  return scopeHas(scopeSet(userId), "Chat.Create");
+}
+
 export function hasMicrosoftTeamScope(userId: number | null): boolean {
   return scopeHas(scopeSet(userId), "Team.ReadBasic.All");
 }
@@ -246,6 +254,13 @@ export function getConnectedMicrosoftDisplayName(
 ): string | null {
   if (userId == null) return null;
   return readMicrosoftUserTokens(userId)?.displayName?.trim() || null;
+}
+
+export function getConnectedMicrosoftId(
+  userId: number | null
+): string | null {
+  if (userId == null) return null;
+  return readMicrosoftUserTokens(userId)?.microsoftId?.trim() || null;
 }
 
 export function resolveMicrosoftUserId(
@@ -435,6 +450,7 @@ async function exchangeToken(
 }
 
 async function fetchGraphProfile(accessToken: string): Promise<{
+  id: string | null;
   email: string | null;
   displayName: string | null;
 }> {
@@ -443,13 +459,15 @@ async function fetchGraphProfile(accessToken: string): Promise<{
     { headers: { Authorization: `Bearer ${accessToken}` } },
     { label: "Microsoft Graph" }
   );
-  if (!res.ok) return { email: null, displayName: null };
+  if (!res.ok) return { id: null, email: null, displayName: null };
   const me = (await res.json()) as {
+    id?: string | null;
     mail?: string | null;
     userPrincipalName?: string | null;
     displayName?: string | null;
   };
   return {
+    id: me.id?.trim() || null,
     email: (me.mail || me.userPrincipalName || null)?.trim() || null,
     displayName: me.displayName?.trim() || null,
   };
@@ -485,6 +503,7 @@ export async function finishMicrosoftOauth(
     expiryDate: Date.now() + (json.expires_in || 3600) * 1000,
     email: profile.email || existing?.email || null,
     displayName: profile.displayName || existing?.displayName || null,
+    microsoftId: profile.id || existing?.microsoftId || null,
     scope: json.scope || MICROSOFT_OAUTH_SCOPES.join(" "),
     updatedAt: new Date().toISOString(),
   };
@@ -533,6 +552,7 @@ export async function finishMicrosoftLogin(
     expiryDate: Date.now() + (json.expires_in || 3600) * 1000,
     email: profile.email,
     displayName: profile.displayName,
+    microsoftId: profile.id,
     scope: json.scope || MICROSOFT_OAUTH_SCOPES.join(" "),
     updatedAt: new Date().toISOString(),
   };
