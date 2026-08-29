@@ -27,6 +27,7 @@ export function bootstrapDatabase(db: Database.Database): void {
   ensureMailAnalysesProvider(db);
   ensureMariCalendarStampOwner(db);
   ensureTeamsThreadState(db);
+  ensureUserActivityTables(db);
 }
 
 function tableColumnNames(
@@ -157,6 +158,66 @@ function ensureTeamsThreadState(db: Database.Database): void {
   for (const [name, ddl] of adds) {
     if (!names.has(name)) {
       db.exec(`ALTER TABLE teams_thread_state ADD COLUMN ${name} ${ddl}`);
+    }
+  }
+}
+
+function ensureUserActivityTables(db: Database.Database): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_activity_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      username TEXT NOT NULL,
+      event TEXT NOT NULL,
+      detail_json TEXT,
+      session_key TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_activity_log_created
+      ON user_activity_log(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_user_activity_log_event_created
+      ON user_activity_log(event, created_at DESC);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_user_activity_log_session_expired
+      ON user_activity_log(session_key)
+      WHERE event = 'session_expired' AND session_key IS NOT NULL;
+
+    CREATE TABLE IF NOT EXISTS user_activity_sessions (
+      session_key TEXT PRIMARY KEY,
+      user_id INTEGER,
+      username TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      closed_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_activity_sessions_open_expires
+      ON user_activity_sessions(expires_at)
+      WHERE closed_at IS NULL;
+  `);
+  const logCols = tableColumnNames(db, "user_activity_log");
+  const logAdds: Array<[string, string]> = [
+    ["user_id", "INTEGER"],
+    ["username", "TEXT NOT NULL DEFAULT ''"],
+    ["event", "TEXT NOT NULL DEFAULT ''"],
+    ["detail_json", "TEXT"],
+    ["session_key", "TEXT"],
+    ["created_at", "TEXT NOT NULL DEFAULT ''"],
+  ];
+  for (const [name, ddl] of logAdds) {
+    if (!logCols.has(name)) {
+      db.exec(`ALTER TABLE user_activity_log ADD COLUMN ${name} ${ddl}`);
+    }
+  }
+  const sessionCols = tableColumnNames(db, "user_activity_sessions");
+  const sessionAdds: Array<[string, string]> = [
+    ["user_id", "INTEGER"],
+    ["username", "TEXT NOT NULL DEFAULT ''"],
+    ["expires_at", "TEXT NOT NULL DEFAULT ''"],
+    ["closed_at", "TEXT"],
+  ];
+  for (const [name, ddl] of sessionAdds) {
+    if (!sessionCols.has(name)) {
+      db.exec(
+        `ALTER TABLE user_activity_sessions ADD COLUMN ${name} ${ddl}`
+      );
     }
   }
 }

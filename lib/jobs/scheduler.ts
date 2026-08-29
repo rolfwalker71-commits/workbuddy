@@ -67,6 +67,15 @@ async function tick(): Promise<void> {
     if (evening) {
       state.lastResult += ` evening:${evening.sent}/${evening.skipped}`;
     }
+    try {
+      const { expireOpenSessions, pruneOlderThan } = await import(
+        "@/lib/users/activity-log"
+      );
+      expireOpenSessions();
+      pruneOlderThan();
+    } catch (error) {
+      console.warn("[scheduler] activity log:", error);
+    }
   } catch (error) {
     state.lastResult = error instanceof Error ? error.message : String(error);
   } finally {

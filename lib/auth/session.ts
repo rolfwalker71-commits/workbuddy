@@ -1,3 +1,4 @@
+import { hashContent } from "@/lib/utils/hash";
 import {
   SESSION_COOKIE_NAME,
   SESSION_MAX_AGE_SECONDS,
@@ -109,6 +110,21 @@ export async function createSessionToken(
     expiresAt: now + SESSION_MAX_AGE_SECONDS * 1000,
   });
   return `${payload}.${await sign(payload, secret)}`;
+}
+
+/** Stable activity-session key: SHA-256 hex of the raw session cookie token. */
+export function sessionKeyFromToken(token: string): string {
+  return hashContent(token);
+}
+
+/** Decode payload without signature or expiry checks (token we just issued). */
+export function readSessionPayload(
+  token: string | null | undefined
+): SessionPayload | null {
+  if (!token) return null;
+  const [payloadPart] = token.split(".");
+  if (!payloadPart) return null;
+  return decodePayload(payloadPart);
 }
 
 export async function verifySessionToken(

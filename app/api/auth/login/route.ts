@@ -13,9 +13,15 @@ import {
 } from "@/lib/auth/rate-limit";
 import {
   createSessionToken,
+  readSessionPayload,
   sessionCookieOptions,
+  sessionKeyFromToken,
 } from "@/lib/auth/session";
 import { ALL_APP_MODULES, homePathForModules } from "@/lib/users/modules";
+import {
+  openActivitySession,
+  recordActivity,
+} from "@/lib/users/activity-log";
 import {
   effectiveUserModules,
   getAppUserByEmail,
@@ -83,6 +89,8 @@ export async function POST(request: Request) {
 
   let token: string | null = null;
   let home = "/";
+  let activityUserId: number | null = null;
+  let activityUsername = "";
 
   if (adminValid) {
     const { ensureEnvAdminUser } = await import("@/lib/users/resolve-user");
@@ -92,6 +100,8 @@ export async function POST(request: Request) {
       config.sessionSecret
     );
     home = homePathForModules(ALL_APP_MODULES);
+    activityUsername = config.username;
+    activityUserId = getAppUserByUsername(config.username)?.id ?? null;
   } else {
     const user =
       getAppUserByUsername(parsed.data.username) ||
@@ -112,6 +122,8 @@ export async function POST(request: Request) {
       home = homePathForModules(
         effectiveUserModules(user.id, Boolean(user.is_admin))
       );
+      activityUserId = user.id;
+      activityUsername = user.username;
     }
   }
 
@@ -127,5 +139,25 @@ export async function POST(request: Request) {
   const { name, ...options } = sessionCookieOptions();
   const cookieStore = await cookies();
   cookieStore.set(name, token, options);
+
+  try {
+    recordActivity({
+      event: "login",
+      userId: activityUserId,
+      username: activityUsername,
+    });
+    const payload = readSessionPayload(token);
+    if (payload) {
+      openActivitySession({
+        sessionKey: sessionKeyFromToken(token),
+        expiresAt: payload.expiresAt,
+        userId: activityUserId,
+        username: activityUsername,
+      });
+    }
+  } catch {
+    // Logging must never fail login.
+  }
+
   return NextResponse.json({ ok: true, home });
 }

@@ -1,4 +1,6 @@
 import { getSetting, setSetting } from "@/lib/db/migrations";
+import { recordActivity } from "@/lib/users/activity-log";
+import { getAppUserById } from "@/lib/users/queries";
 import type { MsDayMailAnalysis } from "@/lib/microsoft/analyze-mail-day";
 import type { MsMailItem } from "@/lib/microsoft/mail-day";
 import {
@@ -245,6 +247,29 @@ export function isGoogleMailDayJobBusy(
   return true;
 }
 
+function logMailDayAnalysisActivity(
+  userId: number,
+  range: { fromYmd: string; toYmd: string },
+  ok: boolean
+): void {
+  try {
+    const user = getAppUserById(userId);
+    recordActivity({
+      userId,
+      username: user?.username ?? `user:${userId}`,
+      event: "mail_day_analysis",
+      detail: {
+        provider: "google",
+        fromYmd: range.fromYmd,
+        toYmd: range.toYmd,
+        ok,
+      },
+    });
+  } catch {
+    // Logging must never fail the job.
+  }
+}
+
 export function startGoogleMailDayJob(
   userId: number,
   range: { fromYmd: string; toYmd: string; rangeKey: string; dayIso: string }
@@ -297,6 +322,7 @@ export function finishGoogleMailDayJobOk(
     inboxCount: mail.inbox.filter((m) => m.inRange !== false).length,
     sentCount: mail.sent.filter((m) => m.inRange !== false).length,
   });
+  logMailDayAnalysisActivity(userId, range, true);
   return job;
 }
 
@@ -320,5 +346,6 @@ export function finishGoogleMailDayJobError(
     analysis: null,
   };
   writeGoogleMailDayJob(job);
+  logMailDayAnalysisActivity(userId, range, false);
   return job;
 }

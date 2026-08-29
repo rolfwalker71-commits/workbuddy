@@ -263,3 +263,31 @@ CREATE TABLE IF NOT EXISTS teams_thread_state (
 );
 CREATE INDEX IF NOT EXISTS idx_teams_thread_state_inbox
   ON teams_thread_state(user_id, inbox, last_active_at DESC);
+
+CREATE TABLE IF NOT EXISTS user_activity_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER,
+  username TEXT NOT NULL,
+  event TEXT NOT NULL,
+  detail_json TEXT,
+  session_key TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_user_activity_log_created
+  ON user_activity_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_activity_log_event_created
+  ON user_activity_log(event, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_activity_log_session_expired
+  ON user_activity_log(session_key)
+  WHERE event = 'session_expired' AND session_key IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS user_activity_sessions (
+  session_key TEXT PRIMARY KEY,
+  user_id INTEGER,
+  username TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  closed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_user_activity_sessions_open_expires
+  ON user_activity_sessions(expires_at)
+  WHERE closed_at IS NULL;

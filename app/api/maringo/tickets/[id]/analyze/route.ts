@@ -12,6 +12,7 @@ import {
   getMariTicketAnalysis,
   upsertMariTicketAnalysis,
 } from "@/lib/mari/ticket-analysis-store";
+import { recordActivity } from "@/lib/users/activity-log";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -140,6 +141,16 @@ export async function POST(_request: Request, context: Ctx) {
       usage,
       model: usage?.model ?? null,
     });
+    try {
+      recordActivity({
+        userId: auth.userId,
+        username: auth.username,
+        event: "ticket_analysis",
+        detail: { issueId: id, ok: true },
+      });
+    } catch {
+      // Logging must never fail analysis.
+    }
     return NextResponse.json({
       analysis: payload,
       issueId: id,
@@ -152,6 +163,16 @@ export async function POST(_request: Request, context: Ctx) {
       internalNotePostedAt: stored.internalNotePostedAt,
     });
   } catch (err) {
+    try {
+      recordActivity({
+        userId: auth.userId,
+        username: auth.username,
+        event: "ticket_analysis",
+        detail: { issueId: id, ok: false },
+      });
+    } catch {
+      // Logging must never fail analysis.
+    }
     const message =
       err instanceof MariApiError
         ? err.message
