@@ -439,7 +439,7 @@ export function TeamsAnalysisResults({
           <div>
             <p className="text-sm leading-snug">{analysis.summary}</p>
             <p className="mt-1 text-[0.6875rem] text-muted-foreground">
-              {[usedAi ? "Firmen-KI" : null, meta].filter(Boolean).join(" · ")}
+              {[usedAi ? t("common.companyAi") : null, meta].filter(Boolean).join(" · ")}
             </p>
           </div>
           {analysis.clusters.map((cluster, ci) => (
@@ -459,9 +459,9 @@ export function TeamsAnalysisResults({
               ) : null}
 
               {cluster.tasks.length > 0 ? (
-                <SuggestionGroup label="Aufgaben">
-                  {cluster.tasks.map((t) => {
-                    const i = analysis.tasks.indexOf(t);
+                <SuggestionGroup label={t("workspace.tasks")}>
+                  {cluster.tasks.map((task) => {
+                    const i = analysis.tasks.indexOf(task);
                     return (
                       <PickRow
                         key={`t-${ci}-${i}`}
@@ -472,11 +472,15 @@ export function TeamsAnalysisResults({
                             tasks: { ...prev.tasks, [i]: on },
                           }))
                         }
-                        title={t.title}
+                        title={task.title}
                         detail={[
-                          t.dueDate ? `fällig ${toSwissDate(t.dueDate)}` : null,
-                          t.reason,
-                        ]
+                          task.dueDate
+                            ? t("common.dueOn", {
+                                date: toSwissDate(task.dueDate),
+                              })
+                            : null,
+                          task.reason,
+                        ]}
                           .filter(Boolean)
                           .join(" · ")}
                       />
@@ -486,7 +490,7 @@ export function TeamsAnalysisResults({
               ) : null}
 
               {cluster.events.length > 0 ? (
-                <SuggestionGroup label="Termine">
+                <SuggestionGroup label={t("workspace.events")}>
                   {cluster.events.map((ev) => {
                     const i = analysis.events.indexOf(ev);
                     return (
@@ -503,7 +507,7 @@ export function TeamsAnalysisResults({
                         detail={[
                           toSwissDate(ev.date),
                           ev.allDay || !ev.startTime
-                            ? "ganztags"
+                            ? t("workspace.allDayLower")
                             : `${ev.startTime}${ev.endTime ? `–${ev.endTime}` : ""}`,
                           ev.location,
                           ev.reason,
@@ -517,7 +521,7 @@ export function TeamsAnalysisResults({
               ) : null}
 
               {cluster.replies.length > 0 ? (
-                <SuggestionGroup label="Antwort-Entwürfe">
+                <SuggestionGroup label={t("workspace.replyDrafts")}>
                   {cluster.replies.map((r, ri) => {
                     const key = `r-${ci}-${ri}`;
                     const threadKey =
@@ -532,7 +536,7 @@ export function TeamsAnalysisResults({
                       >
                         <div className="flex items-start justify-between gap-2">
                           <p className="text-sm font-medium leading-snug">
-                            An {r.to || "Chat"}
+                            {t("microsoft.toChat", { to: r.to || t("microsoft.chat") })}
                           </p>
                           <div className="flex shrink-0 flex-wrap justify-end gap-1">
                             <Button
@@ -548,7 +552,7 @@ export function TeamsAnalysisResults({
                               ) : (
                                 <Copy className="size-3.5" />
                               )}
-                              {copied === key ? "Kopiert" : "Kopieren"}
+                              {copied === key ? t("common.copied") : t("common.copy")}
                             </Button>
                             <Button
                               type="button"
@@ -563,10 +567,10 @@ export function TeamsAnalysisResults({
                                 <Send className="size-3.5" />
                               )}
                               {busy
-                                ? "Sendet…"
+                                ? t("common.sending")
                                 : sent === key
-                                  ? "Gesendet"
-                                  : "In Teams senden"}
+                                  ? t("microsoft.sent")
+                                  : t("microsoft.sendInTeams")}
                             </Button>
                           </div>
                         </div>
@@ -585,19 +589,14 @@ export function TeamsAnalysisResults({
                           >
                             {canSend === false ? (
                               <>
-                                Text kopiert. Unter{" "}
-                                <a
-                                  href="/account"
-                                  className="font-medium underline underline-offset-2"
-                                >
-                                  Konto
-                                </a>{" "}
-                                Microsoft 365 neu verbinden.
+                                {t("microsoft.copiedReconnect", {
+                                  account: t("common.account"),
+                                })}
                               </>
                             ) : !threadKey ? (
-                              "Kein Chat-Ziel — Text kopiert."
+                              t("microsoft.noChatTarget")
                             ) : (
-                              "Senden nicht möglich — Text kopiert."
+                              t("microsoft.sendNotPossible")
                             )}
                           </p>
                         ) : null}
@@ -606,14 +605,9 @@ export function TeamsAnalysisResults({
                   })}
                   {canSend === false ? (
                     <p className="text-[0.6875rem] text-amber-800">
-                      In Teams senden braucht ChatMessage.Send. Unter{" "}
-                      <a
-                        href="/account"
-                        className="font-medium underline underline-offset-2"
-                      >
-                        Konto
-                      </a>{" "}
-                      Microsoft 365 neu verbinden — Kopieren bleibt möglich.
+                      {t("microsoft.sendNeedsPermission", {
+                        account: t("common.account"),
+                      })}
                     </p>
                   ) : null}
                 </SuggestionGroup>
@@ -624,7 +618,7 @@ export function TeamsAnalysisResults({
                 cluster.replies.length ===
               0 ? (
                 <p className="text-xs text-muted-foreground">
-                  Keine Aufgaben, Termine oder Antworten erkannt.
+                  {t("microsoft.noItemsRecognised")}
                 </p>
               ) : null}
             </div>
@@ -638,17 +632,16 @@ export function TeamsAnalysisResults({
                 disabled={applying || selectedCount === 0}
                 onClick={openConfirm}
               >
-                {`Ausgewählte prüfen (${selectedCount})`}
+                {t("workspace.reviewSelected", { count: selectedCount })}
               </Button>
               <p className="text-[0.6875rem] text-muted-foreground">
-                Eine primäre Aktion: To-do oder Termin — nicht beides. Ticket
-                optional zuordnen. Antworten in Teams senden oder kopieren.
+                {t("microsoft.primaryActionHint")}
               </p>
             </div>
           ) : null}
         </div>
       ) : loading ? (
-        <p className="text-sm text-muted-foreground">Analysiert Chat…</p>
+        <p className="text-sm text-muted-foreground">{t("microsoft.analysingChat")}</p>
       ) : null}
 
       <TeamsApplyConfirmDialog
@@ -687,6 +680,7 @@ export function TeamsApplyConfirmDialog({
   applying?: boolean;
   onApply: (payload: TeamsApplyPayload) => void;
 }) {
+  const t = useT();
   const [primary, setPrimary] = useState<TeamsApplyPrimary>("task");
   const [ticket, setTicket] = useState<MariTicketPick | null>(null);
   const [draftTasks, setDraftTasks] = useState<TeamsAnalysisTask[]>([]);
@@ -735,46 +729,48 @@ export function TeamsApplyConfirmDialog({
               />
             </span>
             <div className="min-w-0">
-              <DialogTitle>Übernehmen</DialogTitle>
-              <DialogDescription>Eine primäre Aktion.</DialogDescription>
+              <DialogTitle>{t("microsoft.apply")}</DialogTitle>
+              <DialogDescription>{t("microsoft.onePrimaryAction")}</DialogDescription>
             </div>
           </div>
         </DialogHeader>
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3">
-          <div className="space-y-2" role="radiogroup" aria-label="Primäre Aktion">
-            <p className="text-sm font-medium">Primäre Aktion wählen</p>
+          <div className="space-y-2" role="radiogroup" aria-label={t("microsoft.primaryAction")}>
+            <p className="text-sm font-medium">{t("microsoft.choosePrimary")}</p>
             {draftTasks.length > 0 ? (
               <PrimaryActionCard
                 checked={primary === "task"}
                 onSelect={() => setPrimary("task")}
-                label="To-do"
-                detail={`Aufgabe in Outlook To Do: ${draftTasks[0]?.title || "Aufgabe"}`}
+                label={t("microsoft.todo")}
+                detail={t("microsoft.todoInOutlook", {
+                  title: draftTasks[0]?.title || t("common.task"),
+                })}
               />
             ) : null}
             {draftEvents.length > 0 ? (
               <PrimaryActionCard
                 checked={primary === "event"}
                 onSelect={() => setPrimary("event")}
-                label="Termin"
-                detail="Termin in meinem Kalender erstellen"
+                label={t("calendarUi.event")}
+                detail={t("microsoft.createEventInCalendar")}
               />
             ) : null}
           </div>
 
           {primary === "task"
-            ? draftTasks.map((t, i) => (
+            ? draftTasks.map((task, i) => (
                 <div
                   key={`dt-${i}`}
                   className="space-y-2 rounded-2xl bg-card p-3 shadow-sm ring-1 ring-border/50"
                 >
                   <p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Aufgabe · Outlook To Do
-                    {t.sourceChatTitle ? ` · ${t.sourceChatTitle}` : ""}
+                    {t("workspace.taskDestToDo")}
+                    {task.sourceChatTitle ? ` · ${task.sourceChatTitle}` : ""}
                   </p>
                   <div className="space-y-1">
-                    <Label>Titel</Label>
+                    <Label>{t("common.title")}</Label>
                     <Input
-                      value={t.title}
+                      value={task.title}
                       onChange={(e) =>
                         setDraftTasks((prev) =>
                           prev.map((x, j) =>
@@ -785,10 +781,10 @@ export function TeamsApplyConfirmDialog({
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label>Fällig</Label>
+                    <Label>{t("microsoft.due")}</Label>
                     <Input
                       type="date"
-                      value={t.dueDate || ""}
+                      value={task.dueDate || ""}
                       onChange={(e) =>
                         setDraftTasks((prev) =>
                           prev.map((x, j) =>
@@ -801,10 +797,10 @@ export function TeamsApplyConfirmDialog({
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label>Notizen</Label>
+                    <Label>{t("microsoft.notes")}</Label>
                     <Textarea
                       rows={3}
-                      value={t.notes || ""}
+                      value={task.notes || ""}
                       onChange={(e) =>
                         setDraftTasks((prev) =>
                           prev.map((x, j) =>
@@ -820,7 +816,7 @@ export function TeamsApplyConfirmDialog({
                 <AnalysisEventDraftCard
                   key={`de-${i}`}
                   event={ev}
-                  calendarLabel="Outlook Kalender"
+                  calendarLabel={t("workspace.outlookCalendar")}
                   slotProvider="microsoft"
                   disabled={applying}
                   onChange={(next) =>
@@ -845,7 +841,7 @@ export function TeamsApplyConfirmDialog({
               onClick={() => onOpenChange(false)}
               disabled={applying}
             >
-              Abbrechen
+              {t("common.cancel")}
             </Button>
             <Button
               type="button"
@@ -884,7 +880,7 @@ export function TeamsApplyConfirmDialog({
                 });
               }}
             >
-              {applying ? "…" : "Übernehmen"}
+              {applying ? "…" : t("microsoft.apply")}
             </Button>
           </div>
         </DialogFooter>

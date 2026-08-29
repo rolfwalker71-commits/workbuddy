@@ -369,8 +369,8 @@ export function MaringoTimeBookForm({
     setError(null);
     setHint(
       preserveEventPrefillOnChips
-        ? `Favorit «${fav.name}» geladen — Stunden und Memo bleiben die Vorlage aus dem Termin.`
-        : `Favorit «${fav.name}» geladen — Datum und Stunden prüfen, dann buchen.`
+        ? t("timekeeping.favoriteLoadedKeep", { name: fav.name })
+        : t("timekeeping.favoriteLoadedCheck", { name: fav.name })
     );
     setProjectNumber(fav.projectNumber);
     setProjectLabel(fav.projectLabel || fav.projectNumber);
@@ -398,8 +398,8 @@ export function MaringoTimeBookForm({
     if (!s.projectNumber) {
       setHint(
         fromAttendee
-          ? `Kunde «${s.name}» — Ansprechpartner im Termin. Projekt wählen.`
-          : `Kunde «${s.name}» aus dem Betreff — Projekt wählen.`
+          ? t("timekeeping.customerNeedProject", { name: s.name })
+          : t("timekeeping.customerFromSubject", { name: s.name })
       );
       setProjectQuery(s.name);
       setProjectOpen(true);
@@ -407,8 +407,8 @@ export function MaringoTimeBookForm({
     }
     setHint(
       fromAttendee
-        ? `Vorschlag «${s.name}» — Ansprechpartner im Termin. Projekt prüfen, dann buchen. Stunden und Memo bleiben die Vorlage.`
-        : `Vorschlag «${s.name}» — Projekt prüfen, dann buchen. Stunden und Memo bleiben die Vorlage.`
+        ? t("timekeeping.suggestionNeedProjectKeep", { name: s.name })
+        : t("timekeeping.suggestionNeedProject", { name: s.name })
     );
     setProjectNumber(s.projectNumber);
     setProjectLabel(
@@ -533,14 +533,15 @@ export function MaringoTimeBookForm({
         const name = (favoriteName.trim() || activity.trim()).slice(0, 80);
         try {
           await persistFavorite(name);
-          setHint(`Favorit «${name}» gespeichert.`);
+          setHint(t("timekeeping.favoriteSaved", { name }));
           setSaveAsFavorite(false);
           setFavoriteName("");
         } catch (favErr) {
           setHint(
-            `Gebucht, aber Favorit nicht gespeichert: ${
-              favErr instanceof Error ? favErr.message : String(favErr)
-            }`
+            t("timekeeping.bookedButFavoriteFailed", {
+              error:
+                favErr instanceof Error ? favErr.message : String(favErr),
+            })
           );
         }
       }
@@ -571,7 +572,7 @@ export function MaringoTimeBookForm({
     setBusy(true);
     try {
       await persistFavorite(name);
-      setHint(`Favorit «${name}» gespeichert.`);
+      setHint(t("timekeeping.favoriteSaved", { name }));
       setSaveAsFavorite(false);
       setFavoriteName("");
     } catch (err) {

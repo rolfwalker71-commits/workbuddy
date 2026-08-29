@@ -149,7 +149,7 @@ export function NotificationPrefsPanel() {
       try {
         const res = await fetch("/api/me/notification-prefs");
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || "Laden fehlgeschlagen");
+        if (!res.ok) throw new Error(data.error || t("common.loadFailed"));
         setPrefs(mergeNotificationPrefs(data.prefs));
         setCatalog(Array.isArray(data.catalog) ? data.catalog : []);
       } catch (err) {
@@ -162,9 +162,7 @@ export function NotificationPrefsPanel() {
       try {
         if (typeof window !== "undefined" && !window.isSecureContext) {
           setPushStatus("unsupported");
-          setError(
-            "Diese Seite läuft nicht über HTTPS — Web Push unter Windows braucht HTTPS (oder localhost)."
-          );
+          setError(t("account.pushNeedsHttpsPage"));
           // still check vapid so status text isn't misleading
         }
         const res = await fetch("/api/push/vapid-public-key");
@@ -184,7 +182,7 @@ export function NotificationPrefsPanel() {
           setPushStatus(configured ? "unsupported" : "off");
           return;
         }
-        await ensureServiceWorkerRegistration().catch(() => null);
+        await ensureServiceWorkerRegistration(t).catch(() => null);
         const reg = await navigator.serviceWorker.ready;
         const sub = await reg.pushManager.getSubscription();
         setPushStatus(sub ? "on" : "off");
@@ -192,7 +190,7 @@ export function NotificationPrefsPanel() {
         setPushStatus("off");
       }
     })();
-  }, []);
+  }, [t]);
 
   const byDomain = useMemo(() => {
     const map: Record<CatalogItem["domain"], CatalogItem[]> = {
@@ -218,9 +216,9 @@ export function NotificationPrefsPanel() {
         body: JSON.stringify(prefs),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Speichern fehlgeschlagen");
+      if (!res.ok) throw new Error(data.error || t("common.saveFailed"));
       setPrefs(mergeNotificationPrefs(data.prefs));
-      setMessage("Benachrichtigungs-Einstellungen gespeichert.");
+      setMessage(t("account.notifySaved"));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -241,32 +239,25 @@ export function NotificationPrefsPanel() {
     setMessage(null);
     try {
       if (!window.isSecureContext) {
-        throw new Error(
-          "Kein HTTPS. Unter Windows Buddy über die öffentliche HTTPS-URL öffnen (nicht http://IP:3100)."
-        );
+        throw new Error(t("account.pushHttpsWin"));
       }
       const keyRes = await fetch("/api/push/vapid-public-key");
       const keyJson = await keyRes.json();
       if (!keyRes.ok || !keyJson.publicKey) {
-        throw new Error(
-          keyJson.error ||
-            "VAPID-Keys konnten nicht geladen werden."
-        );
+        throw new Error(keyJson.error || t("account.vapidLoadFailed"));
       }
       const perm = await Notification.requestPermission();
       setDesktopPermission(perm);
       if (perm !== "granted") {
-        throw new Error(
-          "Benachrichtigungen wurden nicht erlaubt (Browser- oder Windows-Einstellung)."
-        );
+        throw new Error(t("account.notifyNotAllowed"));
       }
 
       // Windows Chromium: permission dialog can race ahead of PushManager.
       await new Promise((r) => setTimeout(r, 250));
 
-      const reg = await ensureServiceWorkerRegistration();
+      const reg = await ensureServiceWorkerRegistration(t);
       if (!reg.pushManager) {
-        throw new Error("PushManager fehlt in diesem Browser.");
+        throw new Error(t("account.noPushManager"));
       }
 
       const existing = await reg.pushManager.getSubscription();
@@ -300,21 +291,19 @@ export function NotificationPrefsPanel() {
         throw new Error(
           typeof body.error === "string"
             ? `${body.error} (HTTP ${res.status})`
-            : `Subscribe fehlgeschlagen (HTTP ${res.status})`
+            : t("account.subscribeFailed", { status: res.status })
         );
       }
       const confirmed = await reg.pushManager.getSubscription();
       if (!confirmed) {
-        throw new Error(
-          "Subscription wurde vom Browser verworfen. Windows-Benachrichtigungen für Chrome/Edge prüfen."
-        );
+        throw new Error(t("account.subDiscarded"));
       }
       setPushStatus("on");
       setPrefs((p) => ({ ...p, desktopEnabled: true }));
-      setMessage("Push aktiv — auch bei geschlossener App.");
+      setMessage(t("account.pushActive"));
     } catch (err) {
       setPushStatus("off");
-      setError(explainPushError(err));
+      setError(explainPushError(err, t));
     }
   }
 
@@ -333,7 +322,7 @@ export function NotificationPrefsPanel() {
         await sub.unsubscribe();
       }
       setPushStatus("off");
-      setMessage("Push deaktiviert.");
+      setMessage(t("account.pushDisabled"));
     } catch (err) {
       setPushStatus("off");
       setError(err instanceof Error ? err.message : String(err));
@@ -342,34 +331,30 @@ export function NotificationPrefsPanel() {
 
   if (loading) {
     return (
-      <p className="text-sm text-muted-foreground">Lade Einstellungen…</p>
+      <p className="text-sm text-muted-foreground">{t("account.loadingSettings")}</p>
     );
   }
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-muted-foreground">
-        Live-Toasts bei offenem Tab; Desktop-Toasts im Hintergrund-Tab; Web Push
-        (VAPID) auch bei geschlossener App — z. B. Tagesabschluss oder
-        Mail-Tagesanalyse. Events unten nach Modul filtern. Pro Benutzer
-        speicherbar.
-      </p>
+      <p className="text-xs text-muted-foreground">{t("account.notifyHint")}</p>
 
       <div className="space-y-3 rounded-xl border border-border/60 bg-muted/30 px-3 py-3">
-        <p className="text-sm font-medium text-foreground">Web Push</p>
+        <p className="text-sm font-medium text-foreground">{t("account.webPush")}</p>
         <p className="text-xs text-muted-foreground">
-          Status:{" "}
-          {!pushConfigured
-            ? "VAPID nicht bereit"
-            : pushStatus === "on"
-              ? "aktiv"
-              : pushStatus === "unsupported"
-                ? window.isSecureContext === false
-                  ? "braucht HTTPS"
-                  : "Browser unterstützt Push nicht"
-                : pushStatus === "busy"
-                  ? "…"
-                  : "aus"}
+          {t("account.pushStatus", {
+            state: !pushConfigured
+              ? t("account.vapidNotReady")
+              : pushStatus === "on"
+                ? t("account.pushOn")
+                : pushStatus === "unsupported"
+                  ? window.isSecureContext === false
+                    ? t("account.needsHttps")
+                    : t("account.pushUnsupported")
+                  : pushStatus === "busy"
+                    ? "…"
+                    : t("account.pushOff"),
+          })}
         </p>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -385,7 +370,7 @@ export function NotificationPrefsPanel() {
             }
             onClick={() => void enableWebPush()}
           >
-            Push aktivieren
+            {t("account.enablePush")}
           </Button>
           <Button
             type="button"
@@ -394,7 +379,7 @@ export function NotificationPrefsPanel() {
             disabled={pushStatus !== "on"}
             onClick={() => void disableWebPush()}
           >
-            Push aus
+            {t("account.pushOffBtn")}
           </Button>
         </div>
         {error ? (
@@ -417,10 +402,10 @@ export function NotificationPrefsPanel() {
         />
         <div className="min-w-0 space-y-1">
           <Label htmlFor="notifEnabled" className="cursor-pointer">
-            Live-Benachrichtigungen
+            {t("account.liveNotifications")}
           </Label>
           <p className="text-xs text-muted-foreground">
-            Toasts bei Ticket-, Mail- und Kalender-Ereignissen.
+            {t("account.liveNotificationsHint")}
           </p>
         </div>
       </div>
@@ -438,10 +423,10 @@ export function NotificationPrefsPanel() {
         />
         <div className="min-w-0 space-y-1">
           <Label htmlFor="notifSound" className="cursor-pointer">
-            Ton («Bling»)
+            {t("account.soundBling")}
           </Label>
           <p className="text-xs text-muted-foreground">
-            Kurzer Hinweis-Ton beim Aufpoppen (Browser kann Autoplay blocken).
+            {t("account.soundHint")}
           </p>
         </div>
       </div>
@@ -461,20 +446,19 @@ export function NotificationPrefsPanel() {
             />
             <div className="min-w-0 space-y-1">
               <Label htmlFor="notifDesktop" className="cursor-pointer">
-                Desktop-Benachrichtigungen (Windows)
+                {t("account.desktopWindows")}
               </Label>
               <p className="text-xs text-muted-foreground">
-                Windows-/Browser-Toast, wenn Buddy im Hintergrund-Tab läuft.
-                Der Tab muss geöffnet bleiben (nicht komplett schliessen).
+                {t("account.desktopHint")}
               </p>
               <p className="text-xs text-muted-foreground">
-                Browser-Erlaubnis:{" "}
+                {t("account.browserPermission")}{" "}
                 <strong>
                   {desktopPermission === "granted"
-                    ? "erteilt"
+                    ? t("account.permGranted")
                     : desktopPermission === "denied"
-                      ? "blockiert — in den Browser-Einstellungen für diese Seite erlauben"
-                      : "noch nicht erteilt"}
+                      ? t("account.permDenied")
+                      : t("account.permDefault")}
                 </strong>
               </p>
             </div>
@@ -491,30 +475,26 @@ export function NotificationPrefsPanel() {
                   setDesktopPermission(perm);
                   if (perm === "granted") {
                     setPrefs((p) => ({ ...p, desktopEnabled: true }));
-                    setMessage(
-                      "Desktop-Benachrichtigungen erlaubt. Speichern nicht vergessen."
-                    );
+                    setMessage(t("account.desktopAllowed"));
                   } else if (perm === "denied") {
-                    setError(
-                      "Desktop-Benachrichtigungen wurden vom Browser blockiert."
-                    );
+                    setError(t("account.desktopBlocked"));
                   }
                 })();
               }}
             >
-              Desktop-Benachrichtigungen erlauben
+              {t("account.allowDesktop")}
             </Button>
           ) : null}
         </div>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Dieser Browser unterstützt keine Desktop-Benachrichtigungen.
+          {t("account.noDesktop")}
         </p>
       )}
 
       <div className="flex flex-wrap items-center gap-2">
         <Label htmlFor="notifDuration" className="text-xs text-muted-foreground">
-          Anzeigedauer
+          {t("account.durationLabel")}
         </Label>
         <Input
           id="notifDuration"
@@ -530,7 +510,7 @@ export function NotificationPrefsPanel() {
             setPrefs((p) => ({ ...p, durationSec: n }));
           }}
         />
-        <span className="text-xs text-muted-foreground">Sekunden (3–60)</span>
+        <span className="text-xs text-muted-foreground">{t("account.durationSec")}</span>
       </div>
 
       {(["microsoft", "google", "maringo", "app"] as const).map((domain) => {
@@ -541,7 +521,9 @@ export function NotificationPrefsPanel() {
             key={domain}
             className="space-y-2 rounded-xl border border-border/60 p-3"
           >
-            <p className="text-sm font-medium">{DOMAIN_LABEL[domain]}</p>
+            <p className="text-sm font-medium">
+              {DOMAIN_KEY[domain] ? t(DOMAIN_KEY[domain]) : "WorkBuddy"}
+            </p>
             <div className="space-y-2">
               {items.map((item) => (
                 <label
@@ -555,7 +537,7 @@ export function NotificationPrefsPanel() {
                     checked={prefs.events[item.reason] !== false}
                     onChange={(e) => toggleEvent(item.reason, e.target.checked)}
                   />
-                  {item.label}
+                  {notifyReasonDisplayLabel(item.reason, locale)}
                 </label>
               ))}
             </div>
@@ -569,7 +551,7 @@ export function NotificationPrefsPanel() {
       ) : null}
 
       <Button disabled={saving} onClick={() => void save()}>
-        {saving ? "Speichern…" : "Benachrichtigungen speichern"}
+        {saving ? t("common.saving") : t("account.saveNotifications")}
       </Button>
     </div>
   );

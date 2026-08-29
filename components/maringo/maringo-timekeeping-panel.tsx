@@ -39,6 +39,36 @@ import {
   MARI_SECONDARY_FLYOUT_WIDTH_CLASS,
   useFlyoutPresence,
 } from "@/components/maringo/maringo-flyout-chrome";
+import { useT } from "@/components/i18n/locale-provider";
+import type { MessageKey } from "@/lib/i18n";
+
+const PERIOD_KEYS: Record<MariTimePeriod, MessageKey> = {
+  day: "timekeeping.periodDay",
+  week: "timekeeping.periodWeek",
+  month: "timekeeping.periodMonth",
+  quarter: "timekeeping.periodQuarter",
+};
+
+const PERIOD_PREV: Record<MariTimePeriod, MessageKey> = {
+  day: "timekeeping.previousDay",
+  week: "timekeeping.previousWeek",
+  month: "timekeeping.previousMonth",
+  quarter: "timekeeping.previousQuarter",
+};
+
+const PERIOD_NEXT: Record<MariTimePeriod, MessageKey> = {
+  day: "timekeeping.nextDay",
+  week: "timekeeping.nextWeek",
+  month: "timekeeping.nextMonth",
+  quarter: "timekeeping.nextQuarter",
+};
+
+const PERIOD_OVERVIEW: Record<MariTimePeriod, MessageKey> = {
+  day: "timekeeping.dayOverview",
+  week: "timekeeping.weekOverview",
+  month: "timekeeping.monthOverview",
+  quarter: "timekeeping.quarterOverview",
+};
 
 function zurichTodayYmd(): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -49,12 +79,7 @@ function zurichTodayYmd(): string {
   }).format(new Date());
 }
 
-const PERIOD_OPTIONS: { id: MariTimePeriod; label: string }[] = [
-  { id: "day", label: "Tag" },
-  { id: "week", label: "Woche" },
-  { id: "month", label: "Monat" },
-  { id: "quarter", label: "Quartal" },
-];
+const PERIOD_IDS: MariTimePeriod[] = ["day", "week", "month", "quarter"];
 
 export type MariTicketTimePanel = "book" | "lines" | "both";
 
@@ -73,6 +98,7 @@ export function MaringoTimekeepingPanel({
   bookDefaults?: TimeBookFormDefaults | null;
   onTicketLinesChange?: (lines: MariTimeLine[]) => void;
 }) {
+  const t = useT();
   const ticketMode = ticketIssueId != null && ticketIssueId > 0;
   const showBookForm = ticketMode && ticketPanel !== "lines";
   const showLinesOverview = !ticketMode || ticketPanel !== "book";
@@ -155,7 +181,7 @@ export function MaringoTimekeepingPanel({
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || "Buchungen laden fehlgeschlagen");
+        throw new Error(data.error || t("timekeeping.loadBookingsFailed"));
       }
       setLines((data.lines || []) as MariTimeLine[]);
       setTotalHours(Number(data.totalHours) || 0);
@@ -187,7 +213,7 @@ export function MaringoTimekeepingPanel({
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           throw new Error(
-            data.error || "Ticket-Buchungen laden fehlgeschlagen"
+            data.error || t("timekeeping.loadTicketBookingsFailed")
           );
         }
         applyLines((data.lines || []) as MariTimeLine[]);
@@ -234,7 +260,7 @@ export function MaringoTimekeepingPanel({
       body: JSON.stringify(payload),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Buchung fehlgeschlagen");
+    if (!res.ok) throw new Error(data.error || t("timekeeping.bookFailed"));
     const line = data.line as MariTimeLine | undefined;
     const warn =
       (line?.warning || "").trim() ||
@@ -242,13 +268,21 @@ export function MaringoTimekeepingPanel({
     const wasDuplicate = duplicateDefaults != null;
     setStatus(
       [
-        `${wasDuplicate ? "Dupliziert" : "Gebucht"}: ${values.hours} h auf ${formatMariProjectLabel(
-          values.projectNumber,
-          values.projectLabel
-        )}` +
-          (payload.issueId ? ` (Ticket #${payload.issueId})` : "") +
+        t("timekeeping.bookedOn", {
+          verb: wasDuplicate
+            ? t("timekeeping.duplicated")
+            : t("timekeeping.booked"),
+          hours: values.hours,
+          project: formatMariProjectLabel(
+            values.projectNumber,
+            values.projectLabel
+          ),
+        }) +
+          (payload.issueId
+            ? t("timekeeping.bookedTicketSuffix", { id: payload.issueId })
+            : "") +
           (line?.lineId ? ` · #${line.lineId}` : ""),
-        warn ? `Hinweis: ${warn}` : null,
+        warn ? t("timekeeping.hintPrefix", { warn }) : null,
       ]
         .filter(Boolean)
         .join(" — ")
@@ -265,7 +299,7 @@ export function MaringoTimekeepingPanel({
   ): Promise<TimeBookFormDefaults> {
     const res = await fetch(`/api/maringo/timekeeping/lines/${line.lineId}`);
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Buchung laden fehlgeschlagen");
+    if (!res.ok) throw new Error(data.error || t("timekeeping.loadLineFailed"));
     const full = data.line as {
       serviceDate: string;
       projectNumber: string;
@@ -313,7 +347,7 @@ export function MaringoTimekeepingPanel({
 
   async function openEdit(line: MariTimeLine) {
     if (line.approved) {
-      setError("Freigegebene Buchungen können nicht geändert werden.");
+      setError(t("timekeeping.cannotEditReleased"));
       return;
     }
     setError(null);
@@ -369,13 +403,16 @@ export function MaringoTimekeepingPanel({
       }
     );
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Änderung fehlgeschlagen");
+    if (!res.ok) throw new Error(data.error || t("timekeeping.patchFailed"));
     const line = data.line as MariTimeLine | undefined;
     setStatus(
-      `Geändert: ${values.hours} h auf ${formatMariProjectLabel(
-        values.projectNumber,
-        values.projectLabel
-      )}` + (line?.lineId ? ` · #${line.lineId}` : "")
+      t("timekeeping.changedOn", {
+        hours: values.hours,
+        project: formatMariProjectLabel(
+          values.projectNumber,
+          values.projectLabel
+        ),
+      }) + (line?.lineId ? ` · #${line.lineId}` : "")
     );
     setEditLine(null);
     setEditDefaults(null);
@@ -385,15 +422,19 @@ export function MaringoTimekeepingPanel({
 
   async function removeLine(line: MariTimeLine) {
     if (line.approved) {
-      setError("Freigegebene Buchungen können nicht gelöscht werden.");
+      setError(t("timekeeping.cannotDeleteReleased"));
       return;
     }
     if (
       !window.confirm(
-        `Buchung #${line.lineId} (${line.hours} h, ${formatMariProjectLabel(
-          line.projectNumber,
-          line.projectCustomer
-        )}) wirklich löschen?`
+        t("timekeeping.confirmDeleteLine", {
+          id: line.lineId,
+          hours: line.hours,
+          project: formatMariProjectLabel(
+            line.projectNumber,
+            line.projectCustomer
+          ),
+        })
       )
     ) {
       return;
@@ -406,8 +447,8 @@ export function MaringoTimekeepingPanel({
         method: "DELETE",
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Löschen fehlgeschlagen");
-      setStatus(`Gelöscht: Buchung #${line.lineId}`);
+      if (!res.ok) throw new Error(data.error || t("timekeeping.deleteFailed"));
+      setStatus(t("timekeeping.deletedLine", { id: line.lineId }));
       await reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -417,14 +458,8 @@ export function MaringoTimekeepingPanel({
   }
 
   const overviewTitle = ticketMode
-    ? "Buchungen zu diesem Ticket"
-    : period === "day"
-      ? "Tagesübersicht"
-      : period === "week"
-        ? "Wochenübersicht"
-        : period === "month"
-          ? "Monatsübersicht"
-          : "Quartalsübersicht";
+    ? t("timekeeping.bookingsForTicket")
+    : t(PERIOD_OVERVIEW[period]);
 
   const formDefaults: TimeBookFormDefaults = {
     dayOfService: date,
@@ -441,10 +476,10 @@ export function MaringoTimekeepingPanel({
   };
   const isDuplicateMode = duplicateDefaults != null;
   const bookSubmitLabel = isDuplicateMode
-    ? "Duplikat buchen"
+    ? t("timekeeping.bookDuplicate")
     : ticketMode
-      ? "Auf Ticket buchen"
-      : "Buchen";
+      ? t("timekeeping.bookOnTicket")
+      : t("common.book");
 
   return (
     <div className={cn("space-y-4", className)}>
@@ -465,7 +500,7 @@ export function MaringoTimekeepingPanel({
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm">
                 <Clock3 className="size-4" strokeWidth={APP_ICON_STROKE} />
-                {`Zeit auf Ticket #${ticketIssueId} buchen`}
+                {t("timekeeping.bookTimeOnTicket", { id: ticketIssueId })}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -493,12 +528,22 @@ export function MaringoTimekeepingPanel({
                       <p className="mt-0.5 text-[0.6875rem] text-muted-foreground">
                         {periodHint}
                         {fromDate !== toDate
-                          ? ` · ${lines.length} Buchungen`
+                          ? ` · ${t("timekeeping.bookingsCountPlural", { count: lines.length })}`
                           : loading
-                            ? " · Lade…"
-                            : ` · ${lines.length} Buchung${lines.length === 1 ? "" : "en"}`}
+                            ? ` · ${t("common.loading")}`
+                            : ` · ${
+                                lines.length === 1
+                                  ? t("timekeeping.bookingsCount", {
+                                      count: lines.length,
+                                    })
+                                  : t("timekeeping.bookingsCountPlural", {
+                                      count: lines.length,
+                                    })
+                              }`}
                         {overtimeHours != null
-                          ? ` · Überstunden ${formatOvertimeHours(overtimeHours)}`
+                          ? t("timekeeping.overtimeValue", {
+                              hours: formatOvertimeHours(overtimeHours),
+                            })
                           : ""}
                       </p>
                     ) : null}
@@ -513,15 +558,7 @@ export function MaringoTimekeepingPanel({
                         onClick={() =>
                           setDate(shiftTimePeriodAnchor(date, period, -1))
                         }
-                        aria-label={
-                          period === "day"
-                            ? "Vorheriger Tag"
-                            : period === "week"
-                              ? "Vorherige Woche"
-                              : period === "month"
-                                ? "Vorheriger Monat"
-                                : "Vorheriges Quartal"
-                        }
+                        aria-label={t(PERIOD_PREV[period])}
                       >
                         <ChevronLeft
                           className="size-4"
@@ -530,7 +567,7 @@ export function MaringoTimekeepingPanel({
                       </Button>
                       <div className="space-y-1">
                         <Label htmlFor="tk-day" className="sr-only">
-                          Ankerdatum
+                          {t("timekeeping.anchorDate")}
                         </Label>
                         <Input
                           id="tk-day"
@@ -548,15 +585,7 @@ export function MaringoTimekeepingPanel({
                         onClick={() =>
                           setDate(shiftTimePeriodAnchor(date, period, 1))
                         }
-                        aria-label={
-                          period === "day"
-                            ? "Nächster Tag"
-                            : period === "week"
-                              ? "Nächste Woche"
-                              : period === "month"
-                                ? "Nächster Monat"
-                                : "Nächstes Quartal"
-                        }
+                        aria-label={t(PERIOD_NEXT[period])}
                       >
                         <ChevronRight
                           className="size-4"
@@ -571,7 +600,7 @@ export function MaringoTimekeepingPanel({
                       className="size-8"
                       onClick={() => void reload()}
                       disabled={loading}
-                      aria-label="Aktualisieren"
+                      aria-label={t("common.refresh")}
                     >
                       <RefreshCw
                         className={cn("size-4", loading && "animate-spin")}
@@ -588,7 +617,7 @@ export function MaringoTimekeepingPanel({
                       }}
                     >
                       <Plus className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-                      Stunden buchen
+                      {t("timekeeping.bookHours")}
                     </Button>
                   </div>
                 </div>
@@ -596,24 +625,24 @@ export function MaringoTimekeepingPanel({
                 <div
                   className="inline-flex flex-wrap gap-1 rounded-lg border border-border/60 bg-muted/30 p-1"
                   role="group"
-                  aria-label="Zeitraum"
+                  aria-label={t("timekeeping.period")}
                 >
-                  {PERIOD_OPTIONS.map((opt) => (
+                  {PERIOD_IDS.map((id) => (
                     <Button
-                      key={opt.id}
+                      key={id}
                       type="button"
                       variant="ghost"
                       size="sm"
                       className={cn(
                         "h-auto rounded-md px-2.5 py-1 text-xs font-medium",
-                        period === opt.id
+                        period === id
                           ? "bg-background text-foreground shadow-sm"
                           : "text-muted-foreground hover:text-foreground"
                       )}
-                      aria-pressed={period === opt.id}
-                      onClick={() => setPeriod(opt.id)}
+                      aria-pressed={period === id}
+                      onClick={() => setPeriod(id)}
                     >
-                      {opt.label}
+                      {t(PERIOD_KEYS[id])}
                     </Button>
                   ))}
                 </div>
@@ -624,16 +653,34 @@ export function MaringoTimekeepingPanel({
                   nonBillableHours={nonBillableHours}
                   overtimeHours={overtimeHours}
                   overtimeHint={
-                    period === "day" ? "Saldo" : `Stand ${formatPeriodLabel("day", date, date)}`
+                    period === "day"
+                      ? t("timekeeping.saldo")
+                      : t("timekeeping.stand", {
+                          label: formatPeriodLabel("day", date, date),
+                        })
                   }
                   footnote={
                     loading
-                      ? "Lade Buchungen…"
+                      ? t("timekeeping.loadingBookings")
                       : periodHint
-                        ? `${lines.length} Buchung${lines.length === 1 ? "" : "en"} · ${periodHint}`
-                        : `${lines.length} Buchung${lines.length === 1 ? "" : "en"}`
+                        ? `${
+                            lines.length === 1
+                              ? t("timekeeping.bookingsCount", {
+                                  count: lines.length,
+                                })
+                              : t("timekeeping.bookingsCountPlural", {
+                                  count: lines.length,
+                                })
+                          } · ${periodHint}`
+                        : lines.length === 1
+                          ? t("timekeeping.bookingsCount", {
+                              count: lines.length,
+                            })
+                          : t("timekeeping.bookingsCountPlural", {
+                              count: lines.length,
+                            })
                   }
-                  totalHint="Zeitraum"
+                  totalHint={t("timekeeping.period")}
                 />
               </div>
 
@@ -647,10 +694,10 @@ export function MaringoTimekeepingPanel({
                   variant="table"
                   emptyText={
                     loading
-                      ? "Lade Buchungen…"
+                      ? t("timekeeping.loadingBookings")
                       : period === "day"
-                        ? "Keine Buchungen an diesem Tag."
-                        : "Keine Buchungen in diesem Zeitraum."
+                        ? t("timekeeping.noBookingsDay")
+                        : t("timekeeping.noBookingsPeriod")
                   }
                   onEdit={(l) => void openEdit(l)}
                   onDuplicate={(l) => void openDuplicate(l)}
@@ -668,8 +715,14 @@ export function MaringoTimekeepingPanel({
                       <CardTitle className="text-sm">{overviewTitle}</CardTitle>
                       <p className="mt-0.5 text-[0.6875rem] text-muted-foreground">
                         {loading
-                          ? "Lade…"
-                          : `${lines.length} Buchung${lines.length === 1 ? "" : "en"}`}
+                          ? t("common.loading")
+                          : lines.length === 1
+                            ? t("timekeeping.bookingsCount", {
+                                count: lines.length,
+                              })
+                            : t("timekeeping.bookingsCountPlural", {
+                                count: lines.length,
+                              })}
                       </p>
                     </div>
                     <Button
@@ -679,7 +732,7 @@ export function MaringoTimekeepingPanel({
                       className="size-8"
                       onClick={() => void reload()}
                       disabled={loading}
-                      aria-label="Aktualisieren"
+                      aria-label={t("common.refresh")}
                     >
                       <RefreshCw
                         className={cn("size-4", loading && "animate-spin")}
@@ -698,8 +751,8 @@ export function MaringoTimekeepingPanel({
                   summaryVariant="chart"
                   emptyText={
                     loading
-                      ? "Lade Buchungen…"
-                      : "Noch keine Stundenbuchungen auf dieses Ticket."
+                      ? t("timekeeping.loadingBookings")
+                      : t("timekeeping.noBookingsOnTicket")
                   }
                   onEdit={(l) => void openEdit(l)}
                   onDuplicate={(l) => void openDuplicate(l)}
@@ -723,17 +776,19 @@ export function MaringoTimekeepingPanel({
                   bookFlyoutPresence.entered ? "opacity-100" : "opacity-0"
                 )}
                 style={{ transitionDuration: `${MARI_FLYOUT_MS}ms` }}
-                aria-label="Flyout schliessen"
+                aria-label={t("tickets.closeFlyout")}
                 onClick={closeBookFlyout}
               />
               <MariSecondaryFlyoutShell
                 title={
-                  isDuplicateMode ? "Buchung duplizieren" : "Stundenbuchung"
+                  isDuplicateMode
+                    ? t("timekeeping.duplicateBooking")
+                    : t("timekeeping.hoursEntry")
                 }
                 description={
                   isDuplicateMode
-                    ? "Datum und Stunden anpassen, dann speichern"
-                    : "Neue Zeit erfassen"
+                    ? t("timekeeping.adjustThenSave")
+                    : t("timekeeping.captureNewTime")
                 }
                 onClose={closeBookFlyout}
                 widthClass={MARI_SECONDARY_FLYOUT_WIDTH_CLASS}
@@ -776,21 +831,22 @@ export function MaringoTimekeepingPanel({
         <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              Buchung ändern
+              {t("timekeeping.editBooking")}
               {editLine ? ` · #${editLine.lineId}` : ""}
             </DialogTitle>
             <DialogDescription>
-              Speichern ersetzt die Zeile in MARI (löschen + neu anlegen).
-              Ticket-Verknüpfung bleibt erhalten.
+              {t("timekeeping.editBookingHint")}
             </DialogDescription>
           </DialogHeader>
           {editLoading || !editDefaults ? (
-            <p className="text-sm text-muted-foreground">Lade Buchung…</p>
+            <p className="text-sm text-muted-foreground">
+              {t("timekeeping.loadingLine")}
+            </p>
           ) : (
             <MaringoTimeBookForm
               key={`edit-${editLine?.lineId}`}
               defaults={editDefaults}
-              submitLabel="Speichern"
+              submitLabel={t("common.save")}
               onSubmit={saveEdit}
             />
           )}
