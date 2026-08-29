@@ -17,7 +17,7 @@ import {
   partnerSuggestionChipLabel,
   partnerSuggestionChipReason,
   type MariEmailPartnerSuggestion,
-} from "@/lib/mari/customers";
+} from "@/lib/mari/customers-shared";
 import { MariKeyPairPicker } from "@/components/maringo/mari-key-pair-picker";
 
 export type TimeBookFormDefaults = {
