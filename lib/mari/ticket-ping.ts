@@ -134,10 +134,7 @@ export async function pingColleagueAboutTicket(input: {
     });
     return { chatId, messageId: sent.id, created };
   } catch (error) {
-    const message = teamsChatUserMessage(
-      error,
-      targetingSelf ? "Chat.Create" : "ChatMessage.Send"
-    );
+    const message = teamsChatUserMessage(error, "Chat.Create");
     if (message) throw new Error(message);
     throw error;
   }

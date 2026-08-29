@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { MicrosoftGraphError } from "./graph.ts";
 import {
+  chatLooksLikeSelfChat,
+  graphErrorCode,
   isSelfOnlyChat,
   oneOnOneChatMatchesPeer,
+  selfChatTopicMatch,
   targetIsSelfPeer,
   teamsChatUserMessage,
 } from "./teams-chats.ts";
@@ -62,6 +65,65 @@ test("isSelfOnlyChat is true only when every member is the current user", () => 
     false
   );
   assert.equal(isSelfOnlyChat([], "me-aad"), false);
+  assert.equal(
+    isSelfOnlyChat([{ displayName: "Ich" }], "me-aad"),
+    true
+  );
+  assert.equal(
+    isSelfOnlyChat(
+      [{ email: "me@an-group.one", displayName: "Ich" }],
+      "other-id",
+      ["me@an-group.one"]
+    ),
+    true
+  );
+});
+
+test("selfChatTopicMatch accepts Selbst / yourself topics", () => {
+  assert.equal(selfChatTopicMatch("Chat mit dir selbst"), true);
+  assert.equal(selfChatTopicMatch("Chat mit mir"), true);
+  assert.equal(selfChatTopicMatch("Chat with yourself"), true);
+  assert.equal(selfChatTopicMatch("Notes"), true);
+  assert.equal(selfChatTopicMatch("Technische Abstimmung"), false);
+});
+
+test("chatLooksLikeSelfChat finds one-member, topic, or me-only chats", () => {
+  assert.equal(
+    chatLooksLikeSelfChat(
+      {
+        chatType: "oneOnOne",
+        topic: "Chat mit dir selbst",
+        members: [],
+      },
+      "me-aad"
+    ),
+    true
+  );
+  assert.equal(
+    chatLooksLikeSelfChat(
+      {
+        chatType: "oneOnOne",
+        topic: null,
+        members: [{ displayName: "Rolf" }],
+      },
+      "me-aad"
+    ),
+    true
+  );
+  assert.equal(
+    chatLooksLikeSelfChat(
+      {
+        chatType: "oneOnOne",
+        topic: "Chat with yourself",
+        members: [
+          { userId: "me-aad", email: "me@an-group.one" },
+          { userId: "other-aad", email: "anna@an-group.one" },
+        ],
+      },
+      "me-aad"
+    ),
+    false
+  );
 });
 
 test("targetIsSelfPeer matches own AAD id or mail", () => {
@@ -91,4 +153,16 @@ test("teamsChatUserMessage maps Graph 405/403 without raw JSON", () => {
     "Chat.Create fehlt. Unter Konto Microsoft 365 neu verbinden."
   );
   assert.equal(teamsChatUserMessage(new Error("other"), "Chat.Create"), null);
+});
+
+test("teamsChatUserMessage includes Graph status and code on 400", () => {
+  const err = new MicrosoftGraphError(
+    400,
+    '{"error":{"code":"BadRequest","message":"One member"}}'
+  );
+  assert.equal(graphErrorCode(err.body), "BadRequest");
+  assert.match(
+    teamsChatUserMessage(err, "Chat.Create") || "",
+    /Chat nicht angelegt \(400 BadRequest\)/
+  );
 });

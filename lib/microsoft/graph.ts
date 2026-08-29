@@ -72,6 +72,12 @@ export async function graphJson<T>(
   const res = await graphFetch(userId, path, init);
   const text = await res.text();
   if (!res.ok) {
+    const pathHint = path.startsWith("http")
+      ? path.replace(/^https:\/\/graph\.microsoft\.com\/v1\.0/i, "")
+      : path;
+    console.warn(
+      `[graph] error user=${userId} status=${res.status} path=${pathHint.slice(0, 180)} body=${text.slice(0, 800)}`
+    );
     throw new MicrosoftGraphError(res.status, text);
   }
   if (!text) return {} as T;

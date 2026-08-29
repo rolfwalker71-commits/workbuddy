@@ -1,4 +1,9 @@
-import { graphJson, getMicrosoftMe, MicrosoftGraphError } from "@/lib/microsoft/graph";
+import {
+  graphJson,
+  getMicrosoftMe,
+  MicrosoftGraphError,
+  type MicrosoftMe,
+} from "@/lib/microsoft/graph";
 import { previewText, stripGraphHtml } from "@/lib/microsoft/teams-text";
 
 export type TeamsChatType = "oneOnOne" | "group" | "meeting" | "unknown";
@@ -36,7 +41,10 @@ type GraphChat = {
     displayName?: string | null;
     email?: string | null;
     userId?: string | null;
+    user?: { id?: string | null; displayName?: string | null } | null;
   }>;
+  isHiddenForAllMembers?: boolean | null;
+  viewpoint?: { isHidden?: boolean | null } | null;
   lastMessagePreview?: {
     createdDateTime?: string | null;
     body?: { content?: string | null } | null;
@@ -267,27 +275,73 @@ function normEmail(raw: string | null | undefined): string {
   return (raw || "").trim().toLowerCase();
 }
 
+type ChatMeLike = {
+  id?: string | null;
+  mail?: string | null;
+  userPrincipalName?: string | null;
+};
+
+function meEmailsFrom(
+  myEmails?: Array<string | null | undefined>
+): Set<string> {
+  return new Set((myEmails || []).map(normEmail).filter(Boolean));
+}
+
+function memberUserId(
+  member: NonNullable<GraphChat["members"]>[number]
+): string {
+  return member.userId?.trim() || member.user?.id?.trim() || "";
+}
+
+function memberIsMe(
+  member: NonNullable<GraphChat["members"]>[number],
+  myId: string | null,
+  myEmails: Set<string>
+): boolean {
+  const uid = memberUserId(member);
+  if (myId && uid && uid === myId) return true;
+  const email = normEmail(member.email);
+  return Boolean(email && myEmails.has(email));
+}
+
 function otherChatMembers(
   members: GraphChat["members"],
-  myId: string | null
+  myId: string | null,
+  myEmails?: Array<string | null | undefined>
 ): NonNullable<GraphChat["members"]> {
+  const emails = meEmailsFrom(myEmails);
   return (members || []).filter((m) => {
-    const uid = m.userId?.trim();
-    if (myId && uid && uid === myId) return false;
-    return Boolean(uid || m.email?.trim() || m.displayName?.trim());
+    if (memberIsMe(m, myId, emails)) return false;
+    return Boolean(
+      memberUserId(m) || m.email?.trim() || m.displayName?.trim()
+    );
+  });
+}
+
+/** Someone else with an AAD id or email — displayName alone is not a peer. */
+function identifiedOtherMembers(
+  members: GraphChat["members"],
+  myId: string | null,
+  myEmails?: Array<string | null | undefined>
+): NonNullable<GraphChat["members"]> {
+  const emails = meEmailsFrom(myEmails);
+  return (members || []).filter((m) => {
+    if (memberIsMe(m, myId, emails)) return false;
+    return Boolean(memberUserId(m) || m.email?.trim());
   });
 }
 
 export function oneOnOneChatMatchesPeer(
   members: GraphChat["members"],
   myId: string | null,
-  target: { microsoftId?: string | null; email?: string | null }
+  target: { microsoftId?: string | null; email?: string | null },
+  myEmails?: Array<string | null | undefined>
 ): boolean {
   const wantId = target.microsoftId?.trim() || "";
   const wantEmail = normEmail(target.email);
   if (!wantId && !wantEmail) return false;
-  return otherChatMembers(members, myId).some((m) => {
-    const uid = m.userId?.trim() || "";
+  return otherChatMembers(members, myId, myEmails).some((m) => {
+    const uid = memberUserId(m);
     const email = normEmail(m.email);
     return (wantId && uid === wantId) || (wantEmail && email === wantEmail);
   });
@@ -296,16 +350,52 @@ export function oneOnOneChatMatchesPeer(
 /** 1:1 / notes chat that only contains the signed-in user (Chat with self). */
 export function isSelfOnlyChat(
   members: GraphChat["members"],
-  myId: string | null
+  myId: string | null,
+  myEmails?: Array<string | null | undefined>
 ): boolean {
   const list = members || [];
-  if (!list.length || !myId) return false;
-  if (otherChatMembers(list, myId).length > 0) return false;
-  return list.some((m) => m.userId?.trim() === myId);
+  if (identifiedOtherMembers(list, myId, myEmails).length > 0) return false;
+  if (list.length === 1) return true;
+  if (!list.length) return false;
+  const emails = meEmailsFrom(myEmails);
+  if (!myId && emails.size === 0) return false;
+  return list.some((m) => memberIsMe(m, myId, emails));
+}
+
+/** Graph topic for «Chat with yourself» / «Chat mit dir selbst». */
+export function selfChatTopicMatch(
+  topic: string | null | undefined
+): boolean {
+  const t = (topic || "").normalize("NFKC").trim().toLowerCase();
+  if (!t) return false;
+  if (/\bchat with (your)?self\b/.test(t)) return true;
+  if (/\bchat mit (dir|mir|sich) selbst\b/.test(t)) return true;
+  if (t === "chat mit mir" || t === "chat with me") return true;
+  if (/\bselbst-?chat\b/.test(t)) return true;
+  if (t === "notes") return true;
+  if (/\byourself\b/.test(t)) return true;
+  return /\bchat\b/.test(t) && /\bselbst\b/.test(t);
+}
+
+/** Self-chat: all members are me, one member, or Selbst/yourself topic. */
+export function chatLooksLikeSelfChat(
+  chat: Pick<GraphChat, "chatType" | "topic" | "members">,
+  myId: string | null,
+  myEmails?: Array<string | null | undefined>
+): boolean {
+  const type = asChatType(chat.chatType);
+  if (type !== "oneOnOne" && type !== "unknown") return false;
+  if (selfChatTopicMatch(chat.topic)) {
+    const identifiable =
+      Boolean(myId) || meEmailsFrom(myEmails).size > 0;
+    if (!identifiable) return (chat.members || []).length <= 1;
+    return identifiedOtherMembers(chat.members, myId, myEmails).length === 0;
+  }
+  return isSelfOnlyChat(chat.members, myId, myEmails);
 }
 
 export function targetIsSelfPeer(
-  me: { id?: string | null; mail?: string | null; userPrincipalName?: string | null },
+  me: ChatMeLike,
   target: { microsoftId?: string | null; email?: string | null }
 ): boolean {
   const meId = me.id?.trim() || "";
@@ -317,6 +407,22 @@ export function targetIsSelfPeer(
     normEmail(me.mail) === wantEmail ||
     normEmail(me.userPrincipalName) === wantEmail
   );
+}
+
+export function graphErrorCode(body: string | null | undefined): string | null {
+  if (!body?.trim()) return null;
+  try {
+    const parsed = JSON.parse(body) as { error?: { code?: string } };
+    const code = parsed.error?.code?.trim();
+    return code || null;
+  } catch {
+    return null;
+  }
+}
+
+function graphErrorSuffix(error: MicrosoftGraphError): string {
+  const code = graphErrorCode(error.body);
+  return code ? `${error.status} ${code}` : `Fehler ${error.status}`;
 }
 
 export function teamsChatUserMessage(
@@ -332,54 +438,129 @@ export function teamsChatUserMessage(
   }
   if (error.status === 400) {
     return missingScope === "Chat.Create"
-      ? "Teams hat den Chat nicht angelegt. Bitte später erneut versuchen."
-      : "Teams hat die Nachricht nicht angenommen. Bitte später erneut versuchen.";
+      ? `Teams hat den Chat nicht angelegt (${graphErrorSuffix(error)}). Bitte später erneut versuchen.`
+      : `Teams hat die Nachricht nicht angenommen (${graphErrorSuffix(error)}). Bitte später erneut versuchen.`;
   }
-  return `Teams hat die Aktion nicht angenommen (Fehler ${error.status}). Bitte später erneut versuchen.`;
+  return `Teams hat die Aktion nicht angenommen (${graphErrorSuffix(error)}). Bitte später erneut versuchen.`;
 }
 
 function throwTeamsChatGraphError(
   error: unknown,
   missingScope: "Chat.Create" | "ChatMessage.Send"
 ): never {
+  if (error instanceof MicrosoftGraphError) {
+    console.warn(
+      `[teams-chats] ${missingScope} status=${error.status} body=${error.body.slice(0, 800)}`
+    );
+  }
   const message = teamsChatUserMessage(error, missingScope);
   if (message) throw new Error(message);
   throw error;
 }
 
+type GraphChatPage = {
+  value?: GraphChat[];
+  "@odata.nextLink"?: string;
+};
+
+const CHAT_PAGE_SIZE = 50;
+const CHAT_MAX_PAGES = 20;
+
+function graphNextLink(next: string | null | undefined): string | null {
+  return next?.trim() || null;
+}
+
+function chatsListPath(
+  kind: "filter-expand-select" | "expand-select" | "expand" | "plain"
+): string {
+  const qs = new URLSearchParams();
+  qs.set("$top", String(CHAT_PAGE_SIZE));
+  if (kind === "filter-expand-select" || kind === "expand-select") {
+    qs.set("$select", "id,topic,chatType,lastUpdatedDateTime");
+    qs.set("$expand", "members($select=id,displayName,email,userId)");
+  } else if (kind === "expand") {
+    qs.set("$expand", "members");
+  }
+  if (kind === "filter-expand-select") {
+    qs.set("$filter", "chatType eq 'oneOnOne'");
+  }
+  return `/me/chats?${qs}`;
+}
+
+const CHAT_LIST_KINDS = [
+  "filter-expand-select",
+  "expand-select",
+  "expand",
+  "plain",
+] as const;
+
+async function resolveChatMe(userId: number): Promise<MicrosoftMe | null> {
+  try {
+    return await getMicrosoftMe(userId);
+  } catch {
+    return null;
+  }
+}
+
+function meEmails(me: MicrosoftMe | null): string[] {
+  if (!me) return [];
+  return [me.mail, me.userPrincipalName];
+}
+
+async function pagedFindChat(
+  userId: number,
+  match: (chat: GraphChat, me: MicrosoftMe | null) => boolean
+): Promise<string | null> {
+  const me = await resolveChatMe(userId);
+  let lastError: MicrosoftGraphError | null = null;
+  for (const kind of CHAT_LIST_KINDS) {
+    try {
+      let url: string | null = chatsListPath(kind);
+      let pages = 0;
+      while (url && pages < CHAT_MAX_PAGES) {
+        pages += 1;
+        const page = await graphJson<GraphChatPage>(userId, url);
+        for (const chat of page.value || []) {
+          if (chat.id && match(chat, me)) return chat.id;
+        }
+        url = graphNextLink(page["@odata.nextLink"]);
+      }
+      return null;
+    } catch (error) {
+      if (!(error instanceof MicrosoftGraphError)) throw error;
+      lastError = error;
+    }
+  }
+  if (lastError && lastError.status === 403) return null;
+  if (lastError) throw lastError;
+  return null;
+}
+
 async function listGraphChatsWithMembers(
   userId: number
-): Promise<{ chats: GraphChat[]; myId: string | null }> {
-  let myId: string | null = null;
-  try {
-    myId = (await getMicrosoftMe(userId)).id;
-  } catch {
-    myId = null;
+): Promise<{ chats: GraphChat[]; myId: string | null; me: MicrosoftMe | null }> {
+  const me = await resolveChatMe(userId);
+  const myId = me?.id?.trim() || null;
+  let lastError: MicrosoftGraphError | null = null;
+  for (const kind of CHAT_LIST_KINDS) {
+    try {
+      const chats: GraphChat[] = [];
+      let url: string | null = chatsListPath(kind);
+      let pages = 0;
+      while (url && pages < CHAT_MAX_PAGES) {
+        pages += 1;
+        const page = await graphJson<GraphChatPage>(userId, url);
+        chats.push(...(page.value || []));
+        url = graphNextLink(page["@odata.nextLink"]);
+      }
+      return { chats, myId, me };
+    } catch (error) {
+      if (!(error instanceof MicrosoftGraphError)) throw error;
+      lastError = error;
+    }
   }
-  const qs = new URLSearchParams({
-    $top: "50",
-    $select: "id,topic,chatType,lastUpdatedDateTime",
-    $expand: "members",
-    $filter: "chatType eq 'oneOnOne'",
-  });
-  let data: { value?: GraphChat[] };
-  try {
-    data = await graphJson<{ value?: GraphChat[] }>(
-      userId,
-      `/me/chats?${qs}`
-    );
-  } catch (error) {
-    if (!(error instanceof MicrosoftGraphError)) throw error;
-    const plain = new URLSearchParams({
-      $top: "50",
-      $expand: "members",
-    });
-    data = await graphJson<{ value?: GraphChat[] }>(
-      userId,
-      `/me/chats?${plain}`
-    );
-  }
-  return { chats: data.value || [], myId };
+  if (lastError) throw lastError;
+  return { chats: [], myId, me };
 }
 
 /** 1:1 chat partners we can resolve without User.Read.All. */
@@ -387,15 +568,16 @@ export async function listOneOnOneChatPeers(
   userId: number
 ): Promise<TeamsChatPeer[]> {
   try {
-    const { chats, myId } = await listGraphChatsWithMembers(userId);
+    const { chats, myId, me } = await listGraphChatsWithMembers(userId);
+    const emails = meEmails(me);
     const out: TeamsChatPeer[] = [];
     const seen = new Set<string>();
     for (const chat of chats) {
       if (!chat.id || asChatType(chat.chatType) !== "oneOnOne") continue;
-      const others = otherChatMembers(chat.members, myId);
+      const others = otherChatMembers(chat.members, myId, emails);
       const other = others[0];
       if (!other) continue;
-      const microsoftId = other.userId?.trim() || null;
+      const microsoftId = memberUserId(other) || null;
       const email = other.email?.trim() || null;
       const key = (microsoftId || email || "").toLowerCase();
       if (!key || seen.has(key)) continue;
@@ -422,12 +604,16 @@ export async function findExistingOneOnOneChat(
 ): Promise<string | null> {
   if (!target.microsoftId?.trim() && !target.email?.trim()) return null;
   try {
-    const { chats, myId } = await listGraphChatsWithMembers(userId);
-    for (const chat of chats) {
-      if (!chat.id || asChatType(chat.chatType) !== "oneOnOne") continue;
-      if (oneOnOneChatMatchesPeer(chat.members, myId, target)) return chat.id;
-    }
-    return null;
+    return await pagedFindChat(userId, (chat, me) => {
+      const type = asChatType(chat.chatType);
+      if (type !== "oneOnOne" && type !== "unknown") return false;
+      return oneOnOneChatMatchesPeer(
+        chat.members,
+        me?.id?.trim() || null,
+        target,
+        meEmails(me)
+      );
+    });
   } catch (error) {
     if (error instanceof MicrosoftGraphError && error.status === 403) {
       return null;
@@ -469,15 +655,9 @@ export async function findExistingSelfChat(
   userId: number
 ): Promise<string | null> {
   try {
-    const { chats, myId } = await listGraphChatsWithMembers(userId);
-    if (!myId) return null;
-    for (const chat of chats) {
-      if (!chat.id) continue;
-      const type = asChatType(chat.chatType);
-      if (type !== "oneOnOne" && type !== "unknown") continue;
-      if (isSelfOnlyChat(chat.members, myId)) return chat.id;
-    }
-    return null;
+    return await pagedFindChat(userId, (chat, me) =>
+      chatLooksLikeSelfChat(chat, me?.id?.trim() || null, meEmails(me))
+    );
   } catch (error) {
     if (error instanceof MicrosoftGraphError && error.status === 403) {
       return null;
@@ -486,8 +666,11 @@ export async function findExistingSelfChat(
   }
 }
 
-/** POST /chats with only the current user — Graph «chat with self». */
+/** Graph does not reliably create self-chat — reuse the existing thread. */
 export async function createSelfChat(userId: number): Promise<string> {
+  const existing = await findExistingSelfChat(userId);
+  if (existing) return existing;
+
   let meId: string | null = null;
   try {
     meId = (await getMicrosoftMe(userId)).id?.trim() || null;
@@ -502,16 +685,20 @@ export async function createSelfChat(userId: number): Promise<string> {
   try {
     return await postCreateChat(userId, [memberBinding(meId)]);
   } catch (error) {
-    const existing = await findExistingSelfChat(userId);
-    if (existing) return existing;
+    const again = await findExistingSelfChat(userId);
+    if (again) return again;
     if (
       error instanceof Error &&
       /Chat\.Create fehlt|neu verbinden/i.test(error.message)
     ) {
       throw error;
     }
+    const detail =
+      error instanceof Error && error.message.trim()
+        ? ` ${error.message}`
+        : "";
     throw new Error(
-      "Teams hat den Selbst-Chat nicht angelegt. Öffne in Teams einmal «Chat mit dir selbst», dann hier erneut senden."
+      `Selbst-Chat in der Teams-Liste nicht gefunden.${detail}`.trim()
     );
   }
 }
@@ -525,7 +712,7 @@ export async function getOrCreateSelfChat(
   return { chatId, created: true };
 }
 
-/** POST /chats — Chat.Create. Graph may return an existing 1:1. */
+/** POST /chats — both members required. Graph may return an existing 1:1. */
 export async function createOneOnOneChat(
   userId: number,
   target: { microsoftId?: string | null; email?: string | null }
@@ -534,7 +721,7 @@ export async function createOneOnOneChat(
   if (!otherKey) {
     throw new Error("Kollege hat keine Microsoft-Id und keine E-Mail.");
   }
-  let me: Awaited<ReturnType<typeof getMicrosoftMe>> | null = null;
+  let me: MicrosoftMe | null = null;
   try {
     me = await getMicrosoftMe(userId);
   } catch {
@@ -544,17 +731,28 @@ export async function createOneOnOneChat(
     return createSelfChat(userId);
   }
   const meId = me?.id?.trim() || null;
-  const members = meId
-    ? [memberBinding(meId), memberBinding(otherKey)]
-    : [memberBinding(otherKey)];
-  return postCreateChat(userId, members);
+  if (!meId) {
+    throw new Error(
+      "Microsoft-Konto ohne Benutzer-Id. Unter Konto Microsoft 365 neu verbinden."
+    );
+  }
+  try {
+    return await postCreateChat(userId, [
+      memberBinding(meId),
+      memberBinding(otherKey),
+    ]);
+  } catch (error) {
+    const existing = await findExistingOneOnOneChat(userId, target);
+    if (existing) return existing;
+    throw error;
+  }
 }
 
 export async function getOrCreateOneOnOneChat(
   userId: number,
   target: { microsoftId?: string | null; email?: string | null }
 ): Promise<{ chatId: string; created: boolean }> {
-  let me: Awaited<ReturnType<typeof getMicrosoftMe>> | null = null;
+  let me: MicrosoftMe | null = null;
   try {
     me = await getMicrosoftMe(userId);
   } catch {
