@@ -8,6 +8,7 @@ import {
   ChevronsRight,
   LayoutDashboard,
   LogOut,
+  ScrollText,
   Settings,
   UserRound,
   Users,
@@ -71,6 +72,12 @@ const NAV: NavItem[] = [
     href: "/account",
     label: "Konto",
     icon: <UserRound className="size-4" strokeWidth={APP_ICON_STROKE} />,
+  },
+  {
+    href: "/activity",
+    label: "Aktivitätslog",
+    adminOnly: true,
+    icon: <ScrollText className="size-4" strokeWidth={APP_ICON_STROKE} />,
   },
   {
     href: "/settings",

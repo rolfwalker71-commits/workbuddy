@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Settings, UserRound, Users } from "lucide-react";
+import { LayoutDashboard, ScrollText, Settings, UserRound, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import {
@@ -60,6 +60,12 @@ export function MobileDock() {
       href: "/account",
       label: "Konto",
       icon: <UserRound className="size-4" strokeWidth={APP_ICON_STROKE} />,
+    },
+    {
+      href: "/activity",
+      label: "Aktivitätslog",
+      adminOnly: true,
+      icon: <ScrollText className="size-4" strokeWidth={APP_ICON_STROKE} />,
     },
     {
       href: "/settings",

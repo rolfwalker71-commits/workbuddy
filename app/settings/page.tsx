@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/layout/page-primitives";
 import { pageVisuals } from "@/components/layout/icon-circle";
-import { SettingsActivityPanel } from "@/components/settings/settings-activity-panel";
 import { SettingsUsersPanel } from "@/components/settings/settings-users-panel";
 import { SettingsCompanyAiPanel } from "@/components/settings/settings-company-ai-panel";
 import { SettingsTeamsModulePanel } from "@/components/settings/settings-teams-module-panel";
@@ -36,7 +35,7 @@ export default function SettingsPage() {
     <div className="space-y-8 pb-28 md:pb-0">
       <PageHeader
         title="Einstellungen"
-        description="User, Aktivitätslog und gemeinsame Server-Secrets (nur Admin)."
+        description="User, Module und gemeinsame Server-Secrets (nur Admin)."
         icon={pageVisuals.settings.icon}
         tone={pageVisuals.settings.tone}
       />
@@ -75,7 +74,6 @@ export default function SettingsPage() {
 
       <SettingsTeamsModulePanel />
       <SettingsCompanyAiPanel />
-      <SettingsActivityPanel />
       <SettingsUsersPanel />
     </div>
   );

@@ -41,6 +41,7 @@ function isPublicPath(pathname: string): boolean {
   return false;
 }
 
+/** Shared routes for limited users. Admin-only pages (/settings, /activity) stay off this list. */
 function isAlwaysAllowedForLimitedUser(pathname: string): boolean {
   if (pathname === "/api/auth/me" || pathname === "/api/auth/logout") {
     return true;
