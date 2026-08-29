@@ -10,7 +10,7 @@ import { normalizeMariEmployeeNumber } from "@/lib/mari/tickets";
 import {
   addDaysYmd,
   approvalStatusLabel,
-  contractFieldsFromMariRow,
+  applyMariContractFields,
   findMariKeyPair,
   firstPositiveInt,
   formatPeriodLabel,
@@ -155,23 +155,56 @@ const TIME_LINE_SQL_SELECT_CORE = `
   i."AddressMatchcode" AS "AddressMatchcode"
 `;
 
-const TIME_LINE_SQL_SELECT = `${TIME_LINE_SQL_SELECT_CORE},
-  t."ContractID"`;
+/**
+ * View-Spalten variieren. Reichste Variante zuerst; Treffer wird gecacht,
+ * damit fehlende ContractID/AbsID nicht jede Liste erneut scheitern lassen.
+ */
+const TIME_LINE_SQL_CONTRACT_SUFFIXES = [
+  `,
+  t."ContractID",
+  t."AbsID",
+  t."Contract",
+  t."ContractName",
+  t."ContractPositionID",
+  t."ContractPosition"`,
+  `,
+  t."ContractID",
+  t."AbsID",
+  t."ContractPositionID"`,
+  `,
+  t."ContractID",
+  t."ContractPositionID"`,
+  `,
+  t."ContractID"`,
+  "",
+] as const;
+
+let timeLineSqlContractSuffix: string | undefined;
 
 async function mariSqlTimeLines(
   top: number,
   fromWhereOrder: string
 ): Promise<Record<string, unknown>[]> {
   const tail = `SELECT TOP ${top}\n`;
-  try {
-    return await mariSql<Record<string, unknown>>(
-      `${tail}${TIME_LINE_SQL_SELECT}\n${fromWhereOrder}`
-    );
-  } catch {
-    return mariSql<Record<string, unknown>>(
-      `${tail}${TIME_LINE_SQL_SELECT_CORE}\n${fromWhereOrder}`
-    );
+  const suffixes =
+    timeLineSqlContractSuffix !== undefined
+      ? [timeLineSqlContractSuffix]
+      : [...TIME_LINE_SQL_CONTRACT_SUFFIXES];
+  let lastErr: unknown;
+  for (const suffix of suffixes) {
+    try {
+      const rows = await mariSql<Record<string, unknown>>(
+        `${tail}${TIME_LINE_SQL_SELECT_CORE}${suffix}\n${fromWhereOrder}`
+      );
+      timeLineSqlContractSuffix = suffix;
+      return rows;
+    } catch (err) {
+      lastErr = err;
+    }
   }
+  throw lastErr instanceof Error
+    ? lastErr
+    : new MariApiError("Zeitbuchungen konnten nicht gelesen werden.", 502);
 }
 
 async function enrichTimeLinesProjectCustomer(
@@ -208,8 +241,8 @@ async function enrichTimeLinesContracts(
   if (lines.length === 0) return lines;
   const needLookup = new Set<string>();
   for (const l of lines) {
-    if (l.contractId <= 0) continue;
-    if (l.contractNumber && l.contractName) continue;
+    if (l.contractId <= 0 && !l.contractNumber) continue;
+    if (l.contractNumber && l.contractName && l.contractId > 0) continue;
     const pn = l.projectNumber.trim();
     if (pn) needLookup.add(pn);
   }
@@ -225,25 +258,98 @@ async function enrichTimeLinesContracts(
     })
   );
   return lines.map((l) => {
-    if (l.contractId <= 0) return l;
-    if (l.contractNumber && l.contractName) return l;
-    const hit = findMariKeyPair(
-      byPn.get(l.projectNumber.trim()) || [],
-      l.contractId
-    );
+    if (l.contractId <= 0 && !l.contractNumber) return l;
+    if (l.contractNumber && l.contractName && l.contractId > 0) return l;
+    const options = byPn.get(l.projectNumber.trim()) || [];
+    const hit =
+      findMariKeyPair(options, l.contractId > 0 ? l.contractId : null) ||
+      findMariKeyPair(options, l.contractNumber);
     if (!hit) return l;
     const number = (hit.keyVisible || "").trim() || null;
     const name = (hit.matchcode || "").trim() || null;
+    const id = firstPositiveInt(l.contractId, hit.keyInternal);
     return {
       ...l,
+      contractId: id > 0 ? id : l.contractId,
       contractNumber: l.contractNumber || number,
       contractName: l.contractName || name,
     };
   });
 }
 
+async function enrichTimeLinesPositions(
+  lines: MariTimeLine[]
+): Promise<MariTimeLine[]> {
+  if (lines.length === 0) return lines;
+  const need = new Set<number>();
+  for (const l of lines) {
+    if (l.contractPositionId <= 0 || l.contractId <= 0) continue;
+    if (l.contractPositionNumber && l.contractPositionName) continue;
+    need.add(l.contractId);
+  }
+  if (need.size === 0) return lines;
+  const byContract = new Map<number, MariKeyPair[]>();
+  await Promise.all(
+    [...need].map(async (cid) => {
+      try {
+        byContract.set(cid, await listContractPositionsForTimeKeeping(cid));
+      } catch {
+        /* Positionsbezeichnung optional */
+      }
+    })
+  );
+  return lines.map((l) => {
+    if (l.contractPositionId <= 0) return l;
+    if (l.contractPositionNumber && l.contractPositionName) return l;
+    const hit = findMariKeyPair(
+      byContract.get(l.contractId) || [],
+      l.contractPositionId
+    );
+    if (!hit) return l;
+    return {
+      ...l,
+      contractPositionNumber:
+        l.contractPositionNumber || (hit.keyVisible || "").trim() || null,
+      contractPositionName:
+        l.contractPositionName || (hit.matchcode || "").trim() || null,
+    };
+  });
+}
+
+const REST_CONTRACT_CONCURRENCY = 8;
+
+async function enrichTimeLinesFromRest(
+  lines: MariTimeLine[]
+): Promise<MariTimeLine[]> {
+  const needIdx = lines
+    .map((l, i) =>
+      l.lineId > 0 && (l.contractId <= 0 || l.contractPositionId <= 0) ? i : -1
+    )
+    .filter((i) => i >= 0);
+  if (needIdx.length === 0) return lines;
+  const next = lines.slice();
+  for (let i = 0; i < needIdx.length; i += REST_CONTRACT_CONCURRENCY) {
+    const batch = needIdx.slice(i, i + REST_CONTRACT_CONCURRENCY);
+    await Promise.all(
+      batch.map(async (idx) => {
+        const line = next[idx]!;
+        try {
+          const raw = await getTimeKeepingLine(line.lineId);
+          next[idx] = { ...line, ...applyMariContractFields(line, raw) };
+        } catch {
+          /* REST optional — SQL-Werte bleiben */
+        }
+      })
+    );
+  }
+  return next;
+}
+
 async function enrichTimeLines(lines: MariTimeLine[]): Promise<MariTimeLine[]> {
-  return enrichTimeLinesContracts(await enrichTimeLinesProjectCustomer(lines));
+  const withIds = await enrichTimeLinesFromRest(lines);
+  const withCustomer = await enrichTimeLinesProjectCustomer(withIds);
+  const withContracts = await enrichTimeLinesContracts(withCustomer);
+  return enrichTimeLinesPositions(withContracts);
 }
 
 function mapSqlLine(r: Record<string, unknown>): MariTimeLine {
@@ -281,7 +387,7 @@ function mapSqlLine(r: Record<string, unknown>): MariTimeLine {
     hours,
     hoursBillable,
     billable: hoursBillable > 0,
-    ...contractFieldsFromMariRow(r),
+    ...applyMariContractFields(null, r),
     sourceType,
     sourceReference: Number(r.SourceReference) || 0,
     timeStart: r.TimeStart ? String(r.TimeStart) : null,
@@ -595,11 +701,12 @@ export async function createTimeKeepingLine(
         hours,
         hoursBillable: hb,
         billable: hb > 0,
-        ...contractFieldsFromMariRow(one),
-        contractId: firstPositiveInt(
-          one.ContractID,
-          one.AbsID,
-          parsed.contractId
+        ...applyMariContractFields(
+          {
+            contractId: parsed.contractId,
+            contractPositionId: parsed.contractPositionId ?? 0,
+          },
+          one
         ),
         sourceType: Number(one.SourceReferenceType) || 0,
         sourceReference: Number(one.SourceReferenceID) || 0,
@@ -634,6 +741,9 @@ export async function createTimeKeepingLine(
     contractId: parsed.contractId,
     contractNumber: null,
     contractName: null,
+    contractPositionId: parsed.contractPositionId || 0,
+    contractPositionNumber: null,
+    contractPositionName: null,
     sourceType: parsed.issueId ? TIMEKEEPING_SOURCE_SUPPORT_ISSUE : 0,
     sourceReference: parsed.issueId || 0,
     timeStart: null,
@@ -674,19 +784,6 @@ WHERE t."TimeSheetEntryID" = ${lineId}`
   );
   const line = rows[0] ? mapSqlLine(rows[0]) : null;
   if (!line || line.lineId <= 0) return null;
-  if (line.contractId <= 0) {
-    try {
-      const extra = await mariSql<Record<string, unknown>>(
-        `SELECT TOP 1 t."ContractID" AS "ContractID"
-FROM "MARIProjectTimeKeepingLines" t
-WHERE t."TimeSheetEntryID" = ${lineId}`
-      );
-      const cid = firstPositiveInt(extra[0]?.ContractID);
-      if (cid > 0) line.contractId = cid;
-    } catch {
-      /* View ohne ContractID — GET-Route nutzt REST ContractID */
-    }
-  }
   const [enriched] = await enrichTimeLines([line]);
   return enriched || line;
 }

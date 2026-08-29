@@ -73,10 +73,28 @@ export async function GET(
         hours,
         hoursBillable,
         billable: hoursBillable > 0,
-        contractId: firstPositiveInt(detail?.contractId, raw?.ContractID),
-        contractNumber: detail?.contractNumber || null,
-        contractName: detail?.contractName || null,
-        contractPositionId: firstPositiveInt(raw?.ContractPositionID),
+        contractId: firstPositiveInt(
+          detail?.contractId,
+          raw?.ContractID,
+          raw?.ContractId,
+          raw?.AbsID
+        ),
+        contractNumber:
+          detail?.contractNumber ||
+          String(raw?.Contract || raw?.ContractNumber || "").trim() ||
+          null,
+        contractName:
+          detail?.contractName ||
+          String(raw?.ContractName || raw?.ContractMatchcode || "").trim() ||
+          null,
+        contractPositionId: firstPositiveInt(
+          detail?.contractPositionId,
+          raw?.ContractPositionID,
+          raw?.ContractPositionId,
+          raw?.ContractPosition
+        ),
+        contractPositionNumber: detail?.contractPositionNumber || null,
+        contractPositionName: detail?.contractPositionName || null,
         issueId:
           srcType === TIMEKEEPING_SOURCE_SUPPORT_ISSUE && srcId > 0
             ? srcId

@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  applyMariContractFields,
   contractFieldsFromMariRow,
   findMariKeyPair,
   firstPositiveInt,
   formatMariContractLabel,
   formatMariContractListLine,
+  formatMariContractListLines,
   timeLineToBookPrefill,
   type MariKeyPair,
 } from "./timekeeping-shared.ts";
@@ -92,15 +94,43 @@ test("contractFieldsFromMariRow uses ContractID / AbsID and MARI number + name",
     AbsID: 88421,
     Contract: "V60011100",
     ContractName: "Wartung 2026",
+    ContractPositionID: 3,
+    ContractPositionNumber: "10",
+    ContractPositionName: "Wochenendzuschlag",
   });
   assert.equal(fromSql.contractId, 88421);
   assert.equal(fromSql.contractNumber, "V60011100");
   assert.equal(fromSql.contractName, "Wartung 2026");
+  assert.equal(fromSql.contractPositionId, 3);
+  assert.equal(fromSql.contractPositionNumber, "10");
+  assert.equal(fromSql.contractPositionName, "Wochenendzuschlag");
 
   const empty = contractFieldsFromMariRow({ ContractID: 0, AbsID: 0 });
   assert.equal(empty.contractId, 0);
   assert.equal(empty.contractNumber, null);
   assert.equal(empty.contractName, null);
+  assert.equal(empty.contractPositionId, 0);
+});
+
+test("applyMariContractFields uses REST id when SQL ContractID is 0", () => {
+  const merged = applyMariContractFields(
+    { contractId: 0, contractPositionId: 0 },
+    { ContractID: 0, AbsID: 0 },
+    {
+      ContractID: 88421,
+      Contract: "V60011100",
+      ContractName: "Wartung 2026",
+      ContractPositionID: 3,
+      ContractPositionNumber: "10",
+      ContractPositionName: "Wochenendzuschlag",
+    }
+  );
+  assert.equal(merged.contractId, 88421);
+  assert.equal(merged.contractNumber, "V60011100");
+  assert.equal(merged.contractName, "Wartung 2026");
+  assert.equal(merged.contractPositionId, 3);
+  assert.equal(merged.contractPositionNumber, "10");
+  assert.equal(merged.contractPositionName, "Wochenendzuschlag");
 });
 
 test("formatMariContractLabel joins number and Bezeichnung without inventing", () => {
@@ -121,6 +151,28 @@ test("formatMariContractListLine shows Kein Vertrag only when no contract was bo
       contractName: "Wartung 2026",
     }),
     "V60011100 · Wartung 2026"
+  );
+  assert.deepEqual(
+    formatMariContractListLines({
+      contractId: 88421,
+      contractNumber: "V60011100",
+      contractName: "Wartung 2026",
+      contractPositionId: 3,
+      contractPositionNumber: "10",
+      contractPositionName: "Wochenendzuschlag",
+    }),
+    ["V60011100 · Wartung 2026", "10 · Wochenendzuschlag"]
+  );
+  assert.equal(
+    formatMariContractListLine({
+      contractId: 88421,
+      contractNumber: "V60011100",
+      contractName: "Wartung 2026",
+      contractPositionId: 3,
+      contractPositionNumber: "10",
+      contractPositionName: "Wochenendzuschlag",
+    }),
+    "V60011100 · Wartung 2026 · 10 · Wochenendzuschlag"
   );
   assert.equal(
     formatMariContractListLine({ contractId: 88421 }),

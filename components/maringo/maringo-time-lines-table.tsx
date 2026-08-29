@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ChevronRight, Copy, Pencil, Trash2 } from "lucide-react";
 import {
   approvalStatusLabel,
-  formatMariContractListLine,
+  formatMariContractListLines,
   type MariApprovalStatus,
   type MariTimeLine,
 } from "@/lib/mari/timekeeping-shared";
@@ -71,19 +71,24 @@ function ProjectWithCustomer({
 }
 
 function ProjectAndContract({ line }: { line: MariTimeLine }) {
-  const contractLine = formatMariContractListLine(line);
+  const contractLines = formatMariContractListLines(line);
   return (
     <span className="inline-flex min-w-0 max-w-full flex-col gap-0.5 leading-snug">
       <ProjectWithCustomer
         projectNumber={line.projectNumber}
         projectCustomer={line.projectCustomer}
       />
-      {contractLine ? (
-        <span className="break-words text-[0.625rem] font-normal text-muted-foreground">
-          <span className="sr-only">Vertrag: </span>
-          {contractLine}
+      {contractLines.map((text, i) => (
+        <span
+          key={`${i}-${text}`}
+          className="break-words text-[0.625rem] font-normal text-muted-foreground"
+        >
+          <span className="sr-only">
+            {i === 0 ? "Vertrag: " : "Vertragsposition: "}
+          </span>
+          {text}
         </span>
-      ) : null}
+      ))}
     </span>
   );
 }

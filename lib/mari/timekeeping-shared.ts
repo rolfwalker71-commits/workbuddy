@@ -47,6 +47,11 @@ export type MariTimeLine = {
   contractNumber: string | null;
   /** Vertragsbezeichnung (Matchcode), wenn bekannt. */
   contractName: string | null;
+  contractPositionId: number;
+  /** Sichtbare Positionsnummer, wenn MARI sie liefert. */
+  contractPositionNumber: string | null;
+  /** Positionsbezeichnung (Matchcode), wenn bekannt. */
+  contractPositionName: string | null;
   sourceType: number;
   sourceReference: number;
   timeStart: string | null;
@@ -187,20 +192,98 @@ export function timeLineToBookPrefill(
   };
 }
 
-/** Vertragsfelder aus einer MARI-Zeile (SQL oder REST) — keine erfundenen Labels. */
-export function contractFieldsFromMariRow(r: Record<string, unknown>): {
+function firstVisibleMariText(...vals: unknown[]): string | null {
+  for (const v of vals) {
+    if (v == null || v === "") continue;
+    const s = String(v).trim();
+    if (s) return s;
+  }
+  return null;
+}
+
+export type MariContractFields = {
   contractId: number;
   contractNumber: string | null;
   contractName: string | null;
-} {
-  const contractId = firstPositiveInt(r.ContractID, r.AbsID, r.ContractId);
-  const contractNumber =
-    String(
-      r.ContractNumber || r.ContractVisible || r.Contract || ""
-    ).trim() || null;
-  const contractName =
-    String(r.ContractName || r.ContractMatchcode || "").trim() || null;
-  return { contractId, contractNumber, contractName };
+  contractPositionId: number;
+  contractPositionNumber: string | null;
+  contractPositionName: string | null;
+};
+
+const EMPTY_CONTRACT_FIELDS: MariContractFields = {
+  contractId: 0,
+  contractNumber: null,
+  contractName: null,
+  contractPositionId: 0,
+  contractPositionNumber: null,
+  contractPositionName: null,
+};
+
+/** Vertrags- und Positionsfelder aus einer MARI-Zeile (SQL oder REST) — keine erfundenen Labels. */
+export function contractFieldsFromMariRow(r: Record<string, unknown>): MariContractFields {
+  const contractId = firstPositiveInt(
+    r.ContractID,
+    r.ContractId,
+    r.AbsID
+  );
+  const contractPositionId = firstPositiveInt(
+    r.ContractPositionID,
+    r.ContractPositionId,
+    r.ContractPosition,
+    r.PositionID,
+    r.PosID
+  );
+  return {
+    contractId,
+    contractNumber: firstVisibleMariText(
+      r.ContractNumber,
+      r.ContractVisible,
+      r.Contract
+    ),
+    contractName: firstVisibleMariText(r.ContractName, r.ContractMatchcode),
+    contractPositionId,
+    contractPositionNumber: firstVisibleMariText(
+      r.ContractPositionNumber,
+      r.ContractPositionVisible,
+      r.PositionNumber,
+      typeof r.Position === "string" ? r.Position : null
+    ),
+    contractPositionName: firstVisibleMariText(
+      r.ContractPositionName,
+      r.ContractPositionMatchcode,
+      r.PositionName,
+      r.PositionMatchcode
+    ),
+  };
+}
+
+/**
+ * SQL liefert oft ContractID 0 (Spalte fehlt oder View ohne Wert).
+ * Erste positive ID aus SQL oder REST gewinnt — 0 darf REST nicht verdecken.
+ */
+export function applyMariContractFields(
+  current: Partial<MariContractFields> | null | undefined,
+  ...rows: Array<Record<string, unknown> | null | undefined>
+): MariContractFields {
+  const extras = rows
+    .filter((r): r is Record<string, unknown> => r != null)
+    .map(contractFieldsFromMariRow);
+  const parts = [current || EMPTY_CONTRACT_FIELDS, ...extras];
+  return {
+    contractId: firstPositiveInt(...parts.map((p) => p.contractId)),
+    contractNumber:
+      firstVisibleMariText(...parts.map((p) => p.contractNumber)) || null,
+    contractName:
+      firstVisibleMariText(...parts.map((p) => p.contractName)) || null,
+    contractPositionId: firstPositiveInt(
+      ...parts.map((p) => p.contractPositionId)
+    ),
+    contractPositionNumber:
+      firstVisibleMariText(...parts.map((p) => p.contractPositionNumber)) ||
+      null,
+    contractPositionName:
+      firstVisibleMariText(...parts.map((p) => p.contractPositionName)) || null,
+  };
 }
 
 /** Anzeige «Nummer · Bezeichnung» — wie der Vertrag-Picker, ohne Doppelung. */
@@ -216,20 +299,45 @@ export function formatMariContractLabel(
   return null;
 }
 
-/**
- * Zweite Zeile unter dem Kunden: Vertrag oder «Kein Vertrag».
- * Hat die Buchung eine ContractID, aber noch keine MARI-Bezeichnung — Zeile weglassen
- * (keine leere Zeile, keine erfundene Nummer).
- */
-export function formatMariContractListLine(input: {
+export type MariContractListLineInput = {
   contractId?: number | null;
   contractNumber?: string | null;
   contractName?: string | null;
-}): string | null {
-  const label = formatMariContractLabel(input.contractNumber, input.contractName);
-  if (label) return label;
-  if (firstPositiveInt(input.contractId) > 0) return null;
-  return "Kein Vertrag";
+  contractPositionId?: number | null;
+  contractPositionNumber?: string | null;
+  contractPositionName?: string | null;
+};
+
+/**
+ * Zweite/dritte Zeile unter dem Kunden: Vertrag und Vertragsposition.
+ * «Kein Vertrag» nur wenn wirklich kein Vertrag (intern / keine ID, keine Nummer).
+ * ID bekannt, Bezeichnung noch nicht aufgelöst — Zeile weglassen, nichts erfinden.
+ */
+export function formatMariContractListLines(
+  input: MariContractListLineInput
+): string[] {
+  const contract = formatMariContractLabel(
+    input.contractNumber,
+    input.contractName
+  );
+  const position = formatMariContractLabel(
+    input.contractPositionNumber,
+    input.contractPositionName
+  );
+  if (contract && position) return [contract, position];
+  if (contract) return [contract];
+  if (firstPositiveInt(input.contractId) > 0) {
+    return position ? [position] : [];
+  }
+  return ["Kein Vertrag"];
+}
+
+export function formatMariContractListLine(
+  input: MariContractListLineInput
+): string | null {
+  const lines = formatMariContractListLines(input);
+  if (lines.length === 0) return null;
+  return lines.join(" · ");
 }
 
 /** Anzeige «Kunde (Projektnummer)» — ohne Doppelung, wenn Name die Nummer schon enthält. */
