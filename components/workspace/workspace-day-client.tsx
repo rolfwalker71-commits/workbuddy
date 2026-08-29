@@ -73,6 +73,7 @@ import {
 import { isDayCloseRitualId } from "@/lib/dashboard/day-close-ritual";
 import { CLOSEOUT_OPEN_EVENT } from "@/components/closeout/closeout-assistant";
 import { MailWorkspaceSubnav, type MailWorkspaceView, mailWorkspacePrimaryBtnClass, mailWorkspaceTabClass } from "@/components/mail/mail-workspace-subnav";
+import { MailSenderBlacklistOpenButton } from "@/components/mail/mail-sender-blacklist-editor";
 import { segmentedTrackClass } from "@/components/layout/segmented-control";
 import {
   MailChronikList,
@@ -660,6 +661,7 @@ export function WorkspaceDayClient({
   const [draftReplies, setDraftReplies] = useState<DayReply[]>([]);
   const [sendReplies, setSendReplies] = useState(false);
   const [composeNewOpen, setComposeNewOpen] = useState(false);
+  const [blacklistSheetOpen, setBlacklistSheetOpen] = useState(false);
   const [translatingReply, setTranslatingReply] = useState<string | null>(
     null
   );
@@ -857,6 +859,11 @@ export function WorkspaceDayClient({
   function goTab(next: Tab) {
     setTab(next);
     if (next === "mail") {
+      if (tab !== "mail") {
+        setMailView("chronik");
+        replaceQuery({ tab: "mail", view: "chronik", review: null });
+        return;
+      }
       replaceQuery({ tab: "mail", review: null });
       return;
     }
@@ -1100,7 +1107,7 @@ export function WorkspaceDayClient({
       a: DayAnalysis,
       dayLabel: string,
       finishedAt?: string | null,
-      opts?: { fromCache?: boolean }
+      opts?: { fromCache?: boolean; revealView?: boolean }
     ) => {
       const clusters = a.clusters || [];
       const replies =
@@ -1144,6 +1151,7 @@ export function WorkspaceDayClient({
           .filter(Boolean)
           .join(" ")
       );
+      if (opts?.revealView === false) return;
       setTab("mail");
       setMailView("tagesanalysen");
       replaceQuery({ tab: "mail", view: "tagesanalysen", review: null });
@@ -1171,7 +1179,7 @@ export function WorkspaceDayClient({
         mail?: { inbox?: MsMail[]; sent?: MsMail[]; dayIso?: string } | null;
         analysis?: DayAnalysis | null;
       },
-      opts?: { syncDay?: boolean; fromCache?: boolean }
+      opts?: { syncDay?: boolean; fromCache?: boolean; revealView?: boolean }
     ) => {
       const syncDay = Boolean(opts?.syncDay);
       const fromYmd = job.fromYmd || job.dayIso;
@@ -1199,6 +1207,7 @@ export function WorkspaceDayClient({
         }
         applyAnalysisPayload(job.analysis, label, job.finishedAt, {
           fromCache: opts?.fromCache,
+          revealView: opts?.revealView,
         });
         return;
       }
@@ -1376,6 +1385,7 @@ export function WorkspaceDayClient({
         hydrateFromJob(preferred.json.job, {
           syncDay: true,
           fromCache: Boolean(preferred.json.fromCache),
+          revealView: false,
         });
         if (preferred.json.status === "running") startPolling();
       } catch {
@@ -2135,24 +2145,32 @@ export function WorkspaceDayClient({
                   inboxCount={countMailsInRange(inbox, "inbox")}
                   sentCount={countMailsInRange(sent, "sent")}
                 />
-                {msConnected ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5"
-                    onClick={() => setComposeNewOpen(true)}
-                  >
-                    <Send className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-                    Neue Mail
-                  </Button>
-                ) : null}
+                <div className="flex flex-wrap items-center gap-2">
+                  <MailSenderBlacklistOpenButton
+                    onClick={() => setBlacklistSheetOpen(true)}
+                  />
+                  {msConnected ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-9 gap-1.5"
+                      onClick={() => setComposeNewOpen(true)}
+                    >
+                      <Send className="size-3.5" strokeWidth={APP_ICON_STROKE} />
+                      Neue Mail
+                    </Button>
+                  ) : null}
+                </div>
               </div>
               <MailChronikList
                 items={mergeMailChronik(inbox, sent)}
                 loading={mailLoading}
                 provider={scope}
                 onItemsChanged={() => void loadMail()}
+                showBlacklistButton={false}
+                blacklistOpen={blacklistSheetOpen}
+                onBlacklistOpenChange={setBlacklistSheetOpen}
               />
               {msConnected ? (
                 <MicrosoftMailComposeDialog

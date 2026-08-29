@@ -191,11 +191,17 @@ export function MailChronikList({
   loading,
   provider,
   onItemsChanged,
+  showBlacklistButton = true,
+  blacklistOpen,
+  onBlacklistOpenChange,
 }: {
   items: ChronikMail[];
   loading?: boolean;
   provider: MailChronikProvider;
   onItemsChanged?: () => void;
+  showBlacklistButton?: boolean;
+  blacklistOpen?: boolean;
+  onBlacklistOpenChange?: (open: boolean) => void;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [webLink, setWebLink] = useState<string | null>(null);
@@ -217,7 +223,16 @@ export function MailChronikList({
     snippet?: string | null;
     bodyContentType?: "html" | "text" | null;
   } | null>(null);
-  const [blacklistSheetOpen, setBlacklistSheetOpen] = useState(false);
+  const [blacklistSheetOpenUncontrolled, setBlacklistSheetOpenUncontrolled] =
+    useState(false);
+  const blacklistControlled = blacklistOpen !== undefined;
+  const blacklistSheetOpen = blacklistControlled
+    ? blacklistOpen
+    : blacklistSheetOpenUncontrolled;
+  const setBlacklistSheetOpen = (open: boolean) => {
+    if (!blacklistControlled) setBlacklistSheetOpenUncontrolled(open);
+    onBlacklistOpenChange?.(open);
+  };
   const [blacklistBusy, setBlacklistBusy] = useState(false);
   const blacklist = useMailSenderBlacklist();
 
@@ -329,17 +344,31 @@ export function MailChronikList({
           : ""}
         .
       </p>
-      <MailSenderBlacklistOpenButton
-        onClick={() => setBlacklistSheetOpen(true)}
-      />
+      {showBlacklistButton ? (
+        <MailSenderBlacklistOpenButton
+          onClick={() => setBlacklistSheetOpen(true)}
+        />
+      ) : null}
     </div>
+  );
+
+  const blacklistSheet = (
+    <MailSenderBlacklistSheet
+      open={blacklistSheetOpen}
+      onOpenChange={setBlacklistSheetOpen}
+      list={blacklist}
+      onChanged={() => onItemsChanged?.()}
+    />
   );
 
   if (loading && items.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground" role="status">
-        Lade Mails…
-      </p>
+      <>
+        <p className="text-sm text-muted-foreground" role="status">
+          Lade Mails…
+        </p>
+        {blacklistSheet}
+      </>
     );
   }
   if (!hasInRange) {
@@ -351,12 +380,7 @@ export function MailChronikList({
             ? "Keine sichtbaren Mails — Absender sind ausgeblendet."
             : "Keine Mails im gewählten Zeitraum."}
         </div>
-        <MailSenderBlacklistSheet
-          open={blacklistSheetOpen}
-          onOpenChange={setBlacklistSheetOpen}
-          list={blacklist}
-          onChanged={() => onItemsChanged?.()}
-        />
+        {blacklistSheet}
       </div>
     );
   }
@@ -555,12 +579,7 @@ export function MailChronikList({
         />
       ) : null}
 
-      <MailSenderBlacklistSheet
-        open={blacklistSheetOpen}
-        onOpenChange={setBlacklistSheetOpen}
-        list={blacklist}
-        onChanged={() => onItemsChanged?.()}
-      />
+      {blacklistSheet}
     </>
   );
 }
