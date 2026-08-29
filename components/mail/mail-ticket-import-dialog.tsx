@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { Ticket } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -142,6 +148,7 @@ export function MailTicketImportDialog({
   const [createdId, setCreatedId] = useState<number | null>(null);
   const [attachNote, setAttachNote] = useState<string | null>(null);
   const [stampWarning, setStampWarning] = useState<string | null>(null);
+  const submittingRef = useRef(false);
 
   function applyBodyFromMail(source: MailTicketImportSource | null) {
     const next = initialMailTicketDescription({
@@ -202,6 +209,7 @@ export function MailTicketImportDialog({
     setCreatedId(null);
     setAttachNote(null);
     setStampWarning(null);
+    submittingRef.current = false;
   }, [open, mail?.from, mail?.fromName, mail?.subject, mail?.bodyHtml, mail?.bodyText, mail?.snippet, mail?.bodyContentType]);
 
   useEffect(() => {
@@ -412,6 +420,7 @@ export function MailTicketImportDialog({
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (submittingRef.current || busy) return;
     setError(null);
     const email = contactEmail.trim();
     if (!email.includes("@")) {
@@ -441,6 +450,7 @@ export function MailTicketImportDialog({
       setError("Betreff fehlt.");
       return;
     }
+    submittingRef.current = true;
     setBusy(true);
     try {
       const res = await fetch("/api/maringo/tickets", {
@@ -468,7 +478,8 @@ export function MailTicketImportDialog({
         );
       }
       const issueId = Number(
-        (data as { ticket?: { issueId?: number } }).ticket?.issueId
+        (data as { issueId?: number; ticket?: { issueId?: number } }).issueId ||
+          (data as { ticket?: { issueId?: number } }).ticket?.issueId
       );
       if (!Number.isInteger(issueId) || issueId <= 0) {
         throw new Error("MARI hat keine Ticket-ID zurückgegeben.");
@@ -488,10 +499,11 @@ export function MailTicketImportDialog({
         }
       ).mailStamp;
       const notes: string[] = [];
+      const side: string[] = [];
       const attachedN = attach?.attached?.length || 0;
       const attachErr = (attach?.errors || []).filter(Boolean);
       if (attachErr.length > 0) {
-        notes.push(
+        side.push(
           attachedN > 0
             ? `${attachedN} Anhang/Anhänge übernommen. ${attachErr.join(" · ")}`
             : attachErr.join(" · ")
@@ -504,18 +516,20 @@ export function MailTicketImportDialog({
           `Outlook gestempelt: ${stamp.category || "Import als Ticket"}.`
         );
       } else if (stamp?.error) {
-        setStampWarning(
-          `Ticket ist angelegt. Outlook-Stempel «Import als Ticket» fehlgeschlagen: ${stamp.error}`
+        side.push(
+          `Outlook-Stempel «Import als Ticket» fehlgeschlagen: ${stamp.error}`
         );
       }
       if (notes.length > 0) setAttachNote(notes.join(" "));
+      if (side.length > 0) setStampWarning(side.join(" "));
       setCreatedId(issueId);
       showActionFeedback({
-        headline: `Ticket #${issueId} angelegt`,
+        headline: `Ticket #${issueId} in Maringo erstellt`,
         detail: act,
         tone: "success",
       });
     } catch (err) {
+      submittingRef.current = false;
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
@@ -527,21 +541,34 @@ export function MailTicketImportDialog({
     : cardCode;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (busy && !next) return;
+        onOpenChange(next);
+      }}
+    >
       <DialogContent className="z-[1200] flex max-h-[90dvh] w-[min(96vw,36rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
         <DialogHeader className="shrink-0 space-y-1 border-b border-border/60 px-4 py-3 pr-12 text-left">
           <DialogTitle className="text-base leading-snug">
-            Ticket aus Mail erstellen
+            {createdId
+              ? `Ticket #${createdId} in Maringo erstellt`
+              : "Ticket aus Mail erstellen"}
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Felder mit * sind Pflicht. Keine Extra-Mail an den Kunden.
+            {createdId
+              ? "Das Ticket liegt in Maringo. Du kannst es jetzt öffnen."
+              : "Felder mit * sind Pflicht. Keine Extra-Mail an den Kunden."}
           </DialogDescription>
         </DialogHeader>
 
         {createdId ? (
-          <div className="space-y-3 px-4 py-4">
-            <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-sm text-emerald-950 dark:border-emerald-400/30 dark:bg-emerald-500/12 dark:text-emerald-100">
-              Ticket #{createdId} ist in Maringo angelegt.
+          <div className="space-y-4 px-4 py-5" role="status">
+            <p className="text-2xl font-semibold tabular-nums tracking-tight text-foreground">
+              Ticket #{createdId}
+            </p>
+            <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm leading-snug text-emerald-950 dark:border-emerald-400/30 dark:bg-emerald-500/12 dark:text-emerald-100">
+              Ticket #{createdId} in Maringo erstellt.
             </p>
             {attachNote ? (
               <p className="text-xs text-muted-foreground">{attachNote}</p>
@@ -554,16 +581,26 @@ export function MailTicketImportDialog({
                 {stampWarning}
               </p>
             ) : null}
-            <a
-              href={`/maringo?open=${createdId}`}
-              className={cn(
-                buttonVariants({ variant: "default" }),
-                "min-h-11 gap-1.5"
-              )}
-            >
-              <Ticket className="size-4" strokeWidth={APP_ICON_STROKE} />
-              Ticket #{createdId} in Maringo öffnen
-            </a>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <a
+                href={`/maringo?open=${createdId}`}
+                className={cn(
+                  buttonVariants({ variant: "default" }),
+                  "min-h-11 gap-1.5"
+                )}
+              >
+                <Ticket className="size-4" strokeWidth={APP_ICON_STROKE} />
+                Ticket in Maringo öffnen
+              </a>
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11"
+                onClick={() => onOpenChange(false)}
+              >
+                Schließen
+              </Button>
+            </div>
           </div>
         ) : (
           <form
@@ -858,6 +895,7 @@ export function MailTicketImportDialog({
             <Button
               type="submit"
               disabled={busy}
+              aria-busy={busy}
               className="min-h-11 w-full sm:w-auto"
             >
               {busy ? "Lege Ticket an…" : "Ticket in Maringo anlegen"}

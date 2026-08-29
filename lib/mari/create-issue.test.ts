@@ -5,6 +5,11 @@ import {
   DEFAULT_SUPPORT_PRODUCT_ID,
   joinMariContactPerson,
 } from "@/lib/mari/create-issue";
+import {
+  formatMariImportFailure,
+  mariIssueIdFromResult,
+  shouldRetryMariCreateWithoutMedium,
+} from "@/lib/mari/import-result";
 import { NEW_STATUS_ID } from "@/lib/mari/status";
 import { SUPPORT_HOTLINE_CLASS_TYPE } from "@/lib/mari/tickets";
 import { normalizeMariEmail } from "@/lib/mari/customers";
@@ -117,4 +122,39 @@ test("buildMariIssueCreateBody keeps mail HTML and rejects missing company", () 
       ),
     /Mandant/
   );
+});
+
+test("IMPORT_Feedback 2 with IssueID is success and must not retry", () => {
+  const created = {
+    IssueID: 144647,
+    IMPORT_Feedback: 2,
+    IMPORT_ErrorMessage: "",
+  };
+  assert.equal(mariIssueIdFromResult(created), 144647);
+  assert.equal(shouldRetryMariCreateWithoutMedium(created, true), false);
+  assert.equal(
+    shouldRetryMariCreateWithoutMedium(
+      { IMPORT_Feedback: 2, IMPORT_ErrorMessage: "" },
+      true
+    ),
+    true
+  );
+  assert.equal(
+    shouldRetryMariCreateWithoutMedium(
+      { IMPORT_Feedback: 2, IssueID: 0 },
+      false
+    ),
+    false
+  );
+});
+
+test("formatMariImportFailure keeps feedback when message is empty", () => {
+  const text = formatMariImportFailure(
+    { IMPORT_Feedback: 2, IMPORT_ErrorMessage: "", IssueID: null },
+    "MARI POST fehlgeschlagen",
+    200
+  );
+  assert.match(text, /MARI POST fehlgeschlagen/);
+  assert.match(text, /IMPORT_Feedback 2/);
+  assert.match(text, /HTTP 200/);
 });

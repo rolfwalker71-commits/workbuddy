@@ -12,6 +12,7 @@ import {
   createMariIssue,
   joinMariContactPerson,
 } from "@/lib/mari/create-issue";
+import { formatMariImportFailure } from "@/lib/mari/import-result";
 import { parseMariCompanyId } from "@/lib/mari/companies-shared";
 import { attachMicrosoftMailFilesToTicket } from "@/lib/mari/attach-mail-files";
 import { stampMicrosoftMailAsTicketImport } from "@/lib/microsoft/mail-ticket-stamp";
@@ -288,13 +289,24 @@ export async function POST(request: Request) {
             "Outlook-Anhänge: Microsoft 365 nicht verbunden."
           );
         } else {
-          mailAttachments = await attachMicrosoftMailFilesToTicket({
-            userId,
-            messageId,
-            issueId: ticket.issueId,
-            attachmentIds: attachIds,
-            strippedContentIds: parsed.data.strippedContentIds || null,
-          });
+          try {
+            mailAttachments = await attachMicrosoftMailFilesToTicket({
+              userId,
+              messageId,
+              issueId: ticket.issueId,
+              attachmentIds: attachIds,
+              strippedContentIds: parsed.data.strippedContentIds || null,
+            });
+          } catch (attachErr) {
+            mailAttachments = {
+              attached: [],
+              errors: [
+                attachErr instanceof Error
+                  ? attachErr.message
+                  : String(attachErr),
+              ],
+            };
+          }
         }
       }
 
@@ -332,6 +344,7 @@ export async function POST(request: Request) {
       return NextResponse.json({
         ok: true,
         ticket,
+        issueId: ticket.issueId,
         payload,
         mailAttachments,
         mailStamp,
@@ -339,7 +352,7 @@ export async function POST(request: Request) {
     } catch (err) {
       const message =
         err instanceof MariApiError
-          ? err.message
+          ? formatMariImportFailure(err.body, err.message, err.status)
           : err instanceof Error
             ? err.message
             : String(err);

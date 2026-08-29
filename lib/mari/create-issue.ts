@@ -4,6 +4,13 @@ import {
   requireMariConfig,
 } from "@/lib/mari/client";
 import { normalizeMariCardCode } from "@/lib/mari/customers";
+import {
+  formatMariImportFailure,
+  logMariIssueWrite,
+  mariImportFeedbackCode,
+  mariIssueIdFromResult,
+  shouldRetryMariCreateWithoutMedium,
+} from "@/lib/mari/import-result";
 import { listMariMedia } from "@/lib/mari/ticket-meta";
 import { NEW_STATUS_ID } from "@/lib/mari/status";
 import {
@@ -200,15 +207,55 @@ async function resolveEmailMediumId(): Promise<number | null> {
   }
 }
 
-function issueIdFromResult(result: Record<string, unknown>): number {
-  const raw = result.IssueID ?? result.issueId ?? result.ID;
-  const n = Number(raw);
-  return Number.isInteger(n) && n > 0 ? n : 0;
+function stubTicketFromCreate(
+  issueId: number,
+  input: MariIssueCreateInput
+): MariTicketDetail {
+  return {
+    issueId,
+    briefDescription: input.briefDescription.trim().slice(0, 250),
+    status: NEW_STATUS_ID,
+    statusName: "NEU",
+    priority: 0,
+    priorityName: "",
+    cardCode: input.cardCode?.trim() || null,
+    dueDate: null,
+    handledBy: input.handledBy?.trim() || null,
+    changeAtDate: null,
+    issueType: null,
+    issueTypeName: null,
+    productId: DEFAULT_SUPPORT_PRODUCT_ID,
+    productName: null,
+    addressMatchcode: null,
+    referenceText: null,
+    handledByName: null,
+    supportGroupId: input.supportGroupId ?? null,
+    supportGroupName: null,
+    requestDate: null,
+    contactPerson: input.contactPerson?.trim() || null,
+    medium: input.medium ?? null,
+    mediumName: null,
+    stdFreigabe: null,
+    aiLabel: null,
+    company: parseMariCompanyId(input.company),
+    projectNumber: sanitizeMariProjectNumber(input.projectNumber),
+    phaseId: null,
+    phaseName: null,
+    contractId: input.contractId ?? null,
+    contractNumber: null,
+    contractPositionId: input.contractPositionId ?? null,
+    requestText: input.requestText,
+    requestTextPlain: "",
+    responsible: null,
+    responsibleType: 3,
+    parentType: 0,
+    timeline: [],
+  };
 }
 
 /**
  * Neues Support-Ticket via POST /api/SupportIssue.
- * Bei MARI-Fehler (HTTP oder IMPORT_Feedback) wird geworfen — Formular bleibt.
+ * IssueID in der Antwort = Erfolg, auch bei IMPORT_Feedback ≠ 0 (Warnung).
  */
 export async function createMariIssue(
   input: MariIssueCreateInput
@@ -240,39 +287,56 @@ export async function createMariIssue(
   });
 
   let result = await mariPostIssue(body);
-  if (result.IMPORT_Feedback && result.IMPORT_Feedback !== 0) {
-    if ("Medium" in body) {
-      const { Medium: _drop, ...withoutMedium } = body;
-      const retry = await mariPostIssue(withoutMedium);
-      if (retry.IMPORT_Feedback && retry.IMPORT_Feedback !== 0) {
-        throw new MariApiError(
-          retry.IMPORT_ErrorMessage ||
-            result.IMPORT_ErrorMessage ||
-            "MARI POST fehlgeschlagen",
-          400,
-          retry
-        );
-      }
+  logMariIssueWrite("POST", result, body);
+
+  let issueId = mariIssueIdFromResult(result);
+  if (shouldRetryMariCreateWithoutMedium(result, "Medium" in body)) {
+    const { Medium: _drop, ...withoutMedium } = body;
+    const retry = await mariPostIssue(withoutMedium);
+    logMariIssueWrite("POST", retry, withoutMedium);
+    const retryId = mariIssueIdFromResult(retry);
+    if (retryId) {
       result = retry;
+      issueId = retryId;
     } else {
       throw new MariApiError(
-        result.IMPORT_ErrorMessage || "MARI POST fehlgeschlagen",
+        formatMariImportFailure(
+          retry,
+          formatMariImportFailure(result, "MARI POST fehlgeschlagen")
+        ),
         400,
-        result
+        retry
       );
     }
   }
 
-  const issueId = issueIdFromResult(result as Record<string, unknown>);
   if (!issueId) {
     throw new MariApiError(
-      result.IMPORT_ErrorMessage ||
-        "MARI hat keine Ticket-ID zurückgegeben.",
+      formatMariImportFailure(
+        result,
+        "MARI hat keine Ticket-ID zurückgegeben."
+      ),
       502,
       result
     );
   }
 
-  const ticket = await getTicketDetail(issueId);
+  const feedback = mariImportFeedbackCode(result);
+  if (feedback !== 0) {
+    console.warn(
+      "[mari] POST created issue with non-zero IMPORT_Feedback",
+      issueId,
+      feedback,
+      result.IMPORT_ErrorMessage || ""
+    );
+  }
+
+  let ticket: MariTicketDetail;
+  try {
+    ticket = await getTicketDetail(issueId);
+  } catch (err) {
+    console.warn("[mari] GET after create failed", issueId, err);
+    ticket = stubTicketFromCreate(issueId, input);
+  }
   return { ticket, payload: body };
 }
