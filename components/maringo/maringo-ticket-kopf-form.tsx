@@ -202,7 +202,7 @@ export function MaringoTicketKopfForm({
     if (!projectOpen) return;
     let cancelled = false;
     const q = projectQuery.trim();
-    const t = window.setTimeout(() => {
+    const timer = window.setTimeout(() => {
       void (async () => {
         setLoadingProjects(true);
         try {
@@ -228,7 +228,7 @@ export function MaringoTicketKopfForm({
     }, 200);
     return () => {
       cancelled = true;
-      window.clearTimeout(t);
+      window.clearTimeout(timer);
     };
   }, [projectOpen, projectQuery]);
 
@@ -401,7 +401,7 @@ export function MaringoTicketKopfForm({
             type="email"
             value={contactEmail}
             onChange={(e) => setContactEmail(e.target.value)}
-            placeholder={t("mail.toPlaceholder")}
+            placeholder={t("microsoft.toPlaceholder")}
             maxLength={120}
             autoComplete="off"
           />
