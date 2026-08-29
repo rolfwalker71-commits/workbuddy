@@ -67,10 +67,13 @@ test("parseEventTitleTokens keeps P over C for project", () => {
 test("eventTitleNameCandidates keeps Filados and skips stopwords", () => {
   assert.deepEqual(eventTitleNameCandidates("Filados Daily Call"), ["Filados"]);
   assert.deepEqual(eventTitleNameCandidates("C1471 · Support"), []);
+  assert.deepEqual(eventTitleNameCandidates("ENSO Test"), ["ENSO"]);
 });
 
 test("isConfidentCustomerNameHit is exact or starts-with only", () => {
   assert.equal(isConfidentCustomerNameHit("Filados", "Filados AG"), true);
+  assert.equal(isConfidentCustomerNameHit("ENSO", "ENSO AG"), true);
+  assert.equal(isConfidentCustomerNameHit("ENSO", "Hitachi Zosen Inova AG"), false);
   assert.equal(isConfidentCustomerNameHit("fil", "Filados AG"), false);
   assert.equal(isConfidentCustomerNameHit("ados", "Filados AG"), false);
 });

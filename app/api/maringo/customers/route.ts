@@ -68,7 +68,9 @@ export async function GET(request: Request) {
           email: emailRaw,
         });
       }
-      const suggestions = await lookupMariPartnersByEmail(email);
+      const suggestions = await lookupMariPartnersByEmail(email, {
+        includeIssueHistory: true,
+      });
       return NextResponse.json({
         configured: true,
         suggestions,

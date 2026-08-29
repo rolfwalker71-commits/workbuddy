@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  isInternalColleagueEmail,
   isMariCustomerCardCode,
   pickMariProjectCustomer,
 } from "@/lib/mari/customers";
@@ -36,4 +37,10 @@ test("pickMariProjectCustomer drops vendors and duplicate C-cards", () => {
     null
   );
   assert.equal(pickMariProjectCustomer([]), null);
+});
+
+test("isInternalColleagueEmail skips company login domains", () => {
+  assert.equal(isInternalColleagueEmail("rolf.walker@an-group.one"), true);
+  assert.equal(isInternalColleagueEmail("kunde@enso.ch"), false);
+  assert.equal(isInternalColleagueEmail(""), false);
 });

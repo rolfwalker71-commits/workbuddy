@@ -12,6 +12,7 @@ import type { MariKeyPair } from "@/lib/mari/timekeeping-shared";
 import { formatMariProjectLabel } from "@/lib/mari/timekeeping-shared";
 import { TIMEKEEPING_INT_BEMERKUNG_OPTIONS } from "@/lib/mari/timekeeping-udfs";
 import type { MariTimeBookFavorite } from "@/lib/mari/time-book-favorites";
+import { isAllowedCompanyEmail } from "@/lib/auth/allowed-email";
 import type { MariEmailPartnerSuggestion } from "@/lib/mari/customers";
 import { MariKeyPairPicker } from "@/components/maringo/mari-key-pair-picker";
 
@@ -63,13 +64,16 @@ function parseHours(raw: string): number | null {
   return Math.round(n * 100) / 100;
 }
 
-function nonBillableFrom(hours: number, hoursBillable: number): number {
-  return Math.max(0, Math.round((hours - hoursBillable) * 100) / 100);
+function roundHours(n: number): number {
+  return Math.round(n * 100) / 100;
 }
 
-/** Checkbox «Alle Stunden verrechenbar» — equality, not «hoursBillable > 0». */
-function isAllHoursBillable(hours: number, hoursBillable: number): boolean {
-  return hours > 0 && Math.abs(hours - hoursBillable) < 0.005;
+function nonBillableFrom(hours: number, hoursBillable: number): number {
+  return Math.max(0, roundHours(hours - hoursBillable));
+}
+
+function sumHours(hoursBillable: number, nonBillable: number): number {
+  return roundHours(hoursBillable + nonBillable);
 }
 
 export function MaringoTimeBookForm({
@@ -132,26 +136,17 @@ export function MaringoTimeBookForm({
   const [zeroHoursReason, setZeroHoursReason] = useState(
     defaults?.zeroHoursReason || ""
   );
-  const [hoursRaw, setHoursRaw] = useState(
-    String(defaults?.hours ?? 0.25)
-  );
-  const [hoursBillableRaw, setHoursBillableRaw] = useState(
-    String(
-      defaults?.hoursBillable ??
-        (defaults?.billable === false ? 0 : defaults?.hours ?? 0.25)
-    )
-  );
   const initialHours = defaults?.hours ?? 0.25;
   const initialBillableH =
     defaults?.hoursBillable ??
     (defaults?.billable === false ? 0 : initialHours);
-  const [billable, setBillable] = useState(() => {
-    if (defaults?.billable === false) return false;
-    if (defaults?.hoursBillable != null) {
-      return isAllHoursBillable(initialHours, initialBillableH);
-    }
-    return defaults?.billable ?? true;
-  });
+  const initialNonBillable = nonBillableFrom(initialHours, initialBillableH);
+  const [hoursBillableRaw, setHoursBillableRaw] = useState(
+    String(initialBillableH)
+  );
+  const [nonBillableRaw, setNonBillableRaw] = useState(
+    String(initialNonBillable)
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(initialHint ?? null);
@@ -163,9 +158,6 @@ export function MaringoTimeBookForm({
   const [favoriteName, setFavoriteName] = useState("");
   const [contractVisible] = useState(
     (defaults?.contractVisible || "").trim()
-  );
-  const [nonBillableRaw, setNonBillableRaw] = useState(
-    String(nonBillableFrom(initialHours, initialBillableH))
   );
   const [attendeeHits, setAttendeeHits] = useState<
     MariEmailPartnerSuggestion[]
@@ -182,8 +174,16 @@ export function MaringoTimeBookForm({
     }
     return out;
   }, [subjectSuggestions, attendeeHits]);
+  const externalAttendeeEmails = useMemo(
+    () =>
+      (attendeeEmails || [])
+        .map((e) => e.trim().toLowerCase())
+        .filter((e) => e.includes("@") && !isAllowedCompanyEmail(e))
+        .slice(0, 5),
+    [attendeeEmails]
+  );
   const showCustomerChips =
-    Boolean(attendeeEmails && attendeeEmails.length > 0) ||
+    externalAttendeeEmails.length > 0 ||
     Boolean(subjectSuggestions && subjectSuggestions.length > 0) ||
     partnersLoading;
 
@@ -207,12 +207,10 @@ export function MaringoTimeBookForm({
   }, [loadFavorites]);
 
   useEffect(() => {
-    const emails = (attendeeEmails || [])
-      .map((e) => e.trim().toLowerCase())
-      .filter((e) => e.includes("@"))
-      .slice(0, 5);
+    const emails = externalAttendeeEmails;
     if (emails.length === 0) {
       setAttendeeHits([]);
+      setPartnersLoading(false);
       return;
     }
     let cancelled = false;
@@ -226,7 +224,7 @@ export function MaringoTimeBookForm({
         if (cancelled) return;
         if (!res.ok) throw new Error(data.error || "Teilnehmer-Suche fehlgeschlagen");
         const next = (data.suggestions || []) as MariEmailPartnerSuggestion[];
-        setAttendeeHits(next.filter((s) => s.projectNumber));
+        setAttendeeHits(next);
       } catch {
         if (!cancelled) setAttendeeHits([]);
       } finally {
@@ -236,7 +234,7 @@ export function MaringoTimeBookForm({
     return () => {
       cancelled = true;
     };
-  }, [attendeeEmails]);
+  }, [externalAttendeeEmails]);
 
   const loadProjects = useCallback(async (q: string) => {
     setLoadingProjects(true);
@@ -351,55 +349,11 @@ export function MaringoTimeBookForm({
     setContractPositionId("");
   }
 
-  function syncNonBillable(hours: number, hoursBillable: number) {
-    setNonBillableRaw(String(nonBillableFrom(hours, hoursBillable)));
-  }
-
-  function onHoursChange(raw: string) {
-    setHoursRaw(raw);
-    const h = parseHours(raw);
-    if (h == null) return;
-    if (billable) {
-      setHoursBillableRaw(String(h));
-      syncNonBillable(h, h);
-      return;
-    }
-    const hb = parseHours(hoursBillableRaw) ?? 0;
-    const nextHb = Math.min(Math.max(0, hb), h > 0 ? h : hb);
-    if (nextHb !== hb) setHoursBillableRaw(String(nextHb));
-    syncNonBillable(h, nextHb);
-    if (isAllHoursBillable(h, nextHb)) setBillable(true);
-  }
-
-  function onBillableHoursChange(raw: string) {
-    setHoursBillableRaw(raw);
-    const h = parseHours(hoursRaw) ?? 0;
-    const hb = parseHours(raw);
-    if (hb == null) return;
-    const clamped = Math.min(Math.max(0, hb), h > 0 ? h : hb);
-    if (clamped !== hb) setHoursBillableRaw(String(clamped));
-    syncNonBillable(h, clamped);
-    setBillable(isAllHoursBillable(h, clamped));
-  }
-
-  function onNonBillableChange(raw: string) {
-    setNonBillableRaw(raw);
-    const h = parseHours(hoursRaw) ?? 0;
-    const nb = parseHours(raw);
-    if (nb == null) return;
-    const clampedNb = Math.min(Math.max(0, nb), h > 0 ? h : nb);
-    const hb = Math.max(0, Math.round((h - clampedNb) * 100) / 100);
-    setHoursBillableRaw(String(hb));
-    setBillable(isAllHoursBillable(h, hb));
-  }
-
-  function onBillableToggle(next: boolean) {
-    setBillable(next);
-    if (!next) return;
-    const h = parseHours(hoursRaw) ?? 0;
-    const hb = h || 0.25;
-    setHoursBillableRaw(String(hb));
-    syncNonBillable(h || hb, hb);
+  function hoursFromSplit(): number {
+    return sumHours(
+      parseHours(hoursBillableRaw) ?? 0,
+      parseHours(nonBillableRaw) ?? 0
+    );
   }
 
   function applyFavorite(fav: MariTimeBookFavorite) {
@@ -420,10 +374,8 @@ export function MaringoTimeBookForm({
       setMemoText(fav.memoText || "");
       const h = fav.hours;
       const hb = fav.hoursBillable ?? (fav.billable ? fav.hours : 0);
-      setHoursRaw(String(h));
       setHoursBillableRaw(String(hb));
-      setBillable(isAllHoursBillable(h, hb));
-      syncNonBillable(h, hb);
+      setNonBillableRaw(String(nonBillableFrom(h, hb)));
     }
     setProjectOpen(false);
   }
@@ -449,11 +401,9 @@ export function MaringoTimeBookForm({
   }
 
   function favoritePayloadFromForm(name: string) {
-    const hours = parseHours(hoursRaw) ?? 0.25;
-    const hoursBillable = Math.min(
-      Math.max(0, parseHours(hoursBillableRaw) ?? (billable ? hours : 0)),
-      hours
-    );
+    const hoursBillable = Math.max(0, parseHours(hoursBillableRaw) ?? 0);
+    const nonBillable = Math.max(0, parseHours(nonBillableRaw) ?? 0);
+    const hours = sumHours(hoursBillable, nonBillable);
     return {
       name: name.trim(),
       projectNumber,
@@ -499,8 +449,8 @@ export function MaringoTimeBookForm({
     e.preventDefault();
     setError(null);
     setHint(null);
-    const hours = parseHours(hoursRaw);
     const hoursBillable = parseHours(hoursBillableRaw);
+    const nonBillable = parseHours(nonBillableRaw);
     if (!projectNumber) {
       setError("Bitte Projekt wählen.");
       return;
@@ -517,16 +467,17 @@ export function MaringoTimeBookForm({
       setError("Aktivität fehlt.");
       return;
     }
-    if (hours == null || hours < 0.01 || hours > 24) {
-      setError("Stunden ungültig (0.01–24).");
+    if (hoursBillable == null || hoursBillable < 0) {
+      setError("Verrechenbare Stunden ungültig (mindestens 0).");
       return;
     }
-    if (
-      hoursBillable == null ||
-      hoursBillable < 0 ||
-      hoursBillable > hours
-    ) {
-      setError("Verrechenbare Stunden: 0 bis höchstens die gebuchten Stunden.");
+    if (nonBillable == null || nonBillable < 0) {
+      setError("Nicht verrechenbare Stunden ungültig (mindestens 0).");
+      return;
+    }
+    const hours = sumHours(hoursBillable, nonBillable);
+    if (hours < 0.01 || hours > 24) {
+      setError("Stunden ungültig (0.01–24).");
       return;
     }
     if (enableFavorites && saveAsFavorite) {
@@ -549,7 +500,7 @@ export function MaringoTimeBookForm({
         activity: activity.trim(),
         memoText: memoText.trim(),
         hours,
-        hoursBillable: Math.min(Math.max(0, hoursBillable), hours),
+        hoursBillable,
         issueId: defaults?.issueId ?? null,
         internalRemarkVerr: internalRemarkVerr.trim() || null,
         zeroHoursReason: zeroHoursReason.trim() || null,
@@ -691,25 +642,37 @@ export function MaringoTimeBookForm({
                 const label = s.projectNumber
                   ? `${s.name} · ${s.projectNumber}`
                   : `${s.name} · ${s.cardCode}`;
+                const why =
+                  s.reason ||
+                  (s.matchedEmail
+                    ? `Teilnehmer ${s.matchedEmail}`
+                    : s.source === "title"
+                      ? "Aus dem Betreff"
+                      : null);
                 return (
                   <Button
-                    key={`${s.cardCode}-${s.projectNumber || "none"}-${s.source}`}
+                    key={`${s.cardCode}-${s.projectNumber || "none"}-${s.source}-${s.matchedEmail || ""}`}
                     type="button"
                     variant="secondary"
                     size="sm"
                     className="h-auto max-w-full whitespace-normal rounded-full px-3 py-1.5 text-left text-xs font-medium leading-snug"
-                    title={s.contactName || label}
+                    title={why || s.contactName || label}
                     onClick={() => applyPartnerChip(s)}
                   >
-                    {label}
+                    <span className="block">{label}</span>
+                    {why ? (
+                      <span className="mt-0.5 block font-normal text-muted-foreground">
+                        {why}
+                      </span>
+                    ) : null}
                   </Button>
                 );
               })}
             </div>
           )}
           <p className="text-xs leading-snug text-muted-foreground">
-            Aus Betreff (C-/P-/V-Code oder Name) und Termin-Teilnehmern —
-            Vorschläge für Kunde, Projekt und Vertrag.
+            Nur aus diesem Termin: Betreff (C-/P-/V oder Name ab 4 Buchstaben)
+            und externe Teilnehmer-Mails. Kollegen-Adressen werden ignoriert.
           </p>
         </div>
       ) : null}
@@ -736,20 +699,20 @@ export function MaringoTimeBookForm({
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="tk-hours" className="block truncate">
-              Stunden
+            <Label htmlFor="tk-hours" className="block leading-snug">
+              Stunden (Summe)
             </Label>
-            <Input
+            <p
               id="tk-hours"
-              inputMode="decimal"
-              className="tabular-nums"
-              value={hoursRaw}
-              onChange={(e) => onHoursChange(e.target.value)}
-              placeholder="0.25"
-            />
+              className="flex h-8 items-center rounded-lg border border-input bg-muted px-2.5 text-base font-medium tabular-nums md:text-sm"
+              title="Summe aus verrechenbar und nicht verrechenbar"
+              aria-live="polite"
+            >
+              {hoursFromSplit()}
+            </p>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="tk-billable-h" className="block truncate">
+            <Label htmlFor="tk-billable-h" className="block leading-snug">
               Verrechenbar
             </Label>
             <Input
@@ -757,12 +720,12 @@ export function MaringoTimeBookForm({
               inputMode="decimal"
               className="tabular-nums"
               value={hoursBillableRaw}
-              onChange={(e) => onBillableHoursChange(e.target.value)}
+              onChange={(e) => setHoursBillableRaw(e.target.value)}
               placeholder="0.25"
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="tk-nonbillable-h" className="block truncate">
+            <Label htmlFor="tk-nonbillable-h" className="block leading-snug">
               Nicht verrechenbar
             </Label>
             <Input
@@ -770,19 +733,11 @@ export function MaringoTimeBookForm({
               inputMode="decimal"
               className="tabular-nums"
               value={nonBillableRaw}
-              onChange={(e) => onNonBillableChange(e.target.value)}
+              onChange={(e) => setNonBillableRaw(e.target.value)}
               placeholder="0"
             />
           </div>
         </div>
-        <label className="flex items-center gap-2 text-[0.8125rem]">
-          <input
-            type="checkbox"
-            checked={billable}
-            onChange={(e) => onBillableToggle(e.target.checked)}
-          />
-          Alle Stunden verrechenbar
-        </label>
         {hoursHint ? (
           <p className="text-xs text-muted-foreground">{hoursHint}</p>
         ) : null}

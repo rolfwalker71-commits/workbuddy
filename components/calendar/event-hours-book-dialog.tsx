@@ -24,7 +24,7 @@ export type HoursBookableEvent = {
 };
 
 const HOURS_HINT =
-  "Vorlage aus der Termindauer. Stunden, Verrechenbarkeit und Memo kannst du anpassen — der Outlook-Termin bleibt unverändert.";
+  "Vorlage aus der Termindauer: verrechenbar = Dauer, nicht verrechenbar = 0. Anpassen erhöht die Summe — der Outlook-Termin bleibt unverändert.";
 
 export function EventHoursBookDialog({
   event,
@@ -57,6 +57,8 @@ export function EventHoursBookDialog({
         : null;
     let cancelled = false;
     setLoading(true);
+    setSubjectSuggestions([]);
+    setInitialHint(null);
     void (async () => {
       let ticket: {
         issueId: number;
@@ -194,7 +196,6 @@ export function EventHoursBookDialog({
       subjectSuggestions={subjectSuggestions}
       initialHint={initialHint}
       preserveEventPrefillOnChips
-      hoursHint={HOURS_HINT}
       onBooked={onBooked}
     />
   );

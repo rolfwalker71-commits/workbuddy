@@ -1,3 +1,4 @@
+import { isAllowedCompanyEmail } from "@/lib/auth/allowed-email";
 import { mariSql, requireMariConfig, MariApiError } from "@/lib/mari/client";
 
 export type MariCustomerOption = {
@@ -54,6 +55,18 @@ export function normalizeCustomerSearchQuery(raw: string): string {
 function sqlLikeContains(raw: string): string {
   const escaped = raw.replace(/'/g, "''").replace(/[%_]/g, " ");
   return sqlQuote(`%${escaped}%`);
+}
+
+function sqlLikePrefix(raw: string): string {
+  const escaped = raw.replace(/'/g, "''").replace(/[%_]/g, " ");
+  return sqlQuote(`${escaped}%`);
+}
+
+/** Login-Domain (z.B. @an-group.one) — keine Kunden-Chips aus Kollegen-Mails. */
+export function isInternalColleagueEmail(
+  email: string | null | undefined
+): boolean {
+  return isAllowedCompanyEmail(email);
 }
 
 /**
@@ -115,9 +128,11 @@ async function trySql<T extends Record<string, unknown>>(
  */
 async function searchCustomersFromIssues(
   q: string,
-  limit: number
+  limit: number,
+  prefixOnly = false
 ): Promise<MariCustomerOption[]> {
-  const pattern = sqlLikeContains(q);
+  const pattern = prefixOnly ? sqlLikePrefix(q) : sqlLikeContains(q);
+  const prefix = sqlLikePrefix(q);
   const rows = await mariSql<{
     CardCode: string | null;
     Name: string | null;
@@ -135,16 +150,20 @@ WHERE i."EditorType" = 3
     OR LOWER(COALESCE(i."AddressMatchcode", '')) LIKE LOWER(${pattern})
   )
 GROUP BY i."CardCode"
-ORDER BY MAX(i."AddressMatchcode"), i."CardCode"`
+ORDER BY
+  CASE WHEN LOWER(MAX(i."AddressMatchcode")) LIKE LOWER(${prefix}) THEN 0 ELSE 1 END,
+  MAX(i."AddressMatchcode"), i."CardCode"`
   );
   return mapCustomerRows(rows);
 }
 
 async function searchCustomersFromOcrd(
   q: string,
-  limit: number
+  limit: number,
+  prefixOnly = false
 ): Promise<MariCustomerOption[]> {
-  const pattern = sqlLikeContains(q);
+  const pattern = prefixOnly ? sqlLikePrefix(q) : sqlLikeContains(q);
+  const prefix = sqlLikePrefix(q);
   const rows = await mariSql<{
     CardCode: string | null;
     Name: string | null;
@@ -157,7 +176,9 @@ WHERE (
     LOWER(c."CardCode") LIKE LOWER(${pattern})
     OR LOWER(COALESCE(c."CardName", '')) LIKE LOWER(${pattern})
   )
-ORDER BY c."CardName", c."CardCode"`
+ORDER BY
+  CASE WHEN LOWER(COALESCE(c."CardName", '')) LIKE LOWER(${prefix}) THEN 0 ELSE 1 END,
+  c."CardName", c."CardCode"`
   );
   return mapCustomerRows(rows);
 }
@@ -184,16 +205,17 @@ function mergeCustomers(
  */
 export async function searchMariCustomers(
   query: string,
-  options?: { limit?: number }
+  options?: { limit?: number; prefixOnly?: boolean }
 ): Promise<MariCustomerOption[]> {
   requireMariConfig();
   const q = normalizeCustomerSearchQuery(query);
   if (q.length < 2) return [];
   const limit = Math.min(Math.max(options?.limit ?? 30, 1), 50);
+  const prefixOnly = options?.prefixOnly === true;
 
   let fromIssues: MariCustomerOption[] = [];
   try {
-    fromIssues = await searchCustomersFromIssues(q, limit);
+    fromIssues = await searchCustomersFromIssues(q, limit, prefixOnly);
   } catch (err) {
     console.warn(
       "[mari] issue customer search failed:",
@@ -203,7 +225,7 @@ export async function searchMariCustomers(
 
   let fromMaster: MariCustomerOption[] = [];
   try {
-    fromMaster = await searchCustomersFromOcrd(q, limit);
+    fromMaster = await searchCustomersFromOcrd(q, limit, prefixOnly);
   } catch (err) {
     console.warn(
       "[mari] OCRD customer search failed:",
@@ -252,6 +274,10 @@ export type MariEmailPartnerSuggestion = {
   projectNumber: string | null;
   projectLabel: string | null;
   contractId: number | null;
+  /** Outlook-Teilnehmer, der diesen Treffer ausgelöst hat. */
+  matchedEmail?: string | null;
+  /** Kurz warum der Chip da ist (Betreff-Token oder Teilnehmer-Mail). */
+  reason?: string | null;
 };
 
 export type MariEventTitleSuggestResult = {
@@ -406,7 +432,7 @@ async function lookupCardCodesFromIssues(
   const { sanitizeMariProjectNumber } = await import(
     "@/lib/mari/timekeeping-shared"
   );
-  const pattern = sqlLikeContains(email);
+  const emailQuoted = sqlQuote(email);
   const rows = await mariSql<{
     CardCode: string | null;
     Name: string | null;
@@ -425,7 +451,12 @@ WHERE i."EditorType" = 3
   AND i."HotlineClassType" = 17
   AND i."CardCode" IS NOT NULL
   AND i."CardCode" <> ''
-  AND LOWER(COALESCE(i."ContactPerson", '')) LIKE LOWER(${pattern})
+  AND (
+    LOWER(COALESCE(i."ContactPerson", '')) = ${emailQuoted}
+    OR LOWER(COALESCE(i."ContactPerson", '')) LIKE LOWER(${sqlQuote(`${email};%`)})
+    OR LOWER(COALESCE(i."ContactPerson", '')) LIKE LOWER(${sqlQuote(`%;${email}`)})
+    OR LOWER(COALESCE(i."ContactPerson", '')) LIKE LOWER(${sqlQuote(`%;${email};%`)})
+  )
 GROUP BY i."CardCode", i."ProjectNumber"
 ORDER BY MAX(i."RequestDate") DESC`
   );
@@ -463,12 +494,49 @@ function pushSuggestion(
  * Geschäftspartner + Projekte zur Absender-E-Mail (OCRD, OCPR, Ticket-Historie).
  * Nur Vorschläge — die UI bestätigt immer.
  */
+function emailChipReason(email: string): string {
+  return `Teilnehmer ${email}`;
+}
+
+function pushEmailCustomer(
+  out: MariEmailPartnerSuggestion[],
+  seen: Set<string>,
+  input: {
+    cardCode: string;
+    name: string;
+    contactName: string | null;
+    source: MariEmailPartnerSuggestion["source"];
+    email: string;
+    projects: MariProjectHint[];
+  }
+) {
+  const reason = emailChipReason(input.email);
+  const first = input.projects[0];
+  pushSuggestion(out, seen, {
+    cardCode: input.cardCode,
+    name: input.name,
+    contactName: input.contactName,
+    source: input.source,
+    projectNumber: first?.projectNumber ?? null,
+    projectLabel: first?.projectLabel ?? null,
+    contractId: first?.contractId ?? null,
+    matchedEmail: input.email,
+    reason,
+  });
+}
+
+/**
+ * Geschäftspartner zur Absender-/Teilnehmer-E-Mail (OCRD, OCPR).
+ * Kollegen-Domains werden übersprungen. Ticket-Historie nur auf Wunsch
+ * (Mail-Import) — nie LIKE auf die ganze ContactPerson für @an-group.one.
+ */
 export async function lookupMariPartnersByEmail(
-  rawEmail: string
+  rawEmail: string,
+  options?: { includeIssueHistory?: boolean }
 ): Promise<MariEmailPartnerSuggestion[]> {
   requireMariConfig();
   const email = normalizeMariEmail(rawEmail);
-  if (!email) return [];
+  if (!email || isInternalColleagueEmail(email)) return [];
 
   const seen = new Set<string>();
   const out: MariEmailPartnerSuggestion[] = [];
@@ -478,33 +546,18 @@ export async function lookupMariPartnersByEmail(
     for (const c of fromOcrd) {
       let projects: MariProjectHint[] = [];
       try {
-        projects = await listProjectsForCardCode(c.cardCode);
+        projects = await listProjectsForCardCode(c.cardCode, 1);
       } catch {
         projects = [];
       }
-      if (projects.length === 0) {
-        pushSuggestion(out, seen, {
-          cardCode: c.cardCode,
-          name: c.name,
-          contactName: null,
-          source: "ocrd",
-          projectNumber: null,
-          projectLabel: null,
-          contractId: null,
-        });
-        continue;
-      }
-      for (const p of projects) {
-        pushSuggestion(out, seen, {
-          cardCode: c.cardCode,
-          name: c.name,
-          contactName: null,
-          source: "ocrd",
-          projectNumber: p.projectNumber,
-          projectLabel: p.projectLabel,
-          contractId: p.contractId,
-        });
-      }
+      pushEmailCustomer(out, seen, {
+        cardCode: c.cardCode,
+        name: c.name,
+        contactName: null,
+        source: "ocrd",
+        email,
+        projects,
+      });
     }
   } catch (err) {
     console.warn(
@@ -518,33 +571,18 @@ export async function lookupMariPartnersByEmail(
     for (const c of fromOcpr) {
       let projects: MariProjectHint[] = [];
       try {
-        projects = await listProjectsForCardCode(c.cardCode);
+        projects = await listProjectsForCardCode(c.cardCode, 1);
       } catch {
         projects = [];
       }
-      if (projects.length === 0) {
-        pushSuggestion(out, seen, {
-          cardCode: c.cardCode,
-          name: c.name,
-          contactName: c.contactName,
-          source: "ocpr",
-          projectNumber: null,
-          projectLabel: null,
-          contractId: null,
-        });
-        continue;
-      }
-      for (const p of projects) {
-        pushSuggestion(out, seen, {
-          cardCode: c.cardCode,
-          name: c.name,
-          contactName: c.contactName,
-          source: "ocpr",
-          projectNumber: p.projectNumber,
-          projectLabel: p.projectLabel,
-          contractId: p.contractId,
-        });
-      }
+      pushEmailCustomer(out, seen, {
+        cardCode: c.cardCode,
+        name: c.name,
+        contactName: c.contactName,
+        source: "ocpr",
+        email,
+        projects,
+      });
     }
   } catch (err) {
     console.warn(
@@ -553,27 +591,37 @@ export async function lookupMariPartnersByEmail(
     );
   }
 
-  try {
-    const fromIssues = await lookupCardCodesFromIssues(email);
-    for (const c of fromIssues) {
-      pushSuggestion(out, seen, {
-        cardCode: c.cardCode,
-        name: c.name,
-        contactName: c.contactName,
-        source: "issue",
-        projectNumber: c.projectNumber,
-        projectLabel: c.name,
-        contractId: c.contractId,
-      });
+  if (options?.includeIssueHistory) {
+    try {
+      const fromIssues = await lookupCardCodesFromIssues(email);
+      const first = fromIssues[0];
+      if (first) {
+        pushEmailCustomer(out, seen, {
+          cardCode: first.cardCode,
+          name: first.name,
+          contactName: first.contactName,
+          source: "issue",
+          email,
+          projects: first.projectNumber
+            ? [
+                {
+                  projectNumber: first.projectNumber,
+                  projectLabel: first.name,
+                  contractId: first.contractId,
+                },
+              ]
+            : [],
+        });
+      }
+    } catch (err) {
+      console.warn(
+        "[mari] issue email lookup failed:",
+        err instanceof MariApiError ? err.message : err
+      );
     }
-  } catch (err) {
-    console.warn(
-      "[mari] issue email lookup failed:",
-      err instanceof MariApiError ? err.message : err
-    );
   }
 
-  return out.slice(0, 20);
+  return out.slice(0, 8);
 }
 
 /** Merge partner suggestions for several attendee addresses (chips, no autobook). */
@@ -584,7 +632,9 @@ export async function lookupMariPartnersByEmails(
   const seenEmail = new Set<string>();
   for (const raw of emails) {
     const email = normalizeMariEmail(raw);
-    if (!email || seenEmail.has(email)) continue;
+    if (!email || seenEmail.has(email) || isInternalColleagueEmail(email)) {
+      continue;
+    }
     seenEmail.add(email);
     unique.push(email);
     if (unique.length >= 5) break;
@@ -592,7 +642,10 @@ export async function lookupMariPartnersByEmails(
   const seen = new Set<string>();
   const out: MariEmailPartnerSuggestion[] = [];
   for (const email of unique) {
-    const rows = await lookupMariPartnersByEmail(email);
+    if (isInternalColleagueEmail(email)) continue;
+    const rows = await lookupMariPartnersByEmail(email, {
+      includeIssueHistory: false,
+    });
     for (const row of rows) pushSuggestion(out, seen, row);
   }
   return out.slice(0, 20);
@@ -743,6 +796,7 @@ export async function suggestMariPartnersFromEventTitle(
         projectNumber: tokens.projectNumber,
         projectLabel: customer.name,
         contractId,
+        reason: `Betreff «${tokens.projectNumber}»`,
       });
     }
     return {
@@ -764,7 +818,12 @@ export async function suggestMariPartnersFromEventTitle(
 
   if (tokens.cardCode) {
     const rows = await lookupMariPartnersByCardCode(tokens.cardCode);
-    for (const row of rows) pushSuggestion(out, seen, row);
+    for (const row of rows) {
+      pushSuggestion(out, seen, {
+        ...row,
+        reason: `Betreff «${tokens.cardCode}»`,
+      });
+    }
     const first = rows.find((r) => r.projectNumber) || null;
     return {
       suggestions: out.slice(0, 20),
@@ -785,7 +844,12 @@ export async function suggestMariPartnersFromEventTitle(
 
   if (tokens.contractVisible) {
     const rows = await lookupMariPartnersByContractVisible(tokens.contractVisible);
-    for (const row of rows) pushSuggestion(out, seen, row);
+    for (const row of rows) {
+      pushSuggestion(out, seen, {
+        ...row,
+        reason: `Betreff «${tokens.contractVisible}»`,
+      });
+    }
     const projects = new Set(
       rows.map((r) => r.projectNumber).filter((p): p is string => Boolean(p))
     );
@@ -812,7 +876,7 @@ export async function suggestMariPartnersFromEventTitle(
     nameQueries.push(q);
     let customers: MariCustomerOption[] = [];
     try {
-      customers = await searchMariCustomers(q, { limit: 12 });
+      customers = await searchMariCustomers(q, { limit: 12, prefixOnly: true });
     } catch {
       continue;
     }
@@ -830,6 +894,7 @@ export async function suggestMariPartnersFromEventTitle(
         projectNumber: null,
         projectLabel: null,
         contractId: null,
+        reason: `Betreff «${q}»`,
       });
     }
   }
