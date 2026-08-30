@@ -1,17 +1,15 @@
 "use client";
 
-import { PresenceGlassPanel } from "@/components/presence/presence-glass-panel";
-import { PresenceIsoArt } from "@/components/presence/presence-iso-art";
+import { PresenceStatusGlyph } from "@/components/presence/presence-status-glyph";
 import { cn } from "@/lib/utils";
 import {
   organizationLabel,
   presenceSourceHint,
+  PRESENCE_STATUS_SURFACE,
   type PresencePersonView,
 } from "@/lib/presence/client";
 import { useLocale, useT } from "@/components/i18n/locale-provider";
 import { presenceDisplayLabel } from "@/lib/i18n/display";
-
-const CHIP_MAX = "w-fit max-w-[min(14rem,calc(100%-3rem))]";
 
 export function PresencePersonCard({
   person,
@@ -34,49 +32,30 @@ export function PresencePersonCard({
   const orgLabel = organizationLabel(person.organization, locale);
   const spoken = `${person.displayName}${isSelf ? t("presence.youSuffix") : ""}: ${spokenStatus}${hint ? ` · ${hint}` : ""}`;
   const className = cn(
-    "relative flex w-full flex-col items-stretch overflow-hidden rounded-2xl text-left shadow-sm ring-1",
-    "bg-zinc-200 ring-foreground/10 dark:bg-zinc-900",
+    "flex min-h-11 w-full min-w-0 flex-col items-stretch gap-1 rounded-2xl px-3 py-2.5 text-left shadow-sm ring-1",
+    PRESENCE_STATUS_SURFACE[person.status ?? "unset"],
     isSelf && "ring-2 ring-primary/70",
     interactive && "transition-shadow hover:shadow-md"
   );
 
-  const name = (
-    <span className="break-words text-lg font-semibold leading-snug">
-      {person.displayName}
-      {isSelf ? t("presence.youSuffix") : ""}
-    </span>
-  );
-
-  const rest = (
+  const body = (
     <>
-      <span className="text-xs leading-snug">
+      <span className="inline-flex min-w-0 items-start gap-1.5">
+        <PresenceStatusGlyph status={person.status} className="mt-0.5" />
+        <span className="min-w-0 break-words text-base font-semibold leading-snug">
+          {person.displayName}
+          {isSelf ? t("presence.youSuffix") : ""}
+        </span>
+      </span>
+      <span className="break-words text-xs leading-snug">
         {statusLabel}
         {hint ? ` · ${hint}` : ""}
       </span>
       {orgLabel ? (
-        <span className="text-[0.7rem] leading-snug text-muted-foreground">
+        <span className="break-words text-[0.7rem] leading-snug opacity-80">
           {orgLabel}
         </span>
       ) : null}
-    </>
-  );
-
-  const body = (
-    <>
-      <PresenceIsoArt status={person.status} variant="hero" />
-      <div className="relative z-10 flex min-h-[7.25rem] flex-col justify-between p-2">
-        <PresenceGlassPanel className={cn("self-start px-2.5 py-1.5", CHIP_MAX)}>
-          {name}
-        </PresenceGlassPanel>
-        <PresenceGlassPanel
-          className={cn(
-            "flex flex-col gap-0.5 self-end px-2.5 py-1.5",
-            CHIP_MAX
-          )}
-        >
-          {rest}
-        </PresenceGlassPanel>
-      </div>
     </>
   );
 

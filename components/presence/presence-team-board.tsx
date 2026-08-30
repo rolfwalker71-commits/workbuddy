@@ -14,11 +14,11 @@ import {
   segmentedTriggerClass,
   segmentedTriggerProps,
 } from "@/components/layout/segmented-control";
-import { PresenceGlassPanel } from "@/components/presence/presence-glass-panel";
-import { PresenceIsoArt } from "@/components/presence/presence-iso-art";
 import { PresencePersonCard } from "@/components/presence/presence-person-card";
 import { PresenceSetDialog } from "@/components/presence/presence-set-dialog";
 import { PresenceDelegateDialog } from "@/components/presence/presence-delegate-dialog";
+import { PresenceStatusLegend } from "@/components/presence/presence-status-legend";
+import { PresenceWeekMatrix } from "@/components/presence/presence-week-matrix";
 import { useAuth } from "@/components/auth/auth-provider";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { cn } from "@/lib/utils";
@@ -31,7 +31,6 @@ import {
   fetchPresenceToday,
   groupPresencePeople,
   isOwnDayLocked,
-  organizationLabel,
   presenceSourceHint,
   deleteOwnDayStatus,
   putDelegatedDayStatus,
@@ -48,10 +47,7 @@ import type { HomeAbsenceState } from "@/lib/dashboard/home-surfaces-shared";
 import type { PresenceStatus } from "@/lib/presence/status";
 import { formatSwissDateRange } from "@/lib/utils/dates";
 import { useLocale, useT } from "@/components/i18n/locale-provider";
-import {
-  organizationDisplayLabel,
-  presenceDisplayLabel,
-} from "@/lib/i18n/display";
+import { organizationDisplayLabel } from "@/lib/i18n/display";
 import type { MessageKey } from "@/lib/i18n";
 
 type OrgFilter = "" | UserOrganization;
@@ -73,125 +69,6 @@ function formatLongDate(ymd: string, intl: string): string {
     month: "long",
     year: "numeric",
   }).format(new Date(`${ymd}T12:00:00Z`));
-}
-
-function weekdayShort(ymd: string, intl: string): string {
-  return new Intl.DateTimeFormat(intl, {
-    timeZone: "UTC",
-    weekday: "short",
-  }).format(new Date(`${ymd}T12:00:00Z`));
-}
-
-function weekdayLong(ymd: string, intl: string): string {
-  const raw = new Intl.DateTimeFormat(intl, {
-    timeZone: "UTC",
-    weekday: "long",
-  }).format(new Date(`${ymd}T12:00:00Z`));
-  return raw.charAt(0).toUpperCase() + raw.slice(1);
-}
-
-const WEEK_CHIP =
-  "h-auto min-h-0 w-fit max-w-[calc(100%-0.25rem)] px-1.5 py-0.5 leading-none";
-
-/** Same 5-col geometry as colleague week cells (card uses px-3). */
-const WEEK_DAY_GRID = "grid grid-cols-5 gap-1.5";
-const WEEK_DAY_INSET = "px-3";
-
-function WeekDayCell({
-  day,
-  today,
-  person,
-  density,
-  onOpen,
-}: {
-  day: string;
-  today: string;
-  person: PresencePersonView | null;
-  density: "own" | "colleague";
-  onOpen?: () => void;
-}) {
-  const t = useT();
-  const { locale, intlLocale } = useLocale();
-  const status = person?.status ?? null;
-  const hint = presenceSourceHint(person?.source ?? null, locale);
-  const statusLabel = status
-    ? presenceDisplayLabel(status, locale)
-    : t("presence.open");
-  const spokenStatus = status ? statusLabel : t("presence.unset");
-  const dayName = weekdayLong(day, intlLocale);
-  const dayLabel = density === "own" ? dayName : weekdayShort(day, intlLocale);
-  const interactive = Boolean(onOpen && person);
-  const spoken = `${dayName}: ${spokenStatus}${hint ? ` · ${hint}` : ""}`;
-
-  const inner = (
-    <>
-      <PresenceIsoArt
-        status={status}
-        variant="tile"
-        className={
-          density === "colleague"
-            ? "opacity-[0.56] dark:opacity-[0.42]"
-            : undefined
-        }
-      />
-      <div
-        className={cn(
-          "relative z-10 flex flex-col justify-between p-1.5",
-          density === "own" ? "min-h-[5rem]" : "min-h-[3.75rem]"
-        )}
-      >
-        <PresenceGlassPanel className={cn("self-start", WEEK_CHIP)}>
-          <span className="block break-words text-xs font-bold leading-snug text-foreground">
-            {dayLabel}
-          </span>
-        </PresenceGlassPanel>
-        <PresenceGlassPanel
-          className={cn(
-            "flex flex-col justify-center self-end text-right",
-            WEEK_CHIP
-          )}
-        >
-          <span className="block break-words text-xs font-bold leading-snug text-foreground">
-            {statusLabel}
-          </span>
-          {hint ? (
-            <span className="mt-0.5 block break-words text-[0.65rem] leading-snug text-foreground">
-              {hint}
-            </span>
-          ) : null}
-        </PresenceGlassPanel>
-      </div>
-    </>
-  );
-
-  const className = cn(
-    "relative flex w-full flex-col items-stretch overflow-hidden rounded-2xl text-left shadow-sm ring-1",
-    "bg-zinc-200 ring-foreground/10 dark:bg-zinc-900",
-    day === today && "ring-2 ring-primary/70",
-    interactive && "transition-shadow hover:shadow-md"
-  );
-
-  if (interactive) {
-    return (
-      <button
-        type="button"
-        data-segment="true"
-        aria-label={spoken}
-        title={spoken}
-        aria-current={day === today ? "date" : undefined}
-        onClick={onOpen}
-        className={className}
-      >
-        {inner}
-      </button>
-    );
-  }
-
-  return (
-    <div className={className} aria-label={spoken} title={spoken}>
-      {inner}
-    </div>
-  );
 }
 
 async function fetchAbsenceToday(): Promise<HomeAbsenceState | null> {
@@ -313,6 +190,13 @@ export function PresenceTeamBoard() {
     }
     return map;
   }, [weekByYmd, weekDays]);
+  const weekSelf = useMemo(() => {
+    for (const day of weekDays) {
+      const row = weekByYmd[day]?.self;
+      if (row) return row;
+    }
+    return self;
+  }, [self, weekByYmd, weekDays]);
   const weekPeople = useMemo(() => {
     const byId = new Map<number, PresencePersonView>();
     for (const day of weekDays) {
@@ -534,12 +418,15 @@ export function PresenceTeamBoard() {
       </div>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      {!dayData && view === "day" && !error ? (
+      {((view === "day" && !dayData) ||
+        (view === "week" && Object.keys(weekByYmd).length === 0)) &&
+      !error ? (
         <p className="text-sm text-muted-foreground">{t("presence.loadingTeam")}</p>
       ) : null}
 
       {view === "day" && dayData ? (
         <div className="space-y-6">
+          <PresenceStatusLegend />
           {GROUP_ORDER.map((groupId) => (
             <section key={groupId} className="space-y-2">
               <h2 className="text-sm font-bold tracking-tight">
@@ -578,83 +465,21 @@ export function PresenceTeamBoard() {
         </div>
       ) : null}
 
-      {view === "week" ? (
-        <div className="space-y-4">
-          <section className="space-y-2">
-            <h2 className="text-sm font-bold tracking-tight">{t("presence.yourWeek")}</h2>
-            <p className="text-xs text-muted-foreground">
-              {t("presence.tapDay")}
-            </p>
-            <div className={cn(WEEK_DAY_GRID, WEEK_DAY_INSET)}>
-              {weekDays.map((day) => {
-                const person = weekSelfByYmd[day];
-                return (
-                  <WeekDayCell
-                    key={day}
-                    day={day}
-                    today={today}
-                    person={person}
-                    density="own"
-                    onOpen={() => {
-                      if (!person) return;
-                      setDialogError(null);
-                      setSelfTarget({ ymd: day, person });
-                    }}
-                  />
-                );
-              })}
-            </div>
-          </section>
-
-          <section className="space-y-2">
-            <h2 className="text-sm font-bold tracking-tight">{t("presence.colleagues")}</h2>
-            {weekPeople.filter((p) => p.userId !== self?.userId).length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {t("presence.nobodyInFilter")}
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {weekPeople
-                  .filter((p) => p.userId !== self?.userId)
-                  .map((person) => (
-                    <li
-                      key={person.userId}
-                      className="rounded-2xl bg-card px-3 py-2.5 shadow-sm ring-1 ring-foreground/10"
-                    >
-                      <p className="break-words text-sm font-semibold leading-snug">
-                        {person.displayName}
-                      </p>
-                      <p className="mb-2 text-[0.7rem] text-muted-foreground">
-                        {organizationLabel(person.organization, locale)}
-                      </p>
-                      <div className={WEEK_DAY_GRID}>
-                        {weekDays.map((day) => {
-                          const cell = (weekByYmd[day]?.people || []).find(
-                            (row) => row.userId === person.userId
-                          );
-                          const canEdit = canOverridePerson(actor, person);
-                          return (
-                            <WeekDayCell
-                              key={day}
-                              day={day}
-                              today={today}
-                              person={cell ?? null}
-                              density="colleague"
-                              onOpen={
-                                canEdit
-                                  ? () => openPerson(person, day)
-                                  : undefined
-                              }
-                            />
-                          );
-                        })}
-                      </div>
-                    </li>
-                  ))}
-              </ul>
-            )}
-          </section>
-        </div>
+      {view === "week" && Object.keys(weekByYmd).length > 0 ? (
+        <PresenceWeekMatrix
+          weekDays={weekDays}
+          today={today}
+          self={weekSelf}
+          weekSelfByYmd={weekSelfByYmd}
+          weekPeople={weekPeople}
+          weekByYmd={weekByYmd}
+          actor={actor}
+          onOpenSelf={(day, person) => {
+            setDialogError(null);
+            setSelfTarget({ ymd: day, person });
+          }}
+          onOpenPerson={(person, day) => openPerson(person, day)}
+        />
       ) : null}
 
       <PresenceSetDialog

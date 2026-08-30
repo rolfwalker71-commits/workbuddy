@@ -1,19 +1,12 @@
 "use client";
 
-import {
-  Building2,
-  House,
-  Palmtree,
-  Thermometer,
-  UserRoundX,
-} from "lucide-react";
+import { PresenceStatusGlyph } from "@/components/presence/presence-status-glyph";
 import { cn } from "@/lib/utils";
 import {
   segmentedTrackClass,
   segmentedTriggerClass,
   segmentedTriggerProps,
 } from "@/components/layout/segmented-control";
-import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { PRESENCE_STATUS_ACTIVE_PILL } from "@/lib/presence/client";
 import {
   PRESENCE_STATUSES,
@@ -21,14 +14,6 @@ import {
 } from "@/lib/presence/status";
 import { useLocale, useT } from "@/components/i18n/locale-provider";
 import { presenceDisplayLabel } from "@/lib/i18n/display";
-
-const PILL_ICONS = {
-  office: Building2,
-  home: House,
-  sick: Thermometer,
-  vacation: Palmtree,
-  absent: UserRoundX,
-} as const;
 
 export function PresenceStatusPills({
   value,
@@ -52,7 +37,6 @@ export function PresenceStatusPills({
       aria-label={ariaLabel ?? t("presence.attendance")}
     >
       {PRESENCE_STATUSES.map((status) => {
-        const Icon = PILL_ICONS[status];
         const active = value === status;
         const label = presenceDisplayLabel(status, locale, "pill");
         return (
@@ -77,11 +61,7 @@ export function PresenceStatusPills({
               else onChange(status);
             }}
           >
-            <Icon
-              className="size-4 shrink-0"
-              strokeWidth={APP_ICON_STROKE}
-              aria-hidden
-            />
+            <PresenceStatusGlyph status={status} />
             <span className="min-w-0 truncate leading-none">{label}</span>
           </button>
         );

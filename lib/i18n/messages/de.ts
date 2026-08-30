@@ -368,6 +368,7 @@ export const de = {
     monFri: "Montag bis Freitag",
     yourWeek: "Deine Woche",
     tapDay: "Tippe einen Tag, um ihn zu setzen.",
+    legend: "Statusfarben",
     colleagues: "Kolleginnen und Kollegen",
     nobodyInFilter: "Niemand in diesem Filter.",
     lockedVia: "Dieser Tag wurde über {source} gesetzt.",

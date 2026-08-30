@@ -370,6 +370,7 @@ export const en = {
     monFri: "Monday to Friday",
     yourWeek: "Your week",
     tapDay: "Tap a day to set it.",
+    legend: "Status colours",
     colleagues: "Colleagues",
     nobodyInFilter: "Nobody in this filter.",
     lockedVia: "This day was set via {source}.",
