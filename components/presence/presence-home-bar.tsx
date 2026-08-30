@@ -159,7 +159,7 @@ export function PresenceHomeBar({
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-col gap-1.5 rounded-2xl px-3 py-2 ring-1",
+        "flex h-full min-w-0 flex-col justify-center gap-1.5 rounded-2xl px-3 py-2 ring-1",
         PRESENCE_STATUS_SURFACE[self?.status ?? "unset"]
       )}
     >

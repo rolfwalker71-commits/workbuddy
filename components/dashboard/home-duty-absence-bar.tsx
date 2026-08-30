@@ -53,10 +53,10 @@ export function HomeDutyAbsenceBar({
 
   return (
     <section
-      className={cn("grid items-start gap-2", ttvDuty && "lg:grid-cols-2")}
+      className={cn("grid items-stretch gap-2", ttvDuty && "lg:grid-cols-2")}
     >
       {ttvDuty ? (
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl bg-orange-50 px-3 py-2 ring-1 ring-orange-200/80 dark:bg-orange-500/15 dark:ring-orange-400/30">
+        <div className="flex h-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl bg-orange-50 px-3 py-2 ring-1 ring-orange-200/80 dark:bg-orange-500/15 dark:ring-orange-400/30">
           <p className="min-w-0 flex-1 text-sm font-semibold leading-snug text-orange-950 dark:text-orange-100">
             {t("duty.ttvToday", {
               name: ttvDuty.displayName || t("duty.nobodyYet"),
