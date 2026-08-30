@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ScrollText, Settings, UserRound, Users } from "lucide-react";
+import {
+  LayoutDashboard,
+  ScrollText,
+  Settings,
+  UserRound,
+  Users,
+  Wrench,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import {
@@ -40,6 +47,11 @@ export function MobileDock() {
       href: "/team",
       labelKey: "nav.team",
       icon: <Users className="size-4" strokeWidth={APP_ICON_STROKE} />,
+    },
+    {
+      href: "/technik",
+      labelKey: "nav.technikShort",
+      icon: <Wrench className="size-4" strokeWidth={APP_ICON_STROKE} />,
     },
     {
       href: "/microsoft",

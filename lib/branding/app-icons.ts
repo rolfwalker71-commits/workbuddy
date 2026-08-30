@@ -26,6 +26,7 @@ import {
   Luggage,
   Sparkles,
   Headset,
+  Wrench,
 } from "lucide-react";
 
 /** Bold outline stroke (mockup style, maximum readable weight). */
@@ -74,6 +75,7 @@ export const appIcons = {
   buddyArea: { icon: Home, tone: "teal" as const },
   microsoft: { icon: Cloud, tone: "blue" as const },
   maringo: { icon: Headset, tone: "orange" as const },
+  technik: { icon: Wrench, tone: "amber" as const },
 } as const satisfies Record<string, AppIconSpec>;
 
 export type AppIconKey = keyof typeof appIcons;

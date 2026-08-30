@@ -59,6 +59,10 @@ function isAlwaysAllowedForLimitedUser(pathname: string): boolean {
     return true;
   }
   if (pathname === "/team" || pathname.startsWith("/team/")) return true;
+  if (pathname === "/technik" || pathname.startsWith("/technik/")) return true;
+  if (pathname === "/api/technik" || pathname.startsWith("/api/technik/")) {
+    return true;
+  }
   if (pathname === "/api/presence" || pathname.startsWith("/api/presence/")) {
     return true;
   }

@@ -163,6 +163,8 @@ export const de = {
   nav: {
     overview: "Übersicht",
     team: "Team",
+    technik: "Technik",
+    technikShort: "Technik",
     microsoft: "Microsoft 365",
     microsoftShort: "Microsoft",
     google: "Google Workspace",
@@ -390,6 +392,26 @@ export const de = {
       thu: "Donnerstag",
       fri: "Freitag",
     },
+  },
+  technik: {
+    title: "Technik",
+    description:
+      "Kunden-Upgrades und Wartung aus dem gemeinsamen Technik-Kalender — inkl. Hinweis, wenn interne Systeme betroffen sein können.",
+    loading: "Lade Technik-Kalender…",
+    loadFailed: "Technik-Kalender laden fehlgeschlagen",
+    emptyDay: "Keine Einträge.",
+    noReader:
+      "Kalender ist noch mit keinem verbundenen Microsoft-Konto geteilt. Admin: Einstellungen.",
+    unreadable:
+      "Kalender nicht lesbar. Mit mindestens einem verbundenen Microsoft-Konto teilen.",
+    customer: "Kunde",
+    systems: "Systeme",
+    location: "Ort",
+    internalRisk: "Interne Systeme können betroffen sein",
+    previousDay: "Vorheriger Tag",
+    nextDay: "Nächster Tag",
+    previousWeek: "Vorherige Woche",
+    nextWeek: "Nächste Woche",
   },
   account: {
     title: "Konto",
@@ -632,6 +654,15 @@ export const de = {
     vacationCalReader: "Zuletzt gelesen über {name}.",
     vacationCalSaved: "Ferienkalender gespeichert.",
     vacationCalLoadFailed: "Ferienkalender laden fehlgeschlagen",
+    techUpgradesCalTitle: "Technik-Upgrade-Kalender",
+    techUpgradesCalHint:
+      "Einträge im gemeinsamen Postfach erscheinen unter Technik für alle. Kunde und betroffene Systeme werden aus Betreff, Ort und Kategorien gelesen.",
+    techUpgradesCalMailbox: "Postfach",
+    techUpgradesCalShareHint:
+      "Kalender mit mindestens einem verbundenen Microsoft-Konto teilen (Calendars.ReadWrite reicht).",
+    techUpgradesCalReader: "Zuletzt gelesen über {name}.",
+    techUpgradesCalSaved: "Technik-Kalender gespeichert.",
+    techUpgradesCalLoadFailed: "Technik-Kalender laden fehlgeschlagen",
     companyAiTitle: "Firmen-KI (alle User)",
     companyAiHint:
       "Führend für alle Konten. OpenAI: nur Key und Modell. Custom: Key, Modell und URL vom Provider. Persönliche Keys unter Konto greifen erst, wenn das hier aus ist.",

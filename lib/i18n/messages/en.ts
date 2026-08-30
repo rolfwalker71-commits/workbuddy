@@ -165,6 +165,8 @@ export const en = {
   nav: {
     overview: "Overview",
     team: "Team",
+    technik: "Tech",
+    technikShort: "Tech",
     microsoft: "Microsoft 365",
     microsoftShort: "Microsoft",
     google: "Google Workspace",
@@ -391,6 +393,26 @@ export const en = {
       thu: "Thursday",
       fri: "Friday",
     },
+  },
+  technik: {
+    title: "Tech",
+    description:
+      "Customer upgrades and maintenance from the shared tech calendar — including a hint when internal systems may be affected.",
+    loading: "Loading tech calendar…",
+    loadFailed: "Failed to load the tech calendar",
+    emptyDay: "No entries.",
+    noReader:
+      "The calendar is not yet shared with a connected Microsoft account. Admin: Settings.",
+    unreadable:
+      "Calendar unreadable. Share it with at least one connected Microsoft account.",
+    customer: "Customer",
+    systems: "Systems",
+    location: "Location",
+    internalRisk: "Internal systems may be affected",
+    previousDay: "Previous day",
+    nextDay: "Next day",
+    previousWeek: "Previous week",
+    nextWeek: "Next week",
   },
   account: {
     title: "Account",
@@ -632,6 +654,15 @@ export const en = {
     vacationCalReader: "Last read via {name}.",
     vacationCalSaved: "Leave calendar saved.",
     vacationCalLoadFailed: "Failed to load leave calendar",
+    techUpgradesCalTitle: "Tech upgrade calendar",
+    techUpgradesCalHint:
+      "Events in the shared mailbox appear under Tech for everyone. Customer and affected systems are read from subject, location, and categories.",
+    techUpgradesCalMailbox: "Mailbox",
+    techUpgradesCalShareHint:
+      "Share the calendar with at least one connected Microsoft account (Calendars.ReadWrite is enough).",
+    techUpgradesCalReader: "Last read via {name}.",
+    techUpgradesCalSaved: "Tech calendar saved.",
+    techUpgradesCalLoadFailed: "Failed to load tech calendar",
     companyAiTitle: "Company AI (all users)",
     companyAiHint:
       "Applies to every account. OpenAI: key and model only. Custom: key, model, and provider URL. Personal keys under Account apply only when this is off.",

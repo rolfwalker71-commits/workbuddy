@@ -224,6 +224,7 @@ export const pageVisuals = {
   activity: appIcons.activity,
   account: appIcons.account,
   team: appIcons.team,
+  technik: appIcons.technik,
   summaries: appIcons.summaries,
   guides: appIcons.guides,
   microsoft: appIcons.microsoft,

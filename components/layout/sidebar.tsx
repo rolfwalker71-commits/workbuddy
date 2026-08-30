@@ -12,6 +12,7 @@ import {
   Settings,
   UserRound,
   Users,
+  Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -51,6 +52,11 @@ const NAV: NavItem[] = [
     href: "/team",
     labelKey: "nav.team",
     icon: <Users className="size-4" strokeWidth={APP_ICON_STROKE} />,
+  },
+  {
+    href: "/technik",
+    labelKey: "nav.technik",
+    icon: <Wrench className="size-4" strokeWidth={APP_ICON_STROKE} />,
   },
   {
     href: "/microsoft",
