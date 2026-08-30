@@ -104,6 +104,10 @@ test("oofMustNotOverwrite keeps deputy and self sick/vacation", () => {
   assert.equal(oofMustNotOverwrite({ source: "self", status: "home" }), false);
   assert.equal(oofMustNotOverwrite({ source: "self", status: "office" }), false);
   assert.equal(oofMustNotOverwrite({ source: "oof", status: "absent" }), false);
+  assert.equal(
+    oofMustNotOverwrite({ source: "vacationCal", status: "vacation" }),
+    true
+  );
 });
 
 test("applyOofPresenceFromEvents writes absent/oof and respects overwrite rules", async () => {

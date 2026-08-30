@@ -1,5 +1,4 @@
 import { TranslatedPageHeader } from "@/components/layout/translated-page-header";
-import { pageVisuals } from "@/components/layout/icon-circle";
 import { SettingsActivityPanel } from "@/components/settings/settings-activity-panel";
 
 export const dynamic = "force-dynamic";
@@ -14,8 +13,7 @@ export default function ActivityPage() {
       <TranslatedPageHeader
         titleKey="activity.title"
         descriptionKey="activity.description"
-        icon={pageVisuals.activity.icon}
-        tone={pageVisuals.activity.tone}
+        visual="activity"
       />
 
       <SettingsActivityPanel />

@@ -1,32 +1,31 @@
 "use client";
 
 import { PageHeader } from "@/components/layout/page-primitives";
+import { pageVisuals } from "@/components/layout/icon-circle";
 import { useT } from "@/components/i18n/locale-provider";
 import type { MessageKey } from "@/lib/i18n";
-import type { IconTone } from "@/components/layout/icon-circle";
-import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 export function TranslatedPageHeader({
   titleKey,
   descriptionKey,
-  icon,
-  tone,
+  visual,
   actions,
 }: {
   titleKey: MessageKey;
   descriptionKey?: MessageKey;
-  icon?: LucideIcon;
-  tone?: IconTone;
+  /** Resolve icon on the client — do not pass Lucide components from server pages. */
+  visual?: keyof typeof pageVisuals;
   actions?: ReactNode;
 }) {
   const t = useT();
+  const look = visual ? pageVisuals[visual] : null;
   return (
     <PageHeader
       title={t(titleKey)}
       description={descriptionKey ? t(descriptionKey) : undefined}
-      icon={icon}
-      tone={tone}
+      icon={look?.icon}
+      tone={look?.tone}
       actions={actions}
     />
   );

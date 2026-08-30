@@ -1,6 +1,5 @@
 import { Suspense } from "react";
 import { TranslatedPageHeader } from "@/components/layout/translated-page-header";
-import { pageVisuals } from "@/components/layout/icon-circle";
 import { AccountPageCopy } from "@/components/settings/account-page-copy";
 import { SettingsMicrosoftCalendarsPanel } from "@/components/settings/settings-microsoft-calendars-panel";
 import { SettingsMicrosoftConnectPanel } from "@/components/settings/settings-microsoft-connect-panel";
@@ -21,8 +20,7 @@ export default function AccountPage() {
       <TranslatedPageHeader
         titleKey="account.title"
         descriptionKey="account.description"
-        icon={pageVisuals.account.icon}
-        tone={pageVisuals.account.tone}
+        visual="account"
       />
 
       <section className="space-y-3">

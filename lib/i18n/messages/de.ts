@@ -356,6 +356,7 @@ export const de = {
     statusForColleague: "Status für Kollege",
     noOrganization: "Ohne Organisation",
     sourceDeputy: "Stellvertretung",
+    sourceVacationCal: "Ferienkalender",
     sourceDefault: "Regel",
     attendance: "Anwesenheit",
     useRule: "Regel verwenden",
@@ -371,7 +372,7 @@ export const de = {
     nobodyInFilter: "Niemand in diesem Filter.",
     lockedVia: "Dieser Tag wurde über {source} gesetzt.",
     lockedDefault:
-      "Dieser Tag wurde von einer Stellvertretung oder Outlook gesetzt.",
+      "Dieser Tag wurde von einer Stellvertretung, Outlook oder dem Ferienkalender gesetzt.",
     howThisDay: "Wie arbeitest du an diesem Tag?",
     ownStatus: "Eigener Status",
     currentStatus: "Aktuell: {status}",
@@ -621,6 +622,15 @@ export const de = {
     teamsVisible: "Teams-Modul ist für alle sichtbar.",
     teamsHidden: "Teams-Modul ist für alle ausgeblendet.",
     teamsLoadFailed: "Einstellung laden fehlgeschlagen",
+    vacationCalTitle: "Firmen-Ferienkalender",
+    vacationCalHint:
+      "Ganztägige Einträge im gemeinsamen Postfach setzen Frei / Ferien im Team. Zuordnung über Teilnehmer-E-Mail (sonst Organisator).",
+    vacationCalMailbox: "Postfach",
+    vacationCalShareHint:
+      "Kalender mit mindestens einem verbundenen Microsoft-Konto teilen (Calendars.ReadWrite reicht).",
+    vacationCalReader: "Zuletzt gelesen über {name}.",
+    vacationCalSaved: "Ferienkalender gespeichert.",
+    vacationCalLoadFailed: "Ferienkalender laden fehlgeschlagen",
     companyAiTitle: "Firmen-KI (alle User)",
     companyAiHint:
       "Führend für alle Konten. OpenAI: nur Key und Modell. Custom: Key, Modell und URL vom Provider. Persönliche Keys unter Konto greifen erst, wenn das hier aus ist.",

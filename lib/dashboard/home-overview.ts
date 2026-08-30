@@ -30,6 +30,7 @@ import {
 import { getGoogleMailDayCached } from "@/lib/google/mail-day-analysis-job";
 import { zurichYmd } from "@/lib/microsoft/time";
 import { syncOofPresenceForUser } from "@/lib/presence/oof-sync";
+import { syncVacationCalendarPresence } from "@/lib/presence/vacation-calendar";
 import { getMariTicketsWatchState } from "@/lib/mari/sync-tickets-if-due";
 import type { MariTicketsWatchState } from "@/lib/mari/sync-tickets-if-due";
 import {
@@ -194,6 +195,9 @@ export async function getHomeOverview(
       console.warn("[presence] oof home sync:", error);
     });
   }
+  void syncVacationCalendarPresence(today).catch((error) => {
+    console.warn("[presence] vacation calendar home sync:", error);
+  });
   const ownerKey =
     userId != null ? `user:${userId}` : ownerKeyFromAuth(auth);
   const cached = readHomeKpiCache(userId);

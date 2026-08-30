@@ -7,6 +7,7 @@ import { sanitizeYmd } from "@/lib/mari/ttv";
 import { zurichYmd } from "@/lib/microsoft/time";
 import { listPresenceToday } from "@/lib/presence/day-status";
 import { syncOofPresenceForConnectedUsers } from "@/lib/presence/oof-sync";
+import { syncVacationCalendarPresence } from "@/lib/presence/vacation-calendar";
 import { withTimeout } from "@/lib/dashboard/with-timeout";
 
 export const runtime = "nodejs";
@@ -33,7 +34,10 @@ export async function GET(request: Request) {
 
   try {
     const day = ymd || zurichYmd();
-    await withTimeout(syncOofPresenceForConnectedUsers(day), 8000, null);
+    await Promise.all([
+      withTimeout(syncOofPresenceForConnectedUsers(day), 8000, null),
+      withTimeout(syncVacationCalendarPresence(day), 8000, null),
+    ]);
     return NextResponse.json(
       listPresenceToday({
         ymd: day,

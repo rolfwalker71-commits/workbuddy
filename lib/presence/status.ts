@@ -16,11 +16,21 @@ export const PRESENCE_STATUS_LABELS: Record<PresenceStatus, string> = {
   absent: "Abwesend",
 };
 
-export const PRESENCE_SOURCES = ["self", "deputy", "oof", "default"] as const;
+export const PRESENCE_SOURCES = [
+  "self",
+  "deputy",
+  "oof",
+  "vacationCal",
+  "default",
+] as const;
 
 export type PresenceSource = (typeof PRESENCE_SOURCES)[number];
 
-const PROTECTED_SOURCES = new Set<PresenceSource>(["deputy", "oof"]);
+const PROTECTED_SOURCES = new Set<PresenceSource>([
+  "deputy",
+  "oof",
+  "vacationCal",
+]);
 
 export function isPresenceStatus(raw: unknown): raw is PresenceStatus {
   return (
@@ -41,6 +51,7 @@ export function isPresenceSource(raw: unknown): raw is PresenceSource {
     raw === "self" ||
     raw === "deputy" ||
     raw === "oof" ||
+    raw === "vacationCal" ||
     raw === "default"
   );
 }
@@ -63,6 +74,20 @@ const SELF_STATUSES_OOF_KEEPS = new Set<PresenceStatus>(["sick", "vacation"]);
  * Office / home / absent (self) and an existing oof row may be overwritten.
  */
 export function oofMustNotOverwrite(existing: {
+  source: PresenceSource;
+  status: PresenceStatus;
+} | null): boolean {
+  if (!existing) return false;
+  if (existing.source === "deputy" || existing.source === "vacationCal") {
+    return true;
+  }
+  return (
+    existing.source === "self" && SELF_STATUSES_OOF_KEEPS.has(existing.status)
+  );
+}
+
+/** Company vacation calendar must not replace deputy or self sick/vacation. */
+export function vacationCalMustNotOverwrite(existing: {
   source: PresenceSource;
   status: PresenceStatus;
 } | null): boolean {

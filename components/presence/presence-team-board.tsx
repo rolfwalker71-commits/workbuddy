@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TranslatedPageHeader } from "@/components/layout/translated-page-header";
-import { pageVisuals } from "@/components/layout/icon-circle";
 import {
   segmentedTrackClass,
   segmentedTriggerClass,
@@ -377,8 +376,7 @@ export function PresenceTeamBoard() {
       <TranslatedPageHeader
         titleKey="team.title"
         descriptionKey="team.description"
-        icon={pageVisuals.team.icon}
-        tone={pageVisuals.team.tone}
+        visual="team"
       />
 
       <div className="flex flex-col gap-3">

@@ -20,12 +20,21 @@ function layer(
   };
 }
 
-test("resolveDayStatus prefers deputy over oof over self over default", () => {
+test("resolveDayStatus prefers deputy over vacationCal over oof over self over default", () => {
   const deputy = layer("deputy", "sick");
+  const vacationCal = layer("vacationCal", "vacation");
   const oof = layer("oof", "absent");
   const self = layer("self", "home");
   const fallback = layer("default", "office");
-  assert.equal(resolveDayStatus({ deputy, oof, self, default: fallback })?.source, "deputy");
+  assert.equal(
+    resolveDayStatus({ deputy, vacationCal, oof, self, default: fallback })
+      ?.source,
+    "deputy"
+  );
+  assert.equal(
+    resolveDayStatus({ vacationCal, oof, self, default: fallback })?.source,
+    "vacationCal"
+  );
   assert.equal(resolveDayStatus({ oof, self, default: fallback })?.source, "oof");
   assert.equal(resolveDayStatus({ self, default: fallback })?.source, "self");
   assert.equal(resolveDayStatus({ default: fallback })?.status, "office");
@@ -43,6 +52,10 @@ test("unset is a gap, not silent office", () => {
 test("layersFromStored maps a single stored row onto the winning layer", () => {
   assert.deepEqual(layersFromStored(layer("deputy", "sick")).deputy?.status, "sick");
   assert.equal(layersFromStored(layer("oof", "absent")).oof?.source, "oof");
+  assert.equal(
+    layersFromStored(layer("vacationCal", "vacation")).vacationCal?.status,
+    "vacation"
+  );
   assert.equal(layersFromStored(layer("self", "office")).self?.status, "office");
   assert.equal(resolveStoredDayStatus(layer("deputy", "vacation"))?.status, "vacation");
 });

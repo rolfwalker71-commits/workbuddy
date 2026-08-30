@@ -358,6 +358,7 @@ export const en = {
     statusForColleague: "Status for colleague",
     noOrganization: "No organization",
     sourceDeputy: "Deputy",
+    sourceVacationCal: "Leave calendar",
     sourceDefault: "Rule",
     attendance: "Attendance",
     useRule: "Use the rule",
@@ -372,7 +373,8 @@ export const en = {
     colleagues: "Colleagues",
     nobodyInFilter: "Nobody in this filter.",
     lockedVia: "This day was set via {source}.",
-    lockedDefault: "This day was set by a deputy or Outlook.",
+    lockedDefault:
+      "This day was set by a deputy, Outlook, or the leave calendar.",
     howThisDay: "How are you working on this day?",
     ownStatus: "Your status",
     currentStatus: "Current: {status}",
@@ -620,6 +622,15 @@ export const en = {
     teamsVisible: "The Teams module is visible to everyone.",
     teamsHidden: "The Teams module is hidden for everyone.",
     teamsLoadFailed: "Failed to load setting",
+    vacationCalTitle: "Company leave calendar",
+    vacationCalHint:
+      "All-day events in the shared mailbox set Leave on the team board. Assigned by attendee email (organizer if nobody is invited).",
+    vacationCalMailbox: "Mailbox",
+    vacationCalShareHint:
+      "Share the calendar with at least one connected Microsoft account (Calendars.ReadWrite is enough).",
+    vacationCalReader: "Last read via {name}.",
+    vacationCalSaved: "Leave calendar saved.",
+    vacationCalLoadFailed: "Failed to load leave calendar",
     companyAiTitle: "Company AI (all users)",
     companyAiHint:
       "Applies to every account. OpenAI: key and model only. Custom: key, model, and provider URL. Personal keys under Account apply only when this is off.",

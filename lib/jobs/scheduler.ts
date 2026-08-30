@@ -57,6 +57,16 @@ async function tick(): Promise<void> {
     if (oofSync) {
       state.lastResult += ` oof:${oofSync.applied}/${oofSync.cleared}`;
     }
+    const { syncVacationCalendarIfDue } = await import(
+      "@/lib/presence/vacation-calendar"
+    );
+    const vacationSync = await syncVacationCalendarIfDue().catch((error) => {
+      console.warn("[scheduler] presence vacation calendar:", error);
+      return null;
+    });
+    if (vacationSync) {
+      state.lastResult += ` vac:${vacationSync.applied}/${vacationSync.cleared}`;
+    }
     const { maybeDispatchEveningClose } = await import(
       "@/lib/dashboard/evening-close-push"
     );

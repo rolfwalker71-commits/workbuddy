@@ -133,6 +133,9 @@ export function presenceSourceHint(
   locale: Locale = DEFAULT_LOCALE
 ): string | null {
   if (source === "oof") return "Outlook";
+  if (source === "vacationCal") {
+    return translate(locale, "presence.sourceVacationCal");
+  }
   if (source === "deputy") return translate(locale, "presence.sourceDeputy");
   if (source === "default") return translate(locale, "presence.sourceDefault");
   return null;

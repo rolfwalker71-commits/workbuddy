@@ -216,7 +216,7 @@ export function clearOwnDayStatus(userId: number, ymd: string): boolean {
   if (!existing) return false;
   if (isProtectedPresenceSource(existing.source)) {
     throw new Error(
-      "Dieser Tag wurde von einer Stellvertretung oder Outlook gesetzt."
+      "Dieser Tag wurde von einer Stellvertretung, Outlook oder dem Ferienkalender gesetzt."
     );
   }
   return deleteUserDayStatus(userId, ymd);
@@ -230,7 +230,7 @@ export function setOwnDayStatus(input: {
   const existing = getUserDayStatus(input.userId, input.ymd);
   if (isProtectedPresenceSource(existing?.source)) {
     throw new Error(
-      "Dieser Tag wurde von einer Stellvertretung oder Outlook gesetzt."
+      "Dieser Tag wurde von einer Stellvertretung, Outlook oder dem Ferienkalender gesetzt."
     );
   }
   return upsertUserDayStatus({
