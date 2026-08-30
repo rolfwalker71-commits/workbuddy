@@ -248,12 +248,13 @@ async function lookupProjectLabelsByNumbers(
       const rows = await mariSql<{ ProjectNumber?: unknown; Name?: unknown }>(
         tmpl.replace("{{IN}}", inList)
       );
-      projectLabelSql = tmpl;
       for (const row of rows) {
         const pn = String(row.ProjectNumber || "").trim();
         const name = String(row.Name || "").trim();
         if (pn && name) out.set(pn, name);
       }
+      if (out.size === 0) continue;
+      projectLabelSql = tmpl;
       return out;
     } catch {
       /* nächste Variante */
@@ -296,7 +297,7 @@ type EnrichDepth = "list" | "detail";
 
 async function enrichTimeLinesProjectCustomer(
   lines: MariTimeLine[],
-  depth: EnrichDepth
+  _depth: EnrichDepth
 ): Promise<MariTimeLine[]> {
   if (lines.length === 0) return lines;
   const missing = projectNumbersNeedingLabel(lines);
@@ -304,9 +305,7 @@ async function enrichTimeLinesProjectCustomer(
 
   const fromSql = await lookupProjectLabelsByNumbers(missing);
   const next = applyProjectLabels(lines, fromSql);
-  const still = projectNumbersNeedingLabel(next);
-  if (still.length === 0 || depth === "list") return next;
-
+  if (projectNumbersNeedingLabel(next).length === 0) return next;
   return applyProjectLabels(next, await labelsFromProjectBookingList());
 }
 
@@ -391,7 +390,68 @@ async function enrichTimeLinesPositions(
   });
 }
 
-const REST_CONTRACT_CONCURRENCY = 8;
+const CONTRACT_FIELD_SQL = [
+  `SELECT t."TimeSheetEntryID",
+  t."ContractID",
+  t."AbsID",
+  t."Contract",
+  t."ContractName",
+  t."ContractPositionID",
+  t."ContractPosition"
+FROM "MARIProjectTimeKeepingLines" t
+WHERE t."TimeSheetEntryID" IN ({{IN}})`,
+  `SELECT t."TimeSheetEntryID",
+  t."ContractID",
+  t."AbsID",
+  t."ContractPositionID"
+FROM "MARIProjectTimeKeepingLines" t
+WHERE t."TimeSheetEntryID" IN ({{IN}})`,
+  `SELECT t."TimeSheetEntryID", t."ContractID"
+FROM "MARIProjectTimeKeepingLines" t
+WHERE t."TimeSheetEntryID" IN ({{IN}})`,
+];
+
+let contractFieldSql: string | null | undefined;
+
+async function enrichContractFieldsFromSql(
+  lines: MariTimeLine[]
+): Promise<MariTimeLine[]> {
+  const need = lines.filter(
+    (l) => l.lineId > 0 && l.contractId <= 0 && !l.contractNumber
+  );
+  if (need.length === 0) return lines;
+  const inList = need.map((l) => String(l.lineId)).join(",");
+  const queries =
+    contractFieldSql != null && contractFieldSql !== ""
+      ? [contractFieldSql]
+      : contractFieldSql === ""
+        ? []
+        : CONTRACT_FIELD_SQL;
+  for (const tmpl of queries) {
+    try {
+      const rows = await mariSql<Record<string, unknown>>(
+        tmpl.replace("{{IN}}", inList)
+      );
+      const byId = new Map<number, Record<string, unknown>>();
+      for (const row of rows) {
+        const id = Number(row.TimeSheetEntryID) || 0;
+        if (id > 0) byId.set(id, row);
+      }
+      if (byId.size === 0) continue;
+      contractFieldSql = tmpl;
+      return lines.map((l) => {
+        const row = byId.get(l.lineId);
+        return row ? { ...l, ...applyMariContractFields(l, row) } : l;
+      });
+    } catch {
+      /* nächste Variante */
+    }
+  }
+  if (contractFieldSql === undefined) contractFieldSql = "";
+  return lines;
+}
+
+const REST_CONTRACT_CONCURRENCY = 16;
 
 async function enrichTimeLinesFromRest(
   lines: MariTimeLine[]
@@ -424,12 +484,24 @@ async function enrichTimeLines(
   lines: MariTimeLine[],
   depth: EnrichDepth = "detail"
 ): Promise<MariTimeLine[]> {
-  const withIds =
-    depth === "detail" ? await enrichTimeLinesFromRest(lines) : lines;
-  const withCustomer = await enrichTimeLinesProjectCustomer(withIds, depth);
-  if (depth === "list") return withCustomer;
-  const withContracts = await enrichTimeLinesContracts(withCustomer);
-  return enrichTimeLinesPositions(withContracts);
+  let next =
+    depth === "detail"
+      ? await enrichTimeLinesFromRest(lines)
+      : await enrichContractFieldsFromSql(lines);
+  next = await enrichTimeLinesProjectCustomer(next, depth);
+  next = await enrichTimeLinesContracts(next);
+  next = await enrichTimeLinesPositions(next);
+  if (depth === "list") {
+    const missingIds = next.some(
+      (l) => l.lineId > 0 && l.contractId <= 0 && !l.contractNumber
+    );
+    if (missingIds) {
+      next = await enrichTimeLinesFromRest(next);
+      next = await enrichTimeLinesContracts(next);
+      next = await enrichTimeLinesPositions(next);
+    }
+  }
+  return next;
 }
 
 function mapSqlLine(r: Record<string, unknown>): MariTimeLine {
