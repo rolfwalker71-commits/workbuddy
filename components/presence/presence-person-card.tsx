@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 import {
   organizationLabel,
   presenceSourceHint,
-  PRESENCE_STATUS_SURFACE,
   type PresencePersonView,
 } from "@/lib/presence/client";
 import { useLocale, useT } from "@/components/i18n/locale-provider";
@@ -31,13 +30,12 @@ export function PresencePersonCard({
   const statusLabel = person.status
     ? presenceDisplayLabel(person.status, locale)
     : t("presence.open");
+  const spokenStatus = person.status ? statusLabel : t("presence.unset");
   const orgLabel = organizationLabel(person.organization, locale);
-  const hasArt = Boolean(person.status);
+  const spoken = `${person.displayName}${isSelf ? t("presence.youSuffix") : ""}: ${spokenStatus}${hint ? ` · ${hint}` : ""}`;
   const className = cn(
     "relative flex w-full flex-col items-stretch overflow-hidden rounded-2xl text-left shadow-sm ring-1",
-    hasArt
-      ? "bg-zinc-200 ring-foreground/10 dark:bg-zinc-900"
-      : PRESENCE_STATUS_SURFACE.unset,
+    "bg-zinc-200 ring-foreground/10 dark:bg-zinc-900",
     isSelf && "ring-2 ring-primary/70",
     interactive && "transition-shadow hover:shadow-md"
   );
@@ -63,7 +61,7 @@ export function PresencePersonCard({
     </>
   );
 
-  const body = hasArt ? (
+  const body = (
     <>
       <PresenceIsoArt status={person.status} variant="hero" />
       <div className="relative z-10 flex min-h-[7.25rem] flex-col justify-between p-2">
@@ -80,22 +78,25 @@ export function PresencePersonCard({
         </PresenceGlassPanel>
       </div>
     </>
-  ) : (
-    <div className="relative z-10 flex min-h-11 items-start justify-between gap-3 px-3 py-2.5">
-      <div className="min-w-0">{name}</div>
-      <div className="flex max-w-[55%] shrink-0 flex-col items-end gap-0.5 text-right">
-        {rest}
-      </div>
-    </div>
   );
 
   if (interactive && onClick) {
     return (
-      <button type="button" onClick={onClick} className={className}>
+      <button
+        type="button"
+        onClick={onClick}
+        className={className}
+        aria-label={spoken}
+        title={spoken}
+      >
         {body}
       </button>
     );
   }
 
-  return <div className={className}>{body}</div>;
+  return (
+    <div className={className} aria-label={spoken} title={spoken}>
+      {body}
+    </div>
+  );
 }

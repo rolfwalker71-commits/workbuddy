@@ -32,7 +32,6 @@ import {
   groupPresencePeople,
   isOwnDayLocked,
   organizationLabel,
-  PRESENCE_STATUS_SURFACE,
   presenceSourceHint,
   deleteOwnDayStatus,
   putDelegatedDayStatus,
@@ -114,29 +113,27 @@ function WeekDayCell({
   const t = useT();
   const { locale, intlLocale } = useLocale();
   const status = person?.status ?? null;
-  const hasArt = Boolean(status);
   const hint = presenceSourceHint(person?.source ?? null, locale);
   const statusLabel = status
     ? presenceDisplayLabel(status, locale)
     : t("presence.open");
+  const spokenStatus = status ? statusLabel : t("presence.unset");
   const dayName = weekdayLong(day, intlLocale);
   const dayLabel = density === "own" ? dayName : weekdayShort(day, intlLocale);
   const interactive = Boolean(onOpen && person);
-  const spoken = `${dayName}: ${statusLabel}${hint ? ` · ${hint}` : ""}`;
+  const spoken = `${dayName}: ${spokenStatus}${hint ? ` · ${hint}` : ""}`;
 
   const inner = (
     <>
-      {hasArt ? (
-        <PresenceIsoArt
-          status={status}
-          variant="tile"
-          className={
-            density === "colleague"
-              ? "opacity-[0.56] dark:opacity-[0.42]"
-              : undefined
-          }
-        />
-      ) : null}
+      <PresenceIsoArt
+        status={status}
+        variant="tile"
+        className={
+          density === "colleague"
+            ? "opacity-[0.56] dark:opacity-[0.42]"
+            : undefined
+        }
+      />
       <div
         className={cn(
           "relative z-10 flex flex-col justify-between p-1.5",
@@ -144,7 +141,7 @@ function WeekDayCell({
         )}
       >
         <PresenceGlassPanel className={cn("self-start", WEEK_CHIP)}>
-          <span className="block truncate text-xs font-bold leading-none text-foreground">
+          <span className="block break-words text-xs font-bold leading-snug text-foreground">
             {dayLabel}
           </span>
         </PresenceGlassPanel>
@@ -154,11 +151,11 @@ function WeekDayCell({
             WEEK_CHIP
           )}
         >
-          <span className="block truncate text-xs font-bold leading-none text-foreground">
+          <span className="block break-words text-xs font-bold leading-snug text-foreground">
             {statusLabel}
           </span>
           {hint ? (
-            <span className="mt-0.5 block truncate text-[0.65rem] leading-none text-foreground">
+            <span className="mt-0.5 block break-words text-[0.65rem] leading-snug text-foreground">
               {hint}
             </span>
           ) : null}
@@ -169,9 +166,7 @@ function WeekDayCell({
 
   const className = cn(
     "relative flex w-full flex-col items-stretch overflow-hidden rounded-2xl text-left shadow-sm ring-1",
-    hasArt
-      ? "bg-zinc-200 ring-foreground/10 dark:bg-zinc-900"
-      : PRESENCE_STATUS_SURFACE.unset,
+    "bg-zinc-200 ring-foreground/10 dark:bg-zinc-900",
     day === today && "ring-2 ring-primary/70",
     interactive && "transition-shadow hover:shadow-md"
   );

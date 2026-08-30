@@ -337,7 +337,7 @@ export const de = {
     sick: "Krank",
     vacation: "Frei / Ferien",
     absent: "Abwesend",
-    unset: "Nicht gesetzt",
+    unset: "Status nicht gesetzt",
     orgCH: "ANG Schweiz",
     orgAT: "ANG Österreich",
     orgDE: "ANG Deutschland",

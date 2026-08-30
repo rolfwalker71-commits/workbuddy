@@ -12,7 +12,6 @@ export function PresenceIsoArt({
   className?: string;
 }) {
   const art = presenceIsoArt(status);
-  if (!art) return null;
 
   if (variant === "thumb") {
     return (

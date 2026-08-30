@@ -95,9 +95,9 @@ export function PresenceHomeBar({
   const showMorning = Boolean(self && !self.status && !locked);
   const loading = !data && !error;
   const choosing = showMorning || editing;
-  const artStatus = !choosing ? (self?.status ?? null) : null;
-  const showChange = Boolean(artStatus && !locked);
-  const showActions = showChange || showDelegate;
+  const showHero = Boolean(data) && !loading;
+  const showChange = Boolean(self?.status) && !locked;
+  const showActions = !choosing && (showChange || showDelegate);
 
   const statusTitle = showMorning
     ? t("presence.howToday")
@@ -242,42 +242,45 @@ export function PresenceHomeBar({
     );
   }
 
+  const pills = (
+    <PresenceStatusPills
+      value={self?.status ?? null}
+      onChange={(status) => void setOwn(status)}
+      disabled={busy || locked}
+      ariaLabel={t("presence.howToday")}
+    />
+  );
+
+  const editButtons = editing ? (
+    <div className="flex flex-wrap items-center gap-2">
+      {self?.source === "self" ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          disabled={busy}
+          onClick={() => void clearOwn()}
+        >
+          {t("presence.useRule")}
+        </Button>
+      ) : null}
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        disabled={busy}
+        onClick={() => setEditing(false)}
+      >
+        {t("common.done")}
+      </Button>
+    </div>
+  ) : null;
+
   const editor = (
     <div className="min-w-0 space-y-2">
-      <div className="flex items-center gap-2">
-        <div className="min-w-0 flex-1">{statusLine}</div>
-        {choosing ? <PresenceIsoArt status={self?.status} variant="thumb" /> : null}
-      </div>
-      <PresenceStatusPills
-        value={self?.status ?? null}
-        onChange={(status) => void setOwn(status)}
-        disabled={busy || locked}
-        ariaLabel={t("presence.howToday")}
-      />
-      {editing ? (
-        <div className="flex flex-wrap items-center gap-2">
-          {self?.source === "self" ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              disabled={busy}
-              onClick={() => void clearOwn()}
-            >
-              {t("presence.useRule")}
-            </Button>
-          ) : null}
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            disabled={busy}
-            onClick={() => setEditing(false)}
-          >
-            {t("common.done")}
-          </Button>
-        </div>
-      ) : null}
+      <div className="min-w-0">{statusLine}</div>
+      {pills}
+      {editButtons}
     </div>
   );
 
@@ -299,11 +302,13 @@ export function PresenceHomeBar({
     <div
       className={cn(
         "relative min-w-0 overflow-hidden rounded-2xl shadow-sm ring-1 ring-foreground/10",
-        artStatus ? "bg-zinc-200 dark:bg-zinc-900" : "bg-card px-3 py-2.5"
+        showHero ? "bg-zinc-200 dark:bg-zinc-900" : "bg-card px-3 py-2.5"
       )}
     >
-      {artStatus ? <PresenceIsoArt status={artStatus} variant="hero" /> : null}
-      {artStatus ? (
+      {showHero ? (
+        <PresenceIsoArt status={self?.status ?? null} variant="hero" />
+      ) : null}
+      {showHero ? (
         <div className="relative z-10 flex min-h-[8.25rem] flex-col justify-between gap-2 p-2.5">
           <div className="flex items-start justify-between gap-2">
             <PresenceGlassPanel className={cn("space-y-1", overlayChip)}>
@@ -315,7 +320,18 @@ export function PresenceHomeBar({
             </PresenceGlassPanel>
             <PresenceGlassPanel className="shrink-0 p-0">{teamLink}</PresenceGlassPanel>
           </div>
-          {showActions ? (
+          {choosing ? (
+            <div className="space-y-2">
+              <PresenceGlassPanel className="w-full max-w-full p-1">
+                {pills}
+              </PresenceGlassPanel>
+              {editButtons ? (
+                <PresenceGlassPanel className="self-end p-1">
+                  {editButtons}
+                </PresenceGlassPanel>
+              ) : null}
+            </div>
+          ) : showActions ? (
             <div className="flex flex-wrap justify-end gap-1.5">
               {actionButtons("ghost")}
             </div>

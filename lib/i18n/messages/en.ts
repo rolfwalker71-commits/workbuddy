@@ -339,7 +339,7 @@ export const en = {
     sick: "Sick",
     vacation: "Off / holiday",
     absent: "Absent",
-    unset: "Not set",
+    unset: "Status not set",
     orgCH: "ANG Switzerland",
     orgAT: "ANG Austria",
     orgDE: "ANG Germany",

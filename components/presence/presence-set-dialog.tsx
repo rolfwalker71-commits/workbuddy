@@ -64,17 +64,19 @@ export function PresenceSetDialog({
           disabled={busy || locked}
           ariaLabel={t("presence.ownStatus")}
         />
-        {person?.status ? (
-          <p className="text-xs text-muted-foreground">
-            {person.source === "default"
+        <p className="text-xs text-muted-foreground">
+          {person?.status
+            ? person.source === "default"
               ? t("presence.currentStatusRule", {
                   status: presenceDisplayLabel(person.status, locale),
                 })
               : t("presence.currentStatus", {
                   status: presenceDisplayLabel(person.status, locale),
-                })}
-          </p>
-        ) : null}
+                })
+            : t("presence.currentStatus", {
+                status: t("presence.unset"),
+              })}
+        </p>
         {onClear && !locked ? (
           <Button
             type="button"

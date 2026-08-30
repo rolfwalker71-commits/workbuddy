@@ -3,8 +3,11 @@ import {
   type PresenceStatus,
 } from "@/lib/presence/status";
 
+/** Display-only art key. Not a stored PresenceStatus. */
+export type PresenceIsoArtKey = PresenceStatus | "unset";
+
 export type PresenceIsoArtAsset = {
-  status: PresenceStatus;
+  status: PresenceIsoArtKey;
   src: string;
   alt: string;
 };
@@ -39,9 +42,16 @@ export const PRESENCE_ISO_ART: Record<PresenceStatus, PresenceIsoArtAsset> = {
   },
 };
 
+/** Open / unset day — never written to presence matching or storage. */
+export const PRESENCE_UNSET_ART: PresenceIsoArtAsset = {
+  status: "unset",
+  src: `${ART}/unset.webp`,
+  alt: "Offen",
+};
+
 export function presenceIsoArt(
   status: PresenceStatus | null | undefined
-): PresenceIsoArtAsset | null {
-  if (!status) return null;
+): PresenceIsoArtAsset {
+  if (!status) return PRESENCE_UNSET_ART;
   return PRESENCE_ISO_ART[status];
 }
