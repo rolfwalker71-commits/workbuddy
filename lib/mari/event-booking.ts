@@ -15,6 +15,7 @@ import {
   type EventBookingRef,
   type EventMeetingKind,
 } from "@/lib/mari/event-booking-ref";
+import { eventTitleHasInternMarker } from "@/lib/mari/event-title-tokens";
 import { formatMariProjectLabel } from "@/lib/mari/timekeeping-shared";
 import type { MariTicketListItem } from "@/lib/mari/tickets";
 import type { MariCalendarStamp } from "@/lib/mari/calendar-stamp";
@@ -99,15 +100,16 @@ export async function recognizeEventBooking(input: {
   meetingKind: EventMeetingKind;
 }> {
   const meetingKind = classifyEventMeetingKind(input.attendeeEmails);
+  const titleForceIntern = eventTitleHasInternMarker(input.title);
   const titleResult = await suggestMariPartnersFromEventTitle(
     (input.title || "").slice(0, 200)
   );
-  const attendees =
-    meetingKind === "mixed"
-      ? await lookupMariPartnersByEmails(input.attendeeEmails || [])
-      : [];
+  const attendees = titleForceIntern
+    ? []
+    : await lookupMariPartnersByEmails(input.attendeeEmails || []);
   const booking = bookingRefFromRecognition({
     meetingKind,
+    titleForceIntern,
     title: {
       cardCode: titleResult.cardCode,
       projectNumber: titleResult.projectNumber,

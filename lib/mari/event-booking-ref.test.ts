@@ -88,7 +88,7 @@ test("internal-only does not use colleague attendee hits", () => {
   assert.equal(formatEventBookingLine(ref), "Intern · kein Vertrag");
 });
 
-test("mixed meeting prefers Kunden-Ansprechpartner over title name", () => {
+test("title name wins over attendees; same card can fill project", () => {
   const ref = bookingRefFromRecognition({
     meetingKind: "mixed",
     title: {
@@ -122,10 +122,69 @@ test("mixed meeting prefers Kunden-Ansprechpartner over title name", () => {
   });
   assert.ok(ref);
   assert.equal(ref.meetingKind, "mixed");
-  assert.equal(ref.customerName, "Filados AG");
+  assert.equal(ref.customerName, "Filados");
   assert.equal(ref.projectNumber, "P600111");
   assert.equal(ref.contractId, 88);
-  assert.equal(formatEventBookingLine(ref), "Filados AG · P600111 · 88");
+  assert.equal(formatEventBookingLine(ref), "Filados · P600111 · 88");
+});
+
+test("titleForceIntern skips attendee customer even when mixed", () => {
+  const ref = bookingRefFromRecognition({
+    meetingKind: "mixed",
+    titleForceIntern: true,
+    title: {
+      cardCode: null,
+      projectNumber: null,
+      contractVisible: null,
+      suggestions: [],
+      prefill: {
+        projectNumber: null,
+        projectLabel: null,
+        contractId: null,
+      },
+    },
+    attendees: [
+      {
+        cardCode: "C1471",
+        name: "Filados AG",
+        projectNumber: "P600111",
+        projectLabel: "Filados AG",
+        contractId: 88,
+      },
+    ],
+  });
+  assert.ok(ref);
+  assert.equal(ref.meetingKind, "internal");
+  assert.equal(formatEventBookingLine(ref), "Intern · kein Vertrag");
+});
+
+test("attendees used only when title has no customer", () => {
+  const ref = bookingRefFromRecognition({
+    meetingKind: "mixed",
+    title: {
+      cardCode: null,
+      projectNumber: null,
+      contractVisible: null,
+      suggestions: [],
+      prefill: {
+        projectNumber: null,
+        projectLabel: null,
+        contractId: null,
+      },
+    },
+    attendees: [
+      {
+        cardCode: "C1471",
+        name: "Filados AG",
+        projectNumber: "P600111",
+        projectLabel: "Filados AG",
+        contractId: 88,
+      },
+    ],
+  });
+  assert.ok(ref);
+  assert.equal(ref.customerName, "Filados AG");
+  assert.equal(ref.projectNumber, "P600111");
 });
 
 test("title C/P/V wins over attendees", () => {

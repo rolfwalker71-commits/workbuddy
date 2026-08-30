@@ -1854,7 +1854,7 @@ export const en = {
     noAttendeeHits:
       "No hit for subject or attendees — search for a project.",
     attendeeHint:
-      "Only from this appointment: subject (C-/P-/V or name from 4 letters) and external attendee mails. Colleague addresses are ignored.",
+      "Subject first: C-/P-/V, (Kanadevia), name before →, or (intern). Only then external attendee mails — colleagues are ignored.",
     hoursHintWorked:
       "Working time (MARI hours). Until Billable is changed, the value is copied.",
     hoursHintBillable:

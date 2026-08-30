@@ -4,6 +4,7 @@ import {
   calendarEventToBookDefaults,
   DEFAULT_EVENT_ACTIVITY,
   eventBookHoursFromDuration,
+  eventTitleHasInternMarker,
   eventTitleNameCandidates,
   hoursBetweenHm,
   isConfidentCustomerNameHit,
@@ -68,6 +69,25 @@ test("eventTitleNameCandidates keeps Filados and skips stopwords", () => {
   assert.deepEqual(eventTitleNameCandidates("Filados Daily Call"), ["Filados"]);
   assert.deepEqual(eventTitleNameCandidates("C1471 · Support"), []);
   assert.deepEqual(eventTitleNameCandidates("ENSO Test"), ["ENSO"]);
+});
+
+test("eventTitleNameCandidates prefers leading customer before arrow", () => {
+  assert.deepEqual(
+    eventTitleNameCandidates(
+      "Kanadevia → Technische Prüfung / Anpassung Druckspracheinstellung 243 Dublin"
+    ),
+    ["Kanadevia", "Technische", "Prüfung"]
+  );
+});
+
+test("eventTitleNameCandidates reads (Name) and (intern)", () => {
+  assert.equal(eventTitleHasInternMarker("Daily ANG (intern)"), true);
+  assert.equal(eventTitleHasInternMarker("Kanadevia Workshop"), false);
+  assert.deepEqual(eventTitleNameCandidates("Daily ANG (intern)"), []);
+  assert.deepEqual(eventTitleNameCandidates("(Kanadevia) Workshop Dublin"), [
+    "Kanadevia",
+    "Dublin",
+  ]);
 });
 
 test("isConfidentCustomerNameHit is exact or starts-with only", () => {

@@ -300,13 +300,15 @@ function withKind(
 }
 
 /**
- * Title C/P/V always. Mixed: Kunden-Ansprechpartner (exact email) before
- * freitext name. Internal-only: never look up colleague mails — intern + kein Vertrag.
+ * Betreff zuerst (C/P/V, dann Name). `(intern)` erzwingt intern.
+ * Teilnehmer nur wenn der Betreff nichts liefert — nur externe Mails.
+ * Gleicher CardCode am Teilnehmer darf Projekt/Vertrag zum Betreff-Kunden ergänzen.
  */
 export function bookingRefFromRecognition(input: {
   title: EventTitleBookingHint;
   attendees: EventBookingSuggestion[];
   meetingKind: EventMeetingKind;
+  titleForceIntern?: boolean;
 }): EventBookingRef | null {
   const kind = input.meetingKind;
   const titleHit = input.title.suggestions[0] || null;
@@ -333,6 +335,31 @@ export function bookingRefFromRecognition(input: {
     return eventBookingRefHasCodes(ref) ? ref : internStub(kind);
   }
 
+  if (input.titleForceIntern) {
+    return internStub(kind, true);
+  }
+
+  if (titleHit) {
+    const sameCard = input.attendees.find(
+      (a) =>
+        (a.cardCode || "").trim().toLowerCase() ===
+          (titleHit.cardCode || "").trim().toLowerCase() &&
+        (a.projectNumber || "").trim()
+    );
+    return withKind(
+      {
+        cardCode: titleHit.cardCode,
+        customerName: titleHit.name,
+        projectNumber: sameCard?.projectNumber || titleHit.projectNumber,
+        projectLabel: sameCard?.projectLabel || titleHit.projectLabel,
+        contractId: sameCard?.contractId ?? titleHit.contractId,
+        contractVisible: null,
+        source: "guess",
+      },
+      kind
+    );
+  }
+
   if (kind === "mixed") {
     const attWithProject =
       input.attendees.find((a) => (a.projectNumber || "").trim()) || null;
@@ -353,26 +380,14 @@ export function bookingRefFromRecognition(input: {
     }
   }
 
-  if (titleHit) {
-    return withKind(
-      {
-        cardCode: titleHit.cardCode,
-        customerName: titleHit.name,
-        projectNumber: titleHit.projectNumber,
-        projectLabel: titleHit.projectLabel,
-        contractId: titleHit.contractId,
-        contractVisible: null,
-        source: "guess",
-      },
-      kind
-    );
-  }
-
   return internStub(kind);
 }
 
-function internStub(kind: EventMeetingKind): EventBookingRef | null {
-  if (kind !== "internal") return null;
+function internStub(
+  kind: EventMeetingKind,
+  force = false
+): EventBookingRef | null {
+  if (kind !== "internal" && !force) return null;
   return withKind(
     {
       cardCode: null,

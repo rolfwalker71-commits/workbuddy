@@ -1864,7 +1864,7 @@ export const de = {
     noAttendeeHits:
       "Kein Treffer zu Betreff oder Teilnehmern — Projekt suchen.",
     attendeeHint:
-      "Nur aus diesem Termin: Betreff (C-/P-/V oder Name ab 4 Buchstaben) und externe Teilnehmer-Mails. Kollegen-Adressen werden ignoriert.",
+      "Zuerst der Betreff: C-/P-/V, (Kanadevia), Name vor →, oder (intern). Erst danach externe Teilnehmer-Mails — Kollegen werden ignoriert.",
     hoursHintWorked:
       "Arbeitszeit (MARI Stunden). Solange Verrechenbar nicht geändert wurde, wird der Wert übernommen.",
     hoursHintBillable:

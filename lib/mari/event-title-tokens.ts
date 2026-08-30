@@ -1,17 +1,12 @@
 /**
  * Optional Outlook-Betreff-Konvention für Stundenbuchung.
- * Nur Prefill / Chips — nie still buchen.
+ * Nur Prefill / Chips — nie still buchen. Betreff vor Teilnehmern.
  *
- *   C1471  → Kunde bekannt → Vorschlag Projekt + Vertrag
- *   P600111 → Projekt bekannt → Vorschlag Kunde + Vertrag
- *   V60011100 → Vertrag bekannt → Vorschlag Kunde + Projekt
- *   Filados → Freitext → optional nur Kunde
- *
- * Spezifischer gewinnt: P vor C fürs Projekt. Nicht gegeneinander anschreiben.
- *
- *   P600111 · Support Tanner
- *   P600111 V60011100 · Workshop
- *   C1471 · Support Filados
+ *   C1471 / P600111 / V60011100 → Codes (stärkste Treffer)
+ *   (intern) / (internal) → intern, kein Kunden-Guess
+ *   (Kanadevia) → expliziter Kundenname
+ *   Kanadevia → Rest  → erstes Segment vor → · | — /
+ *   Filados Daily Call → Freitext, links nach rechts (keine Längen-Sortierung)
  */
 
 export const DEFAULT_EVENT_ACTIVITY = "Besprechung";
@@ -48,6 +43,8 @@ const PROJECT_TOKEN_RE = /\bP\d{3,}\b/i;
 const CONTRACT_TOKEN_RE = /\bV\d{6,}\b/gi;
 const CUSTOMER_TOKEN_RE = /\bC\d{3,}\b/i;
 const ACTIVITY_SEP_RE = /[·|]/;
+const INTERN_MARK_RE = /\(\s*intern(?:al)?\s*\)/gi;
+const TITLE_LEAD_SEP_RE = /\s*(?:→|->|·|\||—|–|\/)\s*/;
 
 /** Kurze/generische Betreff-Wörter — keine Kundensuche. */
 const EVENT_TITLE_NAME_STOPWORDS = new Set([
@@ -195,28 +192,71 @@ export function parseEventTitleTokens(
   };
 }
 
-/** Freitext-Kandidaten für eine konservative Kundensuche (min. 4 Zeichen). */
-export function eventTitleNameCandidates(
+/** `(intern)` / `(internal)` — kein Kunden-Guess aus Betreff oder Teilnehmern. */
+export function eventTitleHasInternMarker(
   subject: string | null | undefined
-): string[] {
-  const stripped = (subject || "")
+): boolean {
+  return /\(\s*intern(?:al)?\s*\)/i.test(subject || "");
+}
+
+function titleNameWords(raw: string): string[] {
+  const stripped = raw
+    .replace(INTERN_MARK_RE, " ")
     .replace(/\bP\d{3,}\b/gi, " ")
     .replace(/\bV\d{6,}\b/gi, " ")
     .replace(/\bC\d{3,}\b/gi, " ")
-    .replace(/[·|/,;:()[\]-]+/g, " ")
+    .replace(/[·|/,;:()[\]→—–-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  const words = stripped.match(/[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß0-9']{3,}/g) || [];
+  return stripped.match(/[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß0-9']{3,}/g) || [];
+}
+
+function pushTitleNameCandidate(
+  out: string[],
+  seen: Set<string>,
+  raw: string
+): void {
+  const q = raw.trim();
+  if (q.length < 4) return;
+  const key = q.toLowerCase();
+  if (EVENT_TITLE_NAME_STOPWORDS.has(key)) return;
+  if (seen.has(key)) return;
+  seen.add(key);
+  out.push(q);
+}
+
+/**
+ * Kundensuche aus dem Betreff, in Schreib-Reihenfolge.
+ * 1) `(Name)` außer intern  2) Segment vor → · | /  3) weitere Wörter.
+ */
+export function eventTitleNameCandidates(
+  subject: string | null | undefined
+): string[] {
+  const memo = (subject || "").trim();
+  if (!memo || eventTitleHasInternMarker(memo)) return [];
+
   const out: string[] = [];
   const seen = new Set<string>();
-  for (const w of words) {
-    const key = w.toLowerCase();
-    if (EVENT_TITLE_NAME_STOPWORDS.has(key)) continue;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(w);
+
+  for (const match of memo.matchAll(/\(([^)]+)\)/g)) {
+    const inner = (match[1] || "").trim();
+    if (/^intern(?:al)?$/i.test(inner)) continue;
+    pushTitleNameCandidate(out, seen, inner);
+    const first = titleNameWords(inner)[0];
+    if (first && first.toLowerCase() !== inner.toLowerCase()) {
+      pushTitleNameCandidate(out, seen, first);
+    }
   }
-  return out.sort((a, b) => b.length - a.length).slice(0, 2);
+
+  const withoutParens = memo.replace(/\([^)]*\)/g, " ").trim();
+  const lead = withoutParens.split(TITLE_LEAD_SEP_RE)[0] || "";
+  for (const w of titleNameWords(lead)) {
+    pushTitleNameCandidate(out, seen, w);
+  }
+  for (const w of titleNameWords(withoutParens)) {
+    pushTitleNameCandidate(out, seen, w);
+  }
+  return out.slice(0, 3);
 }
 
 /** Exakt oder beginnt-mit — keine Contains-Treffer auf kurze Wörter. */
