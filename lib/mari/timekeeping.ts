@@ -15,6 +15,7 @@ import {
   firstPositiveInt,
   formatPeriodLabel,
   mapApprovalMode,
+  projectNumbersNeedingLabel,
   resolveTimePeriodRange,
   TIMEKEEPING_SOURCE_SUPPORT_ISSUE,
   type MariApprovalStatus,
@@ -208,17 +209,78 @@ async function mariSqlTimeLines(
     : new MariApiError("Zeitbuchungen konnten nicht gelesen werden.", 502);
 }
 
-async function enrichTimeLinesProjectCustomer(
-  lines: MariTimeLine[]
-): Promise<MariTimeLine[]> {
-  if (lines.length === 0) return lines;
+function sqlQuoteIdent(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+const PROJECT_LABEL_SQL = [
+  `SELECT p."ProjectNumber" AS "ProjectNumber",
+  COALESCE(NULLIF(p."Matchcode", ''), NULLIF(p."CardName", ''), NULLIF(p."Name", '')) AS "Name"
+FROM "MARIProject" p
+WHERE p."ProjectNumber" IN ({{IN}})`,
+  `SELECT p."ProjectNumber" AS "ProjectNumber",
+  COALESCE(NULLIF(p."Matchcode", ''), NULLIF(p."Name", '')) AS "Name"
+FROM "MARIProjects" p
+WHERE p."ProjectNumber" IN ({{IN}})`,
+  `SELECT p."PrjCode" AS "ProjectNumber",
+  COALESCE(NULLIF(p."PrjName", ''), NULLIF(c."CardName", '')) AS "Name"
+FROM "OPRJ" p
+LEFT JOIN "OCRD" c ON c."CardCode" = p."CardCode"
+WHERE p."PrjCode" IN ({{IN}})`,
+];
+
+let projectLabelSql: string | null | undefined;
+
+async function lookupProjectLabelsByNumbers(
+  pns: string[]
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (pns.length === 0) return out;
+  const inList = pns.map(sqlQuoteIdent).join(",");
+  const queries =
+    projectLabelSql != null && projectLabelSql !== ""
+      ? [projectLabelSql]
+      : projectLabelSql === ""
+        ? []
+        : PROJECT_LABEL_SQL;
+  for (const tmpl of queries) {
+    try {
+      const rows = await mariSql<{ ProjectNumber?: unknown; Name?: unknown }>(
+        tmpl.replace("{{IN}}", inList)
+      );
+      projectLabelSql = tmpl;
+      for (const row of rows) {
+        const pn = String(row.ProjectNumber || "").trim();
+        const name = String(row.Name || "").trim();
+        if (pn && name) out.set(pn, name);
+      }
+      return out;
+    } catch {
+      /* nächste Variante */
+    }
+  }
+  if (projectLabelSql === undefined) projectLabelSql = "";
+  return out;
+}
+
+function applyProjectLabels(
+  lines: MariTimeLine[],
+  byPn: Map<string, string>
+): MariTimeLine[] {
+  if (byPn.size === 0) return lines;
+  return lines.map((l) => {
+    const fromProject = byPn.get(l.projectNumber.trim());
+    return fromProject ? { ...l, projectCustomer: fromProject } : l;
+  });
+}
+
+async function labelsFromProjectBookingList(): Promise<Map<string, string>> {
   const byPn = new Map<string, string>();
   try {
     const projects = await listProjectsForTimeBooking();
     for (const p of projects) {
       const label = p.matchcode.trim();
       if (!label) continue;
-      // Projekt-Matchcode hat Vorrang — nie Ticket-AddressMatchcode für die PN cachen.
       for (const key of [p.keyVisible, p.keyInternal]) {
         const k = String(key || "").trim();
         if (k) byPn.set(k, label);
@@ -227,13 +289,25 @@ async function enrichTimeLinesProjectCustomer(
   } catch {
     /* Projektliste optional */
   }
-  return lines.map((l) => {
-    const fromProject = byPn.get(l.projectNumber.trim());
-    return {
-      ...l,
-      projectCustomer: fromProject || l.projectCustomer,
-    };
-  });
+  return byPn;
+}
+
+type EnrichDepth = "list" | "detail";
+
+async function enrichTimeLinesProjectCustomer(
+  lines: MariTimeLine[],
+  depth: EnrichDepth
+): Promise<MariTimeLine[]> {
+  if (lines.length === 0) return lines;
+  const missing = projectNumbersNeedingLabel(lines);
+  if (missing.length === 0) return lines;
+
+  const fromSql = await lookupProjectLabelsByNumbers(missing);
+  const next = applyProjectLabels(lines, fromSql);
+  const still = projectNumbersNeedingLabel(next);
+  if (still.length === 0 || depth === "list") return next;
+
+  return applyProjectLabels(next, await labelsFromProjectBookingList());
 }
 
 async function enrichTimeLinesContracts(
@@ -346,9 +420,14 @@ async function enrichTimeLinesFromRest(
   return next;
 }
 
-async function enrichTimeLines(lines: MariTimeLine[]): Promise<MariTimeLine[]> {
-  const withIds = await enrichTimeLinesFromRest(lines);
-  const withCustomer = await enrichTimeLinesProjectCustomer(withIds);
+async function enrichTimeLines(
+  lines: MariTimeLine[],
+  depth: EnrichDepth = "detail"
+): Promise<MariTimeLine[]> {
+  const withIds =
+    depth === "detail" ? await enrichTimeLinesFromRest(lines) : lines;
+  const withCustomer = await enrichTimeLinesProjectCustomer(withIds, depth);
+  if (depth === "list") return withCustomer;
   const withContracts = await enrichTimeLinesContracts(withCustomer);
   return enrichTimeLinesPositions(withContracts);
 }
@@ -422,6 +501,12 @@ function summarizeLines(
   };
 }
 
+const PROJECT_LIST_TTL_MS = 120_000;
+const projectListCache = new Map<
+  string,
+  { at: number; rows: MariKeyPair[] }
+>();
+
 export async function listProjectsForTimeBooking(input?: {
   employeeNumber?: string | null;
   q?: string | null;
@@ -433,13 +518,18 @@ export async function listProjectsForTimeBooking(input?: {
   if (!emp) {
     throw new MariApiError("Personalnummer ungültig.", 400);
   }
+  const q = normalizeSearchQuery(input?.q);
+  const cached = projectListCache.get(emp);
+  if (cached && Date.now() - cached.at < PROJECT_LIST_TTL_MS) {
+    return q ? cached.rows.filter((p) => matchesSearch(p, q)) : cached.rows;
+  }
   const raw = await mariJson<RawKeyPair[]>(
     `/api/ProjectListForTimeBooking/${encodeURIComponent(emp)}`
   );
-  const q = normalizeSearchQuery(input?.q);
   const all = (Array.isArray(raw) ? raw : [])
     .map(mapKeyPair)
     .filter((x): x is MariKeyPair => x != null);
+  projectListCache.set(emp, { at: Date.now(), rows: all });
   if (!q) return all;
   return all.filter((p) => matchesSearch(p, q));
 }
@@ -565,7 +655,7 @@ ORDER BY t."ServiceDate", t."TimeSheetEntryID"`
       period,
       fromDate,
       toDate,
-      await enrichTimeLines(lines)
+      await enrichTimeLines(lines, "list")
     ),
     overtimeHours,
   };
@@ -590,7 +680,10 @@ WHERE t."SourceReference" = ${issueId}
   AND t."SourceType" = ${TIMEKEEPING_SOURCE_SUPPORT_ISSUE}
 ORDER BY t."ServiceDate" DESC, t."TimeSheetEntryID" DESC`
   );
-  return enrichTimeLines(rows.map(mapSqlLine).filter((l) => l.lineId > 0));
+  return enrichTimeLines(
+    rows.map(mapSqlLine).filter((l) => l.lineId > 0),
+    "list"
+  );
 }
 
 export async function createTimeKeepingLine(

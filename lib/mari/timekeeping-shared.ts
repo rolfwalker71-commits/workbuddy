@@ -549,3 +549,19 @@ export function shiftTimePeriodAnchor(
   const dt = new Date(Date.UTC(y, m - 1 + monthDelta, 1));
   return formatYmd(dt.getUTCFullYear(), dt.getUTCMonth() + 1, 1);
 }
+
+/** Distinct project numbers that still need a customer/matchcode label. */
+export function projectNumbersNeedingLabel(
+  lines: readonly { projectNumber: string; projectCustomer?: string | null }[]
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const line of lines) {
+    if ((line.projectCustomer || "").trim()) continue;
+    const pn = line.projectNumber.trim();
+    if (!pn || seen.has(pn)) continue;
+    seen.add(pn);
+    out.push(pn);
+  }
+  return out;
+}

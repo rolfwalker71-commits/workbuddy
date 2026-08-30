@@ -9,6 +9,7 @@ import {
   formatMariContractListLine,
   formatMariContractListLines,
   formatPeriodLabel,
+  projectNumbersNeedingLabel,
   timeLineToBookPrefill,
   type MariKeyPair,
 } from "./timekeeping-shared.ts";
@@ -209,6 +210,19 @@ test("timeLineToBookPrefill keeps Vertrag number from list line", () => {
   );
   assert.equal(prefill.contractId, 88421);
   assert.equal(prefill.contractVisible, "V60011100");
+});
+
+test("projectNumbersNeedingLabel skips labeled and duplicate projects", () => {
+  assert.deepEqual(
+    projectNumbersNeedingLabel([
+      { projectNumber: "P1", projectCustomer: "Kunde" },
+      { projectNumber: "P2" },
+      { projectNumber: "P2", projectCustomer: null },
+      { projectNumber: "  " },
+      { projectNumber: "P3", projectCustomer: "" },
+    ]),
+    ["P2", "P3"]
+  );
 });
 
 test("formatPeriodLabel prefixes German weekday on a single day", () => {
