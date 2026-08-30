@@ -5,9 +5,9 @@ import Link from "next/link";
 import { Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PresenceStatusPills } from "@/components/presence/presence-status-pills";
+import { PresenceStatusGlyph } from "@/components/presence/presence-status-glyph";
 import { PresenceDelegateDialog } from "@/components/presence/presence-delegate-dialog";
-import { PresenceGlassPanel } from "@/components/presence/presence-glass-panel";
-import { PresenceIsoArt } from "@/components/presence/presence-iso-art";
+import { segmentedTriggerProps } from "@/components/layout/segmented-control";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
@@ -24,6 +24,8 @@ import {
   deleteOwnDayStatus,
   putDelegatedDayStatus,
   putOwnDayStatus,
+  PRESENCE_STATUS_DOT,
+  PRESENCE_STATUS_SURFACE,
   type PresenceTodayResponse,
 } from "@/lib/presence/client";
 import type { PresenceStatus } from "@/lib/presence/status";
@@ -32,17 +34,8 @@ import { presenceDisplayLabel } from "@/lib/i18n/display";
 
 function awayIdsFromAbsence(absence: HomeAbsenceState | null): number[] {
   if (!absence) return [];
-  const ids = absence.colleagues.map((c) => c.userId);
-  if (absence.self?.isAwayToday && absence.self) {
-    /* self id is not on the absence payload; overlay uses isAwayToday */
-  }
-  return ids;
+  return absence.colleagues.map((c) => c.userId);
 }
-
-const overlayChip =
-  "w-fit max-w-[min(20rem,calc(100%-5.5rem))] px-2.5 py-1.5";
-
-const overlayActionBtn = "h-11 min-h-11 px-2.5 leading-snug";
 
 export function PresenceHomeBar({
   absence,
@@ -74,13 +67,16 @@ export function PresenceHomeBar({
   }, [load]);
 
   const awayIds = useMemo(() => awayIdsFromAbsence(absence), [absence]);
-
   const people = useMemo(
     () => applyLegacyAbsence(data?.people || [], awayIds),
     [awayIds, data?.people]
   );
   const self = useMemo(
-    () => applyLegacyAbsenceSelf(data?.self ?? null, Boolean(absence?.self?.isAwayToday)),
+    () =>
+      applyLegacyAbsenceSelf(
+        data?.self ?? null,
+        Boolean(absence?.self?.isAwayToday)
+      ),
     [absence?.self?.isAwayToday, data?.self]
   );
   const counts = useMemo(() => presenceCounts(people), [people]);
@@ -95,7 +91,6 @@ export function PresenceHomeBar({
   const showMorning = Boolean(self && !self.status && !locked);
   const loading = !data && !error;
   const choosing = showMorning || editing;
-  const showHero = Boolean(data) && !loading;
   const showChange = Boolean(self?.status) && !locked;
   const showActions = !choosing && (showChange || showDelegate);
 
@@ -161,206 +156,151 @@ export function PresenceHomeBar({
     }
   }
 
-  const statusLine = (
-    <p className="min-w-0 break-words text-base font-semibold leading-snug">
-      {statusTitle}
-      {!choosing && sourceHint ? (
-        <span className="ml-1 font-normal text-muted-foreground">
-          · {sourceHint}
-        </span>
-      ) : null}
-    </p>
-  );
-
-  const countRow = (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-snug text-muted-foreground">
-      <span className="inline-flex items-center gap-1.5">
-        <span className="size-2 rounded-full bg-orange-500" aria-hidden />
-        {t("presence.hereCount", { count: counts.here })}
-      </span>
-      <span className="inline-flex items-center gap-1.5">
-        <span className="size-2 rounded-full bg-rose-500" aria-hidden />
-        {t("presence.awayCount", { count: counts.away })}
-      </span>
-      <span className="inline-flex items-center gap-1.5">
-        <span className="size-2 rounded-full bg-muted-foreground/50" aria-hidden />
-        {t("presence.openCount", { count: counts.open })}
-      </span>
-    </div>
-  );
-
-  const teamLink = (
-    <Link
-      href="/team"
-      className="inline-flex min-h-11 items-center gap-1 px-2.5 font-semibold text-foreground underline-offset-2 hover:underline"
-    >
-      <Users className="size-3.5" strokeWidth={APP_ICON_STROKE} />
-      {t("nav.team")}
-    </Link>
-  );
-
-  function actionButton(
-    label: string,
-    onClick: () => void,
-    variant: "ghost" | "outline"
-  ) {
-    const button = (
-      <Button
-        type="button"
-        size="sm"
-        variant={variant}
-        disabled={busy}
-        className={overlayActionBtn}
-        onClick={onClick}
-      >
-        {label}
-      </Button>
-    );
-    if (variant === "ghost") {
-      return <PresenceGlassPanel className="p-0">{button}</PresenceGlassPanel>;
-    }
-    return button;
-  }
-
-  function actionButtons(variant: "ghost" | "outline") {
-    return (
-      <>
-        {showChange
-          ? actionButton(t("presence.change"), () => setEditing(true), variant)
-          : null}
-        {showDelegate
-          ? actionButton(
-              t("presence.setForColleague"),
-              () => {
-                setDelegateError(null);
-                setDelegateOpen(true);
-              },
-              variant
-            )
-          : null}
-      </>
-    );
-  }
-
-  const pills = (
-    <PresenceStatusPills
-      value={self?.status ?? null}
-      onChange={(status) => void setOwn(status)}
-      disabled={busy || locked}
-      ariaLabel={t("presence.howToday")}
-    />
-  );
-
-  const editButtons = editing ? (
-    <div className="flex flex-wrap items-center gap-2">
-      {self?.source === "self" ? (
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          disabled={busy}
-          onClick={() => void clearOwn()}
-        >
-          {t("presence.useRule")}
-        </Button>
-      ) : null}
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        disabled={busy}
-        onClick={() => setEditing(false)}
-      >
-        {t("common.done")}
-      </Button>
-    </div>
-  ) : null;
-
-  const editor = (
-    <div className="min-w-0 space-y-2">
-      <div className="min-w-0">{statusLine}</div>
-      {pills}
-      {editButtons}
-    </div>
-  );
-
-  const dialog = (
-    <PresenceDelegateDialog
-      open={delegateOpen}
-      onOpenChange={setDelegateOpen}
-      people={people}
-      actor={actor}
-      selfUserId={self?.userId ?? me?.userId ?? null}
-      ymd={data?.ymd || zurichYmd()}
-      busy={busy}
-      error={delegateError}
-      onSave={(input) => void saveDelegate(input)}
-    />
-  );
-
   return (
     <div
       className={cn(
-        "relative min-w-0 overflow-hidden rounded-2xl shadow-sm ring-1 ring-foreground/10",
-        showHero ? "bg-zinc-200 dark:bg-zinc-900" : "bg-card px-3 py-2.5"
+        "flex min-w-0 flex-col gap-1.5 rounded-2xl px-3 py-2 ring-1",
+        PRESENCE_STATUS_SURFACE[self?.status ?? "unset"]
       )}
     >
-      {showHero ? (
-        <PresenceIsoArt status={self?.status ?? null} variant="hero" />
-      ) : null}
-      {showHero ? (
-        <div className="relative z-10 flex min-h-[8.25rem] flex-col justify-between gap-2 p-2.5">
-          <div className="flex items-start justify-between gap-2">
-            <PresenceGlassPanel className={cn("space-y-1", overlayChip)}>
-              {statusLine}
-              {countRow}
-              {error ? (
-                <p className="text-sm text-destructive">{error}</p>
-              ) : null}
-            </PresenceGlassPanel>
-            <PresenceGlassPanel className="shrink-0 p-0">{teamLink}</PresenceGlassPanel>
-          </div>
-          {choosing ? (
-            <div className="space-y-2">
-              <PresenceGlassPanel className="w-full max-w-full p-1">
-                {pills}
-              </PresenceGlassPanel>
-              {editButtons ? (
-                <PresenceGlassPanel className="self-end p-1">
-                  {editButtons}
-                </PresenceGlassPanel>
-              ) : null}
-            </div>
-          ) : showActions ? (
-            <div className="flex flex-wrap justify-end gap-1.5">
-              {actionButtons("ghost")}
-            </div>
-          ) : null}
-        </div>
-      ) : (
-        <div className="min-w-0 space-y-2.5">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <div className="min-w-0 flex-1">
           {loading ? (
-            <p className="text-sm text-muted-foreground">{t("presence.loading")}</p>
-          ) : showMorning || editing ? (
-            editor
+            <p className="text-sm leading-snug text-muted-foreground">
+              {t("presence.loading")}
+            </p>
           ) : (
-            statusLine
+            <p className="inline-flex min-w-0 items-start gap-1.5 text-sm font-semibold leading-snug">
+              <PresenceStatusGlyph
+                status={self?.status}
+                className="mt-0.5"
+              />
+              <span className="min-w-0 break-words">
+                {statusTitle}
+                {!choosing && sourceHint ? (
+                  <span className="font-normal opacity-80">
+                    {" "}
+                    · {sourceHint}
+                  </span>
+                ) : null}
+              </span>
+            </p>
           )}
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
           {!loading ? (
-            <div className="flex flex-wrap items-center gap-2">
-              {countRow}
-              <div className="ml-auto">{teamLink}</div>
-            </div>
-          ) : null}
-          {showActions ? (
-            <div className="flex flex-wrap items-center gap-1.5">
-              {actionButtons("outline")}
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[0.7rem] leading-snug opacity-80">
+              <span className="inline-flex items-center gap-1">
+                <span
+                  className={cn("size-1.5 rounded-full", PRESENCE_STATUS_DOT.office)}
+                  aria-hidden
+                />
+                {t("presence.hereCount", { count: counts.here })}
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span
+                  className={cn("size-1.5 rounded-full", PRESENCE_STATUS_DOT.sick)}
+                  aria-hidden
+                />
+                {t("presence.awayCount", { count: counts.away })}
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span
+                  className={cn("size-1.5 rounded-full", PRESENCE_STATUS_DOT.unset)}
+                  aria-hidden
+                />
+                {t("presence.openCount", { count: counts.open })}
+              </span>
             </div>
           ) : null}
         </div>
-      )}
-      {dialog}
+        <div className="flex flex-wrap items-center gap-1">
+          <Link
+            href="/team"
+            className="inline-flex items-center gap-1 px-1.5 text-[0.75rem] font-semibold underline-offset-2 hover:underline"
+          >
+            <Users className="size-3.5" strokeWidth={APP_ICON_STROKE} />
+            {t("nav.team")}
+          </Link>
+          {showActions ? (
+            <>
+              {showChange ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={busy}
+                  {...segmentedTriggerProps}
+                  onClick={() => setEditing(true)}
+                >
+                  {t("presence.change")}
+                </Button>
+              ) : null}
+              {showDelegate ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={busy}
+                  {...segmentedTriggerProps}
+                  onClick={() => {
+                    setDelegateError(null);
+                    setDelegateOpen(true);
+                  }}
+                >
+                  {t("presence.setForColleague")}
+                </Button>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+      </div>
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {choosing ? (
+        <>
+          <PresenceStatusPills
+            value={self?.status ?? null}
+            onChange={(status) => void setOwn(status)}
+            disabled={busy || locked}
+            ariaLabel={t("presence.howToday")}
+          />
+          {editing ? (
+            <div className="flex flex-wrap items-center gap-1">
+              {self?.source === "self" ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={busy}
+                  {...segmentedTriggerProps}
+                  onClick={() => void clearOwn()}
+                >
+                  {t("presence.useRule")}
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={busy}
+                {...segmentedTriggerProps}
+                onClick={() => setEditing(false)}
+              >
+                {t("common.done")}
+              </Button>
+            </div>
+          ) : null}
+        </>
+      ) : null}
+      <PresenceDelegateDialog
+        open={delegateOpen}
+        onOpenChange={setDelegateOpen}
+        people={people}
+        actor={actor}
+        selfUserId={self?.userId ?? me?.userId ?? null}
+        ymd={data?.ymd || zurichYmd()}
+        busy={busy}
+        error={delegateError}
+        onSave={(input) => void saveDelegate(input)}
+      />
     </div>
   );
 }

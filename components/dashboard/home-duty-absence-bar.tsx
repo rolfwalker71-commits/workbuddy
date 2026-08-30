@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { segmentedTriggerProps } from "@/components/layout/segmented-control";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import type {
   HomeAbsenceState,
@@ -11,6 +12,7 @@ import type {
 } from "@/lib/dashboard/home-surfaces-shared";
 import { PresenceHomeBar } from "@/components/presence/presence-home-bar";
 import { zurichYmd } from "@/lib/microsoft/time";
+import { cn } from "@/lib/utils";
 import { useT } from "@/components/i18n/locale-provider";
 
 export function HomeDutyAbsenceBar({
@@ -50,33 +52,36 @@ export function HomeDutyAbsenceBar({
   }
 
   return (
-    <section className="space-y-2">
+    <section
+      className={cn("grid items-start gap-2", ttvDuty && "lg:grid-cols-2")}
+    >
       {ttvDuty ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-orange-50/90 px-3 py-2.5 ring-1 ring-orange-200/80 dark:bg-orange-500/12 dark:ring-orange-400/30">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl bg-orange-50 px-3 py-2 ring-1 ring-orange-200/80 dark:bg-orange-500/15 dark:ring-orange-400/30">
           <p className="min-w-0 flex-1 text-sm font-semibold leading-snug text-orange-950 dark:text-orange-100">
             {t("duty.ttvToday", {
               name: ttvDuty.displayName || t("duty.nobodyYet"),
             })}
           </p>
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1">
             {!ttvDuty.isMe ? (
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
                 disabled={busy}
+                {...segmentedTriggerProps}
                 onClick={() => void claimDuty()}
               >
                 {t("duty.claim")}
               </Button>
             ) : (
-              <span className="text-[0.6875rem] font-semibold text-orange-800 dark:text-orange-200">
+              <span className="text-[0.7rem] font-semibold leading-snug text-orange-800 dark:text-orange-200">
                 {t("duty.youHaveDuty")}
               </span>
             )}
             <Link
               href={ttvDuty.ttvInboxHref}
-              className="inline-flex items-center gap-1 text-[0.75rem] font-semibold text-orange-900 underline-offset-2 hover:underline dark:text-orange-100"
+              className="inline-flex items-center gap-1 px-1.5 text-[0.75rem] font-semibold text-orange-900 underline-offset-2 hover:underline dark:text-orange-100"
             >
               <Inbox className="size-3.5" strokeWidth={APP_ICON_STROKE} />
               {t("duty.openInbox")}
