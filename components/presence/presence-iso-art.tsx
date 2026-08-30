@@ -8,7 +8,7 @@ export function PresenceIsoArt({
   className,
 }: {
   status: PresenceStatus | null | undefined;
-  variant: "hero" | "soft" | "watermark" | "thumb";
+  variant: "hero" | "soft" | "tile" | "watermark" | "thumb";
   className?: string;
 }) {
   const art = presenceIsoArt(status);
@@ -45,8 +45,24 @@ export function PresenceIsoArt({
         src={art.src}
         alt=""
         aria-hidden
+        decoding="async"
         className={cn(
           "pointer-events-none absolute inset-0 size-full object-cover object-[70%_center] opacity-[0.4] saturate-[0.8] contrast-[0.95] dark:opacity-[0.28]",
+          className
+        )}
+      />
+    );
+  }
+
+  if (variant === "tile") {
+    return (
+      <img
+        src={art.src}
+        alt=""
+        aria-hidden
+        decoding="async"
+        className={cn(
+          "pointer-events-none absolute inset-0 size-full object-cover object-[68%_40%] opacity-[0.52] saturate-[0.95] contrast-[1] dark:opacity-[0.38]",
           className
         )}
       />

@@ -91,23 +91,25 @@ function weekdayLong(ymd: string, intl: string): string {
   return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
-const WEEK_SELF_CHIP =
+const WEEK_CHIP =
   "h-auto min-h-0 w-fit max-w-[calc(100%-0.25rem)] px-1.5 py-0.5 leading-none";
 
 /** Same 5-col geometry as colleague week cells (card uses px-3). */
 const WEEK_DAY_GRID = "grid grid-cols-5 gap-1.5";
 const WEEK_DAY_INSET = "px-3";
 
-function WeekSelfDayCell({
+function WeekDayCell({
   day,
   today,
   person,
+  density,
   onOpen,
 }: {
   day: string;
   today: string;
   person: PresencePersonView | null;
-  onOpen: () => void;
+  density: "own" | "colleague";
+  onOpen?: () => void;
 }) {
   const t = useT();
   const { locale, intlLocale } = useLocale();
@@ -118,36 +120,39 @@ function WeekSelfDayCell({
     ? presenceDisplayLabel(status, locale)
     : t("presence.open");
   const dayName = weekdayLong(day, intlLocale);
+  const dayLabel = density === "own" ? dayName : weekdayShort(day, intlLocale);
+  const interactive = Boolean(onOpen && person);
+  const spoken = `${dayName}: ${statusLabel}${hint ? ` · ${hint}` : ""}`;
 
-  return (
-    <button
-      type="button"
-      data-segment="true"
-      disabled={!person}
-      aria-label={`${dayName}: ${statusLabel}${hint ? ` · ${hint}` : ""}`}
-      aria-current={day === today ? "date" : undefined}
-      onClick={() => {
-        if (!person) return;
-        onOpen();
-      }}
-      className={cn(
-        "relative flex w-full flex-col items-stretch overflow-hidden rounded-2xl text-left shadow-sm ring-1",
-        hasArt
-          ? "bg-zinc-200 ring-foreground/10 dark:bg-zinc-900"
-          : PRESENCE_STATUS_SURFACE.unset,
-        day === today && "ring-2 ring-primary/70",
-        person && "transition-shadow hover:shadow-md"
-      )}
-    >
-      {hasArt ? <PresenceIsoArt status={status} variant="soft" /> : null}
-      <div className="relative z-10 flex min-h-[6.5rem] flex-col justify-between p-1.5">
-        <PresenceGlassPanel className={cn("self-start", WEEK_SELF_CHIP)}>
+  const inner = (
+    <>
+      {hasArt ? (
+        <PresenceIsoArt
+          status={status}
+          variant="tile"
+          className={
+            density === "colleague"
+              ? "opacity-[0.56] dark:opacity-[0.42]"
+              : undefined
+          }
+        />
+      ) : null}
+      <div
+        className={cn(
+          "relative z-10 flex flex-col justify-between p-1.5",
+          density === "own" ? "min-h-[5rem]" : "min-h-[3.75rem]"
+        )}
+      >
+        <PresenceGlassPanel className={cn("self-start", WEEK_CHIP)}>
           <span className="block truncate text-xs font-bold leading-none text-foreground">
-            {dayName}
+            {dayLabel}
           </span>
         </PresenceGlassPanel>
         <PresenceGlassPanel
-          className={cn("flex flex-col justify-center self-end text-right", WEEK_SELF_CHIP)}
+          className={cn(
+            "flex flex-col justify-center self-end text-right",
+            WEEK_CHIP
+          )}
         >
           <span className="block truncate text-xs font-bold leading-none text-foreground">
             {statusLabel}
@@ -159,7 +164,38 @@ function WeekSelfDayCell({
           ) : null}
         </PresenceGlassPanel>
       </div>
-    </button>
+    </>
+  );
+
+  const className = cn(
+    "relative flex w-full flex-col items-stretch overflow-hidden rounded-2xl text-left shadow-sm ring-1",
+    hasArt
+      ? "bg-zinc-200 ring-foreground/10 dark:bg-zinc-900"
+      : PRESENCE_STATUS_SURFACE.unset,
+    day === today && "ring-2 ring-primary/70",
+    interactive && "transition-shadow hover:shadow-md"
+  );
+
+  if (interactive) {
+    return (
+      <button
+        type="button"
+        data-segment="true"
+        aria-label={spoken}
+        title={spoken}
+        aria-current={day === today ? "date" : undefined}
+        onClick={onOpen}
+        className={className}
+      >
+        {inner}
+      </button>
+    );
+  }
+
+  return (
+    <div className={className} aria-label={spoken} title={spoken}>
+      {inner}
+    </div>
   );
 }
 
@@ -558,11 +594,12 @@ export function PresenceTeamBoard() {
               {weekDays.map((day) => {
                 const person = weekSelfByYmd[day];
                 return (
-                  <WeekSelfDayCell
+                  <WeekDayCell
                     key={day}
                     day={day}
                     today={today}
                     person={person}
+                    density="own"
                     onOpen={() => {
                       if (!person) return;
                       setDialogError(null);
@@ -600,25 +637,20 @@ export function PresenceTeamBoard() {
                           const cell = (weekByYmd[day]?.people || []).find(
                             (row) => row.userId === person.userId
                           );
-                          const surface =
-                            PRESENCE_STATUS_SURFACE[cell?.status ?? "unset"];
+                          const canEdit = canOverridePerson(actor, person);
                           return (
-                            <div
+                            <WeekDayCell
                               key={day}
-                              className={cn(
-                                "rounded-xl px-1.5 py-1.5 ring-1",
-                                surface
-                              )}
-                            >
-                              <p className="text-[0.65rem] font-semibold uppercase">
-                                {weekdayShort(day, intlLocale)}
-                              </p>
-                              <p className="break-words text-[0.7rem] leading-snug">
-                                {cell?.status
-                                  ? presenceDisplayLabel(cell.status, locale)
-                                  : t("presence.open")}
-                              </p>
-                            </div>
+                              day={day}
+                              today={today}
+                              person={cell ?? null}
+                              density="colleague"
+                              onOpen={
+                                canEdit
+                                  ? () => openPerson(person, day)
+                                  : undefined
+                              }
+                            />
                           );
                         })}
                       </div>
