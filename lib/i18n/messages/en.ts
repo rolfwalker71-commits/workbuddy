@@ -397,7 +397,7 @@ export const en = {
   technik: {
     title: "Tech",
     description:
-      "Customer upgrades and maintenance from the shared tech calendar — including a hint when internal systems may be affected.",
+      "Customer upgrades and maintenance from the shared tech calendar. Put intern in the subject to flag internal systems.",
     loading: "Loading tech calendar…",
     loadFailed: "Failed to load the tech calendar",
     emptyDay: "No entries.",
@@ -413,6 +413,9 @@ export const en = {
     nextDay: "Next day",
     previousWeek: "Previous week",
     nextWeek: "Next week",
+    previousMonth: "Previous month",
+    nextMonth: "Next month",
+    moreEvents: "+{count} more",
     hidden: "The tech calendar is hidden.",
     hiddenHint: "You can show it again under Account — only for you.",
   },

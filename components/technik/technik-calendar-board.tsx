@@ -2,13 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Calendar,
-  CalendarRange,
-  ChevronLeft,
-  ChevronRight,
-  TriangleAlert,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,21 +12,21 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { TranslatedPageHeader } from "@/components/layout/translated-page-header";
-import {
-  segmentedTrackClass,
-  segmentedTriggerClass,
-  segmentedTriggerProps,
-} from "@/components/layout/segmented-control";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { cn } from "@/lib/utils";
-import { addDaysYmd, zurichYmd } from "@/lib/microsoft/time";
-import { mondayOfWeek } from "@/lib/presence/week";
+import { zurichYmd } from "@/lib/microsoft/time";
 import type { TechUpgradeEvent } from "@/lib/technik/tech-upgrades-calendar";
-import { formatSwissDate, formatSwissDateRange } from "@/lib/utils/dates";
+import {
+  addMonthsYmd,
+  monthGridDays,
+  sameCalendarMonth,
+} from "@/lib/technik/month-grid";
+import { formatSwissDate } from "@/lib/utils/dates";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useLocale, useT } from "@/components/i18n/locale-provider";
 
-type BoardView = "day" | "week";
+const CELL_VISIBLE = 2;
+const MEETING_NOISE = new Set(["teams", "outlook"]);
 
 type EventsResponse = {
   from: string;
@@ -44,12 +38,6 @@ type EventsResponse = {
   technikDisabled?: boolean;
 };
 
-function weekDaysMonSun(ymd: string): string[] {
-  const monday = mondayOfWeek(ymd);
-  if (!monday) return [ymd];
-  return [0, 1, 2, 3, 4, 5, 6].map((i) => addDaysYmd(monday, i));
-}
-
 function eventTimeLabel(event: TechUpgradeEvent, allDay: string): string {
   if (event.isAllDay) return allDay;
   const start = event.start.slice(11, 16);
@@ -58,14 +46,8 @@ function eventTimeLabel(event: TechUpgradeEvent, allDay: string): string {
   return start || allDay;
 }
 
-function formatLongDate(ymd: string, intl: string): string {
-  return new Intl.DateTimeFormat(intl, {
-    timeZone: "Europe/Zurich",
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(new Date(`${ymd}T12:00:00Z`));
+function displaySystems(systems: string[]): string[] {
+  return systems.filter((s) => !MEETING_NOISE.has(s.trim().toLowerCase()));
 }
 
 export function TechnikCalendarBoard() {
@@ -74,32 +56,31 @@ export function TechnikCalendarBoard() {
   const { intlLocale } = useLocale();
   const hidden = me?.technikEnabled === false;
   const today = zurichYmd();
-  const [view, setView] = useState<BoardView>("week");
   const [ymd, setYmd] = useState(today);
   const [data, setData] = useState<EventsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
 
-  const days = useMemo(
-    () => (view === "week" ? weekDaysMonSun(ymd) : [ymd]),
-    [view, ymd]
-  );
+  const days = useMemo(() => monthGridDays(ymd), [ymd]);
   const from = days[0];
   const to = days[days.length - 1];
 
-  const load = useCallback(async (start: string, end: string) => {
-    const res = await fetch(
-      `/api/technik/events?from=${encodeURIComponent(start)}&to=${encodeURIComponent(end)}`
-    );
-    const json = (await res.json()) as EventsResponse;
-    if (!res.ok) {
-      if (json.technikDisabled) {
-        throw new Error(t("technik.hidden"));
+  const load = useCallback(
+    async (start: string, end: string) => {
+      const res = await fetch(
+        `/api/technik/events?from=${encodeURIComponent(start)}&to=${encodeURIComponent(end)}`
+      );
+      const json = (await res.json()) as EventsResponse;
+      if (!res.ok) {
+        if (json.technikDisabled) {
+          throw new Error(t("technik.hidden"));
+        }
+        throw new Error(json.error || t("technik.loadFailed"));
       }
-      throw new Error(json.error || t("technik.loadFailed"));
-    }
-    setData(json);
-  }, [t]);
+      setData(json);
+    },
+    [t]
+  );
 
   useEffect(() => {
     if (hidden) return;
@@ -130,16 +111,22 @@ export function TechnikCalendarBoard() {
   }, [data?.events, days]);
 
   const openEvent = (data?.events || []).find((e) => e.id === openId) ?? null;
-
-  function shift(delta: number) {
-    if (view === "week") {
-      const monday = mondayOfWeek(ymd);
-      if (!monday) return;
-      setYmd(addDaysYmd(monday, delta * 7));
-      return;
-    }
-    setYmd((prev) => addDaysYmd(prev, delta));
-  }
+  const openSystems = openEvent ? displaySystems(openEvent.systemsAffected) : [];
+  const weekdayLabels = useMemo(
+    () =>
+      days.slice(0, 7).map((day) =>
+        new Intl.DateTimeFormat(intlLocale, {
+          timeZone: "Europe/Zurich",
+          weekday: "short",
+        }).format(new Date(`${day}T12:00:00Z`))
+      ),
+    [days, intlLocale]
+  );
+  const monthTitle = new Intl.DateTimeFormat(intlLocale, {
+    timeZone: "Europe/Zurich",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(`${ymd.slice(0, 7)}-01T12:00:00Z`));
 
   if (hidden) {
     return (
@@ -175,84 +162,45 @@ export function TechnikCalendarBoard() {
         visual="technik"
       />
 
-      <div className="flex flex-col gap-3">
-        <div
-          className={cn(segmentedTrackClass, "w-fit")}
-          role="tablist"
-          aria-label={t("common.view")}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="size-10"
+          aria-label={t("technik.previousMonth")}
+          onClick={() => setYmd((prev) => addMonthsYmd(prev, -1))}
         >
-          <Button
-            type="button"
-            variant="ghost"
-            role="tab"
-            aria-selected={view === "day"}
-            {...segmentedTriggerProps}
-            className={segmentedTriggerClass(view === "day")}
-            onClick={() => setView("day")}
-          >
-            <Calendar className="size-4" strokeWidth={APP_ICON_STROKE} />
-            {t("common.day")}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            role="tab"
-            aria-selected={view === "week"}
-            {...segmentedTriggerProps}
-            className={segmentedTriggerClass(view === "week")}
-            onClick={() => setView("week")}
-          >
-            <CalendarRange className="size-4" strokeWidth={APP_ICON_STROKE} />
-            {t("common.week")}
-          </Button>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="size-10"
-            aria-label={
-              view === "week" ? t("technik.previousWeek") : t("technik.previousDay")
-            }
-            onClick={() => shift(-1)}
-          >
-            <ChevronLeft className="size-4" />
-          </Button>
-          <div className="min-w-0 flex-1">
-            <p className="break-words text-base font-semibold capitalize leading-snug">
-              {view === "week"
-                ? formatSwissDateRange(from, to)
-                : formatLongDate(ymd, intlLocale)}
-            </p>
-            {data?.mailbox ? (
-              <p className="text-xs text-muted-foreground">{data.mailbox}</p>
-            ) : null}
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="size-10"
-            aria-label={
-              view === "week" ? t("technik.nextWeek") : t("technik.nextDay")
-            }
-            onClick={() => shift(1)}
-          >
-            <ChevronRight className="size-4" />
-          </Button>
-          {ymd !== today ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setYmd(today)}
-            >
-              {t("common.today")}
-            </Button>
+          <ChevronLeft className="size-4" />
+        </Button>
+        <div className="min-w-0 flex-1">
+          <p className="break-words text-base font-semibold capitalize leading-snug">
+            {monthTitle}
+          </p>
+          {data?.mailbox ? (
+            <p className="text-xs text-muted-foreground">{data.mailbox}</p>
           ) : null}
         </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="size-10"
+          aria-label={t("technik.nextMonth")}
+          onClick={() => setYmd((prev) => addMonthsYmd(prev, 1))}
+        >
+          <ChevronRight className="size-4" />
+        </Button>
+        {!sameCalendarMonth(ymd, today) ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setYmd(today)}
+          >
+            {t("common.today")}
+          </Button>
+        ) : null}
       </div>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
@@ -267,82 +215,81 @@ export function TechnikCalendarBoard() {
       ) : null}
 
       {data ? (
-        <div className="space-y-4">
-          {days.map((day) => {
-            const events = byDay.get(day) || [];
-            return (
-              <section key={day} className="space-y-2">
-                <h2
-                  className={cn(
-                    "text-sm font-bold capitalize leading-snug tracking-tight",
-                    day === today && "text-primary"
-                  )}
+        <div className="overflow-x-auto">
+          <div className="min-w-[56rem] overflow-hidden rounded-2xl bg-card shadow-sm ring-1 ring-foreground/10">
+            <div className="grid grid-cols-7 border-b border-border">
+              {weekdayLabels.map((label, i) => (
+                <div
+                  key={`${label}-${i}`}
+                  className="px-2.5 py-2 text-xs font-semibold leading-snug text-muted-foreground"
                 >
-                  {formatLongDate(day, intlLocale)}
-                  <span className="ml-1.5 font-medium text-muted-foreground">
-                    {events.length}
-                  </span>
-                </h2>
-                {events.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    {t("technik.emptyDay")}
-                  </p>
-                ) : (
-                  <ul className="space-y-2">
-                    {events.map((event) => (
-                      <li key={event.id}>
+                  {label}
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7">
+              {days.map((day) => {
+                const events = byDay.get(day) || [];
+                const visible = events.slice(0, CELL_VISIBLE);
+                const extra = events.length - visible.length;
+                const inMonth = sameCalendarMonth(day, ymd);
+                const isToday = day === today;
+                return (
+                  <div
+                    key={day}
+                    className={cn(
+                      "min-h-[8.5rem] border-b border-r border-border p-2 [&:nth-child(7n)]:border-r-0",
+                      !inMonth && "bg-muted/40"
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "mb-1.5 text-xs font-bold leading-none",
+                        isToday &&
+                          "inline-flex size-6 items-center justify-center rounded-full bg-primary text-primary-foreground",
+                        !isToday && !inMonth && "text-muted-foreground",
+                        !isToday && inMonth && "text-foreground"
+                      )}
+                    >
+                      {Number(day.slice(8, 10))}
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      {visible.map((event) => (
                         <button
+                          key={event.id}
                           type="button"
                           onClick={() => setOpenId(event.id)}
                           className={cn(
-                            "flex min-h-11 w-full min-w-0 flex-col items-start gap-1 rounded-2xl px-3 py-2.5 text-left shadow-sm ring-1",
+                            "w-full rounded-lg px-1.5 py-1 text-left leading-snug",
                             event.mayAffectInternal
-                              ? "bg-amber-50 text-amber-950 ring-amber-200/80 dark:bg-amber-500/15 dark:text-amber-100 dark:ring-amber-400/30"
-                              : "bg-card ring-foreground/10"
+                              ? "bg-amber-50 text-amber-950 ring-1 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-100 dark:ring-amber-400/30"
+                              : "bg-muted text-foreground"
                           )}
                         >
-                          <span className="flex w-full min-w-0 items-start justify-between gap-2">
-                            <span className="min-w-0 break-words text-sm font-semibold leading-snug">
-                              {event.subject}
-                            </span>
-                            <span className="shrink-0 text-xs leading-snug opacity-80">
-                              {eventTimeLabel(event, t("calendarUi.allDay"))}
-                            </span>
+                          <span className="block text-[0.7rem] font-bold">
+                            {eventTimeLabel(event, t("calendarUi.allDay"))}
                           </span>
-                          {event.customerName ? (
-                            <span className="break-words text-xs leading-snug">
-                              {t("technik.customer")}: {event.customerName}
-                            </span>
-                          ) : null}
-                          {event.systemsAffected.length > 0 ? (
-                            <span className="flex flex-wrap gap-1">
-                              {event.systemsAffected.map((system) => (
-                                <span
-                                  key={system}
-                                  className="rounded-full bg-background/70 px-2 py-0.5 text-[0.7rem] leading-snug ring-1 ring-foreground/10"
-                                >
-                                  {system}
-                                </span>
-                              ))}
-                            </span>
-                          ) : null}
-                          {event.mayAffectInternal ? (
-                            <span className="inline-flex items-center gap-1 text-[0.7rem] font-semibold leading-snug">
-                              <TriangleAlert
-                                className="size-3.5"
-                                strokeWidth={APP_ICON_STROKE}
-                              />
-                              {t("technik.internalRisk")}
-                            </span>
-                          ) : null}
+                          <span className="line-clamp-2 text-[0.7rem]">
+                            {event.mayAffectInternal ? "⚠ " : ""}
+                            {event.subject}
+                          </span>
                         </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            );
-          })}
+                      ))}
+                      {extra > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => setOpenId(events[CELL_VISIBLE].id)}
+                          className="px-1 text-left text-[0.7rem] font-semibold leading-snug text-muted-foreground"
+                        >
+                          {t("technik.moreEvents", { count: extra })}
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       ) : null}
 
@@ -352,7 +299,7 @@ export function TechnikCalendarBoard() {
           if (!next) setOpenId(null);
         }}
       >
-        <DialogContent>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="break-words leading-snug">
               {openEvent?.subject}
@@ -365,18 +312,24 @@ export function TechnikCalendarBoard() {
           </DialogHeader>
           {openEvent ? (
             <div className="space-y-2 text-sm leading-snug">
+              {openEvent.mayAffectInternal ? (
+                <p className="inline-flex items-center gap-1.5 font-semibold text-amber-800 dark:text-amber-200">
+                  <TriangleAlert
+                    className="size-3.5 shrink-0"
+                    strokeWidth={APP_ICON_STROKE}
+                  />
+                  {t("technik.internalRisk")}
+                </p>
+              ) : null}
               {openEvent.customerName ? (
                 <p>
                   {t("technik.customer")}: {openEvent.customerName}
                 </p>
               ) : null}
-              {openEvent.systemsAffected.length > 0 ? (
+              {openSystems.length > 0 ? (
                 <p>
-                  {t("technik.systems")}: {openEvent.systemsAffected.join(", ")}
+                  {t("technik.systems")}: {openSystems.join(", ")}
                 </p>
-              ) : null}
-              {openEvent.mayAffectInternal ? (
-                <p className="font-semibold">{t("technik.internalRisk")}</p>
               ) : null}
               {openEvent.location ? (
                 <p>
@@ -387,6 +340,16 @@ export function TechnikCalendarBoard() {
                 <p className="break-words text-muted-foreground">
                   {openEvent.bodyPreview}
                 </p>
+              ) : null}
+              {openEvent.webLink ? (
+                <a
+                  href={openEvent.webLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-11 items-center font-medium underline-offset-4 hover:underline"
+                >
+                  {t("mail.openInOutlook")}
+                </a>
               ) : null}
             </div>
           ) : null}

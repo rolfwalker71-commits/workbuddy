@@ -396,7 +396,7 @@ export const de = {
   technik: {
     title: "Technik",
     description:
-      "Kunden-Upgrades und Wartung aus dem gemeinsamen Technik-Kalender — inkl. Hinweis, wenn interne Systeme betroffen sein können.",
+      "Kunden-Upgrades und Wartung aus dem gemeinsamen Technik-Kalender. Steht intern im Betreff, erscheint der Hinweis auf interne Systeme.",
     loading: "Lade Technik-Kalender…",
     loadFailed: "Technik-Kalender laden fehlgeschlagen",
     emptyDay: "Keine Einträge.",
@@ -412,6 +412,9 @@ export const de = {
     nextDay: "Nächster Tag",
     previousWeek: "Vorherige Woche",
     nextWeek: "Nächste Woche",
+    previousMonth: "Vorheriger Monat",
+    nextMonth: "Nächster Monat",
+    moreEvents: "+{count} weitere",
     hidden: "Technik-Kalender ist ausgeblendet.",
     hiddenHint:
       "Unter Konto kannst du ihn wieder einblenden — nur für dich.",

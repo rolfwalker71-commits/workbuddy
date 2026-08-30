@@ -51,23 +51,6 @@ type GraphTechEvent = {
   webLink?: string | null;
 };
 
-const INTERNAL_SYSTEMS = new Set([
-  "maringo",
-  "exchange",
-  "outlook",
-  "teams",
-  "vpn",
-  "firewall",
-  "entra",
-  "active directory",
-  "sql",
-  "backup",
-  "sharepoint",
-  "intune",
-  "dns",
-  "workbuddy",
-]);
-
 const SYSTEM_LABELS: Record<string, string> = {
   maringo: "Maringo",
   exchange: "Exchange",
@@ -163,8 +146,11 @@ export function inferSystemsAffected(input: {
   return found;
 }
 
-export function eventMayAffectInternal(systems: string[]): boolean {
-  return systems.some((s) => INTERNAL_SYSTEMS.has(s.trim().toLowerCase()));
+/** Subject token only — attendees and meeting type (Teams) never trigger. */
+export function eventMayAffectInternal(subject: string): boolean {
+  return /(?:^|[^\p{L}])intern(?:e|er|es|em|en)?(?=[^\p{L}]|$)/iu.test(
+    subject
+  );
 }
 
 export function readTechUpgradesCalendarConfig(): TechUpgradesCalendarConfig {
@@ -245,7 +231,7 @@ export function mapTechUpgradeEvent(ev: GraphTechEvent): TechUpgradeEvent | null
     date: startYmd,
     isAllDay: Boolean(ev.isAllDay),
     systemsAffected,
-    mayAffectInternal: eventMayAffectInternal(systemsAffected),
+    mayAffectInternal: eventMayAffectInternal(subject),
     location,
     bodyPreview,
     webLink: (ev.webLink || "").trim() || null,
