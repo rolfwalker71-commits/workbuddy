@@ -20,6 +20,7 @@ export type AuthMe = {
   modules?: string[];
   teamsEnabled?: boolean;
   teamsModuleEnabled?: boolean;
+  technikEnabled?: boolean;
 };
 
 type AuthContextValue = {
@@ -54,6 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         modules: Array.isArray(data.modules) ? data.modules : [],
         teamsEnabled: data.teamsEnabled !== false,
         teamsModuleEnabled: data.teamsModuleEnabled !== false,
+        technikEnabled: data.technikEnabled !== false,
       });
     } catch {
       setMe(null);

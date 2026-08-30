@@ -413,16 +413,24 @@ export const en = {
     nextDay: "Next day",
     previousWeek: "Previous week",
     nextWeek: "Next week",
+    hidden: "The tech calendar is hidden.",
+    hiddenHint: "You can show it again under Account — only for you.",
   },
   account: {
     title: "Account",
     description:
-      "Your weather, default week, day close, sign-in password, Maringo employee number, Microsoft 365 and Google Workspace — just for you.",
+      "Your weather, default week, tech calendar, day close, sign-in password, Maringo employee number, Microsoft 365 and Google Workspace — just for you.",
     weather: "Weather",
     weatherHint: "Location for the widget on the home page — applies only to you.",
     defaultWeek: "Default week",
     defaultWeekHint:
       "Your attendance rule for Monday to Friday. Set exceptions on Team or Home.",
+    technikCal: "Tech calendar",
+    technikCalTitle: "Tech calendar",
+    technikCalHint:
+      "Hides Tech in the navigation. Only for you — colleagues keep their own setting.",
+    technikCalSaved: "Saved.",
+    technikCalLoadFailed: "Failed to load the setting",
     dayClose: "Day close",
     dayCloseHint:
       "Time of the virtual ritual — applies only to you, like the weather location.",

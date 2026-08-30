@@ -18,6 +18,10 @@ import {
   isTeamsModuleEnabled,
   parseTeamsEnabled,
 } from "@/lib/microsoft/teams-prefs";
+import {
+  isTechnikNavEnabled,
+  setTechnikNavEnabled,
+} from "@/lib/technik/technik-prefs";
 
 function openaiAccountPayload(row: AppUserRow | null) {
   const company = getCompanyAiPublic();
@@ -48,6 +52,7 @@ function accountPayload(userId: number) {
     },
     teamsEnabled: parseTeamsEnabled(row?.teams_enabled),
     teamsModuleEnabled: isTeamsModuleEnabled(),
+    technikEnabled: isTechnikNavEnabled(userId),
   };
 }
 
@@ -68,6 +73,7 @@ const PutSchema = z.object({
   googleOauthClientSecret: z.string().optional(),
   clearGoogleOauthClientSecret: z.boolean().optional(),
   teamsEnabled: z.boolean().optional(),
+  technikEnabled: z.boolean().optional(),
 });
 
 export async function GET() {
@@ -101,10 +107,11 @@ export async function PUT(request: Request) {
   }
   try {
     const company = getCompanyAiPublic();
-    updateAppUser(
-      userId,
-      omitPersonalAiAccountPut(parsed.data, company.enabled)
-    );
+    const { technikEnabled, ...accountPut } = parsed.data;
+    updateAppUser(userId, omitPersonalAiAccountPut(accountPut, company.enabled));
+    if (technikEnabled !== undefined) {
+      setTechnikNavEnabled(userId, technikEnabled);
+    }
     return NextResponse.json({ ok: true, ...accountPayload(userId) });
   } catch (error) {
     return NextResponse.json(

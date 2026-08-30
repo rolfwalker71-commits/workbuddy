@@ -412,16 +412,25 @@ export const de = {
     nextDay: "Nächster Tag",
     previousWeek: "Vorherige Woche",
     nextWeek: "Nächste Woche",
+    hidden: "Technik-Kalender ist ausgeblendet.",
+    hiddenHint:
+      "Unter Konto kannst du ihn wieder einblenden — nur für dich.",
   },
   account: {
     title: "Konto",
     description:
-      "Dein Wetter, Standardwoche, Tagesabschluss, Anmeldepasswort, Maringo-Personalnummer, Microsoft 365 und Google Workspace — nur für dich.",
+      "Dein Wetter, Standardwoche, Technik-Kalender, Tagesabschluss, Anmeldepasswort, Maringo-Personalnummer, Microsoft 365 und Google Workspace — nur für dich.",
     weather: "Wetter",
     weatherHint: "Standort für das Widget auf der Startseite — gilt nur für dich.",
     defaultWeek: "Standardwoche",
     defaultWeekHint:
       "Deine Anwesenheits-Regel für Montag bis Freitag. Abweichungen setzt du auf Team oder Home.",
+    technikCal: "Technik-Kalender",
+    technikCalTitle: "Technik-Kalender",
+    technikCalHint:
+      "Blendet den Eintrag Technik in der Navigation aus. Nur für dich — Kolleginnen und Kollegen behalten ihre eigene Einstellung.",
+    technikCalSaved: "Gespeichert.",
+    technikCalLoadFailed: "Einstellung laden fehlgeschlagen",
     dayClose: "Tagesabschluss",
     dayCloseHint:
       "Uhrzeit des virtuellen Rituals — gilt nur für dich, wie der Wetter-Standort.",

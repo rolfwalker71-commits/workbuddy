@@ -135,6 +135,7 @@ export function Sidebar({
   const modules = me?.modules ?? [];
   const items = NAV.filter((item) => {
     if (item.adminOnly) return Boolean(me?.isAdmin);
+    if (item.href === "/technik" && me?.technikEnabled === false) return false;
     if (item.module && isLimitedUser) return modules.includes(item.module);
     return true;
   });

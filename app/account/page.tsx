@@ -9,6 +9,7 @@ import { AccountPasswordPanel } from "@/components/settings/account-password-pan
 import { AccountWeatherPanel } from "@/components/settings/account-weather-panel";
 import { AccountDayClosePanel } from "@/components/settings/account-day-close-panel";
 import { AccountPresenceWeekPanel } from "@/components/settings/account-presence-week-panel";
+import { AccountTechnikPanel } from "@/components/settings/account-technik-panel";
 import { AccountGoogleSection } from "@/components/settings/account-google-section";
 import { MailSenderBlacklistAccountPanel } from "@/components/mail/mail-sender-blacklist-editor";
 
@@ -31,6 +32,11 @@ export default function AccountPage() {
       <section className="space-y-3">
         <AccountPageCopy titleKey="account.defaultWeek" hintKey="account.defaultWeekHint" />
         <AccountPresenceWeekPanel />
+      </section>
+
+      <section className="space-y-3">
+        <AccountPageCopy titleKey="account.technikCal" hintKey="account.technikCalHint" />
+        <AccountTechnikPanel />
       </section>
 
       <section className="space-y-3">

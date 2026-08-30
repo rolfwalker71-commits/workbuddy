@@ -3,6 +3,8 @@ import { isAuthError, requireAuth } from "@/lib/auth/current-user";
 import { ensureInitialized } from "@/lib/db/migrations";
 import { parseCalendarDateRange } from "@/lib/calendar/date-range";
 import { listTechUpgradeEvents } from "@/lib/technik/tech-upgrades-calendar";
+import { requireTechnikNav } from "@/lib/technik/technik-prefs";
+import { resolveAppUserId } from "@/lib/users/resolve-user";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,6 +13,8 @@ export async function GET(request: Request) {
   ensureInitialized();
   const auth = await requireAuth();
   if (isAuthError(auth)) return auth;
+  const blocked = requireTechnikNav(resolveAppUserId(auth));
+  if (blocked) return blocked;
 
   const url = new URL(request.url);
   const parsed = parseCalendarDateRange(

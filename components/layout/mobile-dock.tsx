@@ -91,6 +91,7 @@ export function MobileDock() {
   ];
   const items = allItems.filter((item) => {
     if (item.adminOnly) return isAdmin;
+    if (item.href === "/technik" && me?.technikEnabled === false) return false;
     if (item.module && !isAdmin) return modules.includes(item.module);
     return true;
   });

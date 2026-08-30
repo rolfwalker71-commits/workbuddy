@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Calendar,
@@ -28,6 +29,7 @@ import { addDaysYmd, zurichYmd } from "@/lib/microsoft/time";
 import { mondayOfWeek } from "@/lib/presence/week";
 import type { TechUpgradeEvent } from "@/lib/technik/tech-upgrades-calendar";
 import { formatSwissDate, formatSwissDateRange } from "@/lib/utils/dates";
+import { useAuth } from "@/components/auth/auth-provider";
 import { useLocale, useT } from "@/components/i18n/locale-provider";
 
 type BoardView = "day" | "week";
@@ -39,6 +41,7 @@ type EventsResponse = {
   events: TechUpgradeEvent[];
   reason?: "no-reader" | "unreadable" | null;
   error?: string;
+  technikDisabled?: boolean;
 };
 
 function weekDaysMonSun(ymd: string): string[] {
@@ -67,7 +70,9 @@ function formatLongDate(ymd: string, intl: string): string {
 
 export function TechnikCalendarBoard() {
   const t = useT();
+  const { me } = useAuth();
   const { intlLocale } = useLocale();
+  const hidden = me?.technikEnabled === false;
   const today = zurichYmd();
   const [view, setView] = useState<BoardView>("week");
   const [ymd, setYmd] = useState(today);
@@ -88,12 +93,16 @@ export function TechnikCalendarBoard() {
     );
     const json = (await res.json()) as EventsResponse;
     if (!res.ok) {
+      if (json.technikDisabled) {
+        throw new Error(t("technik.hidden"));
+      }
       throw new Error(json.error || t("technik.loadFailed"));
     }
     setData(json);
   }, [t]);
 
   useEffect(() => {
+    if (hidden) return;
     let cancelled = false;
     void (async () => {
       setError(null);
@@ -108,7 +117,7 @@ export function TechnikCalendarBoard() {
     return () => {
       cancelled = true;
     };
-  }, [from, load, to]);
+  }, [from, hidden, load, to]);
 
   const byDay = useMemo(() => {
     const map = new Map<string, TechUpgradeEvent[]>();
@@ -130,6 +139,32 @@ export function TechnikCalendarBoard() {
       return;
     }
     setYmd((prev) => addDaysYmd(prev, delta));
+  }
+
+  if (hidden) {
+    return (
+      <div className="space-y-6 pb-28 md:pb-0">
+        <TranslatedPageHeader
+          titleKey="technik.title"
+          descriptionKey="technik.description"
+          visual="technik"
+        />
+        <div className="rounded-2xl bg-card p-5 shadow-sm ring-1 ring-foreground/10">
+          <p className="text-sm font-medium text-foreground">
+            {t("technik.hidden")}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {t("technik.hiddenHint")}
+          </p>
+          <Link
+            href="/account"
+            className="mt-4 inline-flex min-h-11 items-center text-sm font-medium text-foreground underline-offset-4 hover:underline"
+          >
+            {t("nav.account")}
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (
