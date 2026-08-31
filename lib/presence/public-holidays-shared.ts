@@ -1,5 +1,8 @@
 /** Client-safe public-holiday markers (no Node / Graph). */
 
+/** Off until the Graph reader works. Flip to show Team/Home/Settings again. */
+export const PUBLIC_HOLIDAYS_UI_ENABLED = false;
+
 export const PUBLIC_HOLIDAY_COUNTRIES = ["CH", "AT", "DE", "MX", "NP"] as const;
 
 export type PublicHolidayCountry = (typeof PUBLIC_HOLIDAY_COUNTRIES)[number];

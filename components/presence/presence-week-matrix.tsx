@@ -18,6 +18,7 @@ import {
 import { presenceDisplayLabel } from "@/lib/i18n/display";
 import type { Locale } from "@/lib/i18n";
 import {
+  PUBLIC_HOLIDAYS_UI_ENABLED,
   publicHolidayDayOn,
   type PublicHolidayDay,
 } from "@/lib/presence/public-holidays-shared";
@@ -141,7 +142,9 @@ export function PresenceWeekMatrix({
             {weekDays.map((day) => {
               const isToday = day === today;
               const label = weekdayShort(day, intlLocale);
-              const holiday = publicHolidayDayOn(holidayDays, day);
+              const holiday = PUBLIC_HOLIDAYS_UI_ENABLED
+                ? publicHolidayDayOn(holidayDays, day)
+                : null;
               return (
                 <div
                   key={day}
@@ -172,6 +175,7 @@ export function PresenceWeekMatrix({
             })}
           </div>
 
+          {PUBLIC_HOLIDAYS_UI_ENABLED ? (
           <div className={MATRIX} role="row">
             <MatrixName title={t("presence.holidayRow")} />
             {weekDays.map((day) => {
@@ -195,6 +199,7 @@ export function PresenceWeekMatrix({
               );
             })}
           </div>
+          ) : null}
 
           {self ? (
             <div className={MATRIX} role="row">

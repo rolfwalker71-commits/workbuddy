@@ -56,6 +56,7 @@ import {
 } from "@/lib/workspace/event-mari-shared";
 import { HomeDutyAbsenceBar } from "@/components/dashboard/home-duty-absence-bar";
 import { HomePublicHolidays } from "@/components/holidays/home-public-holidays";
+import { PUBLIC_HOLIDAYS_UI_ENABLED } from "@/lib/presence/public-holidays-shared";
 import { HomeNextQueue } from "@/components/dashboard/home-next-queue";
 import { buildHomeNextQueue } from "@/lib/dashboard/home-next-queue";
 import { filterTodayEventsAfterGrace } from "@/lib/workspace/event-grace";
@@ -812,7 +813,7 @@ export function HomeOverview() {
         }
       />
 
-      <HomePublicHolidays />
+      {PUBLIC_HOLIDAYS_UI_ENABLED ? <HomePublicHolidays /> : null}
 
       <HomeNextQueue items={nextQueue} />
 

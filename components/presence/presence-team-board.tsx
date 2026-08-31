@@ -56,6 +56,7 @@ import { organizationDisplayLabel } from "@/lib/i18n/display";
 import type { MessageKey } from "@/lib/i18n";
 import { fetchPublicHolidays } from "@/lib/presence/public-holidays-client";
 import {
+  PUBLIC_HOLIDAYS_UI_ENABLED,
   publicHolidayDayOn,
   type PublicHolidayDay,
   type PublicHolidayProbe,
@@ -178,6 +179,7 @@ export function PresenceTeamBoard() {
   }, [loadDay, loadWeek, org, today, view, ymd]);
 
   useEffect(() => {
+    if (!PUBLIC_HOLIDAYS_UI_ENABLED) return;
     const days = view === "week" ? weekdaysMonFri(ymd) : null;
     const from = days?.[0] || ymd;
     const to = days?.[4] || ymd;
@@ -460,17 +462,19 @@ export function PresenceTeamBoard() {
       </div>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      {holidayReason === "no-reader" ? (
+      {PUBLIC_HOLIDAYS_UI_ENABLED && holidayReason === "no-reader" ? (
         <p className="text-sm text-muted-foreground">
           {t("presence.holidayNoReader")}
         </p>
       ) : null}
-      {holidayReason === "unreadable" ? (
+      {PUBLIC_HOLIDAYS_UI_ENABLED && holidayReason === "unreadable" ? (
         <p className="text-sm text-muted-foreground">
           {t("presence.holidayUnreadable")}
         </p>
       ) : null}
-      {holidayDays.length === 0 && holidayProbe ? (
+      {PUBLIC_HOLIDAYS_UI_ENABLED &&
+      holidayDays.length === 0 &&
+      holidayProbe ? (
         <div className="rounded-2xl bg-muted px-3 py-2 text-xs leading-relaxed text-muted-foreground">
           <p className="font-medium text-foreground">
             {t("presence.holidayProbeTitle")}
@@ -507,7 +511,7 @@ export function PresenceTeamBoard() {
 
       {view === "day" && dayData ? (
         <div className="space-y-6">
-          {dayHoliday ? (
+          {PUBLIC_HOLIDAYS_UI_ENABLED && dayHoliday ? (
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl bg-violet-50 px-3 py-2 ring-1 ring-violet-200/80 dark:bg-violet-500/10 dark:ring-violet-400/25">
               <p className="text-sm font-semibold text-violet-950 dark:text-violet-50">
                 {t("presence.holidayOnDay")}
