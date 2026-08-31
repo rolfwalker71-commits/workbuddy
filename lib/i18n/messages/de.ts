@@ -250,6 +250,8 @@ export const de = {
     ttvNewTickets: "{count} neue Tickets",
     ttvNewTicketsFallback: "{count} neue Tickets (Fallback-Filter)",
     taskOverdue: "{label} · überfällig",
+    holidayToday: "Heute Feiertag",
+    nextHolidays: "Nächste Feiertage",
   },
   weather: {
     title: "Wetter",
@@ -392,6 +394,8 @@ export const de = {
       thu: "Donnerstag",
       fri: "Freitag",
     },
+    holidayRow: "Feiertag",
+    holidayOnDay: "Feiertag",
   },
   technik: {
     title: "Technik",
@@ -675,6 +679,15 @@ export const de = {
     techUpgradesCalReader: "Zuletzt gelesen über {name}.",
     techUpgradesCalSaved: "Technik-Kalender gespeichert.",
     techUpgradesCalLoadFailed: "Technik-Kalender laden fehlgeschlagen",
+    publicHolidaysCalTitle: "Feiertagskalender",
+    publicHolidaysCalHint:
+      "Gemeinsames Postfach mit Feiertagen (CH, AT, DE, MX, NP). Marker erscheinen im Team und auf Home für alle — ohne Anwesenheitsstatus.",
+    publicHolidaysCalMailbox: "Postfach",
+    publicHolidaysCalShareHint:
+      "Kalender mit mindestens einem verbundenen Microsoft-Konto teilen (Calendars.ReadWrite reicht).",
+    publicHolidaysCalReader: "Zuletzt gelesen über {name}.",
+    publicHolidaysCalSaved: "Feiertagskalender gespeichert.",
+    publicHolidaysCalLoadFailed: "Feiertagskalender laden fehlgeschlagen",
     companyAiTitle: "Firmen-KI (alle User)",
     companyAiHint:
       "Führend für alle Konten. OpenAI: nur Key und Modell. Custom: Key, Modell und URL vom Provider. Persönliche Keys unter Konto greifen erst, wenn das hier aus ist.",

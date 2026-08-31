@@ -2,6 +2,7 @@
 
 import { PresenceStatusCell } from "@/components/presence/presence-status-cell";
 import { PresenceStatusLegend } from "@/components/presence/presence-status-legend";
+import { PublicHolidayChips } from "@/components/holidays/public-holiday-chips";
 import { useLocale, useT } from "@/components/i18n/locale-provider";
 import { cn } from "@/lib/utils";
 import {
@@ -13,6 +14,10 @@ import {
 } from "@/lib/presence/client";
 import { presenceDisplayLabel } from "@/lib/i18n/display";
 import type { Locale } from "@/lib/i18n";
+import {
+  publicHolidayDayOn,
+  type PublicHolidayDay,
+} from "@/lib/presence/public-holidays-shared";
 
 type Actor = {
   isAdmin: boolean;
@@ -96,6 +101,7 @@ export function PresenceWeekMatrix({
   weekSelfByYmd,
   weekPeople,
   weekByYmd,
+  holidayDays,
   actor,
   onOpenSelf,
   onOpenPerson,
@@ -106,6 +112,7 @@ export function PresenceWeekMatrix({
   weekSelfByYmd: Record<string, PresencePersonView | null>;
   weekPeople: PresencePersonView[];
   weekByYmd: Record<string, PresenceTodayResponse>;
+  holidayDays: PublicHolidayDay[];
   actor: Actor;
   onOpenSelf: (day: string, person: PresencePersonView) => void;
   onOpenPerson: (person: PresencePersonView, day: string) => void;
@@ -151,6 +158,31 @@ export function PresenceWeekMatrix({
               );
             })}
           </div>
+
+          {holidayDays.some((d) => weekDays.includes(d.date)) ? (
+            <div className={MATRIX} role="row">
+              <MatrixName title={t("presence.holidayRow")} />
+              {weekDays.map((day) => {
+                const holiday = publicHolidayDayOn(holidayDays, day);
+                return (
+                  <div
+                    key={day}
+                    role="gridcell"
+                    className="flex min-h-11 items-center justify-center px-1"
+                  >
+                    {holiday ? (
+                      <PublicHolidayChips
+                        countries={holiday.countries}
+                        titles={holiday.titles}
+                      />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
 
           {self ? (
             <div className={MATRIX} role="row">

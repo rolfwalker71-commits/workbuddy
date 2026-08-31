@@ -55,6 +55,7 @@ import {
   type HoursBookedStampLike,
 } from "@/lib/workspace/event-mari-shared";
 import { HomeDutyAbsenceBar } from "@/components/dashboard/home-duty-absence-bar";
+import { HomePublicHolidays } from "@/components/holidays/home-public-holidays";
 import { HomeNextQueue } from "@/components/dashboard/home-next-queue";
 import { buildHomeNextQueue } from "@/lib/dashboard/home-next-queue";
 import { filterTodayEventsAfterGrace } from "@/lib/workspace/event-grace";
@@ -810,6 +811,8 @@ export function HomeOverview() {
           setData((prev) => (prev ? { ...prev, ttvDuty: next } : prev))
         }
       />
+
+      <HomePublicHolidays />
 
       <HomeNextQueue items={nextQueue} />
 

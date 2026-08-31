@@ -252,6 +252,8 @@ export const en = {
     ttvNewTickets: "{count} new tickets",
     ttvNewTicketsFallback: "{count} new tickets (fallback filter)",
     taskOverdue: "{label} · overdue",
+    holidayToday: "Holiday today",
+    nextHolidays: "Upcoming holidays",
   },
   weather: {
     title: "Weather",
@@ -393,6 +395,8 @@ export const en = {
       thu: "Thursday",
       fri: "Friday",
     },
+    holidayRow: "Holiday",
+    holidayOnDay: "Public holiday",
   },
   technik: {
     title: "Tech",
@@ -674,6 +678,15 @@ export const en = {
     techUpgradesCalReader: "Last read via {name}.",
     techUpgradesCalSaved: "Tech calendar saved.",
     techUpgradesCalLoadFailed: "Failed to load tech calendar",
+    publicHolidaysCalTitle: "Public holiday calendar",
+    publicHolidaysCalHint:
+      "Shared mailbox with public holidays (CH, AT, DE, MX, NP). Markers appear on Team and Home for everyone — they do not set attendance.",
+    publicHolidaysCalMailbox: "Mailbox",
+    publicHolidaysCalShareHint:
+      "Share the calendar with at least one connected Microsoft account (Calendars.ReadWrite is enough).",
+    publicHolidaysCalReader: "Last read via {name}.",
+    publicHolidaysCalSaved: "Public holiday calendar saved.",
+    publicHolidaysCalLoadFailed: "Failed to load public holiday calendar",
     companyAiTitle: "Company AI (all users)",
     companyAiHint:
       "Applies to every account. OpenAI: key and model only. Custom: key, model, and provider URL. Personal keys under Account apply only when this is off.",

@@ -19,6 +19,7 @@ import { PresenceSetDialog } from "@/components/presence/presence-set-dialog";
 import { PresenceDelegateDialog } from "@/components/presence/presence-delegate-dialog";
 import { PresenceStatusLegend } from "@/components/presence/presence-status-legend";
 import { PresenceWeekMatrix } from "@/components/presence/presence-week-matrix";
+import { PublicHolidayChips } from "@/components/holidays/public-holiday-chips";
 import { useAuth } from "@/components/auth/auth-provider";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { cn } from "@/lib/utils";
@@ -49,6 +50,11 @@ import { formatSwissDateRange } from "@/lib/utils/dates";
 import { useLocale, useT } from "@/components/i18n/locale-provider";
 import { organizationDisplayLabel } from "@/lib/i18n/display";
 import type { MessageKey } from "@/lib/i18n";
+import { fetchPublicHolidayDays } from "@/lib/presence/public-holidays-client";
+import {
+  publicHolidayDayOn,
+  type PublicHolidayDay,
+} from "@/lib/presence/public-holidays-shared";
 
 type OrgFilter = "" | UserOrganization;
 type BoardView = "day" | "week";
@@ -105,6 +111,7 @@ export function PresenceTeamBoard() {
     userId: number;
   } | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
+  const [holidayDays, setHolidayDays] = useState<PublicHolidayDay[]>([]);
 
   const loadDay = useCallback(async (day: string, organization: OrgFilter) => {
     const json = await fetchPresenceToday({
@@ -159,6 +166,19 @@ export function PresenceTeamBoard() {
     };
   }, [loadDay, loadWeek, org, today, view, ymd]);
 
+  useEffect(() => {
+    const days = view === "week" ? weekdaysMonFri(ymd) : null;
+    const from = days?.[0] || ymd;
+    const to = days?.[4] || ymd;
+    let cancelled = false;
+    void fetchPublicHolidayDays(from, to).then((next) => {
+      if (!cancelled) setHolidayDays(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [view, ymd]);
+
   const awayIds = useMemo(() => {
     if (!absence || ymd !== today) return [];
     return absence.colleagues.map((c) => c.userId);
@@ -177,6 +197,10 @@ export function PresenceTeamBoard() {
   }, [absence?.self?.isAwayToday, dayData?.self, today, ymd]);
 
   const groups = useMemo(() => groupPresencePeople(people), [people]);
+  const dayHoliday = useMemo(
+    () => publicHolidayDayOn(holidayDays, ymd),
+    [holidayDays, ymd]
+  );
   const actor = {
     isAdmin: Boolean(me?.isAdmin),
     canManagePresence: Boolean(self?.canManagePresence || me?.isAdmin),
@@ -426,6 +450,17 @@ export function PresenceTeamBoard() {
 
       {view === "day" && dayData ? (
         <div className="space-y-6">
+          {dayHoliday ? (
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl bg-violet-50 px-3 py-2 ring-1 ring-violet-200/80 dark:bg-violet-500/10 dark:ring-violet-400/25">
+              <p className="text-sm font-semibold text-violet-950 dark:text-violet-50">
+                {t("presence.holidayOnDay")}
+              </p>
+              <PublicHolidayChips
+                countries={dayHoliday.countries}
+                titles={dayHoliday.titles}
+              />
+            </div>
+          ) : null}
           <PresenceStatusLegend />
           {GROUP_ORDER.map((groupId) => (
             <section key={groupId} className="space-y-2">
@@ -473,6 +508,7 @@ export function PresenceTeamBoard() {
           weekSelfByYmd={weekSelfByYmd}
           weekPeople={weekPeople}
           weekByYmd={weekByYmd}
+          holidayDays={holidayDays}
           actor={actor}
           onOpenSelf={(day, person) => {
             setDialogError(null);
