@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   formatPublicHolidayCountries,
   groupPublicHolidaysByDay,
+  isPublicHolidayCalendarHint,
   parsePublicHolidayCountries,
   publicHolidayLookaheadRange,
 } from "./public-holidays-shared.ts";
@@ -50,12 +51,19 @@ test("groupPublicHolidaysByDay merges countries on the same date", () => {
   assert.equal(days[0]?.titles.length, 3);
   assert.deepEqual(days[1]?.countries, ["AT"]);
   assert.equal(formatPublicHolidayCountries(days[0]!.countries), "CH · DE · MX");
-  assert.deepEqual(
-    groupPublicHolidaysByDay([
-      { id: "x", date: "2026-12-24", subject: "Team lunch", countries: [] },
-    ]),
-    []
-  );
+  const unnamed = groupPublicHolidaysByDay([
+    { id: "x", date: "2026-12-24", subject: "Weihnachten", countries: [] },
+  ]);
+  assert.equal(unnamed[0]?.date, "2026-12-24");
+  assert.deepEqual(unnamed[0]?.countries, []);
+  assert.deepEqual(unnamed[0]?.titles, ["Weihnachten"]);
+});
+
+test("isPublicHolidayCalendarHint matches shared mailbox names", () => {
+  assert.equal(isPublicHolidayCalendarHint("Public Holidays"), true);
+  assert.equal(isPublicHolidayCalendarHint("CH Holidays"), true);
+  assert.equal(isPublicHolidayCalendarHint("Feiertage AT"), true);
+  assert.equal(isPublicHolidayCalendarHint("Kalender"), false);
 });
 
 test("publicHolidayLookaheadRange keeps December through New Year", () => {

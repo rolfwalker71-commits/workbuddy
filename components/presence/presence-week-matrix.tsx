@@ -138,11 +138,12 @@ export function PresenceWeekMatrix({
             {weekDays.map((day) => {
               const isToday = day === today;
               const label = weekdayShort(day, intlLocale);
+              const holiday = publicHolidayDayOn(holidayDays, day);
               return (
                 <div
                   key={day}
                   role="columnheader"
-                  className="flex min-h-10 items-center justify-center px-1"
+                  className="flex min-h-10 flex-col items-center justify-center gap-0.5 px-1"
                 >
                   <span
                     className={cn(
@@ -154,35 +155,42 @@ export function PresenceWeekMatrix({
                   >
                     {label}
                   </span>
+                  <span className="text-[0.7rem] leading-none text-muted-foreground">
+                    {Number(day.slice(8))}
+                  </span>
+                  {holiday ? (
+                    <PublicHolidayChips
+                      countries={holiday.countries}
+                      titles={holiday.titles}
+                    />
+                  ) : null}
                 </div>
               );
             })}
           </div>
 
-          {holidayDays.some((d) => weekDays.includes(d.date)) ? (
-            <div className={MATRIX} role="row">
-              <MatrixName title={t("presence.holidayRow")} />
-              {weekDays.map((day) => {
-                const holiday = publicHolidayDayOn(holidayDays, day);
-                return (
-                  <div
-                    key={day}
-                    role="gridcell"
-                    className="flex min-h-11 items-center justify-center px-1"
-                  >
-                    {holiday ? (
-                      <PublicHolidayChips
-                        countries={holiday.countries}
-                        titles={holiday.titles}
-                      />
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ) : null}
+          <div className={MATRIX} role="row">
+            <MatrixName title={t("presence.holidayRow")} />
+            {weekDays.map((day) => {
+              const holiday = publicHolidayDayOn(holidayDays, day);
+              return (
+                <div
+                  key={day}
+                  role="gridcell"
+                  className="flex min-h-11 items-center justify-center px-1"
+                >
+                  {holiday ? (
+                    <PublicHolidayChips
+                      countries={holiday.countries}
+                      titles={holiday.titles}
+                    />
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
 
           {self ? (
             <div className={MATRIX} role="row">

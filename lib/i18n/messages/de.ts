@@ -396,6 +396,10 @@ export const de = {
     },
     holidayRow: "Feiertag",
     holidayOnDay: "Feiertag",
+    holidayNoReader:
+      "Feiertagskalender ist noch mit keinem verbundenen Microsoft-Konto geteilt. Admin: Einstellungen.",
+    holidayUnreadable:
+      "Feiertagskalender nicht lesbar. Mit mindestens einem verbundenen Microsoft-Konto teilen.",
   },
   technik: {
     title: "Technik",

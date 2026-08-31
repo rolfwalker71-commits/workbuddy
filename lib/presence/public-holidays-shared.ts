@@ -94,8 +94,21 @@ export function groupPublicHolidaysByDay(
       date,
       countries: PUBLIC_HOLIDAY_COUNTRIES.filter((c) => row.countries.has(c)),
       titles: row.titles,
-    }))
-    .filter((row) => row.countries.length > 0);
+    }));
+}
+
+export function isPublicHolidayCalendarHint(
+  name: string | null | undefined
+): boolean {
+  const n = (name || "").toLowerCase();
+  if (!n) return false;
+  return (
+    n.includes("public_holiday") ||
+    n.includes("public holiday") ||
+    n.includes("feiertag") ||
+    n.includes("ww_public") ||
+    /\bholidays?\b/.test(n)
+  );
 }
 
 /** 14 days ahead; in December keep looking through 2 January. */

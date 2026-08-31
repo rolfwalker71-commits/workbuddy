@@ -397,6 +397,10 @@ export const en = {
     },
     holidayRow: "Holiday",
     holidayOnDay: "Public holiday",
+    holidayNoReader:
+      "The public holiday calendar is not yet shared with a connected Microsoft account. Admin: Settings.",
+    holidayUnreadable:
+      "Public holiday calendar unreadable. Share it with at least one connected Microsoft account.",
   },
   technik: {
     title: "Tech",

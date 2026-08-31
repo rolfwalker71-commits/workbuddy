@@ -50,7 +50,7 @@ import { formatSwissDateRange } from "@/lib/utils/dates";
 import { useLocale, useT } from "@/components/i18n/locale-provider";
 import { organizationDisplayLabel } from "@/lib/i18n/display";
 import type { MessageKey } from "@/lib/i18n";
-import { fetchPublicHolidayDays } from "@/lib/presence/public-holidays-client";
+import { fetchPublicHolidays } from "@/lib/presence/public-holidays-client";
 import {
   publicHolidayDayOn,
   type PublicHolidayDay,
@@ -112,6 +112,9 @@ export function PresenceTeamBoard() {
   } | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [holidayDays, setHolidayDays] = useState<PublicHolidayDay[]>([]);
+  const [holidayReason, setHolidayReason] = useState<
+    "no-reader" | "unreadable" | null
+  >(null);
 
   const loadDay = useCallback(async (day: string, organization: OrgFilter) => {
     const json = await fetchPresenceToday({
@@ -171,8 +174,10 @@ export function PresenceTeamBoard() {
     const from = days?.[0] || ymd;
     const to = days?.[4] || ymd;
     let cancelled = false;
-    void fetchPublicHolidayDays(from, to).then((next) => {
-      if (!cancelled) setHolidayDays(next);
+    void fetchPublicHolidays(from, to).then((next) => {
+      if (cancelled) return;
+      setHolidayDays(next.days);
+      setHolidayReason(next.reason);
     });
     return () => {
       cancelled = true;
@@ -442,6 +447,16 @@ export function PresenceTeamBoard() {
       </div>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {holidayReason === "no-reader" ? (
+        <p className="text-sm text-muted-foreground">
+          {t("presence.holidayNoReader")}
+        </p>
+      ) : null}
+      {holidayReason === "unreadable" ? (
+        <p className="text-sm text-muted-foreground">
+          {t("presence.holidayUnreadable")}
+        </p>
+      ) : null}
       {((view === "day" && !dayData) ||
         (view === "week" && Object.keys(weekByYmd).length === 0)) &&
       !error ? (

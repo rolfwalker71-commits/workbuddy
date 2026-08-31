@@ -32,3 +32,17 @@ test("mapPublicHolidayEvents expands all-day spans and reads countries", () => {
   );
   assert.deepEqual(rows[0]?.countries, ["CH", "DE", "MX"]);
 });
+
+test("mapPublicHolidayEvents reads country from calendar name", () => {
+  const rows = mapPublicHolidayEvents(
+    {
+      id: "np",
+      subject: "Constitution Day",
+      start: { dateTime: "2026-09-19T00:00:00" },
+      end: { dateTime: "2026-09-20T00:00:00" },
+      isAllDay: true,
+    },
+    "NP Holidays"
+  );
+  assert.deepEqual(rows[0]?.countries, ["NP"]);
+});
