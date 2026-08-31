@@ -399,7 +399,7 @@ export const de = {
     holidayNoReader:
       "Feiertagskalender ist noch mit keinem verbundenen Microsoft-Konto geteilt. Admin: Einstellungen.",
     holidayUnreadable:
-      "Feiertagskalender nicht lesbar. Mit mindestens einem verbundenen Microsoft-Konto teilen.",
+      "Feiertagskalender nicht lesbar. Im verbundenen Outlook ww_public_holidays einmal öffnen oder Microsoft unter Konto neu verbinden.",
   },
   technik: {
     title: "Technik",
@@ -688,7 +688,7 @@ export const de = {
       "Gemeinsames Postfach mit Feiertagen (CH, AT, DE, MX, NP). Marker erscheinen im Team und auf Home für alle — ohne Anwesenheitsstatus.",
     publicHolidaysCalMailbox: "Postfach",
     publicHolidaysCalShareHint:
-      "Kalender mit mindestens einem verbundenen Microsoft-Konto teilen (Calendars.ReadWrite reicht).",
+      "Outlook-Freigabe allein reicht oft nicht. Kalender im verbundenen Konto einmal öffnen (erscheint unter Meine Kalender) oder in Exchange Vollzugriff geben — wie beim Ferienkalender. Danach Microsoft unter Konto neu verbinden.",
     publicHolidaysCalReader: "Zuletzt gelesen über {name}.",
     publicHolidaysCalSaved: "Feiertagskalender gespeichert.",
     publicHolidaysCalLoadFailed: "Feiertagskalender laden fehlgeschlagen",

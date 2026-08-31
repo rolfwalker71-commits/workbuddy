@@ -4,7 +4,7 @@
  */
 
 import { getSetting, setSetting } from "@/lib/db/migrations";
-import { graphJson } from "@/lib/microsoft/graph";
+import { graphJson, MicrosoftGraphError } from "@/lib/microsoft/graph";
 import { addDaysYmd, dayWindowLocal } from "@/lib/microsoft/time";
 import { listOofSyncUserIds } from "@/lib/presence/oof-sync";
 import { readVacationCalendarConfig } from "@/lib/presence/vacation-calendar";
@@ -153,6 +153,8 @@ export function mapPublicHolidayEvents(
 }
 
 const EVENT_SELECT = "id,subject,start,end,isAllDay,categories,location";
+/** Outlook «Titel und Orte» / LimitedDetails rejects categories. */
+const EVENT_SELECT_LIMITED = "id,subject,start,end,isAllDay,location";
 
 type GraphCalendarOwner = {
   id?: string;
@@ -160,11 +162,12 @@ type GraphCalendarOwner = {
   owner?: { name?: string | null; address?: string | null };
 };
 
-async function calendarViewEvents(
+async function calendarViewWithSelect(
   readerUserId: number,
   path: string,
   startYmd: string,
   endYmd: string,
+  select: string,
   calendarName?: string | null
 ): Promise<PublicHolidayEvent[]> {
   const { start } = dayWindowLocal(startYmd);
@@ -172,7 +175,7 @@ async function calendarViewEvents(
   const qs = new URLSearchParams({
     startDateTime: start,
     endDateTime: end,
-    $select: EVENT_SELECT,
+    $select: select,
     $orderby: "start/dateTime",
     $top: "250",
   });
@@ -186,6 +189,37 @@ async function calendarViewEvents(
   );
 }
 
+async function calendarViewEvents(
+  readerUserId: number,
+  path: string,
+  startYmd: string,
+  endYmd: string,
+  calendarName?: string | null
+): Promise<PublicHolidayEvent[]> {
+  try {
+    return await calendarViewWithSelect(
+      readerUserId,
+      path,
+      startYmd,
+      endYmd,
+      EVENT_SELECT,
+      calendarName
+    );
+  } catch (error) {
+    if (error instanceof MicrosoftGraphError && error.status === 403) {
+      return calendarViewWithSelect(
+        readerUserId,
+        path,
+        startYmd,
+        endYmd,
+        EVENT_SELECT_LIMITED,
+        calendarName
+      );
+    }
+    throw error;
+  }
+}
+
 async function listViaMailbox(
   readerUserId: number,
   mailbox: string,
@@ -193,35 +227,49 @@ async function listViaMailbox(
   endYmd: string
 ): Promise<PublicHolidayEvent[]> {
   const encoded = encodeURIComponent(mailbox);
+  const collected: PublicHolidayEvent[] = [];
+  try {
+    const fromDefault = await calendarViewEvents(
+      readerUserId,
+      `/users/${encoded}/calendar/calendarView`,
+      startYmd,
+      endYmd
+    );
+    collected.push(...fromDefault);
+  } catch {
+    /* listing other calendars below */
+  }
   try {
     const listed = await graphJson<{ value?: GraphCalendarOwner[] }>(
       readerUserId,
       `/users/${encoded}/calendars?$top=80&$select=id,name`
     );
     const calendars = (listed.value || []).filter((cal) => cal.id);
-    if (calendars.length > 0) {
-      const chunks = await Promise.all(
-        calendars.map((cal) =>
-          calendarViewEvents(
+    const chunks = await Promise.all(
+      calendars.map(async (cal) => {
+        try {
+          return await calendarViewEvents(
             readerUserId,
             `/users/${encoded}/calendars/${encodeURIComponent(cal.id!)}/calendarView`,
             startYmd,
             endYmd,
             cal.name
-          )
-        )
-      );
-      return chunks.flat();
-    }
+          );
+        } catch {
+          return [];
+        }
+      })
+    );
+    collected.push(...chunks.flat());
   } catch {
-    /* default calendar below */
+    /* shared-calendar fallback */
   }
-  return calendarViewEvents(
-    readerUserId,
-    `/users/${encoded}/calendar/calendarView`,
-    startYmd,
-    endYmd
-  );
+  const seen = new Set<string>();
+  return collected.filter((event) => {
+    if (seen.has(event.id)) return false;
+    seen.add(event.id);
+    return true;
+  });
 }
 
 async function listViaSharedCalendar(

@@ -9,6 +9,7 @@ import {
 test("Microsoft scopes include mail + calendar + tasks + Teams read", () => {
   assert.ok(MICROSOFT_OAUTH_SCOPES.includes("Mail.ReadWrite"));
   assert.ok(MICROSOFT_OAUTH_SCOPES.includes("Calendars.ReadWrite"));
+  assert.ok(MICROSOFT_OAUTH_SCOPES.includes("Calendars.Read.Shared"));
   assert.ok(MICROSOFT_OAUTH_SCOPES.includes("Tasks.ReadWrite"));
   assert.ok(MICROSOFT_OAUTH_SCOPES.includes("offline_access"));
   assert.ok(MICROSOFT_OAUTH_SCOPES.includes("Chat.Read"));

@@ -400,7 +400,7 @@ export const en = {
     holidayNoReader:
       "The public holiday calendar is not yet shared with a connected Microsoft account. Admin: Settings.",
     holidayUnreadable:
-      "Public holiday calendar unreadable. Share it with at least one connected Microsoft account.",
+      "Public holiday calendar unreadable. Open ww_public_holidays once in the connected Outlook, or reconnect Microsoft under Account.",
   },
   technik: {
     title: "Tech",
@@ -687,7 +687,7 @@ export const en = {
       "Shared mailbox with public holidays (CH, AT, DE, MX, NP). Markers appear on Team and Home for everyone — they do not set attendance.",
     publicHolidaysCalMailbox: "Mailbox",
     publicHolidaysCalShareHint:
-      "Share the calendar with at least one connected Microsoft account (Calendars.ReadWrite is enough).",
+      "An Outlook share is often not enough. Open the calendar once in the connected account (it should appear under My calendars) or grant Exchange Full Access — same as the leave calendar. Then reconnect Microsoft under Account.",
     publicHolidaysCalReader: "Last read via {name}.",
     publicHolidaysCalSaved: "Public holiday calendar saved.",
     publicHolidaysCalLoadFailed: "Failed to load public holiday calendar",
