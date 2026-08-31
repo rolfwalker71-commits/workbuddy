@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   applySwissOrthography,
+  DAY_SUMMARY_SYSTEM_PROMPT,
   cleanClusterSummaryNoise,
   clusterNeedsAction,
   flattenAnalysis,
@@ -35,6 +36,13 @@ function mail(
     ...partial,
   };
 }
+
+test("day summary prompt stays Hochdeutsch, not dialect", () => {
+  assert.match(DAY_SUMMARY_SYSTEM_PROMPT, /Schweizer Hochdeutsch/);
+  assert.match(DAY_SUMMARY_SYSTEM_PROMPT, /Kein Dialekt/i);
+  assert.match(DAY_SUMMARY_SYSTEM_PROMPT, /kein Schweizerdeutsch/i);
+  assert.equal(DAY_SUMMARY_SYSTEM_PROMPT.includes("Schweizer Deutsch"), false);
+});
 
 test("applySwissOrthography replaces ß with ss", () => {
   assert.equal(

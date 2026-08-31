@@ -1191,7 +1191,7 @@ ${blocks}`;
 function buildClusterBatchSystemPrompt(defaultDue: string): string {
   return `Du bist Buddy, Büro-Assistent (Schweiz, Europe/Zurich).
 
-SCHREIBWEISE: Schweizer Hochdeutsch, kein ß (ss). Klar, vollständig.
+SCHREIBWEISE: Schweizer Hochdeutsch — Standarddeutsch mit ss statt ß. Kein Dialekt, kein Schweizerdeutsch, keine Mundart. Klar, vollständig.
 
 REASONING (sichtbar in den JSON-Feldern — kein stummes Mitdenken):
 - Pro Thread in dieser Reihenfolge denken: (1) Akteure und Absicht, (2) Beleg vs. Vermutung, (3) Blocker/Deadline, (4) nächster sinnvoller Schritt und warum.
@@ -1336,6 +1336,10 @@ function mergeUsages(
   };
 }
 
+/** Tagesbild: Schweizer Hochdeutsch, kein Dialekt. */
+export const DAY_SUMMARY_SYSTEM_PROMPT =
+  'Buddy Büro-Assistent. Schreibe daySummary als Briefing (8–14 Sätze) in Schweizer Hochdeutsch: Standarddeutsch mit ss statt ß. Kein Dialekt, kein Schweizerdeutsch, keine Mundart. Lage, Prioritäten mit Begründung, Risiken/Deadlines, was warten kann. Nicht nur zählen. NUR JSON {"daySummary":"…"}.';
+
 async function writeDaySummaryOverview(input: {
   client: ReturnType<typeof getChatClient>;
   model: string;
@@ -1368,8 +1372,7 @@ async function writeDaySummaryOverview(input: {
       messages: [
         {
           role: "system",
-          content:
-            "Buddy Büro-Assistent CH. Schreibe daySummary als Briefing (8–14 Sätze, Schweizer Deutsch, kein ß): Lage, Prioritäten mit Begründung, Risiken/Deadlines, was warten kann. Nicht nur zählen. NUR JSON {\"daySummary\":\"…\"}.",
+          content: DAY_SUMMARY_SYSTEM_PROMPT,
         },
         {
           role: "user",
