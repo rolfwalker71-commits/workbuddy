@@ -7,7 +7,7 @@ import {
 } from "@/lib/i18n/country-flag";
 import type { UserOrganization } from "@/lib/users/organization";
 
-const FLAG_CLASS = "h-[1.05em] w-[1.45em] shrink-0 rounded-[0.2rem] ring-1 ring-black/15 dark:ring-white/20";
+const FLAG_CLASS = "h-[1.05em] w-[1.45em] shrink-0";
 
 function FlagSvg({
   label,
@@ -43,7 +43,7 @@ function FlagGraphic({
     case "CH":
       return (
         <FlagSvg label={label} className={cn("w-[1.05em]", className)}>
-          <rect width="21" height="15" rx="1.4" fill="#D52B1E" />
+          <rect width="21" height="15" fill="#D52B1E" />
           <rect x="8.7" y="2.4" width="3.6" height="10.2" fill="#fff" />
           <rect x="5.4" y="5.7" width="10.2" height="3.6" fill="#fff" />
         </FlagSvg>
@@ -51,7 +51,7 @@ function FlagGraphic({
     case "AT":
       return (
         <FlagSvg label={label} className={className}>
-          <rect width="21" height="15" rx="1.4" fill="#C8102E" />
+          <rect width="21" height="15" fill="#C8102E" />
           <rect y="5" width="21" height="5" fill="#fff" />
         </FlagSvg>
       );
@@ -61,7 +61,6 @@ function FlagGraphic({
           <rect width="21" height="5" fill="#000" />
           <rect y="5" width="21" height="5" fill="#D00" />
           <rect y="10" width="21" height="5" fill="#FFCE00" />
-          <rect width="21" height="15" rx="1.4" fill="none" stroke="rgba(0,0,0,0.12)" />
         </FlagSvg>
       );
     case "MX":
@@ -76,7 +75,7 @@ function FlagGraphic({
     case "NP":
       return (
         <FlagSvg label={label} className={className}>
-          <rect width="21" height="15" rx="1.4" fill="#003893" />
+          <rect width="21" height="15" fill="#003893" />
           <path d="M2.2 1.6h11.4L7.8 7.4h9L4.4 13.6V1.6z" fill="#DC143C" />
           <circle cx="7.2" cy="5.1" r="1.15" fill="#fff" />
           <circle cx="8.4" cy="9.7" r="1.35" fill="#fff" />
