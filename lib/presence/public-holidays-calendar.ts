@@ -158,61 +158,98 @@ type GraphCalendarOwner = {
   owner?: { name?: string | null; address?: string | null };
 };
 
+/** Outlook «Andere Kalender» → Public Holiday (same mailbox, not the default). */
+export function isHolidaySourceCalendar(
+  cal: { name?: string | null; owner?: { address?: string | null } },
+  mailbox: string
+): boolean {
+  const owner = normEmail(cal.owner?.address);
+  return owner === normEmail(mailbox) || isPublicHolidayCalendarHint(cal.name);
+}
+
+async function calendarViewOn(
+  readerUserId: number,
+  path: string,
+  startYmd: string,
+  endYmd: string,
+  calendarName?: string | null
+): Promise<PublicHolidayEvent[]> {
+  const { start } = dayWindowLocal(startYmd);
+  const { end } = dayWindowLocal(endYmd);
+  const qs = new URLSearchParams({
+    startDateTime: start,
+    endDateTime: end,
+    $select: EVENT_SELECT,
+    $orderby: "start/dateTime",
+    $top: "250",
+  });
+  const data = await graphJson<{ value?: GraphHolidayEvent[] }>(
+    readerUserId,
+    `${path}?${qs}`,
+    { headers: { Prefer: 'outlook.timezone="Europe/Zurich"' } }
+  );
+  return (data.value || []).flatMap((ev) =>
+    mapPublicHolidayEvents(ev, calendarName)
+  );
+}
+
 async function listViaMailbox(
   readerUserId: number,
   mailbox: string,
   startYmd: string,
   endYmd: string
 ): Promise<PublicHolidayEvent[]> {
-  const { start } = dayWindowLocal(startYmd);
-  const { end } = dayWindowLocal(endYmd);
-  const qs = new URLSearchParams({
-    startDateTime: start,
-    endDateTime: end,
-    $select: EVENT_SELECT,
-    $orderby: "start/dateTime",
-    $top: "250",
-  });
-  const data = await graphJson<{ value?: GraphHolidayEvent[] }>(
+  return calendarViewOn(
     readerUserId,
-    `/users/${encodeURIComponent(mailbox)}/calendar/calendarView?${qs}`,
-    { headers: { Prefer: 'outlook.timezone="Europe/Zurich"' } }
+    `/users/${encodeURIComponent(mailbox)}/calendar/calendarView`,
+    startYmd,
+    endYmd
   );
-  return (data.value || []).flatMap((ev) => mapPublicHolidayEvents(ev));
 }
 
-async function listViaSharedCalendar(
+async function findAndReadNamedHolidayCalendar(
   readerUserId: number,
   mailbox: string,
   startYmd: string,
   endYmd: string
 ): Promise<PublicHolidayEvent[]> {
+  const encoded = encodeURIComponent(mailbox);
+  try {
+    const listed = await graphJson<{ value?: GraphCalendarOwner[] }>(
+      readerUserId,
+      `/users/${encoded}/calendars?$top=100&$select=id,name,owner`
+    );
+    const found = (listed.value || []).find(
+      (cal) => cal.id && isPublicHolidayCalendarHint(cal.name)
+    );
+    if (found?.id) {
+      return calendarViewOn(
+        readerUserId,
+        `/users/${encoded}/calendars/${encodeURIComponent(found.id)}/calendarView`,
+        startYmd,
+        endYmd,
+        found.name
+      );
+    }
+  } catch {
+    /* Outlook «Andere Kalender» on the reader */
+  }
   const listed = await graphJson<{ value?: GraphCalendarOwner[] }>(
     readerUserId,
     "/me/calendars?$top=100&$select=id,name,owner"
   );
-  const want = normEmail(mailbox);
-  const found = (listed.value || []).find((cal) => {
-    const owner = normEmail(cal.owner?.address);
-    return owner === want || isPublicHolidayCalendarHint(cal.name);
-  });
-  if (!found?.id) throw new Error("Public holidays calendar not in mailbox list.");
-  const { start } = dayWindowLocal(startYmd);
-  const { end } = dayWindowLocal(endYmd);
-  const qs = new URLSearchParams({
-    startDateTime: start,
-    endDateTime: end,
-    $select: EVENT_SELECT,
-    $orderby: "start/dateTime",
-    $top: "250",
-  });
-  const data = await graphJson<{ value?: GraphHolidayEvent[] }>(
-    readerUserId,
-    `/me/calendars/${encodeURIComponent(found.id)}/calendarView?${qs}`,
-    { headers: { Prefer: 'outlook.timezone="Europe/Zurich"' } }
+  const found = (listed.value || []).find(
+    (cal) => cal.id && isHolidaySourceCalendar(cal, mailbox)
   );
-  return (data.value || []).flatMap((ev) =>
-    mapPublicHolidayEvents(ev, found.name)
+  if (!found?.id) {
+    throw new Error("Public Holiday calendar not in mailbox list.");
+  }
+  return calendarViewOn(
+    readerUserId,
+    `/me/calendars/${encodeURIComponent(found.id)}/calendarView`,
+    startYmd,
+    endYmd,
+    found.name
   );
 }
 
@@ -223,10 +260,22 @@ async function listForReader(
   endYmd: string
 ): Promise<PublicHolidayEvent[]> {
   try {
-    return await listViaMailbox(readerUserId, mailbox, startYmd, endYmd);
+    const fromDefault = await listViaMailbox(
+      readerUserId,
+      mailbox,
+      startYmd,
+      endYmd
+    );
+    if (fromDefault.length > 0) return fromDefault;
   } catch {
-    return listViaSharedCalendar(readerUserId, mailbox, startYmd, endYmd);
+    /* named calendar below */
   }
+  return findAndReadNamedHolidayCalendar(
+    readerUserId,
+    mailbox,
+    startYmd,
+    endYmd
+  );
 }
 
 export async function listPublicHolidayDays(input: {

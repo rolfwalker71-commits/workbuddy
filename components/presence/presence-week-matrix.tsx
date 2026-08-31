@@ -146,21 +146,19 @@ export function PresenceWeekMatrix({
                 <div
                   key={day}
                   role="columnheader"
-                  className="flex min-h-10 flex-col items-center justify-center gap-1.5 px-1 py-0.5"
+                  className="flex min-h-10 flex-col items-center justify-center gap-2 px-1 py-1"
                 >
                   <span
                     className={cn(
-                      "flex flex-col items-center gap-1 px-2.5 py-1",
+                      "px-2.5 py-1 text-xs font-bold leading-none",
                       isToday && "rounded-full ring-2 ring-primary/70"
                     )}
                     aria-current={isToday ? "date" : undefined}
                   >
-                    <span className="break-words text-xs font-bold leading-none">
-                      {label}
-                    </span>
-                    <span className="text-[0.7rem] leading-none text-muted-foreground">
-                      {Number(day.slice(8))}
-                    </span>
+                    {label}
+                  </span>
+                  <span className="text-[0.7rem] leading-none text-muted-foreground">
+                    {Number(day.slice(8))}
                   </span>
                   {holiday ? (
                     <PublicHolidayChips

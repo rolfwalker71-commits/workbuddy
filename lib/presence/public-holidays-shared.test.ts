@@ -75,6 +75,7 @@ test("displayPublicHolidayTitle strips country codes", () => {
 });
 
 test("isPublicHolidayCalendarHint matches shared mailbox names", () => {
+  assert.equal(isPublicHolidayCalendarHint("Public Holiday"), true);
   assert.equal(isPublicHolidayCalendarHint("Public Holidays"), true);
   assert.equal(isPublicHolidayCalendarHint("CH Holidays"), true);
   assert.equal(isPublicHolidayCalendarHint("Feiertage AT"), true);
