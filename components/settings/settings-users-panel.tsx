@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Building2, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +12,6 @@ import {
   segmentedTrackClass,
   segmentedTriggerClass,
 } from "@/components/layout/segmented-control";
-import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import {
   USER_ORGANIZATIONS,
   parseUserOrganization,
@@ -20,6 +19,7 @@ import {
 } from "@/lib/users/organization";
 import { useLocale, useT } from "@/components/i18n/locale-provider";
 import { organizationDisplayLabel } from "@/lib/i18n/display";
+import { OrganizationWithFlag } from "@/components/branding/country-flag";
 
 type AppUser = {
   id: number;
@@ -65,12 +65,11 @@ function OrganizationPills({
           className={cn(segmentedTriggerClass(value === code), "flex-1 min-w-0")}
           onClick={() => onChange(code)}
         >
-          <Building2
-            className="size-4 shrink-0"
-            strokeWidth={APP_ICON_STROKE}
-            aria-hidden
+          <OrganizationWithFlag
+            organization={code}
+            label={organizationDisplayLabel(code, locale)}
+            locale={locale}
           />
-          {organizationDisplayLabel(code, locale)}
         </Button>
       ))}
     </div>
@@ -320,10 +319,14 @@ export function SettingsUsersPanel() {
                     ) : null}
                     {parseUserOrganization(user.organization) ? (
                       <Badge variant="secondary">
-                        {organizationDisplayLabel(
-                          parseUserOrganization(user.organization)!,
-                          locale
-                        )}
+                        <OrganizationWithFlag
+                          organization={parseUserOrganization(user.organization)}
+                          label={organizationDisplayLabel(
+                            parseUserOrganization(user.organization)!,
+                            locale
+                          )}
+                          locale={locale}
+                        />
                       </Badge>
                     ) : (
                       <Badge variant="outline">{t("presence.noOrganization")}</Badge>

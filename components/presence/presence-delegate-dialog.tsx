@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { OrganizationWithFlag } from "@/components/branding/country-flag";
 import { PresenceStatusPills } from "@/components/presence/presence-status-pills";
 import { cn } from "@/lib/utils";
 import {
@@ -113,11 +114,17 @@ export function PresenceDelegateDialog({
                         <span className="block break-words text-sm font-semibold leading-snug">
                           {person.displayName}
                         </span>
-                        <span className="mt-0.5 block text-xs text-muted-foreground">
-                          {organizationLabel(person.organization, locale)}
-                          {person.status
-                            ? ` · ${presenceDisplayLabel(person.status, locale)}`
-                            : ` · ${t("presence.open")}`}
+                        <span className="mt-0.5 flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground">
+                          <OrganizationWithFlag
+                            organization={person.organization}
+                            label={organizationLabel(person.organization, locale)}
+                            locale={locale}
+                          />
+                          <span>
+                            {person.status
+                              ? `· ${presenceDisplayLabel(person.status, locale)}`
+                              : `· ${t("presence.open")}`}
+                          </span>
                         </span>
                       </span>
                     </button>

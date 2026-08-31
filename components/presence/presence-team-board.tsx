@@ -20,6 +20,10 @@ import { PresenceDelegateDialog } from "@/components/presence/presence-delegate-
 import { PresenceStatusLegend } from "@/components/presence/presence-status-legend";
 import { PresenceWeekMatrix } from "@/components/presence/presence-week-matrix";
 import { PublicHolidayMark } from "@/components/holidays/public-holiday-mark";
+import {
+  CountryCodeWithFlag,
+  OrganizationWithFlag,
+} from "@/components/branding/country-flag";
 import { useAuth } from "@/components/auth/auth-provider";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { cn } from "@/lib/utils";
@@ -435,13 +439,17 @@ export function PresenceTeamBoard() {
               className={cn(segmentedTriggerClass(org === code), "flex-1")}
               onClick={() => setOrg(code)}
             >
-              {code}
+              <CountryCodeWithFlag code={code} locale={locale} />
             </Button>
           ))}
         </div>
         {org ? (
           <p className="text-xs text-muted-foreground">
-            {organizationDisplayLabel(org, locale)}
+            <OrganizationWithFlag
+              organization={org}
+              label={organizationDisplayLabel(org, locale)}
+              locale={locale}
+            />
           </p>
         ) : null}
       </div>

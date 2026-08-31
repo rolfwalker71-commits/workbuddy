@@ -1,5 +1,6 @@
 "use client";
 
+import { OrganizationWithFlag } from "@/components/branding/country-flag";
 import { PresenceStatusGlyph } from "@/components/presence/presence-status-glyph";
 import { cn } from "@/lib/utils";
 import {
@@ -53,7 +54,11 @@ export function PresencePersonCard({
       </span>
       {orgLabel ? (
         <span className="break-words text-[0.7rem] leading-snug opacity-80">
-          {orgLabel}
+          <OrganizationWithFlag
+            organization={person.organization}
+            label={orgLabel}
+            locale={locale}
+          />
         </span>
       ) : null}
     </>

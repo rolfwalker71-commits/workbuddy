@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+import { OrganizationWithFlag } from "@/components/branding/country-flag";
 import { PresenceStatusCell } from "@/components/presence/presence-status-cell";
 import { PresenceStatusLegend } from "@/components/presence/presence-status-legend";
 import { PublicHolidayChips } from "@/components/holidays/public-holiday-chips";
@@ -50,7 +52,7 @@ function MatrixName({
   highlight,
 }: {
   title: string;
-  subtitle?: string | null;
+  subtitle?: ReactNode;
   highlight?: boolean;
 }) {
   return (
@@ -62,9 +64,9 @@ function MatrixName({
     >
       <p className="break-words text-sm font-semibold leading-snug">{title}</p>
       {subtitle ? (
-        <p className="break-words text-[0.7rem] leading-snug text-muted-foreground">
+        <div className="break-words text-[0.7rem] leading-snug text-muted-foreground">
           {subtitle}
-        </p>
+        </div>
       ) : null}
     </div>
   );
@@ -163,6 +165,7 @@ export function PresenceWeekMatrix({
                     <PublicHolidayChips
                       countries={holiday.countries}
                       titles={holiday.titles}
+                      locale={locale}
                     />
                   ) : null}
                 </div>
@@ -198,7 +201,13 @@ export function PresenceWeekMatrix({
             <div className={MATRIX} role="row">
               <MatrixName
                 title={t("common.you")}
-                subtitle={organizationLabel(self.organization, locale)}
+                subtitle={
+                  <OrganizationWithFlag
+                    organization={self.organization}
+                    label={organizationLabel(self.organization, locale)}
+                    locale={locale}
+                  />
+                }
                 highlight
               />
               {weekDays.map((day) => {
@@ -235,7 +244,13 @@ export function PresenceWeekMatrix({
               <div key={person.userId} className={MATRIX} role="row">
                 <MatrixName
                   title={person.displayName}
-                  subtitle={organizationLabel(person.organization, locale)}
+                  subtitle={
+                    <OrganizationWithFlag
+                      organization={person.organization}
+                      label={organizationLabel(person.organization, locale)}
+                      locale={locale}
+                    />
+                  }
                 />
                 {weekDays.map((day) => {
                   const cell = (weekByYmd[day]?.people || []).find(

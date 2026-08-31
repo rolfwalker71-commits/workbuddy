@@ -1,4 +1,7 @@
+"use client";
+
 import { PublicHolidayChips } from "@/components/holidays/public-holiday-chips";
+import { useLocale } from "@/components/i18n/locale-provider";
 import { cn } from "@/lib/utils";
 import type {
   PublicHolidayCountry,
@@ -37,6 +40,7 @@ export function PublicHolidayMark({
   layout?: "stack" | "inline";
   className?: string;
 }) {
+  const { locale } = useLocale();
   const rows = rowsFrom(items, countries, titles);
   if (rows.length === 0) return null;
 
@@ -61,6 +65,7 @@ export function PublicHolidayMark({
           <PublicHolidayChips
             countries={row.countries}
             titles={row.title ? [row.title] : titles}
+            locale={locale}
           />
           {row.title ? (
             <span
