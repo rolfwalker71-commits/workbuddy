@@ -19,8 +19,12 @@ export async function GET(_request: Request, ctx: Ctx) {
   }
   try {
     const { projectNumber } = await ctx.params;
+    const companyRaw = Number(new URL(_request.url).searchParams.get("company"));
+    const company =
+      Number.isInteger(companyRaw) && companyRaw > 0 ? companyRaw : null;
     const phases = await listPhasesForTimeBooking(
-      decodeURIComponent(projectNumber)
+      decodeURIComponent(projectNumber),
+      company
     );
     return NextResponse.json({ phases });
   } catch (err) {

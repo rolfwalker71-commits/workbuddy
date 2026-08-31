@@ -194,6 +194,49 @@ ORDER BY
   return mapCustomerRows(rows);
 }
 
+async function searchCustomersFromProjectMaster(
+  q: string,
+  limit: number,
+  prefixOnly = false
+): Promise<MariCustomerOption[]> {
+  const pattern = prefixOnly ? sqlLikePrefix(q) : sqlLikeContains(q);
+  const prefix = sqlLikePrefix(q);
+  const queries = [
+    `SELECT TOP ${limit}
+  p."CardCode" AS "CardCode",
+  COALESCE(NULLIF(p."CardName", ''), NULLIF(p."AddressMatchcode", ''), NULLIF(p."Matchcode", ''), NULLIF(p."Name", ''), p."CardCode") AS "Name"
+FROM "MARIProject" p
+WHERE p."CardCode" IS NOT NULL AND p."CardCode" <> ''
+  AND (
+    LOWER(p."CardCode") LIKE LOWER(${pattern})
+    OR LOWER(COALESCE(p."CardName", '')) LIKE LOWER(${pattern})
+    OR LOWER(COALESCE(p."Matchcode", '')) LIKE LOWER(${pattern})
+    OR LOWER(COALESCE(p."Name", '')) LIKE LOWER(${pattern})
+  )
+ORDER BY
+  CASE WHEN LOWER(COALESCE(p."CardName", p."Matchcode", '')) LIKE LOWER(${prefix}) THEN 0 ELSE 1 END,
+  p."CardName", p."CardCode"`,
+    `SELECT TOP ${limit}
+  p."CardCode" AS "CardCode",
+  COALESCE(NULLIF(p."CardName", ''), NULLIF(p."Matchcode", ''), NULLIF(p."Name", ''), p."CardCode") AS "Name"
+FROM "MARIProjects" p
+WHERE p."CardCode" IS NOT NULL AND p."CardCode" <> ''
+  AND (
+    LOWER(p."CardCode") LIKE LOWER(${pattern})
+    OR LOWER(COALESCE(p."CardName", '')) LIKE LOWER(${pattern})
+    OR LOWER(COALESCE(p."Matchcode", '')) LIKE LOWER(${pattern})
+  )
+ORDER BY p."CardName", p."CardCode"`,
+  ];
+  for (const sql of queries) {
+    const rows = await trySql<{ CardCode: string | null; Name: string | null }>(
+      sql
+    );
+    if (rows && rows.length > 0) return mapCustomerRows(rows);
+  }
+  return [];
+}
+
 function mergeCustomers(
   primary: MariCustomerOption[],
   secondary: MariCustomerOption[],
@@ -244,7 +287,25 @@ export async function searchMariCustomers(
     );
   }
 
-  return mergeCustomers(fromIssues, fromMaster, limit);
+  let fromProjects: MariCustomerOption[] = [];
+  try {
+    fromProjects = await searchCustomersFromProjectMaster(
+      q,
+      limit,
+      prefixOnly
+    );
+  } catch (err) {
+    console.warn(
+      "[mari] project-master customer search failed:",
+      err instanceof MariApiError ? err.message : err
+    );
+  }
+
+  return mergeCustomers(
+    mergeCustomers(fromIssues, fromMaster, limit),
+    fromProjects,
+    limit
+  );
 }
 
 export async function getMariCustomerByCardCode(
@@ -753,9 +814,84 @@ const EMPTY_TITLE_PREFILL: MariEventTitleSuggestResult["prefill"] = {
   hint: null,
 };
 
+async function suggestPartnersFromTitleName(
+  q: string,
+  out: MariEmailPartnerSuggestion[],
+  seen: Set<string>
+): Promise<void> {
+  const { isConfidentCustomerNameHit } = await import(
+    "@/lib/mari/event-title-tokens"
+  );
+
+  let customers: MariCustomerOption[] = [];
+  try {
+    customers = await searchMariCustomers(q, { limit: 12 });
+  } catch {
+    customers = [];
+  }
+  const confidentCustomers = customers.filter(
+    (c) =>
+      isMariCustomerCardCode(c.cardCode) &&
+      isConfidentCustomerNameHit(q, c.name, c.cardCode)
+  );
+
+  try {
+    const { listProjectsForTimeBooking } = await import(
+      "@/lib/mari/timekeeping"
+    );
+    const projects = await listProjectsForTimeBooking({ q });
+    const confidentProjects = projects.filter(
+      (p) =>
+        isConfidentCustomerNameHit(q, p.matchcode) ||
+        isConfidentCustomerNameHit(q, p.keyVisible) ||
+        isConfidentCustomerNameHit(q, p.keyInternal)
+    );
+    for (const p of confidentProjects.slice(0, 4)) {
+      const pn = (p.keyVisible || p.keyInternal).trim();
+      if (!pn) continue;
+      const [fromProject, contractId] = await Promise.all([
+        lookupMariCustomersForProject(pn).catch(() => []),
+        lookupContractIdForProject(pn).catch(() => null),
+      ]);
+      const customer = fromProject[0] || null;
+      pushSuggestion(out, seen, {
+        cardCode: customer?.cardCode || "",
+        name: customer?.name || p.matchcode || pn,
+        contactName: null,
+        source: "title",
+        projectNumber: pn,
+        projectLabel: p.matchcode || customer?.name || pn,
+        contractId,
+        reason: `Betreff «${q}»`,
+      });
+    }
+  } catch {
+    /* Projektliste optional — Kundentreffer reichen */
+  }
+
+  for (const c of confidentCustomers.slice(0, 4)) {
+    let project: MariProjectHint | null = null;
+    try {
+      project = (await listProjectsForCardCode(c.cardCode, 1))[0] || null;
+    } catch {
+      project = null;
+    }
+    pushSuggestion(out, seen, {
+      cardCode: c.cardCode,
+      name: c.name,
+      contactName: null,
+      source: "title",
+      projectNumber: project?.projectNumber ?? null,
+      projectLabel: project?.projectLabel || c.name,
+      contractId: project?.contractId ?? null,
+      reason: `Betreff «${q}»`,
+    });
+  }
+}
+
 /**
  * Betreff-Tokens → Vorschläge, nie Autobuchen.
- * C → Projekt+Vertrag; P → Kunde+Vertrag; V → Kunde+Projekt; Freitext → nur Kunde.
+ * C → Projekt+Vertrag; P → Kunde+Vertrag; V → Kunde+Projekt; Freitext → Kunde/Projekt aller Mandanten.
  * P gewinnt gegen C fürs Projekt.
  */
 export async function suggestMariPartnersFromEventTitle(
@@ -864,38 +1000,24 @@ export async function suggestMariPartnersFromEventTitle(
 
   for (const q of eventTitleNameCandidates(title)) {
     nameQueries.push(q);
-    let customers: MariCustomerOption[] = [];
-    try {
-      customers = await searchMariCustomers(q, { limit: 12, prefixOnly: true });
-    } catch {
-      continue;
-    }
-    const confident = customers.filter(
-      (c) =>
-        isMariCustomerCardCode(c.cardCode) &&
-        isConfidentCustomerNameHit(q, c.name, c.cardCode)
-    );
-    for (const c of confident.slice(0, 4)) {
-      pushSuggestion(out, seen, {
-        cardCode: c.cardCode,
-        name: c.name,
-        contactName: null,
-        source: "title",
-        projectNumber: null,
-        projectLabel: null,
-        contractId: null,
-        reason: `Betreff «${q}»`,
-      });
-    }
+    await suggestPartnersFromTitleName(q, out, seen);
   }
 
+  const first = out[0] || null;
   return {
     suggestions: out.slice(0, 20),
-    cardCode: null,
-    projectNumber: null,
+    cardCode: first?.cardCode || null,
+    projectNumber: first?.projectNumber || null,
     contractVisible: null,
     nameQueries,
-    prefill: EMPTY_TITLE_PREFILL,
+    prefill: first
+      ? {
+          projectNumber: first.projectNumber,
+          projectLabel: first.projectLabel || first.name,
+          contractId: first.contractId,
+          hint: `Vorschlag aus Betreff «${nameQueries[0] || first.name}» — Projekt und Vertrag prüfen.`,
+        }
+      : EMPTY_TITLE_PREFILL,
   };
 }
 

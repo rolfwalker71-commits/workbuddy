@@ -225,6 +225,36 @@ test("title C/P/V wins over attendees", () => {
   assert.equal(ref.contractVisible, "V60011100");
 });
 
+test("title customer on internal Tel/TV shows Kunde not Intern", () => {
+  const ref = bookingRefFromRecognition({
+    meetingKind: "internal",
+    title: {
+      cardCode: null,
+      projectNumber: null,
+      contractVisible: null,
+      suggestions: [
+        {
+          cardCode: "C88",
+          name: "Montara",
+          projectNumber: "P200",
+          projectLabel: "Montara",
+          contractId: null,
+        },
+      ],
+      prefill: {
+        projectNumber: "P200",
+        projectLabel: "Montara",
+        contractId: null,
+      },
+    },
+    attendees: [],
+  });
+  assert.ok(ref);
+  assert.equal(ref.customerName, "Montara");
+  assert.equal(ref.projectNumber, "P200");
+  assert.equal(formatEventBookingLine(ref), "Montara · P200 · kein Vertrag");
+});
+
 test("title name Filados without attendees still shows Kunde", () => {
   const ref = bookingRefFromRecognition({
     meetingKind: "mixed",

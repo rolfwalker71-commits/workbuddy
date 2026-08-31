@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   companyFromMariIssue,
   formatMariCompanyLabel,
+  mergeMariCompanyOptions,
   parseMariCompanyId,
 } from "@/lib/mari/companies-shared";
 
@@ -23,4 +24,17 @@ test("companyFromMariIssue reads REST Company", () => {
 test("formatMariCompanyLabel shows name and id", () => {
   assert.equal(formatMariCompanyLabel(1, "AN Group"), "AN Group (1)");
   assert.equal(formatMariCompanyLabel(2, null), "Mandant 2");
+});
+
+test("mergeMariCompanyOptions unions mandants and prefers named rows", () => {
+  const merged = mergeMariCompanyOptions([
+    [{ id: 1, name: "AN Group" }],
+    [{ id: 1, name: "Mandant 1" }, { id: 2, name: "Mandant 2" }],
+    [{ id: 3, name: "IWT" }],
+  ]);
+  assert.deepEqual(merged, [
+    { id: 1, name: "AN Group" },
+    { id: 2, name: "Mandant 2" },
+    { id: 3, name: "IWT" },
+  ]);
 });

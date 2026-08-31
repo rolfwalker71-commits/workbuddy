@@ -40,11 +40,15 @@ export type CalendarEventBookDefaults = {
 };
 
 const PROJECT_TOKEN_RE = /\bP\d{3,}\b/i;
+/** Ohne P-Prefix, z.B. «200386 - Test». */
+const BARE_PROJECT_TOKEN_RE = /\b(\d{5,8})\b/;
 const CONTRACT_TOKEN_RE = /\bV\d{6,}\b/gi;
 const CUSTOMER_TOKEN_RE = /\bC\d{3,}\b/i;
 const ACTIVITY_SEP_RE = /[·|]/;
 const INTERN_MARK_RE = /\(\s*intern(?:al)?\s*\)/gi;
 const TITLE_LEAD_SEP_RE = /\s*(?:→|->|·|\||—|–|\/)\s*/;
+/** «Person - Firma» — Bindestrich nur mit Leerzeichen, nicht in Doppelnamen. */
+const TITLE_COMPANY_DASH_RE = /\s+[-–—]\s+/;
 
 /** Kurze/generische Betreff-Wörter — keine Kundensuche. */
 const EVENT_TITLE_NAME_STOPWORDS = new Set([
@@ -57,6 +61,13 @@ const EVENT_TITLE_NAME_STOPWORDS = new Set([
   "besprechung",
   "intern",
   "internal",
+  "frau",
+  "herr",
+  "hr",
+  "fr",
+  "mr",
+  "mrs",
+  "ms",
   "kunde",
   "kundentermin",
   "teams",
@@ -144,9 +155,12 @@ export function parseEventTitleTokens(
   }
 
   const projectMatch = PROJECT_TOKEN_RE.exec(memo);
+  const bareProject = projectMatch
+    ? null
+    : BARE_PROJECT_TOKEN_RE.exec(memo)?.[1] || null;
   const projectNumber = projectMatch
     ? projectMatch[0].toUpperCase()
-    : null;
+    : bareProject;
 
   let contractVisible: string | null = null;
   for (const raw of memo.match(CONTRACT_TOKEN_RE) || []) {
@@ -199,6 +213,10 @@ export function eventTitleHasInternMarker(
   return /\(\s*intern(?:al)?\s*\)/i.test(subject || "");
 }
 
+function isShortFirmToken(raw: string): boolean {
+  return /^[A-ZÄÖÜ]{3}$/.test(raw.trim());
+}
+
 function titleNameWords(raw: string): string[] {
   const stripped = raw
     .replace(INTERN_MARK_RE, " ")
@@ -208,16 +226,19 @@ function titleNameWords(raw: string): string[] {
     .replace(/[·|/,;:()[\]→—–-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  return stripped.match(/[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß0-9']{3,}/g) || [];
+  const words = stripped.match(/[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß0-9']{2,}/g) || [];
+  return words.filter((w) => w.length >= 4 || isShortFirmToken(w));
 }
 
 function pushTitleNameCandidate(
   out: string[],
   seen: Set<string>,
-  raw: string
+  raw: string,
+  opts?: { minLen?: number }
 ): void {
   const q = raw.trim();
-  if (q.length < 4) return;
+  const minLen = opts?.minLen ?? 4;
+  if (q.length < minLen && !isShortFirmToken(q)) return;
   const key = q.toLowerCase();
   if (EVENT_TITLE_NAME_STOPWORDS.has(key)) return;
   if (seen.has(key)) return;
@@ -249,6 +270,14 @@ export function eventTitleNameCandidates(
   }
 
   const withoutParens = memo.replace(/\([^)]*\)/g, " ").trim();
+  const dashParts = withoutParens.split(TITLE_COMPANY_DASH_RE);
+  if (dashParts.length >= 2) {
+    const last = (dashParts[dashParts.length - 1] || "").trim();
+    pushTitleNameCandidate(out, seen, last, { minLen: 3 });
+    for (const w of titleNameWords(last)) {
+      pushTitleNameCandidate(out, seen, w, { minLen: 3 });
+    }
+  }
   const lead = withoutParens.split(TITLE_LEAD_SEP_RE)[0] || "";
   for (const w of titleNameWords(lead)) {
     pushTitleNameCandidate(out, seen, w);
@@ -266,14 +295,14 @@ export function isConfidentCustomerNameHit(
   cardCode?: string | null
 ): boolean {
   const q = query.trim().toLowerCase();
-  if (q.length < 4) return false;
+  if (q.length < 3) return false;
   const n = name.trim().toLowerCase();
   const code = (cardCode || "").trim().toLowerCase();
   if (code === q || n === q) return true;
-  if (n.startsWith(q)) return true;
-  const first = n.split(/\s+/)[0] || "";
-  if (first === q) return true;
-  if (q.length >= 5 && first.startsWith(q)) return true;
+  const words = n.split(/[\s./_-]+/).filter(Boolean);
+  if (words[0] === q || words.includes(q)) return true;
+  if (q.length >= 4 && n.startsWith(q)) return true;
+  if (q.length >= 5 && words.some((w) => w.startsWith(q))) return true;
   return false;
 }
 

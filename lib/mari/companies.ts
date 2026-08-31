@@ -1,6 +1,7 @@
 import { mariSql, requireMariConfig, MariApiError } from "@/lib/mari/client";
 import { sanitizeMariProjectNumber } from "@/lib/mari/timekeeping-shared";
 import {
+  mergeMariCompanyOptions,
   parseMariCompanyId,
   type MariCompanyOption,
 } from "@/lib/mari/companies-shared";
@@ -8,6 +9,7 @@ import {
 export {
   companyFromMariIssue,
   formatMariCompanyLabel,
+  mergeMariCompanyOptions,
   parseMariCompanyId,
   type MariCompanyOption,
 } from "@/lib/mari/companies-shared";
@@ -42,7 +44,8 @@ async function trySql<T extends Record<string, unknown>>(
 }
 
 /**
- * Bekannte Mandanten: MPSysConnections, sonst Distinct Company aus Tickets.
+ * Alle Mandanten der MARI-Verbindung: MPSysConnections plus Distinct
+ * Company aus Projektstamm und Tickets (REST-Listen sind oft nur der Login-Mandant).
  */
 export async function listMariCompanies(): Promise<MariCompanyOption[]> {
   requireMariConfig();
@@ -58,26 +61,47 @@ ORDER BY c."CompanyID"`,
 FROM "MPSysConnections" c
 ORDER BY c."ConnectionID"`,
   ];
+  let fromConnections: MariCompanyOption[] = [];
   for (const sql of connectionQueries) {
     const rows = await trySql<{ id: unknown; name: unknown }>(sql);
     if (rows && rows.length > 0) {
-      const mapped = mapCompanyRows(rows);
-      if (mapped.length > 0) return mapped;
+      fromConnections = mapCompanyRows(rows);
+      if (fromConnections.length > 0) break;
     }
   }
 
-  const fromTickets = await trySql<{ id: unknown }>(
+  const distinctCompanyQueries = [
+    `SELECT TOP 40 p."Company" AS "id"
+FROM "MARIProject" p
+WHERE p."Company" IS NOT NULL AND p."Company" > 0
+GROUP BY p."Company"
+ORDER BY p."Company"`,
+    `SELECT TOP 40 p."Company" AS "id"
+FROM "MARIProjects" p
+WHERE p."Company" IS NOT NULL AND p."Company" > 0
+GROUP BY p."Company"
+ORDER BY p."Company"`,
+    `SELECT TOP 40 p."Company" AS "id"
+FROM "OPRJ" p
+WHERE p."Company" IS NOT NULL AND p."Company" > 0
+GROUP BY p."Company"
+ORDER BY p."Company"`,
     `SELECT TOP 40 i."Company" AS "id"
 FROM "MARISupportIssue" i
 WHERE i."Company" IS NOT NULL
   AND i."Company" > 0
 GROUP BY i."Company"
-ORDER BY COUNT(*) DESC`
-  );
-  if (fromTickets && fromTickets.length > 0) {
-    return mapCompanyRows(fromTickets);
+ORDER BY COUNT(*) DESC`,
+  ];
+  const fromDistinct: MariCompanyOption[][] = [];
+  for (const sql of distinctCompanyQueries) {
+    const rows = await trySql<{ id: unknown }>(sql);
+    if (rows && rows.length > 0) {
+      fromDistinct.push(mapCompanyRows(rows));
+    }
   }
-  return [];
+
+  return mergeMariCompanyOptions([fromConnections, ...fromDistinct]);
 }
 
 async function companyFromProjectMaster(

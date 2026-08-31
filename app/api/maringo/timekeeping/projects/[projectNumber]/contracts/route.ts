@@ -19,11 +19,15 @@ export async function GET(request: Request, ctx: Ctx) {
   }
   try {
     const { projectNumber } = await ctx.params;
-    const activeOnly =
-      new URL(request.url).searchParams.get("activeOnly") !== "0";
+    const url = new URL(request.url);
+    const activeOnly = url.searchParams.get("activeOnly") !== "0";
+    const companyRaw = Number(url.searchParams.get("company"));
+    const company =
+      Number.isInteger(companyRaw) && companyRaw > 0 ? companyRaw : null;
     const contracts = await listContractsForProject(
       decodeURIComponent(projectNumber),
-      activeOnly
+      activeOnly,
+      company
     );
     return NextResponse.json({ contracts });
   } catch (err) {

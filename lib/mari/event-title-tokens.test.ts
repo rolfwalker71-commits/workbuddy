@@ -71,6 +71,23 @@ test("eventTitleNameCandidates keeps Filados and skips stopwords", () => {
   assert.deepEqual(eventTitleNameCandidates("ENSO Test"), ["ENSO"]);
 });
 
+test("eventTitleNameCandidates prefers Firma after Person - Firma", () => {
+  assert.deepEqual(eventTitleNameCandidates("Hr. Brensteiner - Montara"), [
+    "Montara",
+    "Brensteiner",
+  ]);
+  assert.deepEqual(
+    eventTitleNameCandidates("Frau Korander-Platzer - IWT"),
+    ["IWT", "Korander", "Platzer"]
+  );
+});
+
+test("parseEventTitleTokens reads bare numeric project numbers", () => {
+  const parsed = parseEventTitleTokens("200386 - Test");
+  assert.equal(parsed.projectNumber, "200386");
+  assert.equal(parsed.hasTokens, true);
+});
+
 test("eventTitleNameCandidates prefers leading customer before arrow", () => {
   assert.deepEqual(
     eventTitleNameCandidates(
@@ -96,6 +113,8 @@ test("isConfidentCustomerNameHit is exact or starts-with only", () => {
   assert.equal(isConfidentCustomerNameHit("ENSO", "Hitachi Zosen Inova AG"), false);
   assert.equal(isConfidentCustomerNameHit("fil", "Filados AG"), false);
   assert.equal(isConfidentCustomerNameHit("ados", "Filados AG"), false);
+  assert.equal(isConfidentCustomerNameHit("IWT", "IWT GmbH"), true);
+  assert.equal(isConfidentCustomerNameHit("Montara", "Gruppe Montara AG"), true);
 });
 
 test("parseEventTitleTokens empty subject is Besprechung", () => {

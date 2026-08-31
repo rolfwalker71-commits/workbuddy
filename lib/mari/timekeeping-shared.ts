@@ -18,6 +18,27 @@ export type MariKeyPair = {
   company?: number | null;
 };
 
+/** First wins. Same visible key + company is one row; company 0 merges with a known mandant. */
+export function mergeMariKeyPairs(
+  lists: readonly (readonly MariKeyPair[])[]
+): MariKeyPair[] {
+  const out: MariKeyPair[] = [];
+  const seen = new Set<string>();
+  for (const list of lists) {
+    for (const item of list) {
+      const vis = (item.keyVisible || item.keyInternal).trim().toLowerCase();
+      if (!vis) continue;
+      const company = item.company && item.company > 0 ? item.company : 0;
+      const companyKey = `${company}:${vis}`;
+      if (seen.has(companyKey) || seen.has(`0:${vis}`)) continue;
+      seen.add(companyKey);
+      if (company > 0) seen.add(`0:${vis}`);
+      out.push(item);
+    }
+  }
+  return out;
+}
+
 /** MARI ApprovalMode: 0 erfasst, -1 freigegeben, 2 Vorerfassung, 3 abgelehnt. */
 export type MariApprovalStatus =
   | "recorded"

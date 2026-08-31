@@ -15,6 +15,7 @@ import {
   firstPositiveInt,
   formatPeriodLabel,
   mapApprovalMode,
+  mergeMariKeyPairs,
   projectNumbersNeedingLabel,
   resolveTimePeriodRange,
   TIMEKEEPING_SOURCE_SUPPORT_ISSUE,
@@ -25,6 +26,11 @@ import {
   type MariTimePeriod,
 } from "@/lib/mari/timekeeping-shared";
 import { getMariOvertimeHoursForDay } from "@/lib/mari/timekeeping-overtime";
+import {
+  listMariCompanies,
+  lookupMariCompanyForProject,
+} from "@/lib/mari/companies";
+import { parseMariCompanyId } from "@/lib/mari/companies-shared";
 import {
   buildTimekeepingUserDefinedFieldValues,
   mergeTimekeepingUdfIntoMemo,
@@ -58,6 +64,7 @@ export type MariTimeLineCreateInput = {
   contractPositionId?: number | null;
   issueId?: number | null;
   employeeNumber?: string | null;
+  company?: number | null;
   /** Optional; wenn leer, wird automatisch eine Projektphase gewählt (UI ohne Phase). */
   phaseId?: number | null;
   /** USER_ND_Int_Bemerkung_Verr */
@@ -79,6 +86,7 @@ export const MariTimeLineCreateSchema = z.object({
   contractPositionId: z.number().int().nonnegative().nullable().optional(),
   issueId: z.number().int().positive().nullable().optional(),
   employeeNumber: z.string().trim().max(20).nullable().optional(),
+  company: z.number().int().positive().nullable().optional(),
   phaseId: z.number().int().nonnegative().optional(),
   internalRemarkVerr: z.string().trim().max(40).nullable().optional(),
   zeroHoursReason: z.string().trim().max(500).nullable().optional(),
@@ -94,6 +102,23 @@ type RawKeyPair = {
   Company?: number | null;
   nCompanyID?: number | null;
 };
+
+async function tryMariKeyPairList(
+  path: string,
+  requireInternal = false
+): Promise<MariKeyPair[]> {
+  try {
+    const raw = await mariJson<RawKeyPair[]>(path);
+    return (Array.isArray(raw) ? raw : [])
+      .map(mapKeyPair)
+      .filter((x): x is MariKeyPair => {
+        if (!x) return false;
+        return requireInternal ? Boolean(x.keyInternal) : true;
+      });
+  } catch {
+    return [];
+  }
+}
 
 function mapKeyPair(raw: RawKeyPair): MariKeyPair | null {
   const keyInternal = String(raw.sKeyInternal || "").trim();
@@ -579,6 +604,73 @@ const projectListCache = new Map<
   { at: number; rows: MariKeyPair[] }
 >();
 
+const PROJECT_MASTER_SQL = [
+  `SELECT TOP 800 p."ProjectNumber" AS "sKeyVisible",
+  COALESCE(NULLIF(p."Matchcode", ''), NULLIF(p."CardName", ''), NULLIF(p."Name", ''), p."ProjectNumber") AS "sMatchcode",
+  p."ProjectNumber" AS "sKeyInternal",
+  p."Company" AS "nCompany"
+FROM "MARIProject" p
+WHERE p."ProjectNumber" IS NOT NULL AND p."ProjectNumber" <> ''`,
+  `SELECT TOP 800 p."ProjectNumber" AS "sKeyVisible",
+  COALESCE(NULLIF(p."Matchcode", ''), NULLIF(p."Name", ''), p."ProjectNumber") AS "sMatchcode",
+  p."ProjectNumber" AS "sKeyInternal",
+  p."Company" AS "nCompany"
+FROM "MARIProjects" p
+WHERE p."ProjectNumber" IS NOT NULL AND p."ProjectNumber" <> ''`,
+  `SELECT TOP 800 p."PrjCode" AS "sKeyVisible",
+  COALESCE(NULLIF(p."PrjName", ''), p."PrjCode") AS "sMatchcode",
+  p."PrjCode" AS "sKeyInternal",
+  p."Company" AS "nCompany"
+FROM "OPRJ" p
+WHERE p."PrjCode" IS NOT NULL AND p."PrjCode" <> ''`,
+];
+
+let projectMasterSql: string | null | undefined;
+
+async function listProjectsFromAllCompaniesSql(): Promise<MariKeyPair[]> {
+  const queries =
+    projectMasterSql != null && projectMasterSql !== ""
+      ? [projectMasterSql]
+      : projectMasterSql === ""
+        ? []
+        : PROJECT_MASTER_SQL;
+  for (const sql of queries) {
+    try {
+      const rows = await mariSql<RawKeyPair>(sql);
+      const mapped = (rows || [])
+        .map(mapKeyPair)
+        .filter((x): x is MariKeyPair => x != null);
+      if (mapped.length === 0) continue;
+      projectMasterSql = sql;
+      return mapped;
+    } catch {
+      /* nächste Variante */
+    }
+  }
+  if (projectMasterSql === undefined) projectMasterSql = "";
+  return [];
+}
+
+async function listProjectsForTimeBookingAllCompanies(
+  emp: string
+): Promise<MariKeyPair[]> {
+  const encoded = encodeURIComponent(emp);
+  const raw = await mariJson<RawKeyPair[]>(
+    `/api/ProjectListForTimeBooking/${encoded}`
+  );
+  const defaultList = (Array.isArray(raw) ? raw : [])
+    .map(mapKeyPair)
+    .filter((x): x is MariKeyPair => x != null);
+  const companies = await listMariCompanies().catch(() => []);
+  const perCompany = await Promise.all(
+    companies.map((c) =>
+      tryMariKeyPairList(`/api/ProjectListForTimeBooking/${encoded}/${c.id}`)
+    )
+  );
+  const fromSql = await listProjectsFromAllCompaniesSql();
+  return mergeMariKeyPairs([defaultList, ...perCompany, fromSql]);
+}
+
 export async function listProjectsForTimeBooking(input?: {
   employeeNumber?: string | null;
   q?: string | null;
@@ -595,29 +687,39 @@ export async function listProjectsForTimeBooking(input?: {
   if (cached && Date.now() - cached.at < PROJECT_LIST_TTL_MS) {
     return q ? cached.rows.filter((p) => matchesSearch(p, q)) : cached.rows;
   }
-  const raw = await mariJson<RawKeyPair[]>(
-    `/api/ProjectListForTimeBooking/${encodeURIComponent(emp)}`
-  );
-  const all = (Array.isArray(raw) ? raw : [])
-    .map(mapKeyPair)
-    .filter((x): x is MariKeyPair => x != null);
+  const all = await listProjectsForTimeBookingAllCompanies(emp);
   projectListCache.set(emp, { at: Date.now(), rows: all });
   if (!q) return all;
   return all.filter((p) => matchesSearch(p, q));
 }
 
 export async function listPhasesForTimeBooking(
-  projectNumber: string
+  projectNumber: string,
+  company?: number | null
 ): Promise<MariKeyPair[]> {
   requireMariConfig();
   const pn = projectNumber.trim();
   if (!pn) throw new MariApiError("Projektnummer fehlt.", 400);
+  const encoded = encodeURIComponent(pn);
   const raw = await mariJson<RawKeyPair[]>(
-    `/api/ProjectListPhasesForTimeBooking/${encodeURIComponent(pn)}`
+    `/api/ProjectListPhasesForTimeBooking/${encoded}`
   );
-  return (Array.isArray(raw) ? raw : [])
+  const defaultList = (Array.isArray(raw) ? raw : [])
     .map(mapKeyPair)
     .filter((x): x is MariKeyPair => x != null && Boolean(x.keyInternal));
+  const companies =
+    company != null && company > 0
+      ? [{ id: company }]
+      : await listMariCompanies().catch(() => []);
+  const extras = await Promise.all(
+    companies.map((c) =>
+      tryMariKeyPairList(
+        `/api/ProjectListPhasesForTimeBooking/${encoded}/${c.id}`,
+        true
+      )
+    )
+  );
+  return mergeMariKeyPairs([defaultList, ...extras]);
 }
 
 /**
@@ -625,9 +727,10 @@ export async function listPhasesForTimeBooking(
  * Weglassen / PhaseID 0 schlägt fehl; PhaseID oder PhaseIDByName funktionieren.
  */
 async function resolvePhaseForBooking(
-  projectNumber: string
+  projectNumber: string,
+  company?: number | null
 ): Promise<{ phaseId: number; phaseName: string }> {
-  const phases = await listPhasesForTimeBooking(projectNumber);
+  const phases = await listPhasesForTimeBooking(projectNumber, company);
   if (phases.length === 0) {
     throw new MariApiError(
       `Keine Phase für Projekt ${projectNumber} in MARI gefunden.`,
@@ -650,23 +753,38 @@ async function resolvePhaseForBooking(
 
 export async function listContractsForProject(
   projectNumber: string,
-  activeOnly = true
+  activeOnly = true,
+  company?: number | null
 ): Promise<MariKeyPair[]> {
   requireMariConfig();
   const pn = projectNumber.trim();
   if (!pn) throw new MariApiError("Projektnummer fehlt.", 400);
+  const encoded = encodeURIComponent(pn);
+  const flag = activeOnly ? "true" : "false";
   const raw = await mariJson<RawKeyPair[]>(
-    `/api/ProjectListContracts/${encodeURIComponent(pn)}/${
-      activeOnly ? "true" : "false"
-    }`
+    `/api/ProjectListContracts/${encoded}/${flag}`
   );
-  return (Array.isArray(raw) ? raw : [])
+  const defaultList = (Array.isArray(raw) ? raw : [])
     .map(mapKeyPair)
     .filter((x): x is MariKeyPair => x != null && Boolean(x.keyInternal));
+  const companies =
+    company != null && company > 0
+      ? [{ id: company }]
+      : await listMariCompanies().catch(() => []);
+  const extras = await Promise.all(
+    companies.map((c) =>
+      tryMariKeyPairList(
+        `/api/ProjectListContracts/${encoded}/${flag}/${c.id}`,
+        true
+      )
+    )
+  );
+  return mergeMariKeyPairs([defaultList, ...extras]);
 }
 
 export async function listContractPositionsForTimeKeeping(
-  contractId: number
+  contractId: number,
+  company?: number | null
 ): Promise<MariKeyPair[]> {
   requireMariConfig();
   if (!Number.isInteger(contractId) || contractId <= 0) {
@@ -675,9 +793,22 @@ export async function listContractPositionsForTimeKeeping(
   const raw = await mariJson<RawKeyPair[]>(
     `/api/ContractListPositionsForTimeKeeping/${contractId}`
   );
-  return (Array.isArray(raw) ? raw : [])
+  const defaultList = (Array.isArray(raw) ? raw : [])
     .map(mapKeyPair)
     .filter((x): x is MariKeyPair => x != null && Boolean(x.keyInternal));
+  const companies =
+    company != null && company > 0
+      ? [{ id: company }]
+      : await listMariCompanies().catch(() => []);
+  const extras = await Promise.all(
+    companies.map((c) =>
+      tryMariKeyPairList(
+        `/api/ContractListPositionsForTimeKeeping/${contractId}/${c.id}`,
+        true
+      )
+    )
+  );
+  return mergeMariKeyPairs([defaultList, ...extras]);
 }
 
 export async function listTimeLinesForDay(input: {
@@ -769,10 +900,13 @@ export async function createTimeKeepingLine(
   if (!emp) throw new MariApiError("Personalnummer ungültig.", 400);
 
   const hoursBillable = parsed.hoursBillable;
+  const company =
+    parseMariCompanyId(parsed.company) ??
+    (await lookupMariCompanyForProject(parsed.projectNumber).catch(() => null));
   const resolved =
     parsed.phaseId != null && parsed.phaseId > 0
       ? { phaseId: parsed.phaseId, phaseName: "" }
-      : await resolvePhaseForBooking(parsed.projectNumber);
+      : await resolvePhaseForBooking(parsed.projectNumber, company);
   const udf: TimekeepingUdfFields = {
     internalRemarkVerr: parsed.internalRemarkVerr?.trim() || null,
     zeroHoursReason: parsed.zeroHoursReason?.trim() || null,
@@ -796,6 +930,7 @@ export async function createTimeKeepingLine(
       : 0,
     SourceReferenceID: parsed.issueId || 0,
   };
+  if (company != null) body.Company = company;
   const udfPayload = buildTimekeepingUserDefinedFieldValues(udf);
   if (udfPayload) {
     body.UserDefinedFieldValues = udfPayload;

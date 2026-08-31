@@ -13,6 +13,7 @@ import {
   formatMariProjectLabel,
   type MariKeyPair,
 } from "@/lib/mari/timekeeping-shared";
+import { parseMariCompanyId } from "@/lib/mari/companies-shared";
 import { TIMEKEEPING_INT_BEMERKUNG_OPTIONS } from "@/lib/mari/timekeeping-udfs";
 import type { MariTimeBookFavorite } from "@/lib/mari/time-book-favorites";
 import { isAllowedCompanyEmail } from "@/lib/auth/allowed-email";
@@ -47,6 +48,7 @@ export type TimeBookFormDefaults = {
   projectLabel?: string | null;
   contractId?: number | null;
   contractPositionId?: number | null;
+  company?: number | null;
   /** Sichtbare Vertragsnummer (z.B. V60011100) — wird nachgeladen. */
   contractVisible?: string | null;
   activity?: string;
@@ -79,6 +81,7 @@ export type TimeBookFormValues = {
   contractVisible?: string | null;
   cardCode?: string | null;
   customerName?: string | null;
+  company?: number | null;
 };
 
 function zurichTodayYmd(): string {
@@ -133,6 +136,9 @@ export function MaringoTimeBookForm({
   );
   const [projectLabel, setProjectLabel] = useState(
     defaults?.projectLabel || defaults?.projectNumber || ""
+  );
+  const [projectCompany, setProjectCompany] = useState<number | null>(
+    parseMariCompanyId(defaults?.company)
   );
   const [contracts, setContracts] = useState<MariKeyPair[]>([]);
   const [contractId, setContractId] = useState(
@@ -284,7 +290,10 @@ export function MaringoTimeBookForm({
     const includeInactive = Boolean(keepContractId || contractVisible);
     (async () => {
       try {
-        const qs = includeInactive ? "?activeOnly=0" : "";
+        const params = new URLSearchParams();
+        if (includeInactive) params.set("activeOnly", "0");
+        if (projectCompany != null) params.set("company", String(projectCompany));
+        const qs = params.toString() ? `?${params}` : "";
         const coRes = await fetch(
           `/api/maringo/timekeeping/projects/${encodeURIComponent(projectNumber)}/contracts${qs}`
         );
@@ -315,7 +324,7 @@ export function MaringoTimeBookForm({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only reload when project changes
-  }, [projectNumber]);
+  }, [projectNumber, projectCompany]);
 
   useEffect(() => {
     if (!contractId || Number(contractId) <= 0) {
@@ -326,8 +335,10 @@ export function MaringoTimeBookForm({
     let cancelled = false;
     (async () => {
       try {
+        const qs =
+          projectCompany != null ? `?company=${encodeURIComponent(String(projectCompany))}` : "";
         const res = await fetch(
-          `/api/maringo/timekeeping/contracts/${encodeURIComponent(contractId)}/positions`
+          `/api/maringo/timekeeping/contracts/${encodeURIComponent(contractId)}/positions${qs}`
         );
         const data = await res.json().catch(() => ({}));
         if (cancelled) return;
@@ -354,12 +365,13 @@ export function MaringoTimeBookForm({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contractId]);
+  }, [contractId, projectCompany]);
 
   function selectProject(p: MariKeyPair) {
     const pn = p.keyVisible || p.keyInternal;
     setProjectNumber(p.keyInternal || p.keyVisible);
     setProjectLabel(formatMariProjectLabel(pn, p.matchcode));
+    setProjectCompany(parseMariCompanyId(p.company));
     setProjectOpen(false);
     setContractId("");
     setContractPositionId("");
@@ -374,6 +386,7 @@ export function MaringoTimeBookForm({
     );
     setProjectNumber(fav.projectNumber);
     setProjectLabel(fav.projectLabel || fav.projectNumber);
+    setProjectCompany(null);
     setContractId(fav.contractId != null ? String(fav.contractId) : "");
     setContractPositionId(
       fav.contractPositionId != null ? String(fav.contractPositionId) : ""
@@ -414,6 +427,7 @@ export function MaringoTimeBookForm({
     setProjectLabel(
       formatMariProjectLabel(s.projectNumber, s.projectLabel || s.name)
     );
+    setProjectCompany(null);
     setContractId(s.contractId != null && s.contractId > 0 ? String(s.contractId) : "");
     setContractPositionId("");
     setProjectOpen(false);
@@ -528,6 +542,7 @@ export function MaringoTimeBookForm({
           null,
         cardCode: defaults?.cardCode ?? null,
         customerName: defaults?.customerName ?? null,
+        company: projectCompany,
       });
       if (enableFavorites && saveAsFavorite) {
         const name = (favoriteName.trim() || activity.trim()).slice(0, 80);

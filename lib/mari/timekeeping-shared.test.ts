@@ -9,6 +9,7 @@ import {
   formatMariContractListLine,
   formatMariContractListLines,
   formatPeriodLabel,
+  mergeMariKeyPairs,
   projectNumbersNeedingLabel,
   timeLineToBookPrefill,
   type MariKeyPair,
@@ -210,6 +211,30 @@ test("timeLineToBookPrefill keeps Vertrag number from list line", () => {
   );
   assert.equal(prefill.contractId, 88421);
   assert.equal(prefill.contractVisible, "V60011100");
+});
+
+test("mergeMariKeyPairs keeps projects from a second company", () => {
+  const a: MariKeyPair = {
+    matchcode: "IWT CH",
+    keyVisible: "P1",
+    keyInternal: "P1",
+    indent: 0,
+    indentParent: false,
+    company: 1,
+  };
+  const b: MariKeyPair = {
+    matchcode: "IWT AT",
+    keyVisible: "P9",
+    keyInternal: "P9",
+    indent: 0,
+    indentParent: false,
+    company: 2,
+  };
+  const again: MariKeyPair = { ...a, matchcode: "IWT CH dup" };
+  assert.deepEqual(
+    mergeMariKeyPairs([[a], [b, again]]).map((p) => p.keyVisible),
+    ["P1", "P9"]
+  );
 });
 
 test("projectNumbersNeedingLabel skips labeled and duplicate projects", () => {

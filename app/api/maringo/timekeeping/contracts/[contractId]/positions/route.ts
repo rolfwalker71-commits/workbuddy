@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ contractId: string }> };
 
-export async function GET(_request: Request, ctx: Ctx) {
+export async function GET(request: Request, ctx: Ctx) {
   return withMariModule(async () => {
   if (!hasMariConfig()) {
     return NextResponse.json(
@@ -26,7 +26,13 @@ export async function GET(_request: Request, ctx: Ctx) {
         { status: 400 }
       );
     }
-    const positions = await listContractPositionsForTimeKeeping(contractId);
+    const companyRaw = Number(new URL(request.url).searchParams.get("company"));
+    const company =
+      Number.isInteger(companyRaw) && companyRaw > 0 ? companyRaw : null;
+    const positions = await listContractPositionsForTimeKeeping(
+      contractId,
+      company
+    );
     return NextResponse.json({ positions });
   } catch (err) {
     const message =
