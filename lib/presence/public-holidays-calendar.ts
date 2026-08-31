@@ -15,6 +15,7 @@ import {
   parsePublicHolidayCountries,
   type PublicHolidayDay,
   type PublicHolidayEvent,
+  type PublicHolidayProbe,
 } from "@/lib/presence/public-holidays-shared";
 
 export const COMPANY_PUBLIC_HOLIDAYS_MAILBOX = "ww_public_holidays@an-group.one";
@@ -320,15 +321,35 @@ async function readHolidayCalendars(
   return chunks.flat();
 }
 
+function calendarNamesOf(rows: GraphCalendarOwner[]): string[] {
+  const names: string[] = [];
+  for (const cal of rows) {
+    const name = (cal.name || "").trim();
+    if (name && !names.includes(name)) names.push(name);
+  }
+  return names;
+}
+
+function eventSamples(events: PublicHolidayEvent[]): string[] {
+  const out: string[] = [];
+  for (const event of events) {
+    const line = `${event.date} ${event.subject}`.trim();
+    if (line && !out.includes(line)) out.push(line);
+    if (out.length >= 12) break;
+  }
+  return out;
+}
+
 async function listForReader(
   readerUserId: number,
   mailbox: string,
   startYmd: string,
   endYmd: string
-): Promise<PublicHolidayEvent[]> {
+): Promise<{ events: PublicHolidayEvent[]; calendars: string[] }> {
   const encoded = encodeURIComponent(mailbox);
   const mailboxRoot: `/users/${string}` = `/users/${encoded}`;
   const collected: PublicHolidayEvent[] = [];
+  const names: string[] = [];
   try {
     collected.push(
       ...(await calendarViewOn(
@@ -342,28 +363,27 @@ async function listForReader(
     /* named Public Holiday below */
   }
 
-  const mailboxCals = holidayCalendarsToRead(
-    await listCalendarsWithGroups(readerUserId, mailboxRoot),
-    mailbox
-  );
+  const mailboxListed = await listCalendarsWithGroups(readerUserId, mailboxRoot);
+  names.push(...calendarNamesOf(mailboxListed));
   collected.push(
     ...(await readHolidayCalendars(
       readerUserId,
-      mailboxCals,
+      holidayCalendarsToRead(mailboxListed, mailbox),
       mailboxRoot,
       startYmd,
       endYmd
     ))
   );
 
-  if (collected.length === 0) {
-    const mine = holidayCalendarsToRead(
-      await listCalendarsWithGroups(readerUserId, "/me"),
-      mailbox
+  const mineListed = await listCalendarsWithGroups(readerUserId, "/me");
+  names.push(...calendarNamesOf(mineListed));
+  const mine = holidayCalendarsToRead(mineListed, mailbox);
+  if (collected.length === 0 && mine.length === 0) {
+    throw new Error(
+      `Public Holiday nicht in der Kalenderliste (${names.join(", ") || "leer"}).`
     );
-    if (mine.length === 0) {
-      throw new Error("Public Holiday calendar not in mailbox list.");
-    }
+  }
+  if (collected.length === 0 && mine.length > 0) {
     collected.push(
       ...(await readHolidayCalendars(
         readerUserId,
@@ -375,7 +395,10 @@ async function listForReader(
     );
   }
 
-  return dedupeHolidayEvents(collected);
+  return {
+    events: dedupeHolidayEvents(collected),
+    calendars: [...new Set(names)],
+  };
 }
 
 export async function listPublicHolidayDays(input: {
@@ -385,13 +408,21 @@ export async function listPublicHolidayDays(input: {
   days: PublicHolidayDay[];
   mailbox: string;
   reason?: "no-reader" | "unreadable";
+  probe: PublicHolidayProbe;
 }> {
+  const emptyProbe = (error: string | null): PublicHolidayProbe => ({
+    mailbox: readPublicHolidaysCalendarConfig().mailbox,
+    calendars: [],
+    samples: [],
+    error,
+  });
   const parsed = parseCalendarDateRange(input.from, input.to);
   if (!parsed.ok) {
     return {
       days: [],
       mailbox: readPublicHolidaysCalendarConfig().mailbox,
       reason: "unreadable",
+      probe: emptyProbe(parsed.error),
     };
   }
   const config = readPublicHolidaysCalendarConfig();
@@ -399,28 +430,56 @@ export async function listPublicHolidayDays(input: {
     (id, i, all): id is number => id != null && all.indexOf(id) === i
   );
   if (readers.length === 0) {
-    return { days: [], mailbox: config.mailbox, reason: "no-reader" };
+    return {
+      days: [],
+      mailbox: config.mailbox,
+      reason: "no-reader",
+      probe: {
+        mailbox: config.mailbox,
+        calendars: [],
+        samples: [],
+        error: "no-reader",
+      },
+    };
   }
   let lastError = "unreadable";
+  let lastCalendars: string[] = [];
   for (const readerUserId of readers) {
     try {
-      const events = await listForReader(
+      const { events, calendars } = await listForReader(
         readerUserId,
         config.mailbox,
         parsed.range.from,
         parsed.range.to
       );
+      lastCalendars = calendars;
       if (config.readerUserId !== readerUserId) {
         writePublicHolidaysCalendarConfig({ readerUserId });
       }
       return {
         days: groupPublicHolidaysByDay(events),
         mailbox: config.mailbox,
+        probe: {
+          mailbox: config.mailbox,
+          calendars,
+          samples: eventSamples(events),
+          error: events.length === 0 ? "calendarView leer" : null,
+        },
       };
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error);
     }
   }
   console.warn("[holidays] public holidays calendar", config.mailbox, lastError);
-  return { days: [], mailbox: config.mailbox, reason: "unreadable" };
+  return {
+    days: [],
+    mailbox: config.mailbox,
+    reason: "unreadable",
+    probe: {
+      mailbox: config.mailbox,
+      calendars: lastCalendars,
+      samples: [],
+      error: lastError,
+    },
+  };
 }

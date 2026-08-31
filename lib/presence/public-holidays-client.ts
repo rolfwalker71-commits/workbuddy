@@ -1,8 +1,18 @@
-import type { PublicHolidayDay } from "@/lib/presence/public-holidays-shared";
+import type {
+  PublicHolidayDay,
+  PublicHolidayProbe,
+} from "@/lib/presence/public-holidays-shared";
 
 export type PublicHolidaysFetch = {
   days: PublicHolidayDay[];
   reason: "no-reader" | "unreadable" | null;
+  probe: PublicHolidayProbe | null;
+};
+
+const EMPTY_FETCH: PublicHolidaysFetch = {
+  days: [],
+  reason: null,
+  probe: null,
 };
 
 export async function fetchPublicHolidays(
@@ -13,17 +23,21 @@ export async function fetchPublicHolidays(
     const res = await fetch(
       `/api/holidays?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
     );
-    if (!res.ok) return { days: [], reason: null };
+    if (!res.ok) {
+      return { days: [], reason: "unreadable", probe: null };
+    }
     const json = (await res.json()) as {
       days?: PublicHolidayDay[];
       reason?: "no-reader" | "unreadable" | null;
+      probe?: PublicHolidayProbe | null;
     };
     return {
       days: Array.isArray(json.days) ? json.days : [],
       reason: json.reason ?? null,
+      probe: json.probe ?? null,
     };
   } catch {
-    return { days: [], reason: "unreadable" };
+    return { ...EMPTY_FETCH, reason: "unreadable" };
   }
 }
 

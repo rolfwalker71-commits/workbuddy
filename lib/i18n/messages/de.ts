@@ -400,6 +400,13 @@ export const de = {
       "Feiertagskalender ist noch mit keinem verbundenen Microsoft-Konto geteilt. Admin: Einstellungen.",
     holidayUnreadable:
       "Feiertagskalender nicht lesbar. Im verbundenen Outlook ww_public_holidays einmal öffnen oder Microsoft unter Konto neu verbinden.",
+    holidayProbeTitle: "Was Graph gelesen hat",
+    holidayProbeMailbox: "Postfach: {mailbox}",
+    holidayProbeCalendars: "Kalender: {names}",
+    holidayProbeNone: "keine",
+    holidayProbeEvents: "Termine: {samples}",
+    holidayProbeEmpty: "Keine Termine in diesem Zeitraum.",
+    holidayProbeError: "Fehler: {error}",
   },
   technik: {
     title: "Technik",

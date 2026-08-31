@@ -401,6 +401,13 @@ export const en = {
       "The public holiday calendar is not yet shared with a connected Microsoft account. Admin: Settings.",
     holidayUnreadable:
       "Public holiday calendar unreadable. Open ww_public_holidays once in the connected Outlook, or reconnect Microsoft under Account.",
+    holidayProbeTitle: "What Graph read",
+    holidayProbeMailbox: "Mailbox: {mailbox}",
+    holidayProbeCalendars: "Calendars: {names}",
+    holidayProbeNone: "none",
+    holidayProbeEvents: "Events: {samples}",
+    holidayProbeEmpty: "No events in this range.",
+    holidayProbeError: "Error: {error}",
   },
   technik: {
     title: "Tech",

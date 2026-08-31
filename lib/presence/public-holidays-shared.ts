@@ -23,6 +23,14 @@ export type PublicHolidayDay = {
   items: PublicHolidayItem[];
 };
 
+/** What Graph actually saw — shown on Team when the row stays empty. */
+export type PublicHolidayProbe = {
+  mailbox: string;
+  calendars: string[];
+  samples: string[];
+  error: string | null;
+};
+
 const COUNTRY_ALIASES: Array<{
   code: PublicHolidayCountry;
   needles: string[];

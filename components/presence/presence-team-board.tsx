@@ -58,6 +58,7 @@ import { fetchPublicHolidays } from "@/lib/presence/public-holidays-client";
 import {
   publicHolidayDayOn,
   type PublicHolidayDay,
+  type PublicHolidayProbe,
 } from "@/lib/presence/public-holidays-shared";
 
 type OrgFilter = "" | UserOrganization;
@@ -119,6 +120,9 @@ export function PresenceTeamBoard() {
   const [holidayReason, setHolidayReason] = useState<
     "no-reader" | "unreadable" | null
   >(null);
+  const [holidayProbe, setHolidayProbe] = useState<PublicHolidayProbe | null>(
+    null
+  );
 
   const loadDay = useCallback(async (day: string, organization: OrgFilter) => {
     const json = await fetchPresenceToday({
@@ -182,6 +186,7 @@ export function PresenceTeamBoard() {
       if (cancelled) return;
       setHolidayDays(next.days);
       setHolidayReason(next.reason);
+      setHolidayProbe(next.probe);
     });
     return () => {
       cancelled = true;
@@ -459,6 +464,40 @@ export function PresenceTeamBoard() {
         <p className="text-sm text-muted-foreground">
           {t("presence.holidayNoReader")}
         </p>
+      ) : null}
+      {holidayReason === "unreadable" ? (
+        <p className="text-sm text-muted-foreground">
+          {t("presence.holidayUnreadable")}
+        </p>
+      ) : null}
+      {holidayDays.length === 0 && holidayProbe ? (
+        <div className="rounded-2xl bg-muted px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+          <p className="font-medium text-foreground">
+            {t("presence.holidayProbeTitle")}
+          </p>
+          <p>
+            {t("presence.holidayProbeMailbox", { mailbox: holidayProbe.mailbox })}
+          </p>
+          <p>
+            {t("presence.holidayProbeCalendars", {
+              names:
+                holidayProbe.calendars.join(" · ") ||
+                t("presence.holidayProbeNone"),
+            })}
+          </p>
+          <p>
+            {holidayProbe.samples.length > 0
+              ? t("presence.holidayProbeEvents", {
+                  samples: holidayProbe.samples.join(" · "),
+                })
+              : t("presence.holidayProbeEmpty")}
+          </p>
+          {holidayProbe.error ? (
+            <p>
+              {t("presence.holidayProbeError", { error: holidayProbe.error })}
+            </p>
+          ) : null}
+        </div>
       ) : null}
       {((view === "day" && !dayData) ||
         (view === "week" && Object.keys(weekByYmd).length === 0)) &&
