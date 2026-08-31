@@ -168,7 +168,8 @@ async function calendarViewWithSelect(
   startYmd: string,
   endYmd: string,
   select: string,
-  calendarName?: string | null
+  calendarName?: string | null,
+  orderBy = true
 ): Promise<PublicHolidayEvent[]> {
   const { start } = dayWindowLocal(startYmd);
   const { end } = dayWindowLocal(endYmd);
@@ -176,9 +177,9 @@ async function calendarViewWithSelect(
     startDateTime: start,
     endDateTime: end,
     $select: select,
-    $orderby: "start/dateTime",
     $top: "250",
   });
+  if (orderBy) qs.set("$orderby", "start/dateTime");
   const data = await graphJson<{ value?: GraphHolidayEvent[] }>(
     readerUserId,
     `${path}?${qs}`,
@@ -206,7 +207,8 @@ async function calendarViewEvents(
       calendarName
     );
   } catch (error) {
-    if (error instanceof MicrosoftGraphError && error.status === 403) {
+    if (!(error instanceof MicrosoftGraphError)) throw error;
+    if (error.status === 403) {
       return calendarViewWithSelect(
         readerUserId,
         path,
@@ -214,6 +216,17 @@ async function calendarViewEvents(
         endYmd,
         EVENT_SELECT_LIMITED,
         calendarName
+      );
+    }
+    if (error.status === 400) {
+      return calendarViewWithSelect(
+        readerUserId,
+        path,
+        startYmd,
+        endYmd,
+        EVENT_SELECT_LIMITED,
+        calendarName,
+        false
       );
     }
     throw error;
@@ -244,9 +257,20 @@ async function listViaMailbox(
       readerUserId,
       `/users/${encoded}/calendars?$top=80&$select=id,name`
     );
-    const calendars = (listed.value || []).filter((cal) => cal.id);
+    const calendars = (listed.value || []).filter((cal) => {
+      if (!cal.id) return false;
+      const name = (cal.name || "").trim();
+      return (
+        isPublicHolidayCalendarHint(name) ||
+        parsePublicHolidayCountries(name).length > 0
+      );
+    });
+    const toRead =
+      calendars.length > 0
+        ? calendars
+        : (listed.value || []).filter((cal) => cal.id);
     const chunks = await Promise.all(
-      calendars.map(async (cal) => {
+      toRead.map(async (cal) => {
         try {
           return await calendarViewEvents(
             readerUserId,
@@ -287,9 +311,7 @@ async function listViaSharedCalendar(
     const owner = normEmail(cal.owner?.address);
     return Boolean(cal.id) && (owner === want || isPublicHolidayCalendarHint(cal.name));
   });
-  if (found.length === 0) {
-    throw new Error("Public holidays calendar not in mailbox list.");
-  }
+  if (found.length === 0) return [];
   const chunks = await Promise.all(
     found.map((cal) =>
       calendarViewEvents(

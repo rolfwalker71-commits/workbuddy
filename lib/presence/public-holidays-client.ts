@@ -13,7 +13,7 @@ export async function fetchPublicHolidays(
     const res = await fetch(
       `/api/holidays?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
     );
-    if (!res.ok) return { days: [], reason: "unreadable" };
+    if (!res.ok) return { days: [], reason: null };
     const json = (await res.json()) as {
       days?: PublicHolidayDay[];
       reason?: "no-reader" | "unreadable" | null;

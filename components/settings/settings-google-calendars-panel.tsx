@@ -18,7 +18,6 @@ import { IconCircle } from "@/components/layout/icon-circle";
 import {
   ICS_CALENDAR_TYPES,
   ICS_TYPE_META,
-  isWorkCalendarType,
   normalizeIcsCalendarType,
   type IcsCalendarType,
 } from "@/lib/calendar/ics-types";
@@ -347,11 +346,6 @@ export function SettingsGoogleCalendarsPanel() {
                                 {t("common.primary")}
                               </Badge>
                             ) : null}
-                            {d.on && !d.planningRelevant ? (
-                              <Badge variant="outline" className="text-[0.625rem]">
-                                {t("settings.referenceOnly")}
-                              </Badge>
-                            ) : null}
                           </div>
                           {d.on ? (
                             <div className="space-y-3">
@@ -413,31 +407,7 @@ export function SettingsGoogleCalendarsPanel() {
                                 </div>
                               </div>
                               </div>
-                              <label className="flex items-start gap-2 text-xs text-muted-foreground">
-                                <input
-                                  type="checkbox"
-                                  className="mt-0.5 size-4 rounded border"
-                                  checked={d.planningRelevant}
-                                  disabled={saving}
-                                  onChange={(e) =>
-                                    patchDraft(c.id, {
-                                      planningRelevant: e.target.checked,
-                                    })
-                                  }
-                                />
-                                <span>
-                                  {t("settings.planningRelevant")}
-                                  <span className="mt-0.5 block text-[0.6875rem] text-muted-foreground/90">
-                                    {t("settings.planningOffHint")}
-                                  </span>
-                                </span>
-                              </label>
                             </div>
-                          ) : null}
-                          {d.on && isWorkCalendarType(d.type) ? (
-                            <p className="text-[0.6875rem] text-muted-foreground">
-                              {t("settings.workHint")}
-                            </p>
                           ) : null}
                         </div>
                       </div>

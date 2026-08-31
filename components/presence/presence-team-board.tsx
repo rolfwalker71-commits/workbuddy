@@ -460,11 +460,6 @@ export function PresenceTeamBoard() {
           {t("presence.holidayNoReader")}
         </p>
       ) : null}
-      {holidayReason === "unreadable" ? (
-        <p className="text-sm text-muted-foreground">
-          {t("presence.holidayUnreadable")}
-        </p>
-      ) : null}
       {((view === "day" && !dayData) ||
         (view === "week" && Object.keys(weekByYmd).length === 0)) &&
       !error ? (

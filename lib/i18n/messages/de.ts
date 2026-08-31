@@ -725,9 +725,9 @@ export const de = {
     rightMissing: "Recht fehlt",
     activeCount: "{count} aktiv",
     gCalHint:
-      "Kalender aus deinem Google-Konto anhaken und Typ/Farbe setzen. «Relevant für Terminplanung» steuert, ob Termine den Fokus «nächster Termin» und Konflikte beeinflussen (z. B. Partner-Dienstplan = aus).",
+      "Kalender aus deinem Google-Konto anhaken und Typ/Farbe setzen.",
     msCalHint:
-      "Kalender aus deinem Microsoft 365-Konto anhaken und Typ/Farbe setzen. «Relevant für Terminplanung» steuert, ob Termine den Fokus «nächster Termin» und Konflikte beeinflussen (z. B. Partner-Dienstplan = aus). Danach kannst du den entsprechenden ICS-Link entfernen — Outlook ist die Quelle.",
+      "Kalender aus deinem Microsoft 365-Konto anhaken und Typ/Farbe setzen. Danach kannst du den entsprechenden ICS-Link entfernen — Outlook ist die Quelle.",
     noGoogleYet: "Noch kein Google-Konto verbunden.",
     connectGoogleShort: "Google verbinden",
     noMsYet: "Noch kein Microsoft 365-Konto verbunden.",
@@ -737,11 +737,6 @@ export const de = {
     noCalsFromGoogle: "Keine Kalender von Google erhalten.",
     noCalsFromMs: "Keine Kalender von Microsoft erhalten.",
     showInBuddy: "{name} in Buddy zeigen",
-    referenceOnly: "Nur Referenz",
-    planningRelevant: "Relevant für Terminplanung",
-    planningOffHint: "Aus = nur Referenz: sichtbar, ohne Fokus / Konflikte",
-    workHint:
-      "Arbeit: AI-Bilder standardmässig mit Mann (außer Valentyna im Kalendernamen).",
     saveSelection: "Auswahl speichern",
     gCalSaved: "{count} Google-Kalender für Buddy gespeichert.",
     msCalSaved: "{count} Microsoft 365-Kalender für Buddy gespeichert.",

@@ -12,15 +12,17 @@ const FLAG_CLASS = "h-[1.05em] w-[1.45em] shrink-0";
 function FlagSvg({
   label,
   className,
+  viewBox = "0 0 21 15",
   children,
 }: {
   label: string;
   className?: string;
+  viewBox?: string;
   children: ReactNode;
 }) {
   return (
     <svg
-      viewBox="0 0 21 15"
+      viewBox={viewBox}
       className={cn(FLAG_CLASS, className)}
       role="img"
       aria-label={label}
@@ -42,10 +44,14 @@ function FlagGraphic({
   switch (code) {
     case "CH":
       return (
-        <FlagSvg label={label} className={cn("w-[1.05em]", className)}>
-          <rect width="21" height="15" fill="#D52B1E" />
-          <rect x="8.7" y="2.4" width="3.6" height="10.2" fill="#fff" />
-          <rect x="5.4" y="5.7" width="10.2" height="3.6" fill="#fff" />
+        <FlagSvg
+          label={label}
+          viewBox="0 0 15 15"
+          className={cn("w-[1.05em]", className)}
+        >
+          <rect width="15" height="15" fill="#D52B1E" />
+          <rect x="6" y="2.25" width="3" height="10.5" fill="#fff" />
+          <rect x="2.25" y="6" width="10.5" height="3" fill="#fff" />
         </FlagSvg>
       );
     case "AT":

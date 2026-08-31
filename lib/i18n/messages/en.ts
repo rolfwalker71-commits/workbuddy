@@ -724,9 +724,9 @@ export const en = {
     rightMissing: "Permission missing",
     activeCount: "{count} active",
     gCalHint:
-      "Tick calendars from your Google account and set type/color. “Relevant for scheduling” controls whether events affect the “next event” focus and conflicts (e.g. partner duty roster = off).",
+      "Tick calendars from your Google account and set type/color.",
     msCalHint:
-      "Tick calendars from your Microsoft 365 account and set type/color. “Relevant for scheduling” controls whether events affect the “next event” focus and conflicts (e.g. partner duty roster = off). Afterwards you can remove the matching ICS link — Outlook is the source.",
+      "Tick calendars from your Microsoft 365 account and set type/color. Afterwards you can remove the matching ICS link — Outlook is the source.",
     noGoogleYet: "No Google account connected yet.",
     connectGoogleShort: "Connect Google",
     noMsYet: "No Microsoft 365 account connected yet.",
@@ -736,11 +736,6 @@ export const en = {
     noCalsFromGoogle: "No calendars received from Google.",
     noCalsFromMs: "No calendars received from Microsoft.",
     showInBuddy: "Show {name} in Buddy",
-    referenceOnly: "Reference only",
-    planningRelevant: "Relevant for scheduling",
-    planningOffHint: "Off = reference only: visible, without focus / conflicts",
-    workHint:
-      "Work: AI images default to a man (unless Valentyna is in the calendar name).",
     saveSelection: "Save selection",
     gCalSaved: "{count} Google calendars saved for Buddy.",
     msCalSaved: "{count} Microsoft 365 calendars saved for Buddy.",
