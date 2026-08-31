@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   COMPANY_PUBLIC_HOLIDAYS_MAILBOX,
+  holidayCalendarsToRead,
   isHolidaySourceCalendar,
   mapPublicHolidayEvents,
   normalizePublicHolidaysMailbox,
@@ -55,6 +56,28 @@ test("isHolidaySourceCalendar matches Public Holiday and mailbox owner", () => {
       COMPANY_PUBLIC_HOLIDAYS_MAILBOX
     ),
     false
+  );
+});
+
+test("holidayCalendarsToRead prefers Public Holiday over the empty default", () => {
+  const picked = holidayCalendarsToRead(
+    [
+      {
+        id: "default",
+        name: "Kalender",
+        owner: { address: COMPANY_PUBLIC_HOLIDAYS_MAILBOX },
+      },
+      {
+        id: "pub",
+        name: "Public Holiday",
+        owner: { address: "rolf@an-group.one" },
+      },
+    ],
+    COMPANY_PUBLIC_HOLIDAYS_MAILBOX
+  );
+  assert.deepEqual(
+    picked.map((c) => c.id),
+    ["pub"]
   );
 });
 
