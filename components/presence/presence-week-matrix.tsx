@@ -120,9 +120,9 @@ export function PresenceWeekMatrix({
     <div className="space-y-3">
       <PresenceStatusLegend />
       <p className="text-xs text-muted-foreground">{t("presence.tapDay")}</p>
-      <div className="-mx-1 overflow-x-auto px-1">
+      <div className="-mx-1 overflow-x-auto px-1 py-1.5">
         <div
-          className="min-w-[40rem] space-y-1.5"
+          className="min-w-[40rem] space-y-1.5 pb-2"
           role="grid"
           aria-label={t("presence.yourWeek")}
         >
