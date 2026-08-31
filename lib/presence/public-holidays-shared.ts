@@ -146,6 +146,11 @@ export function isPublicHolidayCalendarHint(
     n.includes("public holiday") ||
     n.includes("feiertag") ||
     n.includes("ww_public") ||
+    n.includes("festivo") ||
+    n.includes("feriado") ||
+    n.includes("jour férié") ||
+    n.includes("jour ferie") ||
+    n.includes("giorno festivo") ||
     /\bholidays?\b/.test(n)
   );
 }

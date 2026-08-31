@@ -78,6 +78,8 @@ test("isPublicHolidayCalendarHint matches shared mailbox names", () => {
   assert.equal(isPublicHolidayCalendarHint("Public Holidays"), true);
   assert.equal(isPublicHolidayCalendarHint("CH Holidays"), true);
   assert.equal(isPublicHolidayCalendarHint("Feiertage AT"), true);
+  assert.equal(isPublicHolidayCalendarHint("Festivos MX"), true);
+  assert.equal(isPublicHolidayCalendarHint("Feriados"), true);
   assert.equal(isPublicHolidayCalendarHint("Kalender"), false);
 });
 
