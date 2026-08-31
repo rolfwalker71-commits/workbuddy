@@ -1,8 +1,8 @@
 import { google } from "googleapis";
 import { getSetting, setSetting } from "@/lib/db/migrations";
 import {
-  ICS_CALENDAR_TYPES,
   ICS_TYPE_META,
+  normalizeIcsCalendarType,
   type IcsCalendarType,
 } from "@/lib/calendar/ics-calendars";
 import {
@@ -82,28 +82,25 @@ function guessType(summary: string | null | undefined): IcsCalendarType {
     return "holiday";
   }
   if (
-    /valentyna/.test(s) &&
-    /arbeit|work|job|arbeitsplan|schicht/.test(s)
+    s.includes("arbeit") ||
+    s.includes("work") ||
+    s.includes("job") ||
+    s.includes("arbeitsplan") ||
+    s.includes("schicht")
   ) {
-    return "work_valentyna";
-  }
-  if (/rolf/.test(s) && /arbeit|work|job|arbeitsplan|schicht/.test(s)) {
-    return "work_rolf";
-  }
-  if (s.includes("arbeit") || s.includes("work") || s.includes("job")) {
     return "work";
   }
-  if (s.includes("familie") || s.includes("family")) {
-    return "family";
-  }
-  if (s.includes("privat") || s.includes("private") || s.includes("personal")) {
+  if (
+    s.includes("familie") ||
+    s.includes("family") ||
+    s.includes("privat") ||
+    s.includes("private") ||
+    s.includes("personal")
+  ) {
     return "private";
   }
   if (s.includes("schule") || s.includes("school") || s.includes("unterricht")) {
     return "school";
-  }
-  if (s.includes("sport") || s.includes("fitness")) {
-    return "sports";
   }
   return "other";
 }
@@ -126,8 +123,7 @@ function readSelections(userId: number): GoogleCalendarSelection[] {
       const r = row as Partial<GoogleCalendarSelection>;
       const id = String(r.id || "").trim();
       if (!id) continue;
-      const type =
-        r.type && ICS_CALENDAR_TYPES.includes(r.type) ? r.type : undefined;
+      const type = normalizeIcsCalendarType(r.type);
       const color =
         typeof r.color === "string" && /^#[0-9a-fA-F]{6}$/.test(r.color.trim())
           ? r.color.trim()
@@ -163,8 +159,8 @@ export function saveGoogleCalendarSelections(
       ...(typeof s.name === "string" && s.name.trim()
         ? { name: s.name.trim().slice(0, 120) }
         : {}),
-      ...(s.type && ICS_CALENDAR_TYPES.includes(s.type)
-        ? { type: s.type }
+      ...(normalizeIcsCalendarType(s.type)
+        ? { type: normalizeIcsCalendarType(s.type) }
         : {}),
       ...(typeof s.color === "string" &&
       /^#[0-9a-fA-F]{6}$/.test(s.color.trim())

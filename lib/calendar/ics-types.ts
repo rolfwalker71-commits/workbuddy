@@ -1,16 +1,9 @@
 /** Client-safe ICS calendar types/meta (no Node/DB imports). */
 
 export const ICS_CALENDAR_TYPES = [
-  "hockey",
   "school",
-  "waste",
-  "church",
-  "sports",
-  "family",
   "birthday",
   "work",
-  "work_rolf",
-  "work_valentyna",
   "holiday",
   "private",
   "other",
@@ -22,35 +15,10 @@ export const ICS_TYPE_META: Record<
   IcsCalendarType,
   { label: string; defaultColor: string; defaultName: string }
 > = {
-  hockey: {
-    label: "Hockey",
-    defaultColor: "#e11d48",
-    defaultName: "Hockey",
-  },
   school: {
     label: "Schule",
     defaultColor: "#2563eb",
     defaultName: "Schule",
-  },
-  waste: {
-    label: "Abfall",
-    defaultColor: "#78836c",
-    defaultName: "Entsorgung",
-  },
-  church: {
-    label: "Kirche",
-    defaultColor: "#7c3aed",
-    defaultName: "Kirche",
-  },
-  sports: {
-    label: "Sport",
-    defaultColor: "#ea580c",
-    defaultName: "Sport",
-  },
-  family: {
-    label: "Familie",
-    defaultColor: "#db2777",
-    defaultName: "Familie",
   },
   birthday: {
     label: "Geburtstage",
@@ -61,16 +29,6 @@ export const ICS_TYPE_META: Record<
     label: "Arbeit",
     defaultColor: "#0f766e",
     defaultName: "Arbeit",
-  },
-  work_rolf: {
-    label: "Arbeit Rolf",
-    defaultColor: "#0f766e",
-    defaultName: "Arbeit Rolf",
-  },
-  work_valentyna: {
-    label: "Arbeit Valentyna",
-    defaultColor: "#0d9488",
-    defaultName: "Arbeit Valentyna",
   },
   holiday: {
     label: "Ferien / Feiertage",
@@ -89,10 +47,33 @@ export const ICS_TYPE_META: Record<
   },
 };
 
-/** Generic or person-specific work calendars. */
+const LEGACY_ICS_TYPE_MAP: Record<string, IcsCalendarType> = {
+  hockey: "other",
+  waste: "other",
+  church: "other",
+  sports: "other",
+  family: "private",
+  work_rolf: "work",
+  work_valentyna: "work",
+};
+
+/** Current picker types, or a mapped leftover from an older assignment. */
+export function normalizeIcsCalendarType(
+  raw: string | null | undefined
+): IcsCalendarType | undefined {
+  const t = String(raw || "")
+    .trim()
+    .toLowerCase();
+  if (!t) return undefined;
+  if ((ICS_CALENDAR_TYPES as readonly string[]).includes(t)) {
+    return t as IcsCalendarType;
+  }
+  return LEGACY_ICS_TYPE_MAP[t];
+}
+
+/** Generic work calendars (person-specific Arbeit-types map here). */
 export function isWorkCalendarType(
   type: string | null | undefined
 ): boolean {
-  const t = String(type || "").toLowerCase();
-  return t === "work" || t === "work_rolf" || t === "work_valentyna";
+  return normalizeIcsCalendarType(type) === "work";
 }

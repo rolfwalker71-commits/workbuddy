@@ -1,7 +1,7 @@
 import { getSetting, setSetting } from "@/lib/db/migrations";
 import {
-  ICS_CALENDAR_TYPES,
   ICS_TYPE_META,
+  normalizeIcsCalendarType,
   type IcsCalendarType,
 } from "@/lib/calendar/ics-calendars";
 import { extractMeetUrl } from "@/lib/calendar/meet-url";
@@ -74,18 +74,12 @@ export function parseMicrosoftCalendarSourceId(
 function guessType(name: string | null | undefined): IcsCalendarType {
   const s = (name || "").toLowerCase();
   if (/geburtstag|birthday/.test(s)) return "birthday";
-  if (/valentyna/.test(s) && /arbeit|work|job|geschäft|business|office|arbeitsplan|schicht/.test(s)) {
-    return "work_valentyna";
+  if (/arbeit|work|job|geschäft|business|office|arbeitsplan|schicht/.test(s)) {
+    return "work";
   }
-  if (/rolf/.test(s) && /arbeit|work|job|geschäft|business|office|arbeitsplan|schicht/.test(s)) {
-    return "work_rolf";
-  }
-  if (/arbeit|work|job|geschäft|business|office/.test(s)) return "work";
-  if (/familie|family/.test(s)) return "family";
-  if (/privat|private|personal/.test(s)) return "private";
+  if (/familie|family|privat|private|personal/.test(s)) return "private";
   if (/ferien|feiertag|holiday/.test(s)) return "holiday";
   if (/schule|school/.test(s)) return "school";
-  if (/sport|fitness/.test(s)) return "sports";
   return "other";
 }
 
@@ -137,8 +131,7 @@ function readSelections(userId: number): MicrosoftCalendarSelection[] {
       const r = row as Partial<MicrosoftCalendarSelection>;
       const id = String(r.id || "").trim();
       if (!id) continue;
-      const type =
-        r.type && ICS_CALENDAR_TYPES.includes(r.type) ? r.type : undefined;
+      const type = normalizeIcsCalendarType(r.type);
       const color =
         typeof r.color === "string" && /^#[0-9a-fA-F]{6}$/.test(r.color.trim())
           ? r.color.trim()
@@ -174,8 +167,8 @@ export function saveMicrosoftCalendarSelections(
       ...(typeof s.name === "string" && s.name.trim()
         ? { name: s.name.trim().slice(0, 120) }
         : {}),
-      ...(s.type && ICS_CALENDAR_TYPES.includes(s.type)
-        ? { type: s.type }
+      ...(normalizeIcsCalendarType(s.type)
+        ? { type: normalizeIcsCalendarType(s.type) }
         : {}),
       ...(typeof s.color === "string" &&
       /^#[0-9a-fA-F]{6}$/.test(s.color.trim())

@@ -525,7 +525,7 @@ export const de = {
     mailSignatureHint:
       "Outlook-Client-Signaturen sind über die Microsoft-API nicht lesbar. Einmal aus Outlook kopieren und hier einfügen — Buddy hängt sie beim Senden an.",
     mailSignatureNotReadable: "nicht lesbar",
-    mailSignaturePh: "Mit freundlichen Grüssen\nRolf Walker\n…",
+    mailSignaturePh: "Mit freundlichen Grüssen\n…",
     appendOnSend: "Beim Senden aus Buddy automatisch anhängen",
     saveSignature: "Signatur speichern",
     signatureSaved: "Signatur gespeichert.",
@@ -723,8 +723,6 @@ export const de = {
     referenceOnly: "Nur Referenz",
     planningRelevant: "Relevant für Terminplanung",
     planningOffHint: "Aus = nur Referenz: sichtbar, ohne Fokus / Konflikte",
-    workRolfHint: "Arbeit Rolf: AI-Bilder mit Mann.",
-    workValentynaHint: "Arbeit Valentyna: AI-Bilder mit Frau.",
     workHint:
       "Arbeit: AI-Bilder standardmässig mit Mann (außer Valentyna im Kalendernamen).",
     saveSelection: "Auswahl speichern",
@@ -1992,16 +1990,9 @@ export const de = {
   },
   calendar: {
     types: {
-      hockey: "Hockey",
       school: "Schule",
-      waste: "Abfall",
-      church: "Kirche",
-      sports: "Sport",
-      family: "Familie",
       birthday: "Geburtstage",
       work: "Arbeit",
-      workRolf: "Arbeit Rolf",
-      workValentyna: "Arbeit Valentyna",
       holiday: "Ferien / Feiertage",
       private: "Privat",
       other: "Sonstiges",

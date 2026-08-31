@@ -7,7 +7,10 @@ import type { UserOrganization } from "@/lib/users/organization";
 import type { NotifyReason } from "@/lib/realtime/hub";
 import type { ActivityEventValue } from "@/lib/users/activity-log-display";
 import type { TimeBucketId, TimeBucketPreset } from "@/lib/utils/time-buckets";
-import type { IcsCalendarType } from "@/lib/calendar/ics-types";
+import {
+  normalizeIcsCalendarType,
+  type IcsCalendarType,
+} from "@/lib/calendar/ics-types";
 
 const STATUS_MESSAGE: Record<number, MessageKey> = {
   11: "status.new",
@@ -78,16 +81,9 @@ const ACTIVITY_MESSAGE: Record<ActivityEventValue, MessageKey> = {
 };
 
 const ICS_TYPE_MESSAGE: Record<IcsCalendarType, MessageKey> = {
-  hockey: "calendar.types.hockey",
   school: "calendar.types.school",
-  waste: "calendar.types.waste",
-  church: "calendar.types.church",
-  sports: "calendar.types.sports",
-  family: "calendar.types.family",
   birthday: "calendar.types.birthday",
   work: "calendar.types.work",
-  work_rolf: "calendar.types.workRolf",
-  work_valentyna: "calendar.types.workValentyna",
   holiday: "calendar.types.holiday",
   private: "calendar.types.private",
   other: "calendar.types.other",
@@ -211,7 +207,8 @@ export function icsTypeDisplayLabel(
   locale: Locale | string | undefined = DEFAULT_LOCALE,
   fallback?: string
 ): string {
-  const key = ICS_TYPE_MESSAGE[type as IcsCalendarType];
+  const normalized = normalizeIcsCalendarType(type);
+  const key = normalized ? ICS_TYPE_MESSAGE[normalized] : undefined;
   return key ? translate(locale, key) : fallback || type;
 }
 

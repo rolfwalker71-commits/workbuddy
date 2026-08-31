@@ -19,6 +19,7 @@ import {
   ICS_CALENDAR_TYPES,
   ICS_TYPE_META,
   isWorkCalendarType,
+  normalizeIcsCalendarType,
   type IcsCalendarType,
 } from "@/lib/calendar/ics-types";
 import { cn } from "@/lib/utils";
@@ -108,7 +109,8 @@ export function SettingsMicrosoftCalendarsPanel() {
       setCalendars(list);
       const next: Record<string, DraftRow> = {};
       for (const c of list) {
-        const type = (c.type || c.suggestedType || "other") as CalType;
+        const type =
+          normalizeIcsCalendarType(c.type || c.suggestedType) || "other";
         next[c.id] = {
           on: Boolean(c.selected && c.enabled),
           type,
@@ -176,7 +178,8 @@ export function SettingsMicrosoftCalendarsPanel() {
       setCalendars(list);
       const next: Record<string, DraftRow> = {};
       for (const c of list) {
-        const type = (c.type || c.suggestedType || "other") as CalType;
+        const type =
+          normalizeIcsCalendarType(c.type || c.suggestedType) || "other";
         next[c.id] = {
           on: Boolean(c.selected && c.enabled),
           type,
@@ -198,7 +201,8 @@ export function SettingsMicrosoftCalendarsPanel() {
       const d = draft[c.id];
       if (!d) return false;
       const wasOn = Boolean(c.selected && c.enabled);
-      const wasType = (c.type || c.suggestedType || "other") as string;
+      const wasType =
+        normalizeIcsCalendarType(c.type || c.suggestedType) || "other";
       const wasColor = c.color || "#64748b";
       const wasPlanning = c.planningRelevant !== false;
       return (
@@ -434,11 +438,7 @@ export function SettingsMicrosoftCalendarsPanel() {
                           ) : null}
                           {d.on && isWorkCalendarType(d.type) ? (
                             <p className="text-[0.6875rem] text-muted-foreground">
-                              {d.type === "work_rolf"
-                                ? t("settings.workRolfHint")
-                                : d.type === "work_valentyna"
-                                  ? t("settings.workValentynaHint")
-                                  : t("settings.workHint")}
+                              {t("settings.workHint")}
                             </p>
                           ) : null}
                         </div>
