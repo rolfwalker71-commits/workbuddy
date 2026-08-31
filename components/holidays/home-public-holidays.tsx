@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { PublicHolidayChips } from "@/components/holidays/public-holiday-chips";
+import { PublicHolidayMark } from "@/components/holidays/public-holiday-mark";
 import { formatSwissDate } from "@/lib/utils/dates";
 import { zurichYmd } from "@/lib/microsoft/time";
 import { fetchPublicHolidayDays } from "@/lib/presence/public-holidays-client";
@@ -39,9 +39,11 @@ export function HomePublicHolidays() {
           <p className="text-sm font-semibold text-violet-950 dark:text-violet-50">
             {t("home.holidayToday")}
           </p>
-          <PublicHolidayChips
+          <PublicHolidayMark
             countries={todayDay.countries}
             titles={todayDay.titles}
+            items={todayDay.items}
+            layout="inline"
           />
         </div>
       ) : (
@@ -59,7 +61,12 @@ export function HomePublicHolidays() {
               <span className="font-medium text-violet-950 dark:text-violet-50">
                 {formatSwissDate(day.date)}
               </span>
-              <PublicHolidayChips countries={day.countries} titles={day.titles} />
+              <PublicHolidayMark
+                countries={day.countries}
+                titles={day.titles}
+                items={day.items}
+                layout="inline"
+              />
             </li>
           ))}
         </ul>

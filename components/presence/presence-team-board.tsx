@@ -19,7 +19,7 @@ import { PresenceSetDialog } from "@/components/presence/presence-set-dialog";
 import { PresenceDelegateDialog } from "@/components/presence/presence-delegate-dialog";
 import { PresenceStatusLegend } from "@/components/presence/presence-status-legend";
 import { PresenceWeekMatrix } from "@/components/presence/presence-week-matrix";
-import { PublicHolidayChips } from "@/components/holidays/public-holiday-chips";
+import { PublicHolidayMark } from "@/components/holidays/public-holiday-mark";
 import { useAuth } from "@/components/auth/auth-provider";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { cn } from "@/lib/utils";
@@ -470,9 +470,11 @@ export function PresenceTeamBoard() {
               <p className="text-sm font-semibold text-violet-950 dark:text-violet-50">
                 {t("presence.holidayOnDay")}
               </p>
-              <PublicHolidayChips
+              <PublicHolidayMark
                 countries={dayHoliday.countries}
                 titles={dayHoliday.titles}
+                items={dayHoliday.items}
+                layout="inline"
               />
             </div>
           ) : null}

@@ -11,10 +11,16 @@ export type PublicHolidayEvent = {
   countries: PublicHolidayCountry[];
 };
 
+export type PublicHolidayItem = {
+  title: string;
+  countries: PublicHolidayCountry[];
+};
+
 export type PublicHolidayDay = {
   date: string;
   countries: PublicHolidayCountry[];
   titles: string[];
+  items: PublicHolidayItem[];
 };
 
 const COUNTRY_ALIASES: Array<{
@@ -72,21 +78,48 @@ export function formatPublicHolidayCountries(
   return countries.join(" · ");
 }
 
+/** Drop ISO country tokens so the visible name is "Weihnachten", not "Weihnachten CH". */
+export function displayPublicHolidayTitle(subject: string): string {
+  const raw = (subject || "").trim();
+  if (!raw) return "";
+  let text = raw;
+  for (const code of PUBLIC_HOLIDAY_COUNTRIES) {
+    text = text.replace(new RegExp(`(^|[^A-Za-z])${code}(?=[^A-Za-z]|$)`, "g"), "$1");
+  }
+  text = text.replace(/[\s,/|;·–—-]+/g, " ").trim();
+  return text || raw;
+}
+
 export function groupPublicHolidaysByDay(
   events: readonly PublicHolidayEvent[]
 ): PublicHolidayDay[] {
-  const byDate = new Map<string, { countries: Set<PublicHolidayCountry>; titles: string[] }>();
+  const byDate = new Map<
+    string,
+    {
+      countries: Set<PublicHolidayCountry>;
+      titles: string[];
+      items: Map<string, Set<PublicHolidayCountry>>;
+    }
+  >();
   for (const event of events) {
     const date = (event.date || "").slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
     let row = byDate.get(date);
     if (!row) {
-      row = { countries: new Set(), titles: [] };
+      row = { countries: new Set(), titles: [], items: new Map() };
       byDate.set(date, row);
     }
     for (const country of event.countries) row.countries.add(country);
-    const title = event.subject.trim();
+    const title = displayPublicHolidayTitle(event.subject);
     if (title && !row.titles.includes(title)) row.titles.push(title);
+    if (title) {
+      let item = row.items.get(title);
+      if (!item) {
+        item = new Set();
+        row.items.set(title, item);
+      }
+      for (const country of event.countries) item.add(country);
+    }
   }
   return [...byDate.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
@@ -94,6 +127,12 @@ export function groupPublicHolidaysByDay(
       date,
       countries: PUBLIC_HOLIDAY_COUNTRIES.filter((c) => row.countries.has(c)),
       titles: row.titles,
+      items: row.titles.map((title) => ({
+        title,
+        countries: PUBLIC_HOLIDAY_COUNTRIES.filter((c) =>
+          (row.items.get(title) || new Set()).has(c)
+        ),
+      })),
     }));
 }
 

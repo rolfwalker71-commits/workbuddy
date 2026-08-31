@@ -3,6 +3,7 @@
 import { PresenceStatusCell } from "@/components/presence/presence-status-cell";
 import { PresenceStatusLegend } from "@/components/presence/presence-status-legend";
 import { PublicHolidayChips } from "@/components/holidays/public-holiday-chips";
+import { PublicHolidayMark } from "@/components/holidays/public-holiday-mark";
 import { useLocale, useT } from "@/components/i18n/locale-provider";
 import { cn } from "@/lib/utils";
 import {
@@ -177,12 +178,13 @@ export function PresenceWeekMatrix({
                 <div
                   key={day}
                   role="gridcell"
-                  className="flex min-h-11 items-center justify-center px-1"
+                  className="flex min-h-11 items-center justify-center px-1 py-1"
                 >
                   {holiday ? (
-                    <PublicHolidayChips
+                    <PublicHolidayMark
                       countries={holiday.countries}
                       titles={holiday.titles}
+                      items={holiday.items}
                     />
                   ) : (
                     <span className="text-xs text-muted-foreground">—</span>
