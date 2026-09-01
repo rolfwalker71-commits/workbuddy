@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import { OrganizationWithFlag } from "@/components/branding/country-flag";
 import { PresenceStatusCell } from "@/components/presence/presence-status-cell";
 import { PresenceStatusLegend } from "@/components/presence/presence-status-legend";
-import { PublicHolidayChips } from "@/components/holidays/public-holiday-chips";
 import { PublicHolidayMark } from "@/components/holidays/public-holiday-mark";
 import { useLocale, useT } from "@/components/i18n/locale-provider";
 import { cn } from "@/lib/utils";
@@ -142,9 +141,6 @@ export function PresenceWeekMatrix({
             {weekDays.map((day) => {
               const isToday = day === today;
               const label = weekdayShort(day, intlLocale);
-              const holiday = PUBLIC_HOLIDAYS_UI_ENABLED
-                ? publicHolidayDayOn(holidayDays, day)
-                : null;
               return (
                 <div
                   key={day}
@@ -163,13 +159,6 @@ export function PresenceWeekMatrix({
                   <span className="text-[0.7rem] leading-none text-muted-foreground">
                     {Number(day.slice(8))}
                   </span>
-                  {holiday ? (
-                    <PublicHolidayChips
-                      countries={holiday.countries}
-                      titles={holiday.titles}
-                      locale={locale}
-                    />
-                  ) : null}
                 </div>
               );
             })}
@@ -191,6 +180,7 @@ export function PresenceWeekMatrix({
                       countries={holiday.countries}
                       titles={holiday.titles}
                       items={holiday.items}
+                      layout="compact"
                     />
                   ) : (
                     <span className="text-xs text-muted-foreground">—</span>

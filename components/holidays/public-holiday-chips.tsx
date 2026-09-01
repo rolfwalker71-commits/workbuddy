@@ -17,7 +17,7 @@ export function PublicHolidayChips({
   if (countries.length === 0 && !hint) return null;
   return (
     <span
-      className={cn("inline-flex flex-wrap items-center gap-1", className)}
+      className={cn("inline-flex flex-wrap items-center gap-0.5", className)}
       title={hint}
       aria-label={hint || countries.join(" · ")}
     >

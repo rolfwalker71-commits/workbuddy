@@ -3,9 +3,10 @@
 import { PublicHolidayChips } from "@/components/holidays/public-holiday-chips";
 import { useLocale } from "@/components/i18n/locale-provider";
 import { cn } from "@/lib/utils";
-import type {
-  PublicHolidayCountry,
-  PublicHolidayItem,
+import {
+  PUBLIC_HOLIDAY_COUNTRIES,
+  type PublicHolidayCountry,
+  type PublicHolidayItem,
 } from "@/lib/presence/public-holidays-shared";
 
 function rowsFrom(
@@ -27,6 +28,18 @@ function rowsFrom(
   return [];
 }
 
+function uniqueCountries(
+  items: readonly PublicHolidayItem[],
+  countries: readonly PublicHolidayCountry[] | undefined
+): PublicHolidayCountry[] {
+  const found = new Set<PublicHolidayCountry>();
+  for (const code of countries || []) found.add(code);
+  for (const row of items) {
+    for (const code of row.countries) found.add(code);
+  }
+  return PUBLIC_HOLIDAY_COUNTRIES.filter((code) => found.has(code));
+}
+
 export function PublicHolidayMark({
   countries,
   titles,
@@ -37,12 +50,39 @@ export function PublicHolidayMark({
   countries?: readonly PublicHolidayCountry[];
   titles?: readonly string[];
   items?: readonly PublicHolidayItem[];
-  layout?: "stack" | "inline";
+  layout?: "stack" | "inline" | "compact";
   className?: string;
 }) {
   const { locale } = useLocale();
   const rows = rowsFrom(items, countries, titles);
   if (rows.length === 0) return null;
+
+  const names = rows.map((row) => row.title.trim()).filter(Boolean);
+  const hint = names.join(" · ") || (countries || []).join(" · ");
+
+  if (layout === "compact") {
+    const flags = uniqueCountries(rows, countries);
+    return (
+      <span
+        className={cn(
+          "flex min-w-0 flex-col items-center gap-0.5 text-center",
+          className
+        )}
+        title={hint}
+      >
+        <PublicHolidayChips
+          countries={flags}
+          titles={names}
+          locale={locale}
+        />
+        {names.length > 0 ? (
+          <span className="line-clamp-2 text-[0.65rem] font-medium leading-tight text-violet-950 dark:text-violet-50">
+            {names.join(" · ")}
+          </span>
+        ) : null}
+      </span>
+    );
+  }
 
   return (
     <span

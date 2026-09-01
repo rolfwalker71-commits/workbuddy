@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import {
   countryFlagName,
@@ -7,88 +6,23 @@ import {
 } from "@/lib/i18n/country-flag";
 import type { UserOrganization } from "@/lib/users/organization";
 
-const FLAG_CLASS = "h-[1.05em] w-[1.45em] shrink-0";
+/** Official flag SVGs from Wikimedia Commons (public domain). */
+const FLAG_SRC: Record<CountryFlagCode, string> = {
+  CH: "/flags/ch.svg",
+  AT: "/flags/at.svg",
+  DE: "/flags/de.svg",
+  MX: "/flags/mx.svg",
+  NP: "/flags/np.svg",
+};
 
-function FlagSvg({
-  label,
-  className,
-  viewBox = "0 0 21 15",
-  children,
-}: {
-  label: string;
-  className?: string;
-  viewBox?: string;
-  children: ReactNode;
-}) {
-  return (
-    <svg
-      viewBox={viewBox}
-      className={cn(FLAG_CLASS, className)}
-      role="img"
-      aria-label={label}
-    >
-      {children}
-    </svg>
-  );
-}
-
-function FlagGraphic({
-  code,
-  label,
-  className,
-}: {
-  code: CountryFlagCode;
-  label: string;
-  className?: string;
-}) {
-  switch (code) {
-    case "CH":
-      return (
-        <FlagSvg
-          label={label}
-          viewBox="0 0 15 15"
-          className={cn("w-[1.05em]", className)}
-        >
-          <rect width="15" height="15" fill="#D52B1E" />
-          <rect x="6" y="2.25" width="3" height="10.5" fill="#fff" />
-          <rect x="2.25" y="6" width="10.5" height="3" fill="#fff" />
-        </FlagSvg>
-      );
-    case "AT":
-      return (
-        <FlagSvg label={label} className={className}>
-          <rect width="21" height="15" fill="#C8102E" />
-          <rect y="5" width="21" height="5" fill="#fff" />
-        </FlagSvg>
-      );
-    case "DE":
-      return (
-        <FlagSvg label={label} className={className}>
-          <rect width="21" height="5" fill="#000" />
-          <rect y="5" width="21" height="5" fill="#D00" />
-          <rect y="10" width="21" height="5" fill="#FFCE00" />
-        </FlagSvg>
-      );
-    case "MX":
-      return (
-        <FlagSvg label={label} className={className}>
-          <rect width="7" height="15" fill="#006847" />
-          <rect x="7" width="7" height="15" fill="#fff" />
-          <rect x="14" width="7" height="15" fill="#CE1126" />
-          <circle cx="10.5" cy="7.5" r="1.55" fill="#C5A100" />
-        </FlagSvg>
-      );
-    case "NP":
-      return (
-        <FlagSvg label={label} className={className}>
-          <rect width="21" height="15" fill="#003893" />
-          <path d="M2.2 1.6h11.4L7.8 7.4h9L4.4 13.6V1.6z" fill="#DC143C" />
-          <circle cx="7.2" cy="5.1" r="1.15" fill="#fff" />
-          <circle cx="8.4" cy="9.7" r="1.35" fill="#fff" />
-        </FlagSvg>
-      );
-  }
-}
+/** Nepal is a pennant, not a rectangle. CH is square. */
+const FLAG_BOX: Record<CountryFlagCode, string> = {
+  CH: "h-[0.85em] w-[0.85em]",
+  AT: "h-[0.8em] w-[1.2em]",
+  DE: "h-[0.8em] w-[1.35em]",
+  MX: "h-[0.8em] w-[1.4em]",
+  NP: "h-[1.05em] w-[0.86em]",
+};
 
 export function CountryFlag({
   code,
@@ -103,14 +37,19 @@ export function CountryFlag({
 }) {
   if (!isCountryFlagCode(code)) return null;
   const label = countryFlagName(code, locale);
-  if (decorative) {
-    return (
-      <span className="inline-flex" aria-hidden>
-        <FlagGraphic code={code} label={label} className={className} />
-      </span>
-    );
-  }
-  return <FlagGraphic code={code} label={label} className={className} />;
+  return (
+    <img
+      src={FLAG_SRC[code]}
+      alt={decorative ? "" : label}
+      aria-hidden={decorative || undefined}
+      title={decorative ? undefined : label}
+      className={cn(
+        FLAG_BOX[code],
+        "inline-block shrink-0 object-contain object-center",
+        className
+      )}
+    />
+  );
 }
 
 export function CountryCodeWithFlag({
