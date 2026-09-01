@@ -15,39 +15,64 @@ const FLAG_SRC: Record<CountryFlagCode, string> = {
   NP: "/flags/np.svg",
 };
 
-/** Nepal is a pennant, not a rectangle. CH is square. */
-const FLAG_BOX: Record<CountryFlagCode, string> = {
-  CH: "h-[0.85em] w-[0.85em]",
-  AT: "h-[0.8em] w-[1.2em]",
-  DE: "h-[0.8em] w-[1.35em]",
-  MX: "h-[0.8em] w-[1.4em]",
-  NP: "h-[1.05em] w-[0.86em]",
+/** Nepal is a pennant, not a rectangle. CH is square (no side padding). */
+const FLAG_BOX: Record<
+  "default" | "row",
+  Record<CountryFlagCode, string>
+> = {
+  default: {
+    CH: "h-[0.95em] w-[0.95em]",
+    AT: "h-[0.85em] w-[1.25em]",
+    DE: "h-[0.85em] w-[1.4em]",
+    MX: "h-[0.85em] w-[1.45em]",
+    NP: "h-[1.1em] w-[0.9em]",
+  },
+  row: {
+    CH: "h-[1.15em] w-[1.15em]",
+    AT: "h-[1.05em] w-[1.55em]",
+    DE: "h-[1.05em] w-[1.75em]",
+    MX: "h-[1.05em] w-[1.85em]",
+    NP: "h-[1.35em] w-[1.1em]",
+  },
 };
 
 export function CountryFlag({
   code,
   locale = "de",
   decorative = false,
+  size = "default",
   className,
 }: {
   code: string;
   locale?: string;
   decorative?: boolean;
+  size?: "default" | "row";
   className?: string;
 }) {
   if (!isCountryFlagCode(code)) return null;
   const label = countryFlagName(code, locale);
+  const box = FLAG_BOX[size][code];
+  if (code === "CH") {
+    return (
+      <svg
+        viewBox="0 0 32 32"
+        className={cn(box, "block shrink-0", className)}
+        role={decorative ? undefined : "img"}
+        aria-hidden={decorative || undefined}
+        aria-label={decorative ? undefined : label}
+      >
+        <path d="M0 0h32v32H0z" fill="#DA291C" />
+        <path d="M13 6h6v7h7v6h-7v7h-6v-7H6v-6h7z" fill="#fff" />
+      </svg>
+    );
+  }
   return (
     <img
       src={FLAG_SRC[code]}
       alt={decorative ? "" : label}
       aria-hidden={decorative || undefined}
       title={decorative ? undefined : label}
-      className={cn(
-        FLAG_BOX[code],
-        "inline-block shrink-0 object-contain object-center",
-        className
-      )}
+      className={cn(box, "block shrink-0 bg-transparent object-contain", className)}
     />
   );
 }

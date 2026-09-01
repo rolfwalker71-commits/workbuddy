@@ -23,7 +23,13 @@ export function PublicHolidayChips({
     >
       {countries.length > 0 ? (
         countries.map((code) => (
-          <CountryFlag key={code} code={code} locale={locale} decorative />
+          <CountryFlag
+            key={code}
+            code={code}
+            locale={locale}
+            size="row"
+            decorative
+          />
         ))
       ) : (
         <span className="inline-flex min-h-6 min-w-7 items-center justify-center rounded-full bg-violet-100 px-1.5 text-[0.7rem] font-bold leading-none text-violet-950 dark:bg-violet-500/25 dark:text-violet-50">
