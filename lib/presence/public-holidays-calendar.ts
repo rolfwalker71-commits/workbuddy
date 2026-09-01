@@ -1,6 +1,8 @@
 /**
  * Resource mailbox ww_public_holidays → Team + Home markers.
- * Same Graph path as Ferien / Technik: /users/{mailbox}/calendar/calendarView.
+ * Ferien/Technik events sit on the default calendar. This room keeps holidays
+ * on named calendars inside the same mailbox — so we read every calendar
+ * under that mailbox, not /me and not Shared.
  * Calendars.ReadWrite is enough. Never written to user_day_status.
  */
 
@@ -170,11 +172,12 @@ export function isHolidaySourceCalendar(
   return owner === normEmail(mailbox) || name.includes("ww_public");
 }
 
-async function listViaMailbox(
+async function calendarViewOn(
   readerUserId: number,
-  mailbox: string,
+  path: string,
   startYmd: string,
-  endYmd: string
+  endYmd: string,
+  calendarName?: string | null
 ): Promise<PublicHolidayEvent[]> {
   const { start } = dayWindowLocal(startYmd);
   const { end } = dayWindowLocal(endYmd);
@@ -187,10 +190,72 @@ async function listViaMailbox(
   });
   const data = await graphJson<{ value?: GraphHolidayEvent[] }>(
     readerUserId,
-    `/users/${encodeURIComponent(mailbox)}/calendar/calendarView?${qs}`,
+    `${path}?${qs}`,
     { headers: { Prefer: 'outlook.timezone="Europe/Zurich"' } }
   );
-  return (data.value || []).flatMap((ev) => mapPublicHolidayEvents(ev));
+  return (data.value || []).flatMap((ev) =>
+    mapPublicHolidayEvents(ev, calendarName)
+  );
+}
+
+async function listViaMailbox(
+  readerUserId: number,
+  mailbox: string,
+  startYmd: string,
+  endYmd: string
+): Promise<PublicHolidayEvent[]> {
+  const encoded = encodeURIComponent(mailbox);
+  let calendars: GraphCalendarOwner[] = [];
+  try {
+    const listed = await graphJson<{ value?: GraphCalendarOwner[] }>(
+      readerUserId,
+      `/users/${encoded}/calendars?$top=80&$select=id,name,owner`
+    );
+    calendars = (listed.value || []).filter((cal) => Boolean(cal.id));
+  } catch (error) {
+    const hint = error instanceof Error ? error.message : String(error);
+    console.warn("[holidays] room /calendars failed, default calendar only", mailbox, hint);
+    return calendarViewOn(
+      readerUserId,
+      `/users/${encoded}/calendar/calendarView`,
+      startYmd,
+      endYmd
+    );
+  }
+  if (calendars.length === 0) {
+    return calendarViewOn(
+      readerUserId,
+      `/users/${encoded}/calendar/calendarView`,
+      startYmd,
+      endYmd
+    );
+  }
+  const out: PublicHolidayEvent[] = [];
+  const trace: string[] = [];
+  for (const cal of calendars) {
+    try {
+      const events = await calendarViewOn(
+        readerUserId,
+        `/users/${encoded}/calendars/${encodeURIComponent(cal.id!)}/calendarView`,
+        startYmd,
+        endYmd,
+        cal.name
+      );
+      const samples = events
+        .map((ev) => ev.subject)
+        .filter(Boolean)
+        .slice(0, 4);
+      trace.push(
+        `${cal.name || cal.id}: ${events.length}${samples.length ? ` (${samples.join("; ")})` : ""}`
+      );
+      out.push(...events);
+    } catch (error) {
+      const hint = error instanceof Error ? error.message : String(error);
+      trace.push(`${cal.name || cal.id}: ${hint.slice(0, 160)}`);
+    }
+  }
+  console.warn("[holidays] room mailbox", mailbox, trace.join(" | "));
+  return out;
 }
 
 async function listViaOpenedMailboxCalendar(
