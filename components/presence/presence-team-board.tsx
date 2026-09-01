@@ -59,7 +59,6 @@ import {
   PUBLIC_HOLIDAYS_UI_ENABLED,
   publicHolidayDayOn,
   type PublicHolidayDay,
-  type PublicHolidayProbe,
 } from "@/lib/presence/public-holidays-shared";
 
 type OrgFilter = "" | UserOrganization;
@@ -118,12 +117,6 @@ export function PresenceTeamBoard() {
   } | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [holidayDays, setHolidayDays] = useState<PublicHolidayDay[]>([]);
-  const [holidayReason, setHolidayReason] = useState<
-    "no-reader" | "unreadable" | null
-  >(null);
-  const [holidayProbe, setHolidayProbe] = useState<PublicHolidayProbe | null>(
-    null
-  );
 
   const loadDay = useCallback(async (day: string, organization: OrgFilter) => {
     const json = await fetchPresenceToday({
@@ -187,8 +180,6 @@ export function PresenceTeamBoard() {
     void fetchPublicHolidays(from, to).then((next) => {
       if (cancelled) return;
       setHolidayDays(next.days);
-      setHolidayReason(next.reason);
-      setHolidayProbe(next.probe);
     });
     return () => {
       cancelled = true;
@@ -462,47 +453,6 @@ export function PresenceTeamBoard() {
       </div>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      {PUBLIC_HOLIDAYS_UI_ENABLED && holidayReason === "no-reader" ? (
-        <p className="text-sm text-muted-foreground">
-          {t("presence.holidayNoReader")}
-        </p>
-      ) : null}
-      {PUBLIC_HOLIDAYS_UI_ENABLED && holidayReason === "unreadable" ? (
-        <p className="text-sm text-muted-foreground">
-          {t("presence.holidayUnreadable")}
-        </p>
-      ) : null}
-      {PUBLIC_HOLIDAYS_UI_ENABLED &&
-      holidayDays.length === 0 &&
-      holidayProbe ? (
-        <div className="rounded-2xl bg-muted px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-          <p className="font-medium text-foreground">
-            {t("presence.holidayProbeTitle")}
-          </p>
-          <p>
-            {t("presence.holidayProbeMailbox", { mailbox: holidayProbe.mailbox })}
-          </p>
-          <p>
-            {t("presence.holidayProbeCalendars", {
-              names:
-                holidayProbe.calendars.join(" · ") ||
-                t("presence.holidayProbeNone"),
-            })}
-          </p>
-          <p>
-            {holidayProbe.samples.length > 0
-              ? t("presence.holidayProbeEvents", {
-                  samples: holidayProbe.samples.join(" · "),
-                })
-              : t("presence.holidayProbeEmpty")}
-          </p>
-          {holidayProbe.error ? (
-            <p>
-              {t("presence.holidayProbeError", { error: holidayProbe.error })}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
       {((view === "day" && !dayData) ||
         (view === "week" && Object.keys(weekByYmd).length === 0)) &&
       !error ? (

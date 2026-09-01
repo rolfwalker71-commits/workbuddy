@@ -72,6 +72,10 @@ test("displayPublicHolidayTitle strips country codes", () => {
   assert.equal(displayPublicHolidayTitle("Christmas CH / DE"), "Christmas");
   assert.equal(displayPublicHolidayTitle("CH - Weihnachten"), "Weihnachten");
   assert.equal(displayPublicHolidayTitle("Weihnachten"), "Weihnachten");
+  assert.equal(
+    displayPublicHolidayTitle("MX: Día de la Independencia"),
+    "Día de la Independencia"
+  );
 });
 
 test("isPublicHolidayCalendarHint matches shared mailbox names", () => {

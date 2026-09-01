@@ -4,7 +4,7 @@
  */
 
 import { getSetting, setSetting } from "@/lib/db/migrations";
-import { graphJson, MicrosoftGraphError } from "@/lib/microsoft/graph";
+import { graphJson } from "@/lib/microsoft/graph";
 import { addDaysYmd, dayWindowLocal } from "@/lib/microsoft/time";
 import { listOofSyncUserIds } from "@/lib/presence/oof-sync";
 import { getAppUserById } from "@/lib/users/queries";
@@ -15,7 +15,6 @@ import {
   parsePublicHolidayCountries,
   type PublicHolidayDay,
   type PublicHolidayEvent,
-  type PublicHolidayProbe,
 } from "@/lib/presence/public-holidays-shared";
 
 export const COMPANY_PUBLIC_HOLIDAYS_MAILBOX = "ww_public_holidays@an-group.one";
@@ -151,9 +150,7 @@ export function mapPublicHolidayEvents(
   }));
 }
 
-const EVENT_SELECT = "id,subject,start,end,isAllDay,categories,location";
-/** Shared / LimitedDetails calendars reject categories and often $orderby. */
-const EVENT_SELECT_LIMITED = "id,subject,start,end,isAllDay,location";
+const EVENT_SELECT = "id,subject,start,end,isAllDay,location";
 
 type GraphCalendarOwner = {
   id?: string;
@@ -169,47 +166,22 @@ export function isHolidaySourceCalendar(
   return owner === normEmail(mailbox) || isPublicHolidayCalendarHint(cal.name);
 }
 
-/** Prefer «Public Holiday» by name. Do not pick the empty default just because the owner matches. */
-export function holidayCalendarsToRead(
-  listed: readonly GraphCalendarOwner[],
-  mailbox: string
-): GraphCalendarOwner[] {
-  const named = listed.filter(
-    (cal) => cal.id && isPublicHolidayCalendarHint(cal.name)
-  );
-  if (named.length > 0) return named;
-  return listed.filter(
-    (cal) => cal.id && normEmail(cal.owner?.address) === normEmail(mailbox)
-  );
-}
-
-function dedupeHolidayEvents(events: PublicHolidayEvent[]): PublicHolidayEvent[] {
-  const seen = new Set<string>();
-  return events.filter((event) => {
-    if (seen.has(event.id)) return false;
-    seen.add(event.id);
-    return true;
-  });
-}
-
-async function calendarViewWithSelect(
+async function calendarViewOn(
   readerUserId: number,
   path: string,
   startYmd: string,
   endYmd: string,
-  select: string,
-  calendarName: string | null | undefined,
-  orderBy: boolean
+  calendarName?: string | null
 ): Promise<PublicHolidayEvent[]> {
   const { start } = dayWindowLocal(startYmd);
   const { end } = dayWindowLocal(endYmd);
   const qs = new URLSearchParams({
     startDateTime: start,
     endDateTime: end,
-    $select: select,
+    $select: EVENT_SELECT,
+    $orderby: "start/dateTime",
     $top: "250",
   });
-  if (orderBy) qs.set("$orderby", "start/dateTime");
   const data = await graphJson<{ value?: GraphHolidayEvent[] }>(
     readerUserId,
     `${path}?${qs}`,
@@ -220,124 +192,42 @@ async function calendarViewWithSelect(
   );
 }
 
-async function calendarViewOn(
+async function listViaMailbox(
   readerUserId: number,
-  path: string,
-  startYmd: string,
-  endYmd: string,
-  calendarName?: string | null
-): Promise<PublicHolidayEvent[]> {
-  try {
-    return await calendarViewWithSelect(
-      readerUserId,
-      path,
-      startYmd,
-      endYmd,
-      EVENT_SELECT,
-      calendarName,
-      true
-    );
-  } catch (error) {
-    if (!(error instanceof MicrosoftGraphError)) throw error;
-    if (error.status !== 400 && error.status !== 403) throw error;
-    return calendarViewWithSelect(
-      readerUserId,
-      path,
-      startYmd,
-      endYmd,
-      EVENT_SELECT_LIMITED,
-      calendarName,
-      false
-    );
-  }
-}
-
-async function listCalendars(
-  readerUserId: number,
-  path: string
-): Promise<GraphCalendarOwner[]> {
-  try {
-    const data = await graphJson<{ value?: GraphCalendarOwner[] }>(
-      readerUserId,
-      path
-    );
-    return data.value || [];
-  } catch {
-    return [];
-  }
-}
-
-async function listCalendarsWithGroups(
-  readerUserId: number,
-  root: "/me" | `/users/${string}`
-): Promise<GraphCalendarOwner[]> {
-  const byId = new Map<string, GraphCalendarOwner>();
-  const add = (rows: GraphCalendarOwner[]) => {
-    for (const cal of rows) {
-      if (cal.id && !byId.has(cal.id)) byId.set(cal.id, cal);
-    }
-  };
-  add(await listCalendars(readerUserId, `${root}/calendars?$top=100&$select=id,name,owner`));
-  const groups = await listCalendars(
-    readerUserId,
-    `${root}/calendarGroups?$top=40&$select=id,name`
-  );
-  const nested = await Promise.all(
-    groups
-      .filter((group) => group.id)
-      .map((group) =>
-        listCalendars(
-          readerUserId,
-          `${root}/calendarGroups/${encodeURIComponent(group.id!)}/calendars?$top=80&$select=id,name,owner`
-        )
-      )
-  );
-  add(nested.flat());
-  return [...byId.values()];
-}
-
-async function readHolidayCalendars(
-  readerUserId: number,
-  calendars: GraphCalendarOwner[],
-  viewRoot: "/me" | `/users/${string}`,
+  mailbox: string,
   startYmd: string,
   endYmd: string
 ): Promise<PublicHolidayEvent[]> {
-  const chunks = await Promise.all(
-    calendars.map(async (cal) => {
-      try {
-        return await calendarViewOn(
-          readerUserId,
-          `${viewRoot}/calendars/${encodeURIComponent(cal.id!)}/calendarView`,
-          startYmd,
-          endYmd,
-          cal.name
-        );
-      } catch {
-        return [];
-      }
-    })
+  return calendarViewOn(
+    readerUserId,
+    `/users/${encodeURIComponent(mailbox)}/calendar/calendarView`,
+    startYmd,
+    endYmd
   );
-  return chunks.flat();
 }
 
-function calendarNamesOf(rows: GraphCalendarOwner[]): string[] {
-  const names: string[] = [];
-  for (const cal of rows) {
-    const name = (cal.name || "").trim();
-    if (name && !names.includes(name)) names.push(name);
-  }
-  return names;
-}
-
-function eventSamples(events: PublicHolidayEvent[]): string[] {
-  const out: string[] = [];
-  for (const event of events) {
-    const line = `${event.date} ${event.subject}`.trim();
-    if (line && !out.includes(line)) out.push(line);
-    if (out.length >= 12) break;
-  }
-  return out;
+async function listViaSharedCalendar(
+  readerUserId: number,
+  mailbox: string,
+  startYmd: string,
+  endYmd: string
+): Promise<PublicHolidayEvent[]> {
+  const listed = await graphJson<{ value?: GraphCalendarOwner[] }>(
+    readerUserId,
+    "/me/calendars?$top=100&$select=id,name,owner"
+  );
+  const rows = listed.value || [];
+  const found =
+    rows.find((cal) => cal.id && isPublicHolidayCalendarHint(cal.name)) ||
+    rows.find((cal) => cal.id && isHolidaySourceCalendar(cal, mailbox));
+  if (!found?.id) throw new Error("Public holidays calendar not in mailbox list.");
+  return calendarViewOn(
+    readerUserId,
+    `/me/calendars/${encodeURIComponent(found.id)}/calendarView`,
+    startYmd,
+    endYmd,
+    found.name
+  );
 }
 
 async function listForReader(
@@ -345,60 +235,19 @@ async function listForReader(
   mailbox: string,
   startYmd: string,
   endYmd: string
-): Promise<{ events: PublicHolidayEvent[]; calendars: string[] }> {
-  const encoded = encodeURIComponent(mailbox);
-  const mailboxRoot: `/users/${string}` = `/users/${encoded}`;
-  const collected: PublicHolidayEvent[] = [];
-  const names: string[] = [];
+): Promise<PublicHolidayEvent[]> {
   try {
-    collected.push(
-      ...(await calendarViewOn(
-        readerUserId,
-        `${mailboxRoot}/calendar/calendarView`,
-        startYmd,
-        endYmd
-      ))
-    );
-  } catch {
-    /* named Public Holiday below */
-  }
-
-  const mailboxListed = await listCalendarsWithGroups(readerUserId, mailboxRoot);
-  names.push(...calendarNamesOf(mailboxListed));
-  collected.push(
-    ...(await readHolidayCalendars(
+    const fromMailbox = await listViaMailbox(
       readerUserId,
-      holidayCalendarsToRead(mailboxListed, mailbox),
-      mailboxRoot,
+      mailbox,
       startYmd,
       endYmd
-    ))
-  );
-
-  const mineListed = await listCalendarsWithGroups(readerUserId, "/me");
-  names.push(...calendarNamesOf(mineListed));
-  const mine = holidayCalendarsToRead(mineListed, mailbox);
-  if (collected.length === 0 && mine.length === 0) {
-    throw new Error(
-      `Public Holiday nicht in der Kalenderliste (${names.join(", ") || "leer"}).`
     );
+    if (fromMailbox.length > 0) return fromMailbox;
+  } catch {
+    /* room mailbox via the reader's Andere Kalender, like Ferien/Technik */
   }
-  if (collected.length === 0 && mine.length > 0) {
-    collected.push(
-      ...(await readHolidayCalendars(
-        readerUserId,
-        mine,
-        "/me",
-        startYmd,
-        endYmd
-      ))
-    );
-  }
-
-  return {
-    events: dedupeHolidayEvents(collected),
-    calendars: [...new Set(names)],
-  };
+  return listViaSharedCalendar(readerUserId, mailbox, startYmd, endYmd);
 }
 
 export async function listPublicHolidayDays(input: {
@@ -408,21 +257,13 @@ export async function listPublicHolidayDays(input: {
   days: PublicHolidayDay[];
   mailbox: string;
   reason?: "no-reader" | "unreadable";
-  probe: PublicHolidayProbe;
 }> {
-  const emptyProbe = (error: string | null): PublicHolidayProbe => ({
-    mailbox: readPublicHolidaysCalendarConfig().mailbox,
-    calendars: [],
-    samples: [],
-    error,
-  });
   const parsed = parseCalendarDateRange(input.from, input.to);
   if (!parsed.ok) {
     return {
       days: [],
       mailbox: readPublicHolidaysCalendarConfig().mailbox,
       reason: "unreadable",
-      probe: emptyProbe(parsed.error),
     };
   }
   const config = readPublicHolidaysCalendarConfig();
@@ -430,56 +271,28 @@ export async function listPublicHolidayDays(input: {
     (id, i, all): id is number => id != null && all.indexOf(id) === i
   );
   if (readers.length === 0) {
-    return {
-      days: [],
-      mailbox: config.mailbox,
-      reason: "no-reader",
-      probe: {
-        mailbox: config.mailbox,
-        calendars: [],
-        samples: [],
-        error: "no-reader",
-      },
-    };
+    return { days: [], mailbox: config.mailbox, reason: "no-reader" };
   }
   let lastError = "unreadable";
-  let lastCalendars: string[] = [];
   for (const readerUserId of readers) {
     try {
-      const { events, calendars } = await listForReader(
+      const events = await listForReader(
         readerUserId,
         config.mailbox,
         parsed.range.from,
         parsed.range.to
       );
-      lastCalendars = calendars;
       if (config.readerUserId !== readerUserId) {
         writePublicHolidaysCalendarConfig({ readerUserId });
       }
       return {
         days: groupPublicHolidaysByDay(events),
         mailbox: config.mailbox,
-        probe: {
-          mailbox: config.mailbox,
-          calendars,
-          samples: eventSamples(events),
-          error: events.length === 0 ? "calendarView leer" : null,
-        },
       };
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error);
     }
   }
   console.warn("[holidays] public holidays calendar", config.mailbox, lastError);
-  return {
-    days: [],
-    mailbox: config.mailbox,
-    reason: "unreadable",
-    probe: {
-      mailbox: config.mailbox,
-      calendars: lastCalendars,
-      samples: [],
-      error: lastError,
-    },
-  };
+  return { days: [], mailbox: config.mailbox, reason: "unreadable" };
 }

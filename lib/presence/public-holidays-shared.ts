@@ -1,7 +1,7 @@
 /** Client-safe public-holiday markers (no Node / Graph). */
 
-/** Off until the Graph reader works. Flip to show Team/Home/Settings again. */
-export const PUBLIC_HOLIDAYS_UI_ENABLED = false;
+/** Team row, Home lookahead, admin settings. */
+export const PUBLIC_HOLIDAYS_UI_ENABLED = true;
 
 export const PUBLIC_HOLIDAY_COUNTRIES = ["CH", "AT", "DE", "MX", "NP"] as const;
 
@@ -97,7 +97,7 @@ export function displayPublicHolidayTitle(subject: string): string {
   for (const code of PUBLIC_HOLIDAY_COUNTRIES) {
     text = text.replace(new RegExp(`(^|[^A-Za-z])${code}(?=[^A-Za-z]|$)`, "g"), "$1");
   }
-  text = text.replace(/[\s,/|;·–—-]+/g, " ").trim();
+  text = text.replace(/[\s,/|;:·–—-]+/g, " ").trim();
   return text || raw;
 }
 

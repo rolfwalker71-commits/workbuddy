@@ -32,7 +32,6 @@ export async function GET(request: Request) {
       mailbox: result.mailbox,
       days: result.days,
       reason: result.reason ?? null,
-      probe: result.probe,
     });
   } catch (error) {
     return NextResponse.json(
