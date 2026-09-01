@@ -25,7 +25,6 @@ export const MICROSOFT_OAUTH_SCOPES = [
   "Mail.ReadWrite",
   "Mail.Send",
   "Calendars.ReadWrite",
-  "Calendars.Read.Shared",
   "Tasks.ReadWrite",
   "Chat.Read",
   "Chat.Create",
@@ -173,13 +172,7 @@ export function hasMicrosoftMailSendScope(userId: number | null): boolean {
 }
 
 export function hasMicrosoftCalendarScope(userId: number | null): boolean {
-  return scopeHas(
-    scopeSet(userId),
-    "Calendars.ReadWrite",
-    "Calendars.Read",
-    "Calendars.Read.Shared",
-    "Calendars.ReadWrite.Shared"
-  );
+  return scopeHas(scopeSet(userId), "Calendars.ReadWrite", "Calendars.Read");
 }
 
 export function hasMicrosoftTasksScope(userId: number | null): boolean {

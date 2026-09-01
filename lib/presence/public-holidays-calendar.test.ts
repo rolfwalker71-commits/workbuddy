@@ -34,17 +34,24 @@ test("mapPublicHolidayEvents expands all-day spans and reads countries", () => {
   assert.deepEqual(rows[0]?.countries, ["CH", "DE", "MX"]);
 });
 
-test("isHolidaySourceCalendar matches room mailbox owner or Public Holiday name", () => {
+test("isHolidaySourceCalendar matches room mailbox, not Outlook Public Holiday", () => {
   assert.equal(
     isHolidaySourceCalendar(
       { name: "Public Holiday", owner: { address: "rolf@an-group.one" } },
+      COMPANY_PUBLIC_HOLIDAYS_MAILBOX
+    ),
+    false
+  );
+  assert.equal(
+    isHolidaySourceCalendar(
+      { name: "Kalender", owner: { address: COMPANY_PUBLIC_HOLIDAYS_MAILBOX } },
       COMPANY_PUBLIC_HOLIDAYS_MAILBOX
     ),
     true
   );
   assert.equal(
     isHolidaySourceCalendar(
-      { name: "Kalender", owner: { address: COMPANY_PUBLIC_HOLIDAYS_MAILBOX } },
+      { name: "ww_public_holidays", owner: { address: "rolf@an-group.one" } },
       COMPANY_PUBLIC_HOLIDAYS_MAILBOX
     ),
     true
