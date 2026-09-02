@@ -1835,6 +1835,8 @@ export const de = {
     title: "Zeiterfassung",
     bookOnTicket: "Auf Ticket buchen",
     noContract: "Kein Vertrag",
+    contractLoading: "Vertrag wird geladen…",
+    resolveContractAria: "Vertrag und Position nachladen",
     contract: "Vertrag",
     contractPosition: "Vertragsposition",
     releasedLocked: "Freigegeben — nicht löschbar",

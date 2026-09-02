@@ -9,6 +9,9 @@ import {
   formatMariContractListLine,
   formatMariContractListLines,
   formatPeriodLabel,
+  mergeMariTimeLineContractFields,
+  timeLineMayHaveUnresolvedContract,
+  timeLineNeedsContractLabels,
   mergeMariKeyPairs,
   projectNumbersNeedingLabel,
   timeLineToBookPrefill,
@@ -189,6 +192,66 @@ test("formatMariContractListLine shows Kein Vertrag only when no contract was bo
     formatMariContractListLine({ contractId: null, contractNumber: null }),
     "Kein Vertrag"
   );
+});
+
+test("timeLineNeedsContractLabels is true when id exists without a name", () => {
+  assert.equal(
+    timeLineNeedsContractLabels({
+      contractId: 88421,
+      contractNumber: null,
+      contractName: null,
+    }),
+    true
+  );
+  assert.equal(
+    timeLineNeedsContractLabels({
+      contractId: 88421,
+      contractNumber: "V60011100",
+      contractName: "Wartung 2026",
+    }),
+    false
+  );
+  assert.equal(
+    timeLineNeedsContractLabels({
+      contractId: 88421,
+      contractNumber: "V60011100",
+      contractName: "Wartung 2026",
+      contractPositionId: 3,
+    }),
+    true
+  );
+  assert.equal(timeLineMayHaveUnresolvedContract({ contractId: 0 }), true);
+  assert.equal(
+    timeLineMayHaveUnresolvedContract({
+      contractId: 0,
+      contractNumber: "V60011100",
+    }),
+    false
+  );
+});
+
+test("mergeMariTimeLineContractFields keeps existing hours and fills names", () => {
+  const merged = mergeMariTimeLineContractFields(
+    {
+      hours: 2,
+      contractId: 0,
+      contractNumber: null,
+      contractName: null,
+      contractPositionId: 0,
+    },
+    {
+      contractId: 88421,
+      contractNumber: "V60011100",
+      contractName: "Wartung 2026",
+      contractPositionId: 3,
+      contractPositionNumber: "10",
+      contractPositionName: "Wochenendzuschlag",
+    }
+  );
+  assert.equal(merged.hours, 2);
+  assert.equal(merged.contractId, 88421);
+  assert.equal(merged.contractName, "Wartung 2026");
+  assert.equal(merged.contractPositionName, "Wochenendzuschlag");
 });
 
 test("timeLineToBookPrefill keeps Vertrag number from list line", () => {

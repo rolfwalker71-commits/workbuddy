@@ -3,7 +3,10 @@
 import { useState } from "react";
 import { ChevronRight, Copy, Pencil, Trash2 } from "lucide-react";
 import {
+  formatMariContractLabel,
   formatMariContractListLines,
+  timeLineMayHaveUnresolvedContract,
+  timeLineNeedsContractLabels,
   type MariApprovalStatus,
   type MariTimeLine,
 } from "@/lib/mari/timekeeping-shared";
@@ -86,16 +89,30 @@ function ProjectWithCustomer({
   );
 }
 
-function ProjectAndContract({ line }: { line: MariTimeLine }) {
+function ProjectAndContract({
+  line,
+  labelsPending = false,
+}: {
+  line: MariTimeLine;
+  labelsPending?: boolean;
+}) {
   const t = useT();
   const contractLines = formatMariContractListLines(line);
+  const waiting =
+    labelsPending &&
+    (timeLineNeedsContractLabels(line) ||
+      timeLineMayHaveUnresolvedContract(line)) &&
+    !formatMariContractLabel(line.contractNumber, line.contractName);
+  const display = waiting
+    ? [t("timekeeping.contractLoading")]
+    : contractLines;
   return (
     <span className="inline-flex min-w-0 max-w-full flex-col gap-0.5 leading-snug">
       <ProjectWithCustomer
         projectNumber={line.projectNumber}
         projectCustomer={line.projectCustomer}
       />
-      {contractLines.map((text, i) => (
+      {display.map((text, i) => (
         <span
           key={`${i}-${text}`}
           className="break-words text-[0.625rem] font-normal text-muted-foreground"
@@ -109,6 +126,38 @@ function ProjectAndContract({ line }: { line: MariTimeLine }) {
         </span>
       ))}
     </span>
+  );
+}
+
+function ContractCell({
+  line,
+  labelsPending,
+  onResolveLine,
+}: {
+  line: MariTimeLine;
+  labelsPending: boolean;
+  onResolveLine?: (line: MariTimeLine) => void;
+}) {
+  const t = useT();
+  const canResolve =
+    Boolean(onResolveLine) &&
+    line.lineId > 0 &&
+    (timeLineNeedsContractLabels(line) ||
+      (labelsPending && timeLineMayHaveUnresolvedContract(line)));
+  const body = (
+    <ProjectAndContract line={line} labelsPending={labelsPending} />
+  );
+  if (!canResolve || !onResolveLine) return body;
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      className="h-auto min-h-0 w-full justify-start rounded-md p-0 text-left font-normal hover:bg-transparent"
+      onClick={() => onResolveLine(line)}
+      aria-label={`${line.projectCustomer || line.projectNumber} — ${t("timekeeping.resolveContractAria")}`}
+    >
+      {body}
+    </Button>
   );
 }
 
@@ -267,6 +316,8 @@ export function MaringoTimeLinesTable({
   onEdit,
   onDuplicate,
   onDelete,
+  onResolveLine,
+  labelsPending = false,
   busyLineId,
   /** stack = mehrzeilige Karten ohne Horizontal-Scroll (Flyout). */
   variant = "stack",
@@ -282,6 +333,8 @@ export function MaringoTimeLinesTable({
   onEdit?: (line: MariTimeLine) => void;
   onDuplicate?: (line: MariTimeLine) => void;
   onDelete?: (line: MariTimeLine) => void | Promise<void>;
+  onResolveLine?: (line: MariTimeLine) => void;
+  labelsPending?: boolean;
   busyLineId?: number | null;
   variant?: "stack" | "table";
   summaryVariant?: "text" | "chart" | "none";
@@ -346,7 +399,11 @@ export function MaringoTimeLinesTable({
                       <span className="font-semibold">
                         <ServiceDateLabel serviceDate={l.serviceDate} />
                       </span>
-                      <ProjectAndContract line={l} />
+                      <ContractCell
+                        line={l}
+                        labelsPending={labelsPending}
+                        onResolveLine={onResolveLine}
+                      />
                       <span className="ml-auto font-semibold tabular-nums text-foreground">
                         {formatHours(l.hours)} h
                       </span>
@@ -451,7 +508,11 @@ export function MaringoTimeLinesTable({
                     />
                   </td>
                   <td className="px-2 py-1.5 align-middle">
-                    <ProjectAndContract line={l} />
+                    <ContractCell
+                      line={l}
+                      labelsPending={labelsPending}
+                      onResolveLine={onResolveLine}
+                    />
                   </td>
                   <td className="max-w-[20rem] px-2 py-1.5">
                     <p className="font-medium leading-snug">{l.activity || "–"}</p>

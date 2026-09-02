@@ -1825,6 +1825,8 @@ export const en = {
     title: "Timekeeping",
     bookOnTicket: "Book on ticket",
     noContract: "No contract",
+    contractLoading: "Loading contract…",
+    resolveContractAria: "Load contract and position",
     contract: "Contract",
     contractPosition: "Contract position",
     releasedLocked: "Released — cannot delete",

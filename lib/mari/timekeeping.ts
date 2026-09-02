@@ -13,6 +13,7 @@ import {
   applyMariContractFields,
   findMariKeyPair,
   firstPositiveInt,
+  timeLineMayHaveUnresolvedContract,
   formatPeriodLabel,
   mapApprovalMode,
   mergeMariKeyPairs,
@@ -25,7 +26,6 @@ import {
   type MariTimeLine,
   type MariTimePeriod,
 } from "@/lib/mari/timekeeping-shared";
-import { getMariOvertimeHoursForDay } from "@/lib/mari/timekeeping-overtime";
 import {
   listMariCompanies,
   lookupMariCompanyForProject,
@@ -331,6 +331,7 @@ async function enrichTimeLinesProjectCustomer(
   const fromSql = await lookupProjectLabelsByNumbers(missing);
   const next = applyProjectLabels(lines, fromSql);
   if (projectNumbersNeedingLabel(next).length === 0) return next;
+  if (_depth === "list") return next;
   return applyProjectLabels(next, await labelsFromProjectBookingList());
 }
 
@@ -514,17 +515,149 @@ async function enrichTimeLines(
       ? await enrichTimeLinesFromRest(lines)
       : await enrichContractFieldsFromSql(lines);
   next = await enrichTimeLinesProjectCustomer(next, depth);
+  if (depth === "list") return next;
   next = await enrichTimeLinesContracts(next);
   next = await enrichTimeLinesPositions(next);
-  if (depth === "list") {
-    const missingIds = next.some(
-      (l) => l.lineId > 0 && l.contractId <= 0 && !l.contractNumber
-    );
-    if (missingIds) {
-      next = await enrichTimeLinesFromRest(next);
-      next = await enrichTimeLinesContracts(next);
-      next = await enrichTimeLinesPositions(next);
+  return next;
+}
+
+const CONTRACT_NAME_SQL = [
+  `SELECT c."AbsID" AS "ContractID",
+  COALESCE(c."Number", c."Contract", c."ContractNumber") AS "ContractNumber",
+  COALESCE(c."Descript", c."ContractName", c."Name") AS "ContractName"
+FROM "OOAT" c
+WHERE c."AbsID" IN ({{IN}})`,
+  `SELECT c."ContractID" AS "ContractID",
+  COALESCE(c."Contract", c."ContractNumber") AS "ContractNumber",
+  COALESCE(c."ContractName", c."Name", c."Matchcode") AS "ContractName"
+FROM "MARIProjectContract" c
+WHERE c."ContractID" IN ({{IN}})`,
+  `SELECT c."AbsID" AS "ContractID",
+  COALESCE(c."Contract", c."Number") AS "ContractNumber",
+  COALESCE(c."ContractName", c."Descript") AS "ContractName"
+FROM "MARIProjectContracts" c
+WHERE c."AbsID" IN ({{IN}})`,
+];
+
+let contractNameSql: string | null | undefined;
+
+async function enrichContractNamesFromSql(
+  lines: MariTimeLine[]
+): Promise<MariTimeLine[]> {
+  const ids = [
+    ...new Set(
+      lines
+        .filter(
+          (l) =>
+            l.contractId > 0 && (!l.contractNumber || !l.contractName)
+        )
+        .map((l) => l.contractId)
+    ),
+  ];
+  if (ids.length === 0) return lines;
+  const queries =
+    contractNameSql != null && contractNameSql !== ""
+      ? [contractNameSql]
+      : contractNameSql === ""
+        ? []
+        : CONTRACT_NAME_SQL;
+  const inList = ids.join(",");
+  for (const tmpl of queries) {
+    try {
+      const rows = await mariSql<Record<string, unknown>>(
+        tmpl.replace("{{IN}}", inList)
+      );
+      const byId = new Map<number, Record<string, unknown>>();
+      for (const row of rows) {
+        const id = Number(row.ContractID) || 0;
+        if (id > 0) byId.set(id, row);
+      }
+      if (byId.size === 0) continue;
+      contractNameSql = tmpl;
+      return lines.map((l) => {
+        const row = byId.get(l.contractId);
+        return row ? { ...l, ...applyMariContractFields(l, row) } : l;
+      });
+    } catch {
+      /* nächste Variante */
     }
+  }
+  if (contractNameSql === undefined) contractNameSql = "";
+  return lines;
+}
+
+export const TimeLineLabelInputSchema = z.object({
+  lineId: z.number().int().positive(),
+  projectNumber: z.string().trim().max(40).optional().default(""),
+  contractId: z.number().int().nonnegative().optional().default(0),
+  contractNumber: z.string().nullable().optional(),
+  contractName: z.string().nullable().optional(),
+  contractPositionId: z.number().int().nonnegative().optional().default(0),
+  contractPositionNumber: z.string().nullable().optional(),
+  contractPositionName: z.string().nullable().optional(),
+});
+
+export const EnrichTimeLineLabelsSchema = z.object({
+  lines: z.array(TimeLineLabelInputSchema).max(2000),
+});
+
+function stubLineForLabels(
+  input: z.infer<typeof TimeLineLabelInputSchema>
+): MariTimeLine {
+  return {
+    lineId: input.lineId,
+    serviceDate: "",
+    employeeNumber: "",
+    employeeName: null,
+    projectNumber: input.projectNumber || "",
+    projectCustomer: null,
+    phaseId: 0,
+    activity: "",
+    memo: null,
+    internalRemarkVerr: null,
+    zeroHoursReason: null,
+    hours: 0,
+    hoursBillable: 0,
+    billable: false,
+    contractId: input.contractId,
+    contractNumber: input.contractNumber ?? null,
+    contractName: input.contractName ?? null,
+    contractPositionId: input.contractPositionId,
+    contractPositionNumber: input.contractPositionNumber ?? null,
+    contractPositionName: input.contractPositionName ?? null,
+    sourceType: 0,
+    sourceReference: 0,
+    timeStart: null,
+    timeEnd: null,
+    createDate: null,
+    approvalMode: 0,
+    approvalStatus: "unknown",
+    approved: false,
+  };
+}
+
+/**
+ * Vertrag/Position für bereits geladene Listenzeilen — nach dem ersten Paint.
+ * SQL zuerst, dann gecachte REST-Listen; Einzel-GET nur wenn die ID fehlt.
+ */
+export async function enrichTimeLineContractLabels(
+  inputs: z.infer<typeof TimeLineLabelInputSchema>[]
+): Promise<MariTimeLine[]> {
+  if (inputs.length === 0) return [];
+  let next = inputs.map(stubLineForLabels);
+  next = await enrichContractFieldsFromSql(next);
+  next = await enrichContractNamesFromSql(next);
+  next = await enrichTimeLinesContracts(next);
+  next = await enrichTimeLinesPositions(next);
+  const unresolved = next.filter(
+    (l) => l.lineId > 0 && timeLineMayHaveUnresolvedContract(l)
+  );
+  if (unresolved.length > 0) {
+    const fromRest = await enrichTimeLinesFromRest(unresolved);
+    const byId = new Map(fromRest.map((l) => [l.lineId, l]));
+    next = next.map((l) => byId.get(l.lineId) ?? l);
+    next = await enrichTimeLinesContracts(next);
+    next = await enrichTimeLinesPositions(next);
   }
   return next;
 }
@@ -603,6 +736,36 @@ const projectListCache = new Map<
   string,
   { at: number; rows: MariKeyPair[] }
 >();
+const KEYPAIR_LIST_TTL_MS = 120_000;
+type KeyPairCacheEntry = { at: number; rows: MariKeyPair[] };
+const contractByProjectCache = new Map<string, KeyPairCacheEntry>();
+const contractByProjectInflight = new Map<string, Promise<MariKeyPair[]>>();
+const positionsByContractCache = new Map<string, KeyPairCacheEntry>();
+const positionsByContractInflight = new Map<string, Promise<MariKeyPair[]>>();
+
+function cachedKeyPairList(
+  cache: Map<string, KeyPairCacheEntry>,
+  inflight: Map<string, Promise<MariKeyPair[]>>,
+  key: string,
+  load: () => Promise<MariKeyPair[]>
+): Promise<MariKeyPair[]> {
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < KEYPAIR_LIST_TTL_MS) {
+    return Promise.resolve(hit.rows);
+  }
+  const pending = inflight.get(key);
+  if (pending) return pending;
+  const next = load()
+    .then((rows) => {
+      cache.set(key, { at: Date.now(), rows });
+      return rows;
+    })
+    .finally(() => {
+      inflight.delete(key);
+    });
+  inflight.set(key, next);
+  return next;
+}
 
 const PROJECT_MASTER_SQL = [
   `SELECT TOP 800 p."ProjectNumber" AS "sKeyVisible",
@@ -759,27 +922,35 @@ export async function listContractsForProject(
   requireMariConfig();
   const pn = projectNumber.trim();
   if (!pn) throw new MariApiError("Projektnummer fehlt.", 400);
-  const encoded = encodeURIComponent(pn);
-  const flag = activeOnly ? "true" : "false";
-  const raw = await mariJson<RawKeyPair[]>(
-    `/api/ProjectListContracts/${encoded}/${flag}`
+  const cacheKey = `${pn}\0${activeOnly ? 1 : 0}\0${company ?? ""}`;
+  return cachedKeyPairList(
+    contractByProjectCache,
+    contractByProjectInflight,
+    cacheKey,
+    async () => {
+      const encoded = encodeURIComponent(pn);
+      const flag = activeOnly ? "true" : "false";
+      const raw = await mariJson<RawKeyPair[]>(
+        `/api/ProjectListContracts/${encoded}/${flag}`
+      );
+      const defaultList = (Array.isArray(raw) ? raw : [])
+        .map(mapKeyPair)
+        .filter((x): x is MariKeyPair => x != null && Boolean(x.keyInternal));
+      const companies =
+        company != null && company > 0
+          ? [{ id: company }]
+          : await listMariCompanies().catch(() => []);
+      const extras = await Promise.all(
+        companies.map((c) =>
+          tryMariKeyPairList(
+            `/api/ProjectListContracts/${encoded}/${flag}/${c.id}`,
+            true
+          )
+        )
+      );
+      return mergeMariKeyPairs([defaultList, ...extras]);
+    }
   );
-  const defaultList = (Array.isArray(raw) ? raw : [])
-    .map(mapKeyPair)
-    .filter((x): x is MariKeyPair => x != null && Boolean(x.keyInternal));
-  const companies =
-    company != null && company > 0
-      ? [{ id: company }]
-      : await listMariCompanies().catch(() => []);
-  const extras = await Promise.all(
-    companies.map((c) =>
-      tryMariKeyPairList(
-        `/api/ProjectListContracts/${encoded}/${flag}/${c.id}`,
-        true
-      )
-    )
-  );
-  return mergeMariKeyPairs([defaultList, ...extras]);
 }
 
 export async function listContractPositionsForTimeKeeping(
@@ -790,25 +961,33 @@ export async function listContractPositionsForTimeKeeping(
   if (!Number.isInteger(contractId) || contractId <= 0) {
     throw new MariApiError("Vertrags-ID ungültig.", 400);
   }
-  const raw = await mariJson<RawKeyPair[]>(
-    `/api/ContractListPositionsForTimeKeeping/${contractId}`
+  const cacheKey = `${contractId}\0${company ?? ""}`;
+  return cachedKeyPairList(
+    positionsByContractCache,
+    positionsByContractInflight,
+    cacheKey,
+    async () => {
+      const raw = await mariJson<RawKeyPair[]>(
+        `/api/ContractListPositionsForTimeKeeping/${contractId}`
+      );
+      const defaultList = (Array.isArray(raw) ? raw : [])
+        .map(mapKeyPair)
+        .filter((x): x is MariKeyPair => x != null && Boolean(x.keyInternal));
+      const companies =
+        company != null && company > 0
+          ? [{ id: company }]
+          : await listMariCompanies().catch(() => []);
+      const extras = await Promise.all(
+        companies.map((c) =>
+          tryMariKeyPairList(
+            `/api/ContractListPositionsForTimeKeeping/${contractId}/${c.id}`,
+            true
+          )
+        )
+      );
+      return mergeMariKeyPairs([defaultList, ...extras]);
+    }
   );
-  const defaultList = (Array.isArray(raw) ? raw : [])
-    .map(mapKeyPair)
-    .filter((x): x is MariKeyPair => x != null && Boolean(x.keyInternal));
-  const companies =
-    company != null && company > 0
-      ? [{ id: company }]
-      : await listMariCompanies().catch(() => []);
-  const extras = await Promise.all(
-    companies.map((c) =>
-      tryMariKeyPairList(
-        `/api/ContractListPositionsForTimeKeeping/${contractId}/${c.id}`,
-        true
-      )
-    )
-  );
-  return mergeMariKeyPairs([defaultList, ...extras]);
 }
 
 export async function listTimeLinesForDay(input: {
@@ -826,10 +1005,9 @@ export async function listTimeLinesForDay(input: {
   const { fromDate, toDate, toExclusive } = resolveTimePeriodRange(ymd, period);
   const empQ = emp.replace(/'/g, "''");
   const top = period === "day" ? 200 : 2000;
-  const [rows, overtimeHours] = await Promise.all([
-    mariSqlTimeLines(
-      top,
-      `FROM "MARIProjectTimeKeepingLines" t
+  const rows = await mariSqlTimeLines(
+    top,
+    `FROM "MARIProjectTimeKeepingLines" t
 LEFT JOIN "MARIEmployeeMaster" e
   ON e."EmployeeNumber" = t."EmployeeNumber"
 LEFT JOIN "MARISupportIssue" i
@@ -839,11 +1017,7 @@ WHERE t."EmployeeNumber" = '${empQ}'
   AND t."ServiceDate" >= '${fromDate}'
   AND t."ServiceDate" < '${toExclusive}'
 ORDER BY t."ServiceDate", t."TimeSheetEntryID"`
-    ),
-    getMariOvertimeHoursForDay({ employeeNumber: emp, dateYmd: ymd }).catch(
-      () => null
-    ),
-  ]);
+  );
   const lines = rows
     .map(mapSqlLine)
     .filter(
@@ -852,16 +1026,13 @@ ORDER BY t."ServiceDate", t."TimeSheetEntryID"`
         l.serviceDate >= fromDate &&
         l.serviceDate <= toDate
     );
-  return {
-    ...summarizeLines(
-      ymd,
-      period,
-      fromDate,
-      toDate,
-      await enrichTimeLines(lines, "list")
-    ),
-    overtimeHours,
-  };
+  return summarizeLines(
+    ymd,
+    period,
+    fromDate,
+    toDate,
+    await enrichTimeLines(lines, "list")
+  );
 }
 
 export async function listTimeLinesForTicket(
@@ -982,56 +1153,6 @@ export async function createTimeKeepingLine(
     if (/warning/i.test(rawMsg) && importedOk) return rawMsg;
     return null;
   })();
-
-  if (lineId > 0) {
-    try {
-      const one = await mariJson<Record<string, unknown>>(
-        `/api/TimeKeepingLine/${lineId}`
-      );
-      const hours = Number(one.Hours) || parsed.hours;
-      const hb = Number(one.HoursBillable) || hoursBillable;
-      const memoRaw = String(one.MemoText || memoForMari || "").trim() || null;
-      const fromMemo = parseTimekeepingUdfFromMemo(memoRaw);
-      return {
-        lineId,
-        serviceDate: String(one.DayOfService || parsed.dayOfService).slice(
-          0,
-          10
-        ),
-        employeeNumber: String(one.EmployeeNumber || emp),
-        employeeName: null,
-        projectNumber: String(one.ProjectNumber || parsed.projectNumber),
-        projectCustomer: null,
-        phaseId: Number(one.PhaseID) || resolved.phaseId,
-        activity: String(one.Activity || parsed.activity),
-        memo: stripTimekeepingUdfFromMemo(memoRaw) || null,
-        internalRemarkVerr:
-          udf.internalRemarkVerr || fromMemo.internalRemarkVerr,
-        zeroHoursReason: udf.zeroHoursReason || fromMemo.zeroHoursReason,
-        hours,
-        hoursBillable: hb,
-        billable: hb > 0,
-        ...applyMariContractFields(
-          {
-            contractId: parsed.contractId,
-            contractPositionId: parsed.contractPositionId ?? 0,
-          },
-          one
-        ),
-        sourceType: Number(one.SourceReferenceType) || 0,
-        sourceReference: Number(one.SourceReferenceID) || 0,
-        timeStart: null,
-        timeEnd: null,
-        createDate: null,
-        ...mapApprovalMode(
-          one.ApprovalMode ?? one.ApprovalStatus ?? one.Freigabe
-        ),
-        warning: warningNote,
-      };
-    } catch {
-      /* fall through */
-    }
-  }
 
   return {
     lineId,

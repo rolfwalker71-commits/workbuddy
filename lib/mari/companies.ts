@@ -43,13 +43,36 @@ async function trySql<T extends Record<string, unknown>>(
   }
 }
 
+const COMPANY_LIST_TTL_MS = 120_000;
+let companyListCache: { at: number; rows: MariCompanyOption[] } | null = null;
+let companyListInflight: Promise<MariCompanyOption[]> | null = null;
+
 /**
  * Alle Mandanten der MARI-Verbindung: MPSysConnections plus Distinct
  * Company aus Projektstamm und Tickets (REST-Listen sind oft nur der Login-Mandant).
  */
 export async function listMariCompanies(): Promise<MariCompanyOption[]> {
   requireMariConfig();
+  if (
+    companyListCache &&
+    Date.now() - companyListCache.at < COMPANY_LIST_TTL_MS
+  ) {
+    return companyListCache.rows;
+  }
+  if (companyListInflight) return companyListInflight;
 
+  companyListInflight = loadMariCompanies()
+    .then((rows) => {
+      companyListCache = { at: Date.now(), rows };
+      return rows;
+    })
+    .finally(() => {
+      companyListInflight = null;
+    });
+  return companyListInflight;
+}
+
+async function loadMariCompanies(): Promise<MariCompanyOption[]> {
   const connectionQueries = [
     `SELECT TOP 40 c."ID" AS "id", COALESCE(c."Name", c."CompanyName", c."Description", c."DatabaseName") AS "name"
 FROM "MPSysConnections" c

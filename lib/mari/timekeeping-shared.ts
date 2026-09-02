@@ -365,6 +365,52 @@ export function formatMariContractListLine(
   return lines.join(" · ");
 }
 
+/** Vertrag/Position noch ohne anzeigbare Bezeichnung (IDs da, Namen fehlen). */
+export function timeLineNeedsContractLabels(
+  input: MariContractListLineInput
+): boolean {
+  const hasContract =
+    firstPositiveInt(input.contractId) > 0 ||
+    Boolean((input.contractNumber || "").trim());
+  if (hasContract && !formatMariContractLabel(input.contractNumber, input.contractName)) {
+    return true;
+  }
+  if (
+    firstPositiveInt(input.contractPositionId) > 0 &&
+    !formatMariContractLabel(
+      input.contractPositionNumber,
+      input.contractPositionName
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/** SQL oft ohne ContractID — könnte trotzdem ein Vertrag sein. */
+export function timeLineMayHaveUnresolvedContract(
+  input: MariContractListLineInput
+): boolean {
+  return (
+    firstPositiveInt(input.contractId) <= 0 &&
+    !String(input.contractNumber || "").trim()
+  );
+}
+
+export function mergeMariTimeLineContractFields<
+  T extends MariContractListLineInput,
+>(line: T, patch: Partial<MariContractFields>): T {
+  const next = applyMariContractFields(line, {
+    ContractID: patch.contractId,
+    ContractNumber: patch.contractNumber,
+    ContractName: patch.contractName,
+    ContractPositionID: patch.contractPositionId,
+    ContractPositionNumber: patch.contractPositionNumber,
+    ContractPositionName: patch.contractPositionName,
+  });
+  return { ...line, ...next };
+}
+
 /** Anzeige «Kunde (Projektnummer)» — ohne Doppelung, wenn Name die Nummer schon enthält. */
 export function formatMariProjectLabel(
   projectNumber: string | null | undefined,

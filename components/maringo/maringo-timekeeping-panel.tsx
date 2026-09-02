@@ -19,8 +19,11 @@ import { cn } from "@/lib/utils";
 import {
   formatPeriodLabel,
   formatMariProjectLabel,
+  mergeMariTimeLineContractFields,
   resolveTimePeriodRange,
   shiftTimePeriodAnchor,
+  timeLineMayHaveUnresolvedContract,
+  timeLineNeedsContractLabels,
   timeLineToBookPrefill,
   type MariTimeLine,
   type MariTimePeriod,
@@ -113,6 +116,9 @@ export function MaringoTimekeepingPanel({
   const [nonBillableHours, setNonBillableHours] = useState(0);
   const [overtimeHours, setOvertimeHours] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
+  const [labelsPending, setLabelsPending] = useState(false);
+  const loadSeq = useRef(0);
+  const overtimeForDateRef = useRef<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [formKey, setFormKey] = useState(0);
@@ -172,35 +178,130 @@ export function MaringoTimekeepingPanel({
     onTicketLinesChangeRef.current?.(next);
   }, []);
 
-  const loadPeriod = useCallback(async (ymd: string, p: MariTimePeriod) => {
-    setLoading(true);
-    setError(null);
+  const patchLineContracts = useCallback(
+    (
+      patches: Array<{
+        lineId: number;
+        contractId?: number;
+        contractNumber?: string | null;
+        contractName?: string | null;
+        contractPositionId?: number;
+        contractPositionNumber?: string | null;
+        contractPositionName?: string | null;
+      }>
+    ) => {
+      if (patches.length === 0) return;
+      const byId = new Map(patches.map((p) => [p.lineId, p]));
+      setLines((prev) => {
+        const next = prev.map((l) => {
+          const patch = byId.get(l.lineId);
+          return patch ? mergeMariTimeLineContractFields(l, patch) : l;
+        });
+        onTicketLinesChangeRef.current?.(next);
+        return next;
+      });
+    },
+    []
+  );
+
+  const fillContractLabels = useCallback(
+    async (seq: number, next: MariTimeLine[]) => {
+      const need = next.filter(
+        (l) =>
+          l.lineId > 0 &&
+          (timeLineNeedsContractLabels(l) ||
+            timeLineMayHaveUnresolvedContract(l))
+      );
+      if (need.length === 0) {
+        setLabelsPending(false);
+        return;
+      }
+      setLabelsPending(true);
+      try {
+        const res = await fetch("/api/maringo/timekeeping/line-labels", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            lines: need.map((l) => ({
+              lineId: l.lineId,
+              projectNumber: l.projectNumber,
+              contractId: l.contractId,
+              contractNumber: l.contractNumber,
+              contractName: l.contractName,
+              contractPositionId: l.contractPositionId,
+              contractPositionNumber: l.contractPositionNumber,
+              contractPositionName: l.contractPositionName,
+            })),
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (seq !== loadSeq.current) return;
+        if (!res.ok || !Array.isArray(data.lines)) return;
+        patchLineContracts(data.lines);
+      } catch {
+        /* Liste bleibt sichtbar — Klick holt die Zeile */
+      } finally {
+        if (seq === loadSeq.current) setLabelsPending(false);
+      }
+    },
+    [patchLineContracts]
+  );
+
+  const loadOvertime = useCallback(async (ymd: string, force = false) => {
+    if (!force && overtimeForDateRef.current === ymd) return;
     try {
       const res = await fetch(
-        `/api/maringo/timekeeping/day?date=${encodeURIComponent(ymd)}&period=${p}`
+        `/api/maringo/timekeeping/overtime?date=${encodeURIComponent(ymd)}`
       );
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.error || t("timekeeping.loadBookingsFailed"));
-      }
-      setLines((data.lines || []) as MariTimeLine[]);
-      setTotalHours(Number(data.totalHours) || 0);
-      setBillableHours(Number(data.billableHours) || 0);
-      setNonBillableHours(Number(data.nonBillableHours) || 0);
+      if (!res.ok) return;
+      overtimeForDateRef.current = ymd;
       setOvertimeHours(
         data.overtimeHours == null || !Number.isFinite(Number(data.overtimeHours))
           ? null
           : Number(data.overtimeHours)
       );
-      setFromDate(String(data.fromDate || ymd));
-      setToDate(String(data.toDate || ymd));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setOvertimeHours(null);
-    } finally {
-      setLoading(false);
+    } catch {
+      /* Überstunden nachziehen — Buchungen bleiben sichtbar */
     }
   }, []);
+
+  const loadPeriod = useCallback(
+    async (ymd: string, p: MariTimePeriod, opts?: { silent?: boolean }) => {
+      const seq = ++loadSeq.current;
+      if (!opts?.silent) setLoading(true);
+      setError(null);
+      if (overtimeForDateRef.current !== ymd) {
+        overtimeForDateRef.current = null;
+        setOvertimeHours(null);
+      }
+      try {
+        const res = await fetch(
+          `/api/maringo/timekeeping/day?date=${encodeURIComponent(ymd)}&period=${p}`
+        );
+        const data = await res.json().catch(() => ({}));
+        if (seq !== loadSeq.current) return;
+        if (!res.ok) {
+          throw new Error(data.error || t("timekeeping.loadBookingsFailed"));
+        }
+        setLines((data.lines || []) as MariTimeLine[]);
+        setTotalHours(Number(data.totalHours) || 0);
+        setBillableHours(Number(data.billableHours) || 0);
+        setNonBillableHours(Number(data.nonBillableHours) || 0);
+        setFromDate(String(data.fromDate || ymd));
+        setToDate(String(data.toDate || ymd));
+        const loaded = (data.lines || []) as MariTimeLine[];
+        void fillContractLabels(seq, loaded);
+        void loadOvertime(ymd);
+      } catch (err) {
+        if (seq !== loadSeq.current) return;
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (seq === loadSeq.current && !opts?.silent) setLoading(false);
+      }
+    },
+    [fillContractLabels, loadOvertime, t]
+  );
 
   const loadTicketLines = useCallback(
     async (issueId: number) => {
@@ -216,7 +317,9 @@ export function MaringoTimekeepingPanel({
             data.error || t("timekeeping.loadTicketBookingsFailed")
           );
         }
-        applyLines((data.lines || []) as MariTimeLine[]);
+        const loaded = (data.lines || []) as MariTimeLine[];
+        applyLines(loaded);
+        void fillContractLabels(++loadSeq.current, loaded);
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
         applyLines([]);
@@ -224,16 +327,19 @@ export function MaringoTimekeepingPanel({
         setLoading(false);
       }
     },
-    [applyLines]
+    [applyLines, fillContractLabels, t]
   );
 
-  const reload = useCallback(async () => {
-    if (ticketMode && ticketIssueId != null) {
-      await loadTicketLines(ticketIssueId);
-      return;
-    }
-    await loadPeriod(date, period);
-  }, [ticketMode, ticketIssueId, loadTicketLines, loadPeriod, date, period]);
+  const reload = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (ticketMode && ticketIssueId != null) {
+        await loadTicketLines(ticketIssueId);
+        return;
+      }
+      await loadPeriod(date, period, opts);
+    },
+    [ticketMode, ticketIssueId, loadTicketLines, loadPeriod, date, period]
+  );
 
   useEffect(() => {
     if (ticketMode && ticketIssueId != null) {
@@ -261,7 +367,16 @@ export function MaringoTimekeepingPanel({
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || t("timekeeping.bookFailed"));
-    const line = data.line as MariTimeLine | undefined;
+    const rawLine = data.line as MariTimeLine | undefined;
+    const line = rawLine
+      ? {
+          ...rawLine,
+          contractNumber:
+            rawLine.contractNumber || values.contractVisible || null,
+          projectCustomer:
+            rawLine.projectCustomer || values.customerName || null,
+        }
+      : undefined;
     const warn =
       (line?.warning || "").trim() ||
       (typeof data.warning === "string" ? data.warning.trim() : "");
@@ -290,7 +405,31 @@ export function MaringoTimekeepingPanel({
     setDuplicateDefaults(null);
     setBookFlyoutOpen(false);
     setFormKey((k) => k + 1);
-    if (!ticketMode) setDate(values.dayOfService);
+    overtimeForDateRef.current = null;
+    if (!ticketMode) {
+      if (line) {
+        try {
+          const range = resolveTimePeriodRange(values.dayOfService, period);
+          if (
+            line.serviceDate >= range.fromDate &&
+            line.serviceDate <= range.toDate
+          ) {
+            applyLines([
+              line,
+              ...lines.filter((l) => l.lineId !== line.lineId),
+            ]);
+          }
+        } catch {
+          /* Bereich ungültig — Reload holt die Liste */
+        }
+      }
+      if (values.dayOfService !== date) {
+        setDate(values.dayOfService);
+      } else {
+        void loadPeriod(date, period, { silent: true });
+      }
+      return;
+    }
     await reload();
   }
 
@@ -343,6 +482,48 @@ export function MaringoTimekeepingPanel({
       ...prefill,
       issueId: prefill.issueId ?? (ticketMode ? ticketIssueId : null),
     };
+  }
+
+  async function resolveLineLabels(line: MariTimeLine) {
+    if (line.lineId <= 0) return;
+    if (
+      !labelsPending &&
+      !timeLineNeedsContractLabels(line) &&
+      !timeLineMayHaveUnresolvedContract(line)
+    ) {
+      return;
+    }
+    setBusyLineId(line.lineId);
+    try {
+      const res = await fetch(`/api/maringo/timekeeping/lines/${line.lineId}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return;
+      const full = data.line as {
+        lineId?: number;
+        contractId?: number;
+        contractNumber?: string | null;
+        contractName?: string | null;
+        contractPositionId?: number;
+        contractPositionNumber?: string | null;
+        contractPositionName?: string | null;
+      } | null;
+      if (!full) return;
+      patchLineContracts([
+        {
+          lineId: line.lineId,
+          contractId: full.contractId,
+          contractNumber: full.contractNumber,
+          contractName: full.contractName,
+          contractPositionId: full.contractPositionId,
+          contractPositionNumber: full.contractPositionNumber,
+          contractPositionName: full.contractPositionName,
+        },
+      ]);
+    } catch {
+      /* Zeile bleibt wie geladen */
+    } finally {
+      setBusyLineId((id) => (id === line.lineId ? null : id));
+    }
   }
 
   async function openEdit(line: MariTimeLine) {
@@ -702,6 +883,8 @@ export function MaringoTimekeepingPanel({
                   onEdit={(l) => void openEdit(l)}
                   onDuplicate={(l) => void openDuplicate(l)}
                   onDelete={removeLine}
+                  onResolveLine={(l) => void resolveLineLabels(l)}
+                  labelsPending={labelsPending}
                   busyLineId={busyLineId}
                 />
               </div>
@@ -757,6 +940,8 @@ export function MaringoTimekeepingPanel({
                   onEdit={(l) => void openEdit(l)}
                   onDuplicate={(l) => void openDuplicate(l)}
                   onDelete={removeLine}
+                  onResolveLine={(l) => void resolveLineLabels(l)}
+                  labelsPending={labelsPending}
                   busyLineId={busyLineId}
                 />
               </CardContent>
