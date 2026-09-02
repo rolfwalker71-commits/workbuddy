@@ -1,5 +1,6 @@
 /** Client-safe Maringo ticket filter / list-meta types (no Node/SQLite). */
 
+import { statusWorkflowRank } from "@/lib/mari/status";
 import { sanitizeTtvLookbackDays } from "@/lib/mari/ttv";
 
 export const MARI_TICKET_FILTER_MODES = ["handler", "customer", "ttv"] as const;
@@ -15,8 +16,13 @@ export function isMariTicketFilterMode(
 /** Verlauf: newest = aktuellste Nachricht oben */
 export type MariTimelineSort = "newest" | "oldest";
 
-/** Ticketliste: newest = neueste Anfrage oben */
-export type MariListSort = "newest" | "oldest";
+/** Ticketliste: newest = neueste Anfrage oben, status = Workflow NEU zuerst */
+export const MARI_LIST_SORTS = ["newest", "oldest", "status"] as const;
+export type MariListSort = (typeof MARI_LIST_SORTS)[number];
+
+export function isMariListSort(raw: unknown): raw is MariListSort {
+  return raw === "newest" || raw === "oldest" || raw === "status";
+}
 
 /** Meta-Zeile in der Ticketliste (Stundenbuchung-relevant). */
 export type MariListMetaField =
@@ -82,7 +88,7 @@ export type MariTicketFilterPrefs = {
   filterMode: MariTicketFilterMode;
   customers: MariTicketFilterCustomer[];
   timelineSort: MariTimelineSort;
-  /** Ticketliste alt→neu / neu→alt (Anfragedatum). */
+  /** Ticketliste alt→neu / neu→alt / nach Status. */
   listSort: MariListSort;
   listMetaFields: MariListMetaField[];
   /** TTV: Kalendertage inkl. heute (1–14). */
@@ -126,7 +132,7 @@ export function parseMariTicketFilterPrefsPatch(
   if (o.timelineSort === "newest" || o.timelineSort === "oldest") {
     out.timelineSort = o.timelineSort;
   }
-  if (o.listSort === "newest" || o.listSort === "oldest") {
+  if (isMariListSort(o.listSort)) {
     out.listSort = o.listSort;
   }
   if (Array.isArray(o.listMetaFields)) {
@@ -185,4 +191,36 @@ export function writeMariTicketFilterPrefsLocal(
   } catch {
     /* private mode / quota */
   }
+}
+
+export type MariTicketListSortInput = {
+  issueId: number;
+  status: number;
+  requestDate?: string | null;
+  changeAtDate?: string | null;
+};
+
+function ticketListStamp(t: MariTicketListSortInput): number {
+  return Date.parse(t.requestDate || "") || Date.parse(t.changeAtDate || "") || 0;
+}
+
+export function compareMariTicketsByListSort(
+  a: MariTicketListSortInput,
+  b: MariTicketListSortInput,
+  listSort: MariListSort
+): number {
+  if (listSort === "status") {
+    const rank = statusWorkflowRank(a.status) - statusWorkflowRank(b.status);
+    if (rank !== 0) return rank;
+    const tb = ticketListStamp(b);
+    const ta = ticketListStamp(a);
+    if (ta !== tb) return tb - ta;
+    return b.issueId - a.issueId;
+  }
+  const ta = ticketListStamp(a);
+  const tb = ticketListStamp(b);
+  if (ta !== tb) {
+    return listSort === "newest" ? tb - ta : ta - tb;
+  }
+  return listSort === "newest" ? b.issueId - a.issueId : a.issueId - b.issueId;
 }

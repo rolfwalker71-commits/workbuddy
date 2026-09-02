@@ -20,6 +20,7 @@ import {
   Calendar,
   CalendarPlus,
   CalendarRange,
+  CircleDot,
   Clock3,
   EyeOff,
   Flag,
@@ -112,20 +113,20 @@ import {
   type MariTicketSavedViewChip,
 } from "@/components/maringo/mari-ticket-saved-views-bar";
 import type { MariCustomerOption } from "@/lib/mari/customers";
-import type {
-  MariListMetaField,
-  MariListSort,
-  MariTicketFilterMode,
-  MariTimelineSort,
-} from "@/lib/mari/ticket-filter-prefs-shared";
 import {
   DEFAULT_MARI_LIST_META_FIELDS,
   MARI_LIST_META_FIELD_OPTIONS,
+  compareMariTicketsByListSort,
+  isMariListSort,
   isMariTicketFilterMode,
   parseMariTicketFilterPrefsPatch,
   readMariTicketFilterPrefsLocal,
   writeMariTicketFilterPrefsLocal,
+  type MariListMetaField,
+  type MariListSort,
+  type MariTicketFilterMode,
   type MariTicketFilterPrefsPatch,
+  type MariTimelineSort,
 } from "@/lib/mari/ticket-filter-prefs-shared";
 import { buildMariTicketListMetaItems } from "@/lib/mari/ticket-list-meta";
 import {
@@ -1059,20 +1060,7 @@ export function MaringoWorkspaceClient() {
   const sortedTickets = useMemo(() => {
     if (displayedTickets.length === 0) return displayedTickets;
     const items = [...displayedTickets];
-    const stamp = (t: MariTicketListItem) =>
-      Date.parse(t.requestDate || "") ||
-      Date.parse(t.changeAtDate || "") ||
-      0;
-    items.sort((a, b) => {
-      const ta = stamp(a);
-      const tb = stamp(b);
-      if (ta !== tb) {
-        return listSort === "newest" ? tb - ta : ta - tb;
-      }
-      return listSort === "newest"
-        ? b.issueId - a.issueId
-        : a.issueId - b.issueId;
-    });
+    items.sort((a, b) => compareMariTicketsByListSort(a, b, listSort));
     return items;
   }, [displayedTickets, listSort]);
 
@@ -1513,7 +1501,7 @@ export function MaringoWorkspaceClient() {
       if (patch.timelineSort === "newest" || patch.timelineSort === "oldest") {
         setTimelineSort(patch.timelineSort);
       }
-      if (patch.listSort === "newest" || patch.listSort === "oldest") {
+      if (isMariListSort(patch.listSort)) {
         setListSort(patch.listSort);
       }
       if (patch.listMetaFields && patch.listMetaFields.length > 0) {
@@ -3026,6 +3014,22 @@ export function MaringoWorkspaceClient() {
                 >
                   <ArrowUpAZ className="size-3.5" strokeWidth={APP_ICON_STROKE} />
                   {tr("tickets.oldestToNewest")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setListSort("status")}
+                  title={tr("tickets.statusFirst")}
+                  className={cn(
+                    "h-auto rounded-full px-2 py-1 text-[0.6875rem] font-semibold",
+                    listSort === "status"
+                      ? "bg-muted text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <CircleDot className="size-3.5" strokeWidth={APP_ICON_STROKE} />
+                  {tr("tickets.sortByStatus")}
                 </Button>
               </div>
             </div>

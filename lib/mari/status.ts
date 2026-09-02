@@ -34,6 +34,17 @@ export const ALL_STATUS_IDS = [
 
 export type StatusId = (typeof ALL_STATUS_IDS)[number];
 
+const STATUS_WORKFLOW_RANK = new Map<number, number>(
+  ALL_STATUS_IDS.map((id, i) => [id, i])
+);
+
+/** Workflow order (NEU → … → Geschlossen). Unknown ids after the known list. */
+export function statusWorkflowRank(statusId: number): number {
+  return (
+    STATUS_WORKFLOW_RANK.get(statusId) ?? ALL_STATUS_IDS.length + Math.max(0, statusId)
+  );
+}
+
 /** Status, die Kopf/Detail und Mehrfachauswahl setzen dürfen. */
 export const TICKET_EDIT_STATUS_IDS = [11, 1, 3, 6, 7, 13, 14, 2, 5] as const;
 

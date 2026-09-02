@@ -1442,6 +1442,8 @@ export const de = {
     oldestFirst: "Älteste zuerst",
     newestToOldest: "Neu→Alt",
     oldestToNewest: "Alt→Neu",
+    sortByStatus: "Status",
+    statusFirst: "Nach Status (NEU zuerst)",
     ttvStatusHandlers: "Status NEU · {window} · alle Bearbeiter",
     filterAria: "Ticket-Filter",
     ttvPeriod: "TTV-Zeitraum",

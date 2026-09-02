@@ -8,6 +8,7 @@ import {
 import {
   DEFAULT_MARI_LIST_META_FIELDS,
   MARI_LIST_META_FIELD_OPTIONS,
+  isMariListSort,
   isMariTicketFilterMode,
   type MariListMetaField,
   type MariListSort,
@@ -60,8 +61,7 @@ function sanitizeTimelineSort(raw: unknown): MariTimelineSort | null {
 }
 
 function sanitizeListSort(raw: unknown): MariListSort | null {
-  if (raw === "newest" || raw === "oldest") return raw;
-  return null;
+  return isMariListSort(raw) ? raw : null;
 }
 
 const LIST_META_ALLOWED = new Set<MariListMetaField>(

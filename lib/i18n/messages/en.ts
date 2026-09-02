@@ -1439,6 +1439,8 @@ export const en = {
     oldestFirst: "Oldest first",
     newestToOldest: "New→old",
     oldestToNewest: "Old→new",
+    sortByStatus: "Status",
+    statusFirst: "By status (New first)",
     ttvStatusHandlers: "Status NEW · {window} · all handlers",
     filterAria: "Ticket filter",
     ttvPeriod: "TTV period",

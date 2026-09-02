@@ -24,7 +24,7 @@ const PutSchema = z.object({
     .max(40)
     .optional(),
   timelineSort: z.enum(["newest", "oldest"]).optional(),
-  listSort: z.enum(["newest", "oldest"]).optional(),
+  listSort: z.enum(["newest", "oldest", "status"]).optional(),
   listMetaFields: z
     .array(
       z.enum([
