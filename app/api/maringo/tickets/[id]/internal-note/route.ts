@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withMariModule } from "@/lib/mari/with-module";
-import { ownerKeyFromAuth } from "@/lib/auth/owner-key";
 import { MariApiError } from "@/lib/mari/client";
 import { hasMariConfig } from "@/lib/mari/config";
 import { MariTicketAnalysisSchema } from "@/lib/mari/analyze-ticket";
@@ -78,10 +77,7 @@ export async function POST(request: Request, context: Ctx) {
 
     let internalNotePostedAt: string | null = null;
     if (isAnalysisNote) {
-      const marked = markMariTicketAnalysisInternalNotePosted(
-        ownerKeyFromAuth(auth),
-        id
-      );
+      const marked = markMariTicketAnalysisInternalNotePosted(id);
       internalNotePostedAt =
         marked?.internalNotePostedAt ?? new Date().toISOString();
     }
@@ -151,10 +147,7 @@ export async function DELETE(request: Request, context: Ctx) {
       subject === "interner kommentar";
     let internalNotePostedAt: string | null | undefined;
     if (wasAnalysisNote) {
-      const cleared = clearMariTicketAnalysisInternalNotePosted(
-        ownerKeyFromAuth(auth),
-        id
-      );
+      const cleared = clearMariTicketAnalysisInternalNotePosted(id);
       internalNotePostedAt = cleared?.internalNotePostedAt ?? null;
     }
 

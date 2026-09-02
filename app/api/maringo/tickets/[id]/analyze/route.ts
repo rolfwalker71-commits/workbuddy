@@ -36,7 +36,7 @@ export async function GET(_request: Request, context: Ctx) {
     return NextResponse.json({ error: "Ungültige Ticket-ID" }, { status: 400 });
   }
 
-  const stored = getMariTicketAnalysis(ownerKeyFromAuth(auth), id);
+  const stored = getMariTicketAnalysis(id);
   if (!stored) {
     return NextResponse.json({ stored: false, issueId: id });
   }

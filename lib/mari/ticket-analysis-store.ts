@@ -74,15 +74,11 @@ function mapRow(row: Row): StoredMariTicketAnalysis | null {
 }
 
 export function getMariTicketAnalysis(
-  ownerKey: string,
   issueId: number
 ): StoredMariTicketAnalysis | null {
   const row = getDb()
-    .prepare(
-      `SELECT * FROM mari_ticket_analyses
-       WHERE owner_key = ? AND issue_id = ?`
-    )
-    .get(ownerKey, issueId) as Row | undefined;
+    .prepare(`SELECT * FROM mari_ticket_analyses WHERE issue_id = ?`)
+    .get(issueId) as Row | undefined;
   return row ? mapRow(row) : null;
 }
 
@@ -102,11 +98,12 @@ export function upsertMariTicketAnalysis(input: {
   getDb()
     .prepare(
       `INSERT INTO mari_ticket_analyses (
-        owner_key, issue_id, summary, analysis_json,
+        issue_id, owner_key, summary, analysis_json,
         images_analyzed, image_names_json, usage_json, model,
         analyzed_at, updated_at, internal_note_posted_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
-      ON CONFLICT(owner_key, issue_id) DO UPDATE SET
+      ON CONFLICT(issue_id) DO UPDATE SET
+        owner_key = excluded.owner_key,
         summary = excluded.summary,
         analysis_json = excluded.analysis_json,
         images_analyzed = excluded.images_analyzed,
@@ -118,8 +115,8 @@ export function upsertMariTicketAnalysis(input: {
         internal_note_posted_at = NULL`
     )
     .run(
-      input.ownerKey,
       input.issueId,
+      input.ownerKey,
       summary,
       JSON.stringify(input.analysis),
       imagesAnalyzed,
@@ -129,7 +126,7 @@ export function upsertMariTicketAnalysis(input: {
       now,
       now
     );
-  const stored = getMariTicketAnalysis(input.ownerKey, input.issueId);
+  const stored = getMariTicketAnalysis(input.issueId);
   if (!stored) {
     throw new Error("Ticket-Analyse konnte nicht gespeichert werden.");
   }
@@ -138,29 +135,27 @@ export function upsertMariTicketAnalysis(input: {
 
 /** Markiert die aktuelle gespeicherte Analyse als intern nach Maringo geschrieben. */
 export function markMariTicketAnalysisInternalNotePosted(
-  ownerKey: string,
   issueId: number,
   postedAt = new Date().toISOString()
 ): StoredMariTicketAnalysis | null {
-  const existing = getMariTicketAnalysis(ownerKey, issueId);
+  const existing = getMariTicketAnalysis(issueId);
   if (!existing) return null;
   const now = new Date().toISOString();
   getDb()
     .prepare(
       `UPDATE mari_ticket_analyses
        SET internal_note_posted_at = ?, updated_at = ?
-       WHERE owner_key = ? AND issue_id = ?`
+       WHERE issue_id = ?`
     )
-    .run(postedAt, now, ownerKey, issueId);
-  return getMariTicketAnalysis(ownerKey, issueId);
+    .run(postedAt, now, issueId);
+  return getMariTicketAnalysis(issueId);
 }
 
 /** Entfernt die «bereits intern gespeichert»-Markierung (z.B. nach Löschen der Notiz). */
 export function clearMariTicketAnalysisInternalNotePosted(
-  ownerKey: string,
   issueId: number
 ): StoredMariTicketAnalysis | null {
-  const existing = getMariTicketAnalysis(ownerKey, issueId);
+  const existing = getMariTicketAnalysis(issueId);
   if (!existing) return null;
   if (!existing.internalNotePostedAt) return existing;
   const now = new Date().toISOString();
@@ -168,18 +163,16 @@ export function clearMariTicketAnalysisInternalNotePosted(
     .prepare(
       `UPDATE mari_ticket_analyses
        SET internal_note_posted_at = NULL, updated_at = ?
-       WHERE owner_key = ? AND issue_id = ?`
+       WHERE issue_id = ?`
     )
-    .run(now, ownerKey, issueId);
-  return getMariTicketAnalysis(ownerKey, issueId);
+    .run(now, issueId);
+  return getMariTicketAnalysis(issueId);
 }
 
 export function attachMariTicketAnalysisFlags<T extends { issueId: number }>(
-  ownerKey: string,
   tickets: T[]
 ): Array<T & { hasAnalysis: boolean }> {
   const analyzed = listMariTicketAnalysisIssueIds(
-    ownerKey,
     tickets.map((t) => t.issueId)
   );
   return tickets.map((t) => ({
@@ -189,18 +182,16 @@ export function attachMariTicketAnalysisFlags<T extends { issueId: number }>(
 }
 
 export function listMariTicketAnalysisIssueIds(
-  ownerKey: string,
   issueIds: number[]
 ): Set<number> {
   const out = new Set<number>();
   if (issueIds.length === 0) return out;
   const db = getDb();
   const stmt = db.prepare(
-    `SELECT issue_id FROM mari_ticket_analyses
-     WHERE owner_key = ? AND issue_id = ?`
+    `SELECT issue_id FROM mari_ticket_analyses WHERE issue_id = ?`
   );
   for (const id of issueIds) {
-    const row = stmt.get(ownerKey, id) as { issue_id: number } | undefined;
+    const row = stmt.get(id) as { issue_id: number } | undefined;
     if (row) out.add(row.issue_id);
   }
   return out;

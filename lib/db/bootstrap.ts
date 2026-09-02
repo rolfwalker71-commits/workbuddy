@@ -26,6 +26,7 @@ export function bootstrapDatabase(db: Database.Database): void {
   ensureUsersColumns(db);
   ensureMailAnalysesProvider(db);
   ensureMariCalendarStampOwner(db);
+  ensureMariTicketAnalysesShared(db);
   ensureTeamsThreadState(db);
   ensureUserActivityTables(db);
 }
@@ -84,6 +85,56 @@ function ensureUsersColumns(db: Database.Database): void {
         AND mari_rest_password != ''
     `);
   }
+}
+
+/** One analysis per ticket (visible to every colleague), not per owner_key. */
+function ensureMariTicketAnalysesShared(db: Database.Database): void {
+  const cols = db.prepare(`PRAGMA table_info(mari_ticket_analyses)`).all() as Array<{
+    name: string;
+    pk: number;
+  }>;
+  if (cols.length === 0) return;
+  const pkCols = cols
+    .filter((c) => c.pk > 0)
+    .sort((a, b) => a.pk - b.pk)
+    .map((c) => c.name);
+  if (pkCols.length === 1 && pkCols[0] === "issue_id") return;
+
+  db.exec(`
+    CREATE TABLE mari_ticket_analyses_shared (
+      issue_id INTEGER NOT NULL PRIMARY KEY,
+      owner_key TEXT NOT NULL,
+      summary TEXT,
+      analysis_json TEXT NOT NULL,
+      images_analyzed INTEGER NOT NULL DEFAULT 0,
+      image_names_json TEXT,
+      usage_json TEXT,
+      model TEXT,
+      analyzed_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      internal_note_posted_at TEXT
+    );
+    INSERT INTO mari_ticket_analyses_shared (
+      issue_id, owner_key, summary, analysis_json,
+      images_analyzed, image_names_json, usage_json, model,
+      analyzed_at, updated_at, internal_note_posted_at
+    )
+    SELECT
+      t.issue_id, t.owner_key, t.summary, t.analysis_json,
+      t.images_analyzed, t.image_names_json, t.usage_json, t.model,
+      t.analyzed_at, t.updated_at, t.internal_note_posted_at
+    FROM mari_ticket_analyses t
+    WHERE t.rowid = (
+      SELECT t2.rowid FROM mari_ticket_analyses t2
+      WHERE t2.issue_id = t.issue_id
+      ORDER BY t2.updated_at DESC, t2.analyzed_at DESC, t2.rowid DESC
+      LIMIT 1
+    );
+    DROP TABLE mari_ticket_analyses;
+    ALTER TABLE mari_ticket_analyses_shared RENAME TO mari_ticket_analyses;
+    CREATE INDEX IF NOT EXISTS idx_mari_ticket_analyses_analyzed
+      ON mari_ticket_analyses(analyzed_at DESC);
+  `);
 }
 
 function ensureMailAnalysesProvider(db: Database.Database): void {

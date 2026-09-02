@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { withMariModule } from "@/lib/mari/with-module";
-import { ownerKeyFromAuth } from "@/lib/auth/owner-key";
 import { MariApiError } from "@/lib/mari/client";
 import { hasMariConfig } from "@/lib/mari/config";
 import { draftMariExternalComment } from "@/lib/mari/external-comment-draft";
@@ -29,7 +28,7 @@ export async function POST(_request: Request, context: Ctx) {
 
   try {
     const ticket = await getTicketDetail(id);
-    const stored = getMariTicketAnalysis(ownerKeyFromAuth(auth), id);
+    const stored = getMariTicketAnalysis(id);
     const drafted = await draftMariExternalComment({
       ticket,
       analysis: stored?.analysis ?? null,

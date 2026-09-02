@@ -87,10 +87,7 @@ export async function GET(request: Request) {
           /* Ticket existiert nicht oder REST verweigert */
         }
       }
-      const tickets = attachMariTicketAnalysisFlags(
-        ownerKeyFromAuth(auth),
-        rows
-      );
+      const tickets = attachMariTicketAnalysisFlags(rows);
       return NextResponse.json({
         configured: true,
         tickets,
@@ -110,7 +107,6 @@ export async function GET(request: Request) {
         getMariTicketFilterPrefs(ownerKey).ttvLookbackDays;
       const window = ttvInboxDateWindow(undefined, lookbackDays);
       const tickets = attachMariTicketAnalysisFlags(
-        ownerKey,
         await listMyTickets({
           ttvInbox: true,
           requestDateFrom: window.fromYmd,
@@ -139,7 +135,6 @@ export async function GET(request: Request) {
 
     if (cardCodes.length > 0) {
       const tickets = attachMariTicketAnalysisFlags(
-        ownerKeyFromAuth(auth),
         await listMyTickets({
           statuses,
           overdueOnly,
@@ -184,7 +179,6 @@ export async function GET(request: Request) {
       );
     }
     const tickets = attachMariTicketAnalysisFlags(
-      ownerKeyFromAuth(auth),
       await listMyTickets({
         statuses,
         overdueOnly,

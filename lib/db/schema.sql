@@ -134,8 +134,8 @@ CREATE INDEX IF NOT EXISTS idx_mail_applied_links_user
   ON mail_applied_links(user_id, message_id);
 
 CREATE TABLE IF NOT EXISTS mari_ticket_analyses (
+  issue_id INTEGER NOT NULL PRIMARY KEY,
   owner_key TEXT NOT NULL,
-  issue_id INTEGER NOT NULL,
   summary TEXT,
   analysis_json TEXT NOT NULL,
   images_analyzed INTEGER NOT NULL DEFAULT 0,
@@ -144,11 +144,10 @@ CREATE TABLE IF NOT EXISTS mari_ticket_analyses (
   model TEXT,
   analyzed_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  internal_note_posted_at TEXT,
-  PRIMARY KEY (owner_key, issue_id)
+  internal_note_posted_at TEXT
 );
-CREATE INDEX IF NOT EXISTS idx_mari_ticket_analyses_owner_analyzed
-  ON mari_ticket_analyses(owner_key, analyzed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_mari_ticket_analyses_analyzed
+  ON mari_ticket_analyses(analyzed_at DESC);
 
 CREATE TABLE IF NOT EXISTS mari_time_book_favorites (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
