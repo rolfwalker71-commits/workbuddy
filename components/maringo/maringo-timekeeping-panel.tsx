@@ -182,6 +182,7 @@ export function MaringoTimekeepingPanel({
     (
       patches: Array<{
         lineId: number;
+        projectCustomer?: string | null;
         contractId?: number;
         contractNumber?: string | null;
         contractName?: string | null;
@@ -195,7 +196,12 @@ export function MaringoTimekeepingPanel({
       setLines((prev) => {
         const next = prev.map((l) => {
           const patch = byId.get(l.lineId);
-          return patch ? mergeMariTimeLineContractFields(l, patch) : l;
+          if (!patch) return l;
+          const merged = mergeMariTimeLineContractFields(l, patch);
+          const customer = (patch.projectCustomer || "").trim();
+          return customer && !(merged.projectCustomer || "").trim()
+            ? { ...merged, projectCustomer: customer }
+            : merged;
         });
         onTicketLinesChangeRef.current?.(next);
         return next;
@@ -210,7 +216,8 @@ export function MaringoTimekeepingPanel({
         (l) =>
           l.lineId > 0 &&
           (timeLineNeedsContractLabels(l) ||
-            timeLineMayHaveUnresolvedContract(l))
+            timeLineMayHaveUnresolvedContract(l) ||
+            !(l.projectCustomer || "").trim())
       );
       if (need.length === 0) {
         setLabelsPending(false);
@@ -225,6 +232,7 @@ export function MaringoTimekeepingPanel({
             lines: need.map((l) => ({
               lineId: l.lineId,
               projectNumber: l.projectNumber,
+              projectCustomer: l.projectCustomer,
               contractId: l.contractId,
               contractNumber: l.contractNumber,
               contractName: l.contractName,
@@ -489,7 +497,8 @@ export function MaringoTimekeepingPanel({
     if (
       !labelsPending &&
       !timeLineNeedsContractLabels(line) &&
-      !timeLineMayHaveUnresolvedContract(line)
+      !timeLineMayHaveUnresolvedContract(line) &&
+      (line.projectCustomer || "").trim()
     ) {
       return;
     }
@@ -500,6 +509,7 @@ export function MaringoTimekeepingPanel({
       if (!res.ok) return;
       const full = data.line as {
         lineId?: number;
+        projectCustomer?: string | null;
         contractId?: number;
         contractNumber?: string | null;
         contractName?: string | null;
@@ -511,6 +521,7 @@ export function MaringoTimekeepingPanel({
       patchLineContracts([
         {
           lineId: line.lineId,
+          projectCustomer: full.projectCustomer,
           contractId: full.contractId,
           contractNumber: full.contractNumber,
           contractName: full.contractName,

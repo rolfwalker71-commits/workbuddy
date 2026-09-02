@@ -589,6 +589,7 @@ async function enrichContractNamesFromSql(
 export const TimeLineLabelInputSchema = z.object({
   lineId: z.number().int().positive(),
   projectNumber: z.string().trim().max(40).optional().default(""),
+  projectCustomer: z.string().nullable().optional(),
   contractId: z.number().int().nonnegative().optional().default(0),
   contractNumber: z.string().nullable().optional(),
   contractName: z.string().nullable().optional(),
@@ -610,7 +611,7 @@ function stubLineForLabels(
     employeeNumber: "",
     employeeName: null,
     projectNumber: input.projectNumber || "",
-    projectCustomer: null,
+    projectCustomer: input.projectCustomer?.trim() || null,
     phaseId: 0,
     activity: "",
     memo: null,
@@ -659,6 +660,7 @@ export async function enrichTimeLineContractLabels(
     next = await enrichTimeLinesContracts(next);
     next = await enrichTimeLinesPositions(next);
   }
+  next = await enrichTimeLinesProjectCustomer(next, "detail");
   return next;
 }
 

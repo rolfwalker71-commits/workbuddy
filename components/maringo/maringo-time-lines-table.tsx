@@ -80,11 +80,9 @@ function ProjectWithCustomer({
     );
   }
   return (
-    <span className="inline-flex min-w-0 max-w-full flex-wrap items-baseline gap-x-1.5 gap-y-0">
-      <span className="min-w-0 break-words font-bold leading-snug text-foreground">
-        {customer}
-      </span>
-      <span className="font-medium tabular-nums text-muted-foreground">({pn})</span>
+    <span className="min-w-0 break-words font-bold leading-snug text-foreground">
+      {customer}{" "}
+      <span className="tabular-nums">({pn})</span>
     </span>
   );
 }

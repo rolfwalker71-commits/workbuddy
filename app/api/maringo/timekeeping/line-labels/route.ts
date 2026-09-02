@@ -32,6 +32,7 @@ export async function POST(request: Request) {
         ok: true,
         lines: lines.map((l) => ({
           lineId: l.lineId,
+          projectCustomer: l.projectCustomer,
           contractId: l.contractId,
           contractNumber: l.contractNumber,
           contractName: l.contractName,
