@@ -400,7 +400,15 @@ export function timeLineMayHaveUnresolvedContract(
 export function mergeMariTimeLineContractFields<
   T extends MariContractListLineInput,
 >(line: T, patch: Partial<MariContractFields>): T {
-  const next = applyMariContractFields(line, {
+  const current: MariContractFields = {
+    contractId: firstPositiveInt(line.contractId),
+    contractNumber: line.contractNumber ?? null,
+    contractName: line.contractName ?? null,
+    contractPositionId: firstPositiveInt(line.contractPositionId),
+    contractPositionNumber: line.contractPositionNumber ?? null,
+    contractPositionName: line.contractPositionName ?? null,
+  };
+  const next = applyMariContractFields(current, {
     ContractID: patch.contractId,
     ContractNumber: patch.contractNumber,
     ContractName: patch.contractName,
