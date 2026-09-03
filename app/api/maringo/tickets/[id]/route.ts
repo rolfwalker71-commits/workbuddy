@@ -5,6 +5,7 @@ import { MariApiError } from "@/lib/mari/client";
 import { hasMariConfig } from "@/lib/mari/config";
 import { getPrimaryMariCalendarStampForIssue } from "@/lib/mari/calendar-stamp";
 import { deleteTicket, getTicketDetail, patchTicketFields } from "@/lib/mari/tickets";
+import { markMariTicketSeen } from "@/lib/mari/ticket-seen-store";
 import { zurichYmd } from "@/lib/microsoft/time";
 
 export const runtime = "nodejs";
@@ -35,6 +36,9 @@ export async function GET(_request: Request, context: Ctx) {
 
   try {
     const ticket = await getTicketDetail(id);
+    if (auth.userId != null) {
+      markMariTicketSeen(auth.userId, ticket);
+    }
     const calendarStamp =
       auth.userId != null
         ? getPrimaryMariCalendarStampForIssue(auth.userId, id, zurichYmd())
@@ -76,7 +80,7 @@ const PatchSchema = z.object({
 });
 
 export async function PATCH(request: Request, context: Ctx) {
-  return withMariModule(async () => {
+  return withMariModule(async (auth) => {
   if (!hasMariConfig()) {
     return NextResponse.json(
       { error: "MARI nicht konfiguriert." },
@@ -115,6 +119,9 @@ export async function PATCH(request: Request, context: Ctx) {
       handledBy: parsed.data.handledBy,
       medium: parsed.data.medium,
     });
+    if (auth.userId != null) {
+      markMariTicketSeen(auth.userId, ticket);
+    }
     return NextResponse.json({ ok: true, ticket });
   } catch (err) {
     const message =

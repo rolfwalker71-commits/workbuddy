@@ -225,13 +225,13 @@ export async function deleteMariSupportAttachment(
 }
 
 /**
- * Löscht nur interne Notizen (ohne Datei) eines Tickets.
- * Prüft Zugehörigkeit zum Issue und Internal/Notiz-Charakter.
+ * Prüft, dass der Eintrag eine interne Text-Notiz dieses Tickets ist
+ * (kein Dateianhang, VisibleInternOnly).
  */
-export async function deleteMariInternalNote(params: {
+export async function assertMariInternalNoteMutable(params: {
   issueId: number;
   attachmentId: number;
-}): Promise<{ attachmentId: number; subject: string | null }> {
+}): Promise<{ subject: string | null }> {
   const { issueId, attachmentId } = params;
   if (!Number.isInteger(issueId) || issueId <= 0) {
     throw new MariApiError("Ungültige Ticket-ID", 400);
@@ -272,7 +272,7 @@ WHERE "IssueID" = ${issueId}
     line.VisibleInternOnly != null && Number(line.VisibleInternOnly) !== 0;
   if (!internalOnly) {
     throw new MariApiError(
-      "Nur interne Kommentare können hier gelöscht werden.",
+      "Nur interne Kommentare können hier gelöscht oder bearbeitet werden.",
       403
     );
   }
@@ -292,15 +292,27 @@ WHERE "IssueID" = ${issueId}
     meta == null;
   if (!isNoteType) {
     throw new MariApiError(
-      "Dieser Verlaufseintrag ist keine löschbare interne Notiz.",
+      "Dieser Verlaufseintrag ist keine interne Text-Notiz.",
       403
     );
   }
 
-  await deleteMariSupportAttachment(attachmentId);
+  return { subject: line.RequestPosSubject?.trim() || null };
+}
+
+/**
+ * Löscht nur interne Notizen (ohne Datei) eines Tickets.
+ * Prüft Zugehörigkeit zum Issue und Internal/Notiz-Charakter.
+ */
+export async function deleteMariInternalNote(params: {
+  issueId: number;
+  attachmentId: number;
+}): Promise<{ attachmentId: number; subject: string | null }> {
+  const { subject } = await assertMariInternalNoteMutable(params);
+  await deleteMariSupportAttachment(params.attachmentId);
   return {
-    attachmentId,
-    subject: line.RequestPosSubject?.trim() || null,
+    attachmentId: params.attachmentId,
+    subject,
   };
 }
 

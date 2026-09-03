@@ -38,6 +38,7 @@ import { getMariTicketFilterPrefs } from "@/lib/mari/ticket-filter-prefs";
 import { getAppUserById } from "@/lib/users/queries";
 import { ownerKeyFromAuth } from "@/lib/auth/owner-key";
 import { attachMariTicketAnalysisFlags } from "@/lib/mari/ticket-analysis-store";
+import { attachMariTicketListChanges } from "@/lib/mari/ticket-seen-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,6 +50,17 @@ function stampsForTickets(userId: number | null, tickets: MariTicketListItem[]) 
     tickets.map((t) => t.issueId),
     zurichYmd()
   );
+}
+
+function withTicketListExtras(
+  userId: number | null,
+  tickets: MariTicketListItem[]
+) {
+  const flagged = attachMariTicketAnalysisFlags(tickets);
+  if (userId == null) {
+    return flagged.map((t) => ({ ...t, listChange: t.listChange ?? null }));
+  }
+  return attachMariTicketListChanges(userId, flagged);
 }
 
 export async function GET(request: Request) {
@@ -87,7 +99,7 @@ export async function GET(request: Request) {
           /* Ticket existiert nicht oder REST verweigert */
         }
       }
-      const tickets = attachMariTicketAnalysisFlags(rows);
+      const tickets = withTicketListExtras(auth.userId, rows);
       return NextResponse.json({
         configured: true,
         tickets,
@@ -106,7 +118,8 @@ export async function GET(request: Request) {
         sanitizeTtvLookbackDays(url.searchParams.get("ttvDays")) ??
         getMariTicketFilterPrefs(ownerKey).ttvLookbackDays;
       const window = ttvInboxDateWindow(undefined, lookbackDays);
-      const tickets = attachMariTicketAnalysisFlags(
+      const tickets = withTicketListExtras(
+        auth.userId,
         await listMyTickets({
           ttvInbox: true,
           requestDateFrom: window.fromYmd,
@@ -134,7 +147,8 @@ export async function GET(request: Request) {
     const cardCodes = parseCardCodesParam(url.searchParams.get("cardCodes"));
 
     if (cardCodes.length > 0) {
-      const tickets = attachMariTicketAnalysisFlags(
+      const tickets = withTicketListExtras(
+        auth.userId,
         await listMyTickets({
           statuses,
           overdueOnly,
@@ -178,7 +192,8 @@ export async function GET(request: Request) {
         { status: 400 }
       );
     }
-    const tickets = attachMariTicketAnalysisFlags(
+    const tickets = withTicketListExtras(
+      auth.userId,
       await listMyTickets({
         statuses,
         overdueOnly,

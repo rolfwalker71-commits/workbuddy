@@ -34,6 +34,7 @@ import {
   MessageSquare,
   MoreHorizontal,
   Paperclip,
+  Pencil,
   RefreshCw,
   Search,
   Sparkles,
@@ -85,7 +86,9 @@ import {
   MariTicketBulkBar,
   MariTicketSelectCheckbox,
 } from "@/components/maringo/mari-ticket-bulk-bar";
-import { formatSwissDate, formatSwissDateTime } from "@/lib/utils/dates";
+import { formatSwissDate, formatSwissDateTime, toSwissDate } from "@/lib/utils/dates";
+import { stripBuddyInternalNoteChrome } from "@/lib/mari/internal-note-text";
+import type { MariTicketListChange } from "@/lib/mari/ticket-list-change";
 import type {
   MariTicketAnalysis,
   MariSolutionArtifact,
@@ -134,6 +137,7 @@ import {
   parseTicketNumberQuery,
   shouldLookupTicketNumber,
 } from "@/lib/mari/ticket-search-shared";
+import { nextTicketQueueSelection } from "@/lib/mari/ticket-queue-selection";
 import {
   DEFAULT_TTV_LOOKBACK_DAYS,
   TTV_LOOKBACK_DAYS_MAX,
@@ -187,6 +191,38 @@ function ttvLookbackDisplay(days: number, tr: TFn): string {
   const n = sanitizeTtvLookbackDays(days) ?? DEFAULT_TTV_LOOKBACK_DAYS;
   if (n === 1) return tr("tickets.lookbackToday");
   return tr("tickets.lookbackDays", { count: n });
+}
+
+function formatTicketListChange(
+  change: MariTicketListChange,
+  locale: string,
+  tr: TFn
+): string {
+  const parts: string[] = [];
+  if (
+    change.kinds.includes("status") &&
+    change.fromStatus != null &&
+    change.toStatus != null
+  ) {
+    parts.push(
+      tr("tickets.listChangeStatus", {
+        from: statusDisplayLabel(change.fromStatus, locale),
+        to: statusDisplayLabel(change.toStatus, locale),
+      })
+    );
+  }
+  if (change.kinds.includes("due")) {
+    parts.push(
+      tr("tickets.listChangeDue", {
+        from: toSwissDate(change.fromDue),
+        to: toSwissDate(change.toDue),
+      })
+    );
+  }
+  if (change.kinds.includes("update")) {
+    parts.push(tr("tickets.listChangeUpdated"));
+  }
+  return parts.join(" · ");
 }
 
 const LIST_META_LABEL: Record<MariListMetaField, MessageKey> = {
@@ -578,13 +614,20 @@ function DetailField({
 function TimelineRow({
   item,
   onDeleteInternalNote,
+  onSaveInternalNote,
   deletingAttachmentId,
+  savingAttachmentId,
 }: {
   item: MariTimelineItem;
   onDeleteInternalNote?: (attachmentId: number) => void;
+  onSaveInternalNote?: (attachmentId: number, text: string) => void;
   deletingAttachmentId?: number | null;
+  savingAttachmentId?: number | null;
 }) {
   const t = useT();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editDraft, setEditDraft] = useState("");
   const side = item.side || "unknown";
   const sideLabel =
     side === "support"
@@ -623,6 +666,27 @@ function TimelineRow({
   const deletableId = item.deletableAttachmentId ?? null;
   const deleting =
     deletableId != null && deletingAttachmentId === deletableId;
+  const saving =
+    deletableId != null && savingAttachmentId === deletableId;
+  const busy = deleting || saving;
+  const canMutate =
+    deletableId != null &&
+    (onDeleteInternalNote != null || onSaveInternalNote != null);
+
+  function startEdit() {
+    if (deletableId == null || !onSaveInternalNote) return;
+    setEditDraft(stripBuddyInternalNoteChrome(item.text || ""));
+    setEditing(true);
+    setMenuOpen(false);
+  }
+
+  function submitEdit() {
+    if (deletableId == null || !onSaveInternalNote) return;
+    const text = editDraft.trim();
+    if (!text) return;
+    onSaveInternalNote(deletableId, text);
+  }
+
   const bubble =
     side === "support"
       ? "ml-auto border-sky-200/80 bg-sky-50 text-sky-950 dark:border-sky-400/25 dark:bg-sky-500/12 dark:text-sky-100"
@@ -650,6 +714,11 @@ function TimelineRow({
       />
       <div
         className={cn("max-w-[92%] space-y-1", fromSupport && "ml-auto")}
+        onContextMenu={(event) => {
+          if (!canMutate || editing) return;
+          event.preventDefault();
+          setMenuOpen(true);
+        }}
       >
         <p className="flex flex-wrap items-center gap-1.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-muted-foreground">
           <span
@@ -665,19 +734,42 @@ function TimelineRow({
             {item.actor ? ` · ${item.actor}` : ""}
             {item.meta ? ` · ${item.meta}` : ""}
           </span>
-          {deletableId != null && onDeleteInternalNote ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="h-6 gap-1 px-1.5 text-[0.625rem] text-muted-foreground hover:text-destructive"
-              disabled={deleting}
-              title={t("tickets.deleteInternalTitle")}
-              onClick={() => onDeleteInternalNote(deletableId)}
-            >
-              <Trash2 className="size-3" />
-              {deleting ? t("common.deleting") : t("common.delete")}
-            </Button>
+          {canMutate && !editing ? (
+            <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+              <DropdownMenuTrigger
+                disabled={busy}
+                render={
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 min-h-8 w-8 shrink-0 px-0 text-muted-foreground hover:text-foreground"
+                    title={t("tickets.internalNoteMenu")}
+                    aria-label={t("tickets.internalNoteMenu")}
+                  />
+                }
+              >
+                <MoreHorizontal className="size-3.5" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-40">
+                {onSaveInternalNote ? (
+                  <DropdownMenuItem onClick={startEdit} disabled={busy}>
+                    <Pencil className="size-3.5" />
+                    {t("common.edit")}
+                  </DropdownMenuItem>
+                ) : null}
+                {onDeleteInternalNote && deletableId != null ? (
+                  <DropdownMenuItem
+                    variant="destructive"
+                    disabled={busy}
+                    onClick={() => onDeleteInternalNote(deletableId)}
+                  >
+                    <Trash2 className="size-3.5" />
+                    {deleting ? t("common.deleting") : t("common.delete")}
+                  </DropdownMenuItem>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : null}
         </p>
         {item.subject ? (
@@ -691,7 +783,40 @@ function TimelineRow({
             bubble
           )}
         >
-          {showBody ? (
+          {editing ? (
+            <div className="space-y-2">
+              <Label htmlFor={`edit-note-${item.id}`} className="sr-only">
+                {t("tickets.editInternalTitle")}
+              </Label>
+              <Textarea
+                id={`edit-note-${item.id}`}
+                value={editDraft}
+                onChange={(event) => setEditDraft(event.target.value)}
+                disabled={saving}
+                rows={6}
+                className="min-h-28 text-[0.8125rem]"
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={saving || !editDraft.trim()}
+                  onClick={submitEdit}
+                >
+                  {saving ? t("common.saving") : t("common.save")}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={saving}
+                  onClick={() => setEditing(false)}
+                >
+                  {t("common.cancel")}
+                </Button>
+              </div>
+            </div>
+          ) : showBody ? (
             item.html ? (
               <div
                 className="mari-note-html max-w-none overflow-x-auto text-[0.8125rem] leading-relaxed [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_pre]:whitespace-pre-wrap [&_pre]:font-mono [&_pre]:text-[0.6875rem]"
@@ -701,7 +826,7 @@ function TimelineRow({
               <div className="whitespace-pre-wrap">{item.text}</div>
             )
           ) : null}
-          {isAttachmentOnly && hasAttachments ? (
+          {!editing && isAttachmentOnly && hasAttachments ? (
             <p className="text-[0.6875rem] text-muted-foreground">
               {attachments.length === 1
                 ? t("tickets.attachmentFromMail")
@@ -710,10 +835,10 @@ function TimelineRow({
                   })}
             </p>
           ) : null}
-          {hasAttachments ? (
+          {!editing && hasAttachments ? (
             <TimelineAttachments attachments={attachments} />
           ) : null}
-          {!showBody && !hasAttachments ? (
+          {!editing && !showBody && !hasAttachments ? (
             <span className="text-muted-foreground">{t("tickets.noText")}</span>
           ) : null}
         </div>
@@ -940,6 +1065,9 @@ export function MaringoWorkspaceClient() {
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<
     number | null
   >(null);
+  const [savingAttachmentId, setSavingAttachmentId] = useState<number | null>(
+    null
+  );
   const [patching, setPatching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [configured, setConfigured] = useState(true);
@@ -1397,6 +1525,11 @@ export function MaringoWorkspaceClient() {
       if (!res.ok) throw new Error(data.error || tr("tickets.detailFailed"));
       const ticket = data.ticket as MariTicketDetail;
       setDetail(ticket);
+      setTickets((prev) =>
+        prev.map((row) =>
+          row.issueId === id ? { ...row, listChange: null } : row
+        )
+      );
       setTicketCalendarStamp(
         data.calendarStamp && typeof data.calendarStamp === "object"
           ? (data.calendarStamp as MariCalendarStamp)
@@ -1417,6 +1550,7 @@ export function MaringoWorkspaceClient() {
           const patchData = await patchRes.json().catch(() => ({}));
           if (patchRes.ok && patchData.ticket) {
             setDetail(patchData.ticket as MariTicketDetail);
+            pinnedIssueIdRef.current = id;
             void loadList();
           }
         } catch {
@@ -1687,28 +1821,24 @@ export function MaringoWorkspaceClient() {
     if (lookupBusy || numberLookupPending) return;
     const searching = listSearchQuery.trim().length > 0;
     const pool = searching ? displayedTickets : tickets;
-    if (pool.length === 0) {
-      if (searching) {
-        setSelectedId(null);
-        setTicketFlyoutOpen(false);
-        setSecondaryFlyouts([]);
-      } else if (!listLoading && pinnedIssueIdRef.current == null) {
-        setSelectedId(null);
-        setTicketFlyoutOpen(false);
+    const next = nextTicketQueueSelection({
+      selectedId,
+      flyoutOpen: ticketFlyoutOpen,
+      pinnedId: pinnedIssueIdRef.current,
+      poolIds: pool.map((t) => t.issueId),
+      searching,
+      listLoading,
+    });
+    pinnedIssueIdRef.current = next.pinnedId;
+    if (next.selectedId !== selectedId) {
+      setSelectedId(next.selectedId);
+    }
+    if (next.flyoutOpen !== ticketFlyoutOpen) {
+      setTicketFlyoutOpen(next.flyoutOpen);
+      if (!next.flyoutOpen) {
         setSecondaryFlyouts([]);
       }
-      return;
     }
-    if (selectedId != null && pool.some((t) => t.issueId === selectedId)) {
-      if (pinnedIssueIdRef.current === selectedId) {
-        pinnedIssueIdRef.current = null;
-      }
-      return;
-    }
-    if (selectedId != null && selectedId === pinnedIssueIdRef.current) {
-      return;
-    }
-    setSelectedId(pool[0].issueId);
   }, [
     tickets,
     displayedTickets,
@@ -1717,6 +1847,7 @@ export function MaringoWorkspaceClient() {
     lookupBusy,
     numberLookupPending,
     listLoading,
+    ticketFlyoutOpen,
   ]);
 
   useEffect(() => {
@@ -1838,6 +1969,13 @@ export function MaringoWorkspaceClient() {
     setSecondaryFlyouts([]);
   }, [selectedId]);
 
+  function leaveTicketDetail() {
+    pinnedIssueIdRef.current = null;
+    setSecondaryFlyouts([]);
+    setTicketFlyoutOpen(false);
+    setAnalyzePickerOpen(false);
+  }
+
   useEffect(() => {
     if (!ticketFlyoutOpen) return;
     const prev = document.body.style.overflow;
@@ -1860,13 +1998,14 @@ export function MaringoWorkspaceClient() {
         setSecondaryFlyouts((s) => s.slice(0, -1));
         return;
       }
-      setTicketFlyoutOpen(false);
+      leaveTicketDetail();
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [ticketFlyoutOpen, secondaryFlyouts, bookDialogOpen]);
 
   function openTicket(issueId: number) {
+    pinnedIssueIdRef.current = issueId;
     setSelectedId(issueId);
     setTicketFlyoutOpen(true);
     setAnalyzePickerOpen(false);
@@ -1883,15 +2022,12 @@ export function MaringoWorkspaceClient() {
       cardCode: ticket.cardCode,
       name: ticket.addressMatchcode || ticket.cardCode,
     });
-    setTicketFlyoutOpen(false);
-    setSecondaryFlyouts([]);
+    leaveTicketDetail();
     setWorkspaceTab("kunde");
   }
 
   function closeTicketFlyout() {
-    setSecondaryFlyouts([]);
-    setTicketFlyoutOpen(false);
-    setAnalyzePickerOpen(false);
+    leaveTicketDetail();
   }
 
   function toggleTicketReview() {
@@ -2349,6 +2485,46 @@ export function MaringoWorkspaceClient() {
     }
   }
 
+  async function saveInternalNote(attachmentId: number, text: string) {
+    if (!selectedId) return;
+    const trimmed = text.trim();
+    if (!trimmed) {
+      setError(tr("tickets.emptyComment"));
+      return;
+    }
+    const ok = window.confirm(tr("tickets.confirmEditInternal"));
+    if (!ok) return;
+    setSavingAttachmentId(attachmentId);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/maringo/tickets/${selectedId}/internal-note`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ attachmentId, text: trimmed }),
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || tr("tickets.internalFailed"));
+      }
+      if (data.ticket) {
+        setDetail(data.ticket as MariTicketDetail);
+      } else {
+        await loadDetail(selectedId);
+      }
+      if (data.clearedAnalysisMarker) {
+        setAnalysisInternalNotePostedAt(null);
+      }
+      setManualNoteHint(tr("tickets.internalUpdated"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSavingAttachmentId(null);
+    }
+  }
+
   async function deleteInternalNote(attachmentId: number) {
     if (!selectedId) return;
     const ok = window.confirm(
@@ -2421,6 +2597,7 @@ export function MaringoWorkspaceClient() {
         throw new Error(data.error || tr("tickets.appointmentRemoveFailed"));
       }
       await reloadTicketCalendarStamp(detail.issueId);
+      pinnedIssueIdRef.current = detail.issueId;
       void loadList();
       setSuggestionsRefresh((n) => n + 1);
       showActionFeedback({
@@ -2463,6 +2640,7 @@ export function MaringoWorkspaceClient() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || tr("tickets.patchFailed"));
       setDetail(data.ticket as MariTicketDetail);
+      pinnedIssueIdRef.current = selectedId;
       await loadList();
       return true;
     } catch (err) {
@@ -2564,6 +2742,9 @@ export function MaringoWorkspaceClient() {
         });
       }
 
+      if (selectedId != null && action !== "delete") {
+        pinnedIssueIdRef.current = selectedId;
+      }
       await loadList();
       if (selectedId != null && succeeded.includes(selectedId) && action !== "delete") {
         await loadDetail(selectedId);
@@ -2681,6 +2862,7 @@ export function MaringoWorkspaceClient() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || tr("tickets.patchFailed"));
       setDetail(data.ticket as MariTicketDetail);
+      pinnedIssueIdRef.current = selectedId;
       await loadList();
     } finally {
       setPatching(false);
@@ -2707,8 +2889,7 @@ export function MaringoWorkspaceClient() {
             variant="ghost"
             data-segment="true"
             onClick={() => {
-              setTicketFlyoutOpen(false);
-              setSecondaryFlyouts([]);
+              leaveTicketDetail();
               setWorkspaceTab("tickets");
             }}
             className={segmentedTriggerClass(workspaceTab === "tickets")}
@@ -2721,8 +2902,7 @@ export function MaringoWorkspaceClient() {
             variant="ghost"
             data-segment="true"
             onClick={() => {
-              setTicketFlyoutOpen(false);
-              setSecondaryFlyouts([]);
+              leaveTicketDetail();
               setWorkspaceTab("hours");
             }}
             className={segmentedTriggerClass(workspaceTab === "hours")}
@@ -2735,8 +2915,7 @@ export function MaringoWorkspaceClient() {
             variant="ghost"
             data-segment="true"
             onClick={() => {
-              setTicketFlyoutOpen(false);
-              setSecondaryFlyouts([]);
+              leaveTicketDetail();
               setWorkspaceTab("kunde");
             }}
             className={segmentedTriggerClass(workspaceTab === "kunde")}
@@ -2749,8 +2928,7 @@ export function MaringoWorkspaceClient() {
             variant="ghost"
             data-segment="true"
             onClick={() => {
-              setTicketFlyoutOpen(false);
-              setSecondaryFlyouts([]);
+              leaveTicketDetail();
               setWorkspaceTab("ttv");
             }}
             className={segmentedTriggerClass(workspaceTab === "ttv")}
@@ -2761,8 +2939,7 @@ export function MaringoWorkspaceClient() {
         </nav>
         <TtvDutyChip
           onOpenInbox={() => {
-            setTicketFlyoutOpen(false);
-            setSecondaryFlyouts([]);
+            leaveTicketDetail();
             setWorkspaceTab("tickets");
             setFilterMode("ttv");
             setListSort("newest");
@@ -3536,6 +3713,11 @@ export function MaringoWorkspaceClient() {
                       ) : t.handledByName || t.handledBy ? (
                         <p className="mt-0.5 truncate text-[0.6875rem] text-muted-foreground">
                           {t.handledByName || t.handledBy}
+                        </p>
+                      ) : null}
+                      {t.listChange ? (
+                        <p className="mt-0.5 text-[0.6875rem] font-bold leading-snug text-foreground">
+                          {formatTicketListChange(t.listChange, locale, tr)}
                         </p>
                       ) : null}
                     </div>
@@ -4674,8 +4856,12 @@ export function MaringoWorkspaceClient() {
                                 key={item.id}
                                 item={item}
                                 deletingAttachmentId={deletingAttachmentId}
+                                savingAttachmentId={savingAttachmentId}
                                 onDeleteInternalNote={(attachmentId) =>
                                   void deleteInternalNote(attachmentId)
+                                }
+                                onSaveInternalNote={(attachmentId, text) =>
+                                  void saveInternalNote(attachmentId, text)
                                 }
                               />
                             ))}
@@ -4899,6 +5085,7 @@ export function MaringoWorkspaceClient() {
         mariIssueId={detail?.issueId ?? null}
         onCreated={() => {
           const id = detail?.issueId;
+          if (id != null) pinnedIssueIdRef.current = id;
           void loadList();
           setSuggestionsRefresh((n) => n + 1);
           if (id == null) return;

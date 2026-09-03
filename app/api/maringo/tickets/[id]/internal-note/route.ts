@@ -8,7 +8,9 @@ import { deleteMariInternalNote } from "@/lib/mari/attachments";
 import {
   postAnalysisAsInternalNote,
   postPlainInternalNote,
+  replaceMariInternalNote,
 } from "@/lib/mari/internal-note";
+import { markMariTicketSeen } from "@/lib/mari/ticket-seen-store";
 import {
   clearMariTicketAnalysisInternalNotePosted,
   markMariTicketAnalysisInternalNotePosted,
@@ -39,6 +41,20 @@ const BodySchema = z
 const DeleteBodySchema = z.object({
   attachmentId: z.number().int().positive(),
 });
+
+const PatchBodySchema = z.object({
+  attachmentId: z.number().int().positive(),
+  text: z.string().max(20_000),
+});
+
+function looksLikeAnalysisNoteSubject(subject: string | null): boolean {
+  const s = (subject || "").toLowerCase();
+  return (
+    s.includes("buddy ai") ||
+    s.includes("ai-analyse") ||
+    s === "interner kommentar"
+  );
+}
 
 export async function POST(request: Request, context: Ctx) {
   return withMariModule(async (auth) => {
@@ -83,6 +99,9 @@ export async function POST(request: Request, context: Ctx) {
     }
 
     const ticket = await getTicketDetail(id);
+    if (auth.userId != null) {
+      markMariTicketSeen(auth.userId, ticket);
+    }
     return NextResponse.json({
       ok: true,
       attachmentId: posted.attachmentId,
@@ -140,11 +159,7 @@ export async function DELETE(request: Request, context: Ctx) {
       attachmentId,
     });
 
-    const subject = (deleted.subject || "").toLowerCase();
-    const wasAnalysisNote =
-      subject.includes("buddy ai") ||
-      subject.includes("ai-analyse") ||
-      subject === "interner kommentar";
+    const wasAnalysisNote = looksLikeAnalysisNoteSubject(deleted.subject);
     let internalNotePostedAt: string | null | undefined;
     if (wasAnalysisNote) {
       const cleared = clearMariTicketAnalysisInternalNotePosted(id);
@@ -152,6 +167,9 @@ export async function DELETE(request: Request, context: Ctx) {
     }
 
     const ticket = await getTicketDetail(id);
+    if (auth.userId != null) {
+      markMariTicketSeen(auth.userId, ticket);
+    }
     return NextResponse.json({
       ok: true,
       deletedAttachmentId: deleted.attachmentId,
@@ -170,5 +188,74 @@ export async function DELETE(request: Request, context: Ctx) {
     const status = err instanceof MariApiError ? err.status || 502 : 502;
     return NextResponse.json({ error: message }, { status });
   }
+  });
+}
+
+/** Ersetzt einen internen Kommentar (löschen + neu anlegen, kein MARI-PATCH). */
+export async function PATCH(request: Request, context: Ctx) {
+  return withMariModule(async (auth) => {
+    if (!hasMariConfig()) {
+      return NextResponse.json(
+        { error: "MARI nicht konfiguriert." },
+        { status: 503 }
+      );
+    }
+
+    const { id: raw } = await context.params;
+    const id = Number(raw);
+    if (!Number.isInteger(id) || id <= 0) {
+      return NextResponse.json({ error: "Ungültige Ticket-ID" }, { status: 400 });
+    }
+
+    const json = await request.json().catch(() => null);
+    const parsed = PatchBodySchema.safeParse(json);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "attachmentId oder text ungültig." },
+        { status: 400 }
+      );
+    }
+    if (!parsed.data.text.trim()) {
+      return NextResponse.json({ error: "Kommentar leer" }, { status: 400 });
+    }
+
+    try {
+      await getTicketDetail(id);
+      const replaced = await replaceMariInternalNote({
+        issueId: id,
+        attachmentId: parsed.data.attachmentId,
+        text: parsed.data.text,
+      });
+
+      const wasAnalysisNote = looksLikeAnalysisNoteSubject(replaced.subject);
+      let internalNotePostedAt: string | null | undefined;
+      if (wasAnalysisNote) {
+        const cleared = clearMariTicketAnalysisInternalNotePosted(id);
+        internalNotePostedAt = cleared?.internalNotePostedAt ?? null;
+      }
+
+      const ticket = await getTicketDetail(id);
+      if (auth.userId != null) {
+        markMariTicketSeen(auth.userId, ticket);
+      }
+      return NextResponse.json({
+        ok: true,
+        deletedAttachmentId: replaced.oldAttachmentId,
+        attachmentId: replaced.newAttachmentId,
+        clearedAnalysisMarker: wasAnalysisNote,
+        internalNotePostedAt:
+          wasAnalysisNote ? internalNotePostedAt ?? null : undefined,
+        ticket,
+      });
+    } catch (err) {
+      const message =
+        err instanceof MariApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : String(err);
+      const status = err instanceof MariApiError ? err.status || 502 : 502;
+      return NextResponse.json({ error: message }, { status });
+    }
   });
 }

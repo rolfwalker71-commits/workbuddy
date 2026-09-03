@@ -18,6 +18,7 @@ import {
   type MariTimelineSide,
 } from "@/lib/mari/timeline-side";
 import { looksLikeMariHtml, sanitizeMariNoteHtml } from "@/lib/mari/internal-note";
+import type { MariTicketListChange } from "@/lib/mari/ticket-list-change";
 import {
   PRIORITY_LABELS,
   STATUS_LABELS,
@@ -121,6 +122,8 @@ export type MariTicketListItem = {
   contractPositionId: number | null;
   /** WorkBuddy: gespeicherte AI-Analyse vorhanden */
   hasAnalysis?: boolean;
+  /** Changelog since last time this user opened the ticket. */
+  listChange?: MariTicketListChange | null;
 };
 
 export type MariTimelineAttachment = {

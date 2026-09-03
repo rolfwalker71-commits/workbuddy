@@ -5,6 +5,7 @@ import { MariApiError } from "@/lib/mari/client";
 import { hasMariConfig } from "@/lib/mari/config";
 import { postPlainExternalNote } from "@/lib/mari/internal-note";
 import { getTicketDetail } from "@/lib/mari/tickets";
+import { markMariTicketSeen } from "@/lib/mari/ticket-seen-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ const BodySchema = z.object({
 });
 
 export async function POST(request: Request, context: Ctx) {
-  return withMariModule(async () => {
+  return withMariModule(async (auth) => {
   if (!hasMariConfig()) {
     return NextResponse.json(
       { error: "MARI nicht konfiguriert." },
@@ -43,6 +44,9 @@ export async function POST(request: Request, context: Ctx) {
     await getTicketDetail(id);
     const posted = await postPlainExternalNote(id, parsed.data.text);
     const ticket = await getTicketDetail(id);
+    if (auth.userId != null) {
+      markMariTicketSeen(auth.userId, ticket);
+    }
     return NextResponse.json({
       ok: true,
       attachmentId: posted.attachmentId,

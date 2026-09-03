@@ -1628,6 +1628,14 @@ export const de = {
       "AI-Entwurf ins Feld übernehmen?\n\nDer aktuelle Text im externen Kommentar wird ersetzt.",
     confirmDeleteInternal:
       "Internen Kommentar wirklich löschen?\n\nDer Eintrag wird in Maringo entfernt.",
+    confirmEditInternal:
+      "Internen Kommentar in Maringo ersetzen?\n\nDer alte Eintrag wird gelöscht und neu angelegt. Er erscheint mit neuem Zeitstempel.",
+    editInternalTitle: "Internen Kommentar bearbeiten",
+    internalNoteMenu: "Internen Kommentar",
+    internalUpdated: "Interner Kommentar aktualisiert.",
+    listChangeStatus: "Status: {from} → {to}",
+    listChangeDue: "Stichtag: {from} → {to}",
+    listChangeUpdated: "Kommentar oder Aktualisierung",
     confirmRemoveAppointment:
       "Termin für Ticket #{id} am {when} wirklich entfernen?\n\nDer Termin wird in Microsoft 365 gelöscht und in WorkBuddy nicht mehr angezeigt.",
     emptyComment: "Kommentar ist leer.",

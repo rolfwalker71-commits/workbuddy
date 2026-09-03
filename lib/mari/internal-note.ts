@@ -1,9 +1,15 @@
 import { MariApiError, mariJson } from "@/lib/mari/client";
+import {
+  assertMariInternalNoteMutable,
+  deleteMariSupportAttachment,
+} from "@/lib/mari/attachments";
 import { formatSupportTodoTitle } from "@/lib/mari/analyze-ticket";
 import {
   artifactKindLabel,
   type MariTicketAnalysis,
 } from "@/lib/mari/analyze-ticket-shared";
+
+export { stripBuddyInternalNoteChrome } from "@/lib/mari/internal-note-text";
 
 function escapeHtml(raw: string): string {
   return raw
@@ -225,6 +231,7 @@ export function looksLikeMariHtml(raw: string): boolean {
   );
 }
 
+
 export type MariInternalNotePostResult = {
   attachmentId: number;
   issueId: number;
@@ -331,6 +338,46 @@ export async function postPlainInternalNote(
     subject: "Interner Kommentar",
     commentHtml: formatPlainTextAsInternalCommentHtml(trimmed, { issueId }),
   });
+}
+
+/**
+ * Edit = new note + delete old (MARI has no PATCH for SupportIssueAttachment).
+ * Post first so a failed write does not drop the original.
+ */
+export async function replaceMariInternalNote(params: {
+  issueId: number;
+  attachmentId: number;
+  text: string;
+}): Promise<{
+  oldAttachmentId: number;
+  newAttachmentId: number;
+  subject: string | null;
+}> {
+  const { issueId, attachmentId, text } = params;
+  const { subject } = await assertMariInternalNoteMutable({
+    issueId,
+    attachmentId,
+  });
+  const posted = await postPlainInternalNote(issueId, text);
+  try {
+    await deleteMariSupportAttachment(attachmentId);
+  } catch (err) {
+    const detail =
+      err instanceof MariApiError
+        ? err.message
+        : err instanceof Error
+          ? err.message
+          : String(err);
+    throw new MariApiError(
+      `Neuer Kommentar gespeichert, alter Eintrag konnte nicht entfernt werden (${detail}).`,
+      err instanceof MariApiError ? err.status || 502 : 502
+    );
+  }
+  return {
+    oldAttachmentId: attachmentId,
+    newAttachmentId: posted.attachmentId,
+    subject,
+  };
 }
 
 /**
