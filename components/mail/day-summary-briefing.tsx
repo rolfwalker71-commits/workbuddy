@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, CalendarClock, CalendarDays, Flag, ListTodo, Mail } from "lucide-react";
+import { Building2, CalendarDays, ListTodo, Mail } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useT } from "@/components/i18n/locale-provider";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
@@ -29,14 +29,7 @@ function NameRichText({ text }: { text: string }) {
 }
 
 function hasVisibleChips(chips: DaySummaryChips): boolean {
-  return (
-    chips.task ||
-    chips.event ||
-    chips.mail ||
-    chips.urgent ||
-    Boolean(chips.customer) ||
-    Boolean(chips.deadline)
-  );
+  return chips.task || chips.event || chips.mail || Boolean(chips.customer);
 }
 
 const CHIP =
@@ -74,36 +67,14 @@ export function DaySummaryBriefing({
                 </p>
                 {hasVisibleChips(bullet.chips) ? (
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    {bullet.chips.urgent ? (
-                      <Badge
-                        variant="secondary"
-                        className={`${CHIP} bg-rose-100 text-rose-950 dark:bg-rose-500/20 dark:text-rose-50`}
-                      >
-                        <Flag
-                          className="size-3"
-                          strokeWidth={APP_ICON_STROKE}
-                          aria-hidden
-                        />
-                        {t("workspace.dayChipUrgent")}
-                      </Badge>
-                    ) : null}
-                    {bullet.chips.deadline ? (
-                      <Badge
-                        variant="secondary"
-                        className={`${CHIP} bg-amber-100 text-amber-950 dark:bg-amber-500/20 dark:text-amber-50`}
-                      >
-                        <CalendarClock
-                          className="size-3"
-                          strokeWidth={APP_ICON_STROKE}
-                          aria-hidden
-                        />
-                        {bullet.chips.deadline}
-                      </Badge>
-                    ) : null}
                     {bullet.chips.customer ? (
                       <Badge
                         variant="secondary"
-                        className={`${CHIP} bg-slate-100 text-slate-900 dark:bg-slate-500/25 dark:text-slate-50`}
+                        className={
+                          bullet.chips.customerAng
+                            ? `${CHIP} bg-primary/15 text-primary ring-1 ring-primary/35 dark:bg-primary/25 dark:text-emerald-50 dark:ring-primary/40`
+                            : `${CHIP} bg-slate-100 text-slate-900 dark:bg-slate-500/25 dark:text-slate-50`
+                        }
                       >
                         <Building2
                           className="size-3"

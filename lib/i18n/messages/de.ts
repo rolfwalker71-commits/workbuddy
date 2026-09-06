@@ -985,7 +985,6 @@ export const de = {
     dayChipTask: "Aufgabe",
     dayChipEvent: "Termin",
     dayChipMail: "Mail",
-    dayChipUrgent: "Dringend",
     noClusters: "Keine Cluster / Handlungsvorschläge.",
     noOpenActions: "Keine offenen Handlungen — nur Info-/FYI-Threads.",
     threadNoAction: "Thread erfordert keine Aktion",

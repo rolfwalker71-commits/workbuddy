@@ -3,8 +3,8 @@ import test from "node:test";
 import {
   buildDaySummaryBriefing,
   daySummaryTextParts,
+  isAngCompanyLabel,
   matchDaySummaryChips,
-  parseBulletDeadline,
   parseDaySummaryStructure,
   plainDaySummaryPreview,
 } from "./day-summary-display.ts";
@@ -75,30 +75,29 @@ test("matchDaySummaryChips attaches task and mail from the matching cluster", ()
     task: true,
     event: false,
     mail: true,
-    urgent: false,
     customer: "Birchmeier",
-    deadline: null,
+    customerAng: false,
   });
 });
 
-test("parseBulletDeadline reads numeric and named German dates", () => {
-  assert.equal(parseBulletDeadline("bis zum 15.09. für MARINGO"), "15.09.");
-  assert.equal(parseBulletDeadline("Meeting am 15. September 2026"), "15.09.2026");
-  assert.equal(parseBulletDeadline("kein Datum im Text"), null);
+test("isAngCompanyLabel matches An-Group spellings", () => {
+  assert.equal(isAngCompanyLabel("An-Group"), true);
+  assert.equal(isAngCompanyLabel("AN Group"), true);
+  assert.equal(isAngCompanyLabel("ANG"), true);
+  assert.equal(isAngCompanyLabel("Birchmeier"), false);
 });
 
-test("matchDaySummaryChips adds urgent, customer, and cluster deadline", () => {
+test("matchDaySummaryChips shortens An-Group to ANG", () => {
   const chips = matchDaySummaryChips("Norbert braucht den Zugang in MARINGO.", [
     {
-      company: "AN Group",
+      company: "An-Group",
       theme: "MARINGO Zugang",
       status: "open",
       tasks: [{ title: "User anlegen", dueDate: "2026-09-15" }],
     },
   ]);
-  assert.equal(chips.urgent, true);
-  assert.equal(chips.customer, "AN Group");
-  assert.equal(chips.deadline, "15.09.2026");
+  assert.equal(chips.customer, "ANG");
+  assert.equal(chips.customerAng, true);
   assert.equal(chips.task, true);
 });
 
