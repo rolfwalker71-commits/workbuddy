@@ -1212,18 +1212,8 @@ export function WorkspaceDayClient({
         usage: a.usage || null,
       });
       setShowAllThreads(false);
-      const next: PickState = { tasks: {}, events: {}, replies: {} };
-      (a.tasks || []).forEach((t, i) => {
-        // Bereits in To Do → nicht erneut übernehmen (erledigt = OK).
-        next.tasks[i] = !t.existingTask?.id;
-      });
-      (a.events || []).forEach((_, i) => {
-        next.events[i] = true;
-      });
-      replies.forEach((_, i) => {
-        next.replies[i] = true;
-      });
-      setPicks(next);
+      // Opt-in: the user ticks tasks, events, and reply drafts they actually want.
+      setPicks({ tasks: {}, events: {}, replies: {} });
       setAnalysisFromCache(Boolean(opts?.fromCache));
       const when = finishedAt
         ? toSwissDateTime(finishedAt)
