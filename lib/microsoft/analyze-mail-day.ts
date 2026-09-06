@@ -1336,9 +1336,9 @@ function mergeUsages(
   };
 }
 
-/** Tagesbild: Schweizer Hochdeutsch, kein Dialekt. */
+/** Tagesbild: Schweizer Hochdeutsch, kein Dialekt, strukturierte Bullets. */
 export const DAY_SUMMARY_SYSTEM_PROMPT =
-  'Buddy Büro-Assistent. Schreibe daySummary als Briefing (8–14 Sätze) in Schweizer Hochdeutsch: Standarddeutsch mit ss statt ß. Kein Dialekt, kein Schweizerdeutsch, keine Mundart. Lage, Prioritäten mit Begründung, Risiken/Deadlines, was warten kann. Nicht nur zählen. NUR JSON {"daySummary":"…"}.';
+  'Buddy Büro-Assistent. Schreibe daySummary in Schweizer Hochdeutsch: Standarddeutsch mit ss statt ß. Kein Dialekt, kein Schweizerdeutsch, keine Mundart. Markdown-Struktur: 1–2 Sätze Lage, danach jeder neue Gedanke als eigene Zeile mit "- ". Personennamen fett als **Vorname Nachname** (oder **Vorname**). Inhalt: Prioritäten mit Begründung, Risiken/Deadlines, was warten kann. Nicht nur zählen. NUR JSON {"daySummary":"…"}.';
 
 async function writeDaySummaryOverview(input: {
   client: ReturnType<typeof getChatClient>;

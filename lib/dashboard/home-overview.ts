@@ -22,6 +22,7 @@ import {
   writeHomeWeatherCache,
 } from "./home-kpi-cache";
 import { getMsMailDayCached } from "@/lib/microsoft/mail-day-analysis-job";
+import { plainDaySummaryPreview } from "@/lib/mail/day-summary-display";
 import { isGoogleMailConnected } from "@/lib/google/oauth";
 import {
   getGmailInboxExcerpt,
@@ -105,7 +106,9 @@ function cachedMailDay(
     inboxCount: cached.inboxCount,
     sentCount: cached.sentCount,
     finishedAt: cached.finishedAt,
-    headline: cached.analysis.daySummary?.trim()?.slice(0, 220) || null,
+    headline: cached.analysis.daySummary
+      ? plainDaySummaryPreview(cached.analysis.daySummary, 220) || null
+      : null,
   };
 }
 

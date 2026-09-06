@@ -42,6 +42,8 @@ test("day summary prompt stays Hochdeutsch, not dialect", () => {
   assert.match(DAY_SUMMARY_SYSTEM_PROMPT, /Kein Dialekt/i);
   assert.match(DAY_SUMMARY_SYSTEM_PROMPT, /kein Schweizerdeutsch/i);
   assert.equal(DAY_SUMMARY_SYSTEM_PROMPT.includes("Schweizer Deutsch"), false);
+  assert.match(DAY_SUMMARY_SYSTEM_PROMPT, /"- "/);
+  assert.match(DAY_SUMMARY_SYSTEM_PROMPT, /\*\*Vorname/);
 });
 
 test("applySwissOrthography replaces ß with ss", () => {

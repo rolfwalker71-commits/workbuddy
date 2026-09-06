@@ -1,4 +1,5 @@
 import { formatTokenUsageLine } from "@/lib/ai/usage-cost";
+import { plainDaySummaryPreview } from "@/lib/mail/day-summary-display";
 import type { MsDayMailAnalysis } from "@/lib/microsoft/analyze-mail-day";
 
 /** Kompakte Cache-Zeile für die Tagesanalysen-Liste (ohne volle Analyse). */
@@ -35,7 +36,7 @@ export function toMailDayCachedSummary(entry: {
     finishedAt: entry.finishedAt,
     inboxCount: entry.inboxCount,
     sentCount: entry.sentCount,
-    daySummary: (a.daySummary || "").trim().slice(0, 280),
+    daySummary: plainDaySummaryPreview(a.daySummary || "", 280),
     clusterCount: a.clusters?.length || 0,
     taskCount: a.tasks?.length || 0,
     replyCount: a.replies?.length || 0,

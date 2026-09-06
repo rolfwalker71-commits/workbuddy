@@ -96,6 +96,7 @@ import {
 } from "@/components/mail/mail-chronik-list";
 import { MailAnalysisThreadHint } from "@/components/mail/mail-analysis-thread-hint";
 import { MailTagesanalysenList } from "@/components/mail/mail-tagesanalysen-list";
+import { DaySummaryBriefing } from "@/components/mail/day-summary-briefing";
 import {
   AnalysisEventDraftCard,
   analysisEventsNeedSlot,
@@ -2503,7 +2504,10 @@ export function WorkspaceDayClient({
                     />
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <p className="text-sm leading-relaxed">{analysis.daySummary}</p>
+                    <DaySummaryBriefing
+                      text={analysis.daySummary}
+                      clusters={analysis.clusters}
+                    />
                     {formatTokenUsageLine(analysis.usage) ? (
                       <p className="text-[0.6875rem] text-muted-foreground">
                         {t("common.tokens", { line: formatTokenUsageLine(analysis.usage) })}
