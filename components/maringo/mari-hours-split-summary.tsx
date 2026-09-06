@@ -19,6 +19,7 @@ export function MariHoursSplitSummary({
   overtimeHint = null,
   className,
   totalHint,
+  bagelSize = "lg",
 }: {
   totalHours: number;
   billableHours: number;
@@ -33,6 +34,8 @@ export function MariHoursSplitSummary({
   overtimeHours?: number | null;
   overtimeHint?: string | null;
   className?: string;
+  /** Ticket flyout keeps lg; period overview uses compact (~30% smaller). */
+  bagelSize?: "compact" | "lg";
 }) {
   const t = useT();
   const resolvedHint = totalHint === undefined ? t("timekeeping.period") : totalHint;
@@ -51,7 +54,11 @@ export function MariHoursSplitSummary({
         className
       )}
     >
-      <HoursSplitBagel worked={totalHours} billable={billableHours} size="lg" />
+      <HoursSplitBagel
+        worked={totalHours}
+        billable={billableHours}
+        size={bagelSize}
+      />
 
       <div className="min-w-0 flex-1 space-y-1">
         <div

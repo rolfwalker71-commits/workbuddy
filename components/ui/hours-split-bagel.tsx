@@ -44,13 +44,17 @@ const BAGEL_VIEW = 64;
 
 const SIZE_CLASS = {
   sm: "size-10",
-  md: "size-16",
+  /** ~30% smaller than previous md (calendar cards). */
+  md: "size-[2.8rem]",
+  /** Hours period overview (Tag/Woche/Monat) — ~30% smaller than ticket lg. */
+  compact: "size-[3.325rem]",
   lg: "size-[4.75rem]",
 } as const;
 
 const LABEL_CLASS = {
   sm: "text-[0.5625rem]",
-  md: "text-[0.6875rem]",
+  md: "text-[0.5625rem]",
+  compact: "text-[0.625rem]",
   lg: "text-xs",
 } as const;
 

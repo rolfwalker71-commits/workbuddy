@@ -840,6 +840,7 @@ export function MaringoTimekeepingPanel({
                 </div>
 
                 <MariHoursSplitSummary
+                  bagelSize="compact"
                   totalHours={totalHours}
                   billableHours={billableHours}
                   nonBillableHours={nonBillableHours}
