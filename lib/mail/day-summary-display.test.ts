@@ -4,6 +4,7 @@ import {
   buildDaySummaryBriefing,
   daySummaryTextParts,
   matchDaySummaryChips,
+  parseBulletDeadline,
   parseDaySummaryStructure,
   plainDaySummaryPreview,
 } from "./day-summary-display.ts";
@@ -70,7 +71,35 @@ test("matchDaySummaryChips attaches task and mail from the matching cluster", ()
       },
     ]
   );
-  assert.deepEqual(chips, { task: true, event: false, mail: true });
+  assert.deepEqual(chips, {
+    task: true,
+    event: false,
+    mail: true,
+    urgent: false,
+    customer: "Birchmeier",
+    deadline: null,
+  });
+});
+
+test("parseBulletDeadline reads numeric and named German dates", () => {
+  assert.equal(parseBulletDeadline("bis zum 15.09. für MARINGO"), "15.09.");
+  assert.equal(parseBulletDeadline("Meeting am 15. September 2026"), "15.09.2026");
+  assert.equal(parseBulletDeadline("kein Datum im Text"), null);
+});
+
+test("matchDaySummaryChips adds urgent, customer, and cluster deadline", () => {
+  const chips = matchDaySummaryChips("Norbert braucht den Zugang in MARINGO.", [
+    {
+      company: "AN Group",
+      theme: "MARINGO Zugang",
+      status: "open",
+      tasks: [{ title: "User anlegen", dueDate: "2026-09-15" }],
+    },
+  ]);
+  assert.equal(chips.urgent, true);
+  assert.equal(chips.customer, "AN Group");
+  assert.equal(chips.deadline, "15.09.2026");
+  assert.equal(chips.task, true);
 });
 
 test("buildDaySummaryBriefing wires chips onto bullets", () => {

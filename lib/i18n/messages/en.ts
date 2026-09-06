@@ -983,6 +983,7 @@ export const en = {
     dayChipTask: "Task",
     dayChipEvent: "Event",
     dayChipMail: "Mail",
+    dayChipUrgent: "Urgent",
     noClusters: "No clusters / action suggestions.",
     noOpenActions: "No open actions — only info/FYI threads.",
     threadNoAction: "Thread needs no action",

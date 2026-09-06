@@ -1,10 +1,15 @@
+export type DaySummaryChips = {
+  task: boolean;
+  event: boolean;
+  mail: boolean;
+  urgent: boolean;
+  customer: string | null;
+  deadline: string | null;
+};
+
 export type DaySummaryBullet = {
   text: string;
-  chips: {
-    task: boolean;
-    event: boolean;
-    mail: boolean;
-  };
+  chips: DaySummaryChips;
 };
 
 export type DaySummaryBriefingModel = {
@@ -16,8 +21,9 @@ export type DaySummaryChipSource = {
   company?: string | null;
   theme?: string | null;
   summary?: string | null;
-  tasks?: Array<{ title?: string | null }>;
-  events?: Array<{ title?: string | null }>;
+  status?: string | null;
+  tasks?: Array<{ title?: string | null; dueDate?: string | null }>;
+  events?: Array<{ title?: string | null; date?: string | null }>;
   replies?: Array<{ subject?: string | null }>;
 };
 
@@ -112,6 +118,116 @@ const FULL_NAME_RE =
 
 const AFTER_PREP_RE =
   /\b(?:für|von|an|bei|mit|durch|gegenüber)\s+([A-ZÄÖÜ][a-zäöüß]+)\b/g;
+
+const MONTH_INDEX: Record<string, number> = {
+  januar: 1,
+  februar: 2,
+  märz: 3,
+  maerz: 3,
+  april: 4,
+  mai: 5,
+  juni: 6,
+  juli: 7,
+  august: 8,
+  september: 9,
+  oktober: 10,
+  november: 11,
+  dezember: 12,
+};
+
+const GENERIC_COMPANY = new Set([
+  "unbekannt",
+  "unknown",
+  "kunde",
+  "customer",
+  "intern",
+  "internal",
+]);
+
+const EMPTY_CHIPS: DaySummaryChips = {
+  task: false,
+  event: false,
+  mail: false,
+  urgent: false,
+  customer: null,
+  deadline: null,
+};
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function formatDeadlineChip(day: number, month: number, year?: number | null): string {
+  const core = `${pad2(day)}.${pad2(month)}.`;
+  return year && year > 0 ? `${core}${year}` : core;
+}
+
+function parseIsoParts(
+  raw: string | null | undefined
+): { day: number; month: number; year: number; iso: string } | null {
+  if (!raw) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw.trim());
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return { day, month, year, iso: `${m[1]}-${m[2]}-${m[3]}` };
+}
+
+/** Deadline as on the chip: 15.09. or 15.09.2026 / 15. September. */
+export function parseBulletDeadline(text: string): string | null {
+  const numeric = /\b(\d{1,2})\.(\d{1,2})\.(?:(\d{2,4}))?(?!\d)/.exec(text);
+  if (numeric) {
+    const day = Number(numeric[1]);
+    const month = Number(numeric[2]);
+    if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
+      const yearRaw = numeric[3];
+      const year = yearRaw
+        ? yearRaw.length === 2
+          ? 2000 + Number(yearRaw)
+          : Number(yearRaw)
+        : null;
+      return formatDeadlineChip(day, month, year);
+    }
+  }
+  const named =
+    /\b(\d{1,2})\.\s*(Januar|Februar|März|Maerz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)(?:\s+(\d{4}))?\b/i.exec(
+      text
+    );
+  if (named) {
+    const day = Number(named[1]);
+    const month = MONTH_INDEX[named[2].toLowerCase()];
+    if (day >= 1 && day <= 31 && month) {
+      const year = named[3] ? Number(named[3]) : null;
+      return formatDeadlineChip(day, month, year);
+    }
+  }
+  return null;
+}
+
+function earliestClusterDeadline(cluster: DaySummaryChipSource): string | null {
+  const dates: Array<{ day: number; month: number; year: number; iso: string }> =
+    [];
+  for (const task of cluster.tasks || []) {
+    const d = parseIsoParts(task.dueDate);
+    if (d) dates.push(d);
+  }
+  for (const event of cluster.events || []) {
+    const d = parseIsoParts(event.date);
+    if (d) dates.push(d);
+  }
+  dates.sort((a, b) => a.iso.localeCompare(b.iso));
+  const first = dates[0];
+  return first ? formatDeadlineChip(first.day, first.month, first.year) : null;
+}
+
+function customerLabel(company: string | null | undefined): string | null {
+  const name = (company || "").trim();
+  if (name.length < 2) return null;
+  if (GENERIC_COMPANY.has(name.toLowerCase())) return null;
+  return name.length > 28 ? `${name.slice(0, 27)}…` : name;
+}
 
 function stripListPrefix(text: string): string {
   return text.replace(/^[-*•]\s+/, "").replace(/^\d+\.\s+/, "").trim();
@@ -290,11 +406,15 @@ function clusterHaystack(cluster: DaySummaryChipSource): string {
 export function matchDaySummaryChips(
   bullet: string,
   clusters: DaySummaryChipSource[]
-): DaySummaryBullet["chips"] {
-  const empty = { task: false, event: false, mail: false };
-  if (clusters.length === 0) return empty;
+): DaySummaryChips {
+  const deadlineFromText = parseBulletDeadline(bullet);
+  if (clusters.length === 0) {
+    return { ...EMPTY_CHIPS, deadline: deadlineFromText };
+  }
   const tokens = significantTokens(bullet);
-  if (tokens.length === 0) return empty;
+  if (tokens.length === 0) {
+    return { ...EMPTY_CHIPS, deadline: deadlineFromText };
+  }
 
   let best: { cluster: DaySummaryChipSource; score: number } | null = null;
   for (const cluster of clusters) {
@@ -313,11 +433,17 @@ export function matchDaySummaryChips(
     }
     if (!best || score > best.score) best = { cluster, score };
   }
-  if (!best || best.score < 2) return empty;
+  if (!best || best.score < 2) {
+    return { ...EMPTY_CHIPS, deadline: deadlineFromText };
+  }
+  const status = (best.cluster.status || "").toLowerCase();
   return {
     task: (best.cluster.tasks || []).length > 0,
     event: (best.cluster.events || []).length > 0,
     mail: (best.cluster.replies || []).length > 0,
+    urgent: status === "open" || status === "waiting",
+    customer: customerLabel(best.cluster.company),
+    deadline: deadlineFromText || earliestClusterDeadline(best.cluster),
   };
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, ListTodo, Mail } from "lucide-react";
+import { Building2, CalendarClock, CalendarDays, Flag, ListTodo, Mail } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useT } from "@/components/i18n/locale-provider";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
@@ -8,6 +8,7 @@ import {
   buildDaySummaryBriefing,
   daySummaryTextParts,
   type DaySummaryChipSource,
+  type DaySummaryChips,
 } from "@/lib/mail/day-summary-display";
 
 function NameRichText({ text }: { text: string }) {
@@ -26,6 +27,20 @@ function NameRichText({ text }: { text: string }) {
     </>
   );
 }
+
+function hasVisibleChips(chips: DaySummaryChips): boolean {
+  return (
+    chips.task ||
+    chips.event ||
+    chips.mail ||
+    chips.urgent ||
+    Boolean(chips.customer) ||
+    Boolean(chips.deadline)
+  );
+}
+
+const CHIP =
+  "h-6 gap-1 rounded-full px-2 text-[0.625rem] font-semibold";
 
 export function DaySummaryBriefing({
   text,
@@ -57,12 +72,51 @@ export function DaySummaryBriefing({
                 <p className="text-foreground/90">
                   <NameRichText text={bullet.text} />
                 </p>
-                {bullet.chips.task || bullet.chips.event || bullet.chips.mail ? (
+                {hasVisibleChips(bullet.chips) ? (
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {bullet.chips.urgent ? (
+                      <Badge
+                        variant="secondary"
+                        className={`${CHIP} bg-rose-100 text-rose-950 dark:bg-rose-500/20 dark:text-rose-50`}
+                      >
+                        <Flag
+                          className="size-3"
+                          strokeWidth={APP_ICON_STROKE}
+                          aria-hidden
+                        />
+                        {t("workspace.dayChipUrgent")}
+                      </Badge>
+                    ) : null}
+                    {bullet.chips.deadline ? (
+                      <Badge
+                        variant="secondary"
+                        className={`${CHIP} bg-amber-100 text-amber-950 dark:bg-amber-500/20 dark:text-amber-50`}
+                      >
+                        <CalendarClock
+                          className="size-3"
+                          strokeWidth={APP_ICON_STROKE}
+                          aria-hidden
+                        />
+                        {bullet.chips.deadline}
+                      </Badge>
+                    ) : null}
+                    {bullet.chips.customer ? (
+                      <Badge
+                        variant="secondary"
+                        className={`${CHIP} bg-slate-100 text-slate-900 dark:bg-slate-500/25 dark:text-slate-50`}
+                      >
+                        <Building2
+                          className="size-3"
+                          strokeWidth={APP_ICON_STROKE}
+                          aria-hidden
+                        />
+                        {bullet.chips.customer}
+                      </Badge>
+                    ) : null}
                     {bullet.chips.task ? (
                       <Badge
                         variant="secondary"
-                        className="h-6 gap-1 rounded-full bg-orange-100 px-2 text-[0.625rem] font-semibold text-orange-950 dark:bg-orange-500/20 dark:text-orange-50"
+                        className={`${CHIP} bg-orange-100 text-orange-950 dark:bg-orange-500/20 dark:text-orange-50`}
                       >
                         <ListTodo
                           className="size-3"
@@ -75,7 +129,7 @@ export function DaySummaryBriefing({
                     {bullet.chips.event ? (
                       <Badge
                         variant="secondary"
-                        className="h-6 gap-1 rounded-full bg-sky-100 px-2 text-[0.625rem] font-semibold text-sky-950 dark:bg-sky-500/20 dark:text-sky-50"
+                        className={`${CHIP} bg-sky-100 text-sky-950 dark:bg-sky-500/20 dark:text-sky-50`}
                       >
                         <CalendarDays
                           className="size-3"
@@ -88,7 +142,7 @@ export function DaySummaryBriefing({
                     {bullet.chips.mail ? (
                       <Badge
                         variant="secondary"
-                        className="h-6 gap-1 rounded-full bg-teal-100 px-2 text-[0.625rem] font-semibold text-teal-950 dark:bg-teal-500/20 dark:text-teal-50"
+                        className={`${CHIP} bg-teal-100 text-teal-950 dark:bg-teal-500/20 dark:text-teal-50`}
                       >
                         <Mail
                           className="size-3"
