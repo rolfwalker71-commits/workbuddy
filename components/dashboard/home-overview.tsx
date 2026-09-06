@@ -201,8 +201,10 @@ function MariStatusDonut({
   const total = segments.reduce((s, x) => s + x.count, 0);
   const cx = size / 2;
   const cy = size / 2;
-  const stroke = size >= 80 ? Math.max(14, size * 0.18) : Math.max(6, size * 0.16);
-  const r = size >= 80 ? size / 2 - 10 : size / 2 - stroke / 2 - 1;
+  const stroke =
+    size >= 80 ? Math.max(21, size * 0.27) : Math.max(9, size * 0.24);
+  const pad = size >= 80 ? 2 : 1;
+  const r = size / 2 - stroke / 2 - pad;
   if (total <= 0) {
     return (
       <svg
@@ -252,14 +254,14 @@ function MariStatusDonut({
               strokeWidth={stroke}
               strokeLinecap="butt"
             />
-            {showCounts && s.span >= 24 ? (
+            {showCounts && s.span >= 26 ? (
               <text
                 x={labelPos.x}
                 y={labelPos.y}
                 textAnchor="middle"
                 dominantBaseline="middle"
                 fill="#fff"
-                fontSize={Math.max(9, size * 0.11)}
+                fontSize={Math.max(10, size * 0.13)}
                 fontWeight={700}
                 className="tabular-nums"
               >
@@ -778,7 +780,7 @@ export function HomeOverview() {
                       size={56}
                       ariaLabel={t("home.ticketStatus")}
                     />
-                    <BagelHoleLabel className="text-sm font-black tabular-nums">
+                    <BagelHoleLabel className="text-[0.8125rem] font-black tabular-nums">
                       {tickets?.configured ? tickets.total : "—"}
                     </BagelHoleLabel>
                   </span>

@@ -49,9 +49,9 @@ const SIZE_CLASS = {
 } as const;
 
 const LABEL_CLASS = {
-  sm: "text-[0.625rem]",
-  md: "text-xs",
-  lg: "text-sm",
+  sm: "text-[0.5625rem]",
+  md: "text-[0.6875rem]",
+  lg: "text-xs",
 } as const;
 
 export function HoursSplitBagel({
@@ -69,7 +69,7 @@ export function HoursSplitBagel({
   const cx = BAGEL_VIEW / 2;
   const cy = BAGEL_VIEW / 2;
   const rOuter = BAGEL_VIEW / 2 - 1;
-  const rInner = rOuter * 0.58;
+  const rInner = rOuter * 0.37;
   const rMid = (rOuter + rInner) / 2;
   const strokeWidth = rOuter - rInner;
   const ariaLabel = bagelHoursAriaLabel(worked, billable);
