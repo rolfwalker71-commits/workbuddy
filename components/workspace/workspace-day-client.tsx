@@ -7,6 +7,9 @@ import {
   Check,
   CalendarClock,
   CalendarPlus,
+  Circle,
+  CircleCheck,
+  ListTodo,
   RefreshCw,
   Send,
   Sparkles,
@@ -351,6 +354,84 @@ function withReplyTranslation(
       [targetLang]: { subject: next.subject, body: next.body },
     },
   };
+}
+
+const MATCH_CHIP =
+  "h-6 max-w-full gap-1 rounded-full px-2 text-[0.625rem] font-semibold";
+
+function existingTaskStatusLabel(
+  t: ReturnType<typeof useT>,
+  existing: NonNullable<DayTask["existingTask"]>
+): string {
+  const done = existing.status === "done";
+  if (existing.source === "planner") {
+    return done ? t("workspace.doneInPlanner") : t("workspace.openInPlanner");
+  }
+  if (existing.source === "google") {
+    return done
+      ? t("workspace.doneInGoogleTasks")
+      : t("workspace.openInGoogleTasks");
+  }
+  return done ? t("workspace.doneInToDo") : t("workspace.openInToDo");
+}
+
+function ExistingTaskMatchChips({
+  existing,
+}: {
+  existing: NonNullable<DayTask["existingTask"]>;
+}) {
+  const t = useT();
+  const done = existing.status === "done";
+  const titleChip = (
+    <Badge
+      variant="secondary"
+      title={existing.title}
+      className={`${MATCH_CHIP} bg-sky-100 text-sky-950 dark:bg-sky-500/25 dark:text-sky-50`}
+    >
+      <ListTodo className="size-3" strokeWidth={APP_ICON_STROKE} aria-hidden />
+      <span className="max-w-[12rem] truncate">{existing.title}</span>
+    </Badge>
+  );
+  return (
+    <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
+      <Badge
+        variant="secondary"
+        className={
+          done
+            ? `${MATCH_CHIP} bg-emerald-100 text-emerald-950 dark:bg-emerald-500/25 dark:text-emerald-50`
+            : `${MATCH_CHIP} bg-amber-100 text-amber-950 dark:bg-amber-500/25 dark:text-amber-50`
+        }
+      >
+        {done ? (
+          <CircleCheck
+            className="size-3"
+            strokeWidth={APP_ICON_STROKE}
+            aria-hidden
+          />
+        ) : (
+          <Circle
+            className="size-3"
+            strokeWidth={APP_ICON_STROKE}
+            aria-hidden
+          />
+        )}
+        {existingTaskStatusLabel(t, existing)}
+      </Badge>
+      {existing.href ? (
+        <a
+          href={existing.href}
+          target="_blank"
+          rel="noreferrer"
+          className="min-w-0"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {titleChip}
+        </a>
+      ) : (
+        titleChip
+      )}
+    </span>
+  );
 }
 
 function ReplyLangToggle({
@@ -2601,44 +2682,9 @@ export function WorkspaceDayClient({
                                           {task.title}
                                         </span>
                                         {existing ? (
-                                          <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[0.6875rem]">
-                                            <Badge
-                                              variant={
-                                                existing.status === "done"
-                                                  ? "secondary"
-                                                  : "outline"
-                                              }
-                                              className="text-[0.625rem]"
-                                            >
-                                              {existing.status === "done"
-                                                ? existing.source === "planner"
-                                                  ? t("workspace.doneInPlanner")
-                                                  : existing.source === "google"
-                                                    ? t("workspace.doneInGoogleTasks")
-                                                    : t("workspace.doneInToDo")
-                                                : existing.source === "planner"
-                                                  ? t("workspace.openInPlanner")
-                                                  : existing.source === "google"
-                                                    ? t("workspace.openInGoogleTasks")
-                                                    : t("workspace.openInToDo")}
-                                            </Badge>
-                                            <span className="text-muted-foreground">
-                                              {existing.title}
-                                            </span>
-                                            {existing.href ? (
-                                              <a
-                                                href={existing.href}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="text-primary underline-offset-2 hover:underline"
-                                                onClick={(e) =>
-                                                  e.stopPropagation()
-                                                }
-                                              >
-                                                {t("common.open")}
-                                              </a>
-                                            ) : null}
-                                          </span>
+                                          <ExistingTaskMatchChips
+                                            existing={existing}
+                                          />
                                         ) : (
                                           <span className="block text-[0.6875rem] text-muted-foreground">
                                             {[
