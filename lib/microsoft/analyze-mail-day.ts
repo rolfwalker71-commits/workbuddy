@@ -208,10 +208,17 @@ export function senderDisplayName(
   displayName?: string | null,
   email?: string | null
 ): string | null {
-  let name = (displayName || "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  let name = (displayName || "").replace(/\s+/g, " ").trim();
+  // "Ada <a@x>, Ben <b@x>" → Eintrag zur Mail, sonst der erste.
+  if ((name.match(/@/g) || []).length > 1) {
+    const chunks = name.split(/\s*[,;]\s+/).filter(Boolean);
+    const want = (email || "").trim().toLowerCase();
+    const hit =
+      (want && chunks.find((c) => c.toLowerCase().includes(want))) ||
+      chunks[0];
+    if (hit) name = hit;
+  }
+  name = name.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
   // "Raphael Altenberger · AN Group" → Name
   name = name.replace(/\s*[·|].*$/, "").trim();
   if (name.includes("@")) {
@@ -324,6 +331,47 @@ export function counterpartForMail(m: MsMailItem): {
       displayName: m.from,
     }),
   };
+}
+
+/** Gegenstelle einer Mail: Inbox = Absender, Gesendet = erster Empfänger. */
+export function counterpartDisplayName(m: MsMailItem): string | null {
+  if (m.folder === "sent") {
+    return senderDisplayName(m.toPreview, m.toEmails?.[0] || null);
+  }
+  return senderDisplayName(m.from, m.fromEmail);
+}
+
+/**
+ * Name in Klammern am Aufgaben-/Termintitel: dieselbe Person wie
+ * `counterpartEmail` auf der Cluster-Karte — nicht irgendwer aus einer
+ * späteren Inbox-Antwort im Thread.
+ */
+export function clusterCounterpartLabel(
+  mails: MsMailItem[],
+  counterpartEmail?: string | null
+): string | null {
+  const email = (counterpartEmail || "").trim().toLowerCase();
+  if (email) {
+    for (const m of mails) {
+      if ((m.fromEmail || "").toLowerCase() === email) {
+        const name = senderDisplayName(m.from, m.fromEmail);
+        if (name) return name;
+      }
+    }
+    for (const m of mails) {
+      const tos = m.toEmails || [];
+      const idx = tos.findIndex((e) => e.toLowerCase() === email);
+      if (idx >= 0) {
+        const name = senderDisplayName(m.toPreview, tos[idx]);
+        if (name) return name;
+      }
+    }
+    return senderDisplayName(null, email);
+  }
+  const newest = [...mails].sort((a, b) =>
+    (b.receivedOrSentAt || "").localeCompare(a.receivedOrSentAt || "")
+  )[0];
+  return newest ? counterpartDisplayName(newest) : null;
 }
 
 /** Ursprünglicher Absender (Inbox bevorzugen — nie „ich selbst“ aus Gesendet). */
@@ -623,6 +671,10 @@ function enrichCluster(
     fromMails.find((m) => m.conversationId)?.conversationId ||
     null;
   const sender = originalSenderForCluster(relatedMails);
+  const counterpartLabel = clusterCounterpartLabel(
+    relatedMails,
+    counterpartEmail
+  );
   const defaultDue = addDaysYmd(dayIso, 1);
 
   const tasks = cluster.tasks
@@ -630,9 +682,8 @@ function enrichCluster(
     .map((t) => {
       const mail = resolveMail(t.sourceMailId, t.sourceSubject, byId);
       const c = mail ? counterpartForMail(mail) : null;
-      // Immer aus Mail ableiten — AI-Kürzel (DV)/(RW) nicht übernehmen
-      const senderName =
-        (mail ? originalSenderForCluster([mail]).name : null) || sender.name;
+      // Gegenstelle der Karte — nicht erster Inbox-Absender im Thread.
+      const senderName = counterpartLabel || sender.name;
       return {
         ...t,
         title: withSenderLabel(t.title, senderName),

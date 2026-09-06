@@ -10,6 +10,7 @@ import {
   MsDayClusterSchema,
   packMailsForPrompt,
   resolveReplyToEmail,
+  clusterCounterpartLabel,
   senderDisplayName,
   sortClusters,
   stripMailBodyNoise,
@@ -108,12 +109,49 @@ test("senderDisplayName and full name suffix on tasks", () => {
     "Raphael Altenberger"
   );
   assert.equal(
+    senderDisplayName(
+      "Norbert Pulliam <norbert.pulliam@an-group.one>, Hubert Suchy <hubert.suchy@an-group.one>",
+      "norbert.pulliam@an-group.one"
+    ),
+    "Norbert Pulliam"
+  );
+  assert.equal(
     withSenderLabel("ELO Sync Problem beheben (DV)", "Raphael Altenberger"),
     "ELO Sync Problem beheben (Raphael Altenberger)"
   );
   assert.equal(
     withSenderLabel("Zugriff auf SAP HANA bereitstellen (RW)", "Nawazish Rasool"),
     "Zugriff auf SAP HANA bereitstellen (Nawazish Rasool)"
+  );
+});
+
+test("clusterCounterpartLabel follows the card counterpart, not a later inbox reply", () => {
+  const sent = mail({
+    id: "out1",
+    folder: "sent",
+    from: "Rolf Walker",
+    fromEmail: "rolf.walker@an-group.one",
+    toEmails: [
+      "norbert.pulliam@an-group.one",
+      "hubert.suchy@an-group.one",
+    ],
+    toPreview:
+      "Norbert Pulliam <norbert.pulliam@an-group.one>, Hubert Suchy <hubert.suchy@an-group.one>",
+    receivedOrSentAt: "2026-09-04T08:00:00Z",
+  });
+  const hubertReply = mail({
+    id: "in1",
+    folder: "inbox",
+    from: "Hubert Suchy",
+    fromEmail: "hubert.suchy@an-group.one",
+    receivedOrSentAt: "2026-09-04T10:00:00Z",
+  });
+  assert.equal(
+    clusterCounterpartLabel(
+      [hubertReply, sent],
+      "norbert.pulliam@an-group.one"
+    ),
+    "Norbert Pulliam"
   );
 });
 
