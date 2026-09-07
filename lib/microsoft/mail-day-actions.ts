@@ -1,4 +1,5 @@
 import { graphFetch, graphJson, MicrosoftGraphError } from "@/lib/microsoft/graph";
+import { getConnectedMicrosoftId } from "@/lib/microsoft/oauth";
 import { outlookTeamsMeetingFields } from "@/lib/microsoft/teams-meeting";
 
 export type CreateOutlookEventInput = {
@@ -394,6 +395,7 @@ type GraphTodoTask = {
   body?: { content?: string | null; contentType?: string } | null;
   dueDateTime?: { dateTime?: string | null; timeZone?: string | null } | null;
   completedDateTime?: { dateTime?: string | null } | null;
+  createdBy?: { user?: { id?: string | null } | null } | null;
 };
 
 function mapOutlookTodoStatus(
@@ -705,7 +707,18 @@ export async function updateOutlookTodoTask(
   return mapped;
 }
 
-/** Offene + kürzlich erledigte To-Do-Aufgaben für Tagesanalyse-Abgleich. */
+export function isUsableTodoList(list: {
+  wellknownListName?: string | null;
+  isOwner?: boolean | null;
+  isShared?: boolean | null;
+}): boolean {
+  const wk = (list.wellknownListName || "").toLowerCase();
+  if (wk === "flaggedemails") return false;
+  if (list.isShared && list.isOwner === false) return false;
+  return true;
+}
+
+/** Eigene To-Do-Aufgaben (keine fremden Listen, keine gekennzeichneten Mails). */
 export async function listOutlookTodoTasksForMatch(
   userId: number,
   options?: { completedWithinDays?: number; maxPerList?: number }
@@ -720,9 +733,21 @@ export async function listOutlookTodoTasksForMatch(
     source: "todo";
   }>
 > {
-  const completedWithinDays = options?.completedWithinDays ?? 30;
+  const completedWithinDays = options?.completedWithinDays ?? 14;
   const maxPerList = options?.maxPerList ?? 80;
-  const lists = await listOutlookTodoLists(userId);
+  const myAad = (getConnectedMicrosoftId(userId) || "").toLowerCase();
+  const lists = await graphJson<{
+    value?: Array<{
+      id?: string;
+      wellknownListName?: string | null;
+      isOwner?: boolean | null;
+      isShared?: boolean | null;
+    }>;
+  }>(userId, "/me/todo/lists?$top=50");
+  const usable = (lists.value || []).filter(
+    (l): l is { id: string; wellknownListName?: string | null; isOwner?: boolean | null; isShared?: boolean | null } =>
+      Boolean(l.id) && isUsableTodoList(l)
+  );
   const cutoff = new Date();
   cutoff.setUTCDate(cutoff.getUTCDate() - completedWithinDays);
   const cutoffMs = cutoff.getTime();
@@ -743,16 +768,17 @@ export async function listOutlookTodoTasksForMatch(
   };
 
   await Promise.all(
-    lists.map(async (list) => {
-      const local: typeof out = [];
+    usable.map(async (list) => {
       let url: string | null =
-        `/me/todo/lists/${encodeURIComponent(list.id)}/tasks?$top=${maxPerList}&$orderby=lastModifiedDateTime desc`;
+        `/me/todo/lists/${encodeURIComponent(list.id)}/tasks?$top=${maxPerList}&$select=id,title,status,body,completedDateTime,createdBy&$orderby=lastModifiedDateTime desc`;
       let pages = 0;
       while (url && pages < 3) {
         pages += 1;
         const page: TodoPage = await graphJson<TodoPage>(userId, url);
         for (const t of page.value || []) {
           if (!t.id || !(t.title || "").trim()) continue;
+          const creator = (t.createdBy?.user?.id || "").toLowerCase();
+          if (myAad && creator && creator !== myAad) continue;
           const status = mapOutlookTodoStatus(t.status);
           const doneAt = t.completedDateTime?.dateTime || null;
           if (status === "done") {
@@ -760,7 +786,7 @@ export async function listOutlookTodoTasksForMatch(
             const doneMs = Date.parse(doneAt);
             if (Number.isFinite(doneMs) && doneMs < cutoffMs) continue;
           }
-          local.push({
+          out.push({
             id: t.id,
             title: (t.title || "").trim(),
             notes: t.body?.content?.trim() || null,
@@ -776,7 +802,6 @@ export async function listOutlookTodoTasksForMatch(
           : null;
         if ((page.value || []).length < maxPerList) break;
       }
-      out.push(...local);
     })
   );
 

@@ -25,9 +25,6 @@ import {
   resolveMailAnalysisRange,
   type MailAnalysisRange,
 } from "@/lib/mail/mail-analysis-range";
-import { attachExistingTasksToAnalysis } from "@/lib/mail/day-task-catalog";
-import { listOutlookTodoTasksForMatch } from "@/lib/microsoft/mail-day-actions";
-import { listPlannerTasksForMatch } from "@/lib/microsoft/planner";
 import {
   isMicrosoftConnected,
   resolveMicrosoftUserId,
@@ -35,6 +32,9 @@ import {
 import { formatTokenUsageLine } from "@/lib/ai/usage-cost";
 import { notifyAppChange } from "@/lib/realtime/notify";
 import { runWithAiUser } from "@/lib/ai/request-context";
+import { attachExistingTasksToAnalysis } from "@/lib/mail/day-task-catalog";
+import { listOutlookTodoTasksForMatch } from "@/lib/microsoft/mail-day-actions";
+import { listPlannerTasksForMatch } from "@/lib/microsoft/planner";
 import { listUserMailSenderBlacklistEmails } from "@/lib/mail/sender-blacklist-store";
 
 export const runtime = "nodejs";

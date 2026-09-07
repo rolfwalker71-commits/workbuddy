@@ -7,6 +7,7 @@ import {
   MsDayReplyDraftSchema,
   MsDayTaskApplySchema,
 } from "@/lib/microsoft/analyze-mail-day";
+import { isConfidentExistingTaskRef } from "@/lib/mail/day-task-catalog";
 import { createGoogleCalendarEvent } from "@/lib/google/calendar-write";
 import { listGoogleCalendarsForUser } from "@/lib/google/calendars";
 import { createGoogleTask } from "@/lib/google/tasks";
@@ -97,10 +98,7 @@ export async function POST(request: Request) {
   }> = [];
 
   for (const task of body.tasks) {
-    if (task.existingTask?.id) {
-      // Bereits in Google Tasks — nicht erneut anlegen.
-      continue;
-    }
+    if (isConfidentExistingTaskRef(task.title, task.existingTask)) continue;
     const counterpart = [
       task.company?.trim() || null,
       task.counterpartEmail?.trim() || null,
@@ -112,6 +110,7 @@ export async function POST(request: Request) {
       task.theme ? `Thema: ${task.theme}` : null,
       counterpart ? `Gegenstelle: ${counterpart}` : null,
       task.sourceSubject ? `Quelle Mail: ${task.sourceSubject}` : null,
+      task.sourceMailId ? `Quelle Mail-ID: ${task.sourceMailId}` : null,
       "Übernommen aus Gmail-Tagesanalyse (Buddy)",
     ]
       .filter(Boolean)

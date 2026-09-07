@@ -25,8 +25,6 @@ import {
   resolveMailAnalysisRange,
   type MailAnalysisRange,
 } from "@/lib/mail/mail-analysis-range";
-import { attachExistingTasksToAnalysis } from "@/lib/mail/day-task-catalog";
-import { listGoogleTasksForMatch } from "@/lib/google/tasks";
 import {
   isGoogleMailConnected,
   resolveGoogleUserId,
@@ -34,6 +32,8 @@ import {
 import { formatTokenUsageLine } from "@/lib/ai/usage-cost";
 import { notifyAppChange } from "@/lib/realtime/notify";
 import { runWithAiUser } from "@/lib/ai/request-context";
+import { attachExistingTasksToAnalysis } from "@/lib/mail/day-task-catalog";
+import { listGoogleTasksForMatch } from "@/lib/google/tasks";
 import { listUserMailSenderBlacklistEmails } from "@/lib/mail/sender-blacklist-store";
 
 export const runtime = "nodejs";

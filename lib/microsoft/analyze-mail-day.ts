@@ -71,7 +71,7 @@ export const ExistingDayTaskRefSchema = z.object({
   status: z.enum(["open", "done"]),
   doneAt: z.string().max(80).nullable().optional(),
   href: z.string().max(500).nullable().optional(),
-  match: z.enum(["title", "theme", "notes"]),
+  match: z.enum(["title", "theme", "notes", "source"]),
   source: z.enum(["todo", "planner", "google"]).nullable().optional(),
 });
 

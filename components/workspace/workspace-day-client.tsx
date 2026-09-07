@@ -104,6 +104,7 @@ import {
   AnalysisEventDraftCard,
   analysisEventsNeedSlot,
 } from "@/components/mail/analysis-event-draft-card";
+import { isConfidentExistingTaskRef } from "@/lib/mail/day-task-catalog";
 import { summarizeMailThreadCoverage } from "@/lib/mail/mail-threads";
 import type { MailDayCachedSummary } from "@/lib/mail/mail-day-cache-summary";
 import type { MsMailItem } from "@/lib/microsoft/mail-day";
@@ -280,7 +281,7 @@ type DayTask = {
     status: "open" | "done";
     doneAt?: string | null;
     href?: string | null;
-    match?: "title" | "theme" | "notes";
+    match?: "title" | "theme" | "notes" | "source";
     source?: "todo" | "planner" | "google" | null;
   } | null;
 };
@@ -365,14 +366,18 @@ function existingTaskStatusLabel(
 ): string {
   const done = existing.status === "done";
   if (existing.source === "planner") {
-    return done ? t("workspace.doneInPlanner") : t("workspace.openInPlanner");
+    return done
+      ? t("workspace.dayExistingPlannerDone")
+      : t("workspace.dayExistingPlannerOpen");
   }
   if (existing.source === "google") {
     return done
-      ? t("workspace.doneInGoogleTasks")
-      : t("workspace.openInGoogleTasks");
+      ? t("workspace.dayExistingGoogleDone")
+      : t("workspace.dayExistingGoogleOpen");
   }
-  return done ? t("workspace.doneInToDo") : t("workspace.openInToDo");
+  return done
+    ? t("workspace.dayExistingTodoDone")
+    : t("workspace.dayExistingTodoOpen");
 }
 
 function ExistingTaskMatchChips({
@@ -2651,7 +2656,12 @@ export function WorkspaceDayClient({
                                 </p>
                                 {cluster.tasks.map((task, li) => {
                                   const i = flatTaskIndex(ci, li);
-                                  const existing = task.existingTask;
+                                  const existing = isConfidentExistingTaskRef(
+                                    task.title,
+                                    task.existingTask
+                                  )
+                                    ? task.existingTask
+                                    : null;
                                   const matched = Boolean(existing?.id);
                                   return (
                                     <label
@@ -2689,7 +2699,9 @@ export function WorkspaceDayClient({
                                           <span className="block text-[0.6875rem] text-muted-foreground">
                                             {[
                                               task.dueDate
-                                                ? t("common.dueOn", { date: toSwissDate(task.dueDate) })
+                                                ? t("common.dueOn", {
+                                                    date: toSwissDate(task.dueDate),
+                                                  })
                                                 : null,
                                               task.reason,
                                             ]

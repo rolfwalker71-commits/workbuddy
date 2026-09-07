@@ -146,7 +146,7 @@ export async function listUpcomingGoogleTasks(
   return out;
 }
 
-/** Offene + kürzlich erledigte Tasks für Tagesanalyse-Abgleich. */
+/** Eigene Google-Tasks für den Tagesanalyse-Abgleich. */
 export async function listGoogleTasksForMatch(
   userId: number,
   options?: {
@@ -162,13 +162,14 @@ export async function listGoogleTasksForMatch(
     status: "open" | "done";
     doneAt: string | null;
     href: string | null;
+    source: "google";
   }>
 > {
   if (!isGoogleMailConnected(userId) || !hasGoogleTasksScope(userId)) {
     return [];
   }
-  const completedWithinDays = options?.completedWithinDays ?? 30;
-  const maxPerList = options?.maxPerList ?? 100;
+  const completedWithinDays = options?.completedWithinDays ?? 14;
+  const maxPerList = options?.maxPerList ?? 80;
   const cutoff = new Date();
   cutoff.setUTCDate(cutoff.getUTCDate() - completedWithinDays);
   const cutoffMs = cutoff.getTime();
@@ -185,6 +186,7 @@ export async function listGoogleTasksForMatch(
     status: "open" | "done";
     doneAt: string | null;
     href: string | null;
+    source: "google";
   }> = [];
 
   for (const list of lists) {
@@ -216,6 +218,7 @@ export async function listGoogleTasksForMatch(
           status: isDone ? "done" : "open",
           doneAt,
           href: "https://tasks.google.com/",
+          source: "google",
         });
         taken += 1;
         if (taken >= maxPerList) break;

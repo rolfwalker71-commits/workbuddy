@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isAuthError, requireModule } from "@/lib/auth/current-user";
 import { ensureInitialized } from "@/lib/db/migrations";
+import { isConfidentExistingTaskRef } from "@/lib/mail/day-task-catalog";
 import {
   MsDayEventSuggestionSchema,
   MsDayReplyDraftSchema,
@@ -89,10 +90,7 @@ export async function POST(request: Request) {
   }> = [];
 
   for (const task of body.tasks) {
-    if (task.existingTask?.id) {
-      // Bereits in To Do (offen oder erledigt) — nicht erneut anlegen.
-      continue;
-    }
+    if (isConfidentExistingTaskRef(task.title, task.existingTask)) continue;
     const counterpart = [
       task.company?.trim() || null,
       task.counterpartEmail?.trim() || null,
@@ -104,6 +102,7 @@ export async function POST(request: Request) {
       task.theme ? `Thema: ${task.theme}` : null,
       counterpart ? `Gegenstelle: ${counterpart}` : null,
       task.sourceSubject ? `Quelle Mail: ${task.sourceSubject}` : null,
+      task.sourceMailId ? `Quelle Mail-ID: ${task.sourceMailId}` : null,
       "Übernommen aus Microsoft 365 Mail-Analyse (Buddy)",
     ]
       .filter(Boolean)

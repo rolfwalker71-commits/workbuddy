@@ -162,7 +162,7 @@ export async function listMyPlannerTasks(
   return out;
 }
 
-/** Katalog-Einträge für Tagesanalyse-Abgleich (To Do + Planner). */
+/** Mir zugewiesene Planner-Karten für den Tagesanalyse-Abgleich. */
 export async function listPlannerTasksForMatch(userId: number): Promise<
   Array<{
     id: string;
