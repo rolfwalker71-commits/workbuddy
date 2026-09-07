@@ -1,11 +1,15 @@
+import {
+  isConfidentExistingTaskRef,
+  titlesAreSameTask,
+} from "@/lib/mail/day-task-match";
 import type {
   ExistingDayTaskRef,
   MsDayMailAnalysis,
   MsDayTaskSuggestion,
 } from "@/lib/microsoft/analyze-mail-day";
-import { stripTrailingSenderSuffix } from "@/lib/microsoft/analyze-mail-day";
 
 export type { ExistingDayTaskRef };
+export { isConfidentExistingTaskRef, titlesAreSameTask };
 
 /** Eigene Aufgabe aus Google Tasks / Outlook To Do / Planner. */
 export type DayTaskCatalogItem = {
@@ -18,7 +22,6 @@ export type DayTaskCatalogItem = {
   source?: "todo" | "planner" | "google";
 };
 
-const MIN_TITLE = 10;
 const MIN_SUBJECT = 12;
 
 function normalizeText(s: string): string {
@@ -32,25 +35,10 @@ function normalizeText(s: string): string {
     .trim();
 }
 
-function coreTitle(title: string): string {
-  return normalizeText(stripTrailingSenderSuffix(title || ""));
-}
-
 function coreSubject(subject: string): string {
   return normalizeText(
     (subject || "").replace(/^(aw|re|wg|fwd|fw):\s*/gi, "")
   );
-}
-
-/** Gleicher Titel, oder einer ist der andere plus kurzer Absender-Rest. */
-export function titlesAreSameTask(a: string, b: string): boolean {
-  const na = coreTitle(a);
-  const nb = coreTitle(b);
-  if (na.length < MIN_TITLE || nb.length < MIN_TITLE) return false;
-  if (na === nb) return true;
-  const [short, long] = na.length <= nb.length ? [na, nb] : [nb, na];
-  if (!long.includes(short)) return false;
-  return short.length >= 20 && short.length / long.length >= 0.75;
 }
 
 function isBuddyCreated(notes: string | null | undefined): boolean {
@@ -71,15 +59,6 @@ function notesPointToSource(
   if (!hay.includes(subject)) return false;
   // Betreff in Notizen nur zählen, wenn Buddy die Aufgabe angelegt hat.
   return isBuddyCreated(raw);
-}
-
-export function isConfidentExistingTaskRef(
-  suggestionTitle: string,
-  existing?: ExistingDayTaskRef | null
-): boolean {
-  if (!existing?.id) return false;
-  if (existing.match === "source") return true;
-  return titlesAreSameTask(suggestionTitle, existing.title);
 }
 
 export function matchExistingDayTask(

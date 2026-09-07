@@ -3,6 +3,7 @@ import {
   buildAiTokenUsage,
   type AiTokenUsage,
 } from "@/lib/ai/usage-cost";
+import { stripTrailingSenderSuffix } from "@/lib/mail/day-task-match";
 import { emailDomain } from "@/lib/mail/mail-sender-prefs";
 import { isExcludedFromMailAnalysis } from "@/lib/mail/mail-threads";
 import type { MsMailItem } from "@/lib/microsoft/mail-day";
@@ -263,12 +264,7 @@ export function senderInitials(
   return stripDiacritics(full.slice(0, 2)).toUpperCase() || null;
 }
 
-/** Trailing (Kürzel) oder alten Absender-Suffix entfernen. */
-export function stripTrailingSenderSuffix(title: string): string {
-  return title
-    .replace(/\s*\([A-Za-zÀ-ÿÄÖÜäöü .'-]{1,60}\)\s*$/u, "")
-    .trim();
-}
+export { stripTrailingSenderSuffix } from "@/lib/mail/day-task-match";
 
 /** Titel mit (Voller Absendername) am Ende. */
 export function withSenderLabel(

@@ -104,7 +104,7 @@ import {
   AnalysisEventDraftCard,
   analysisEventsNeedSlot,
 } from "@/components/mail/analysis-event-draft-card";
-import { isConfidentExistingTaskRef } from "@/lib/mail/day-task-catalog";
+import { isConfidentExistingTaskRef } from "@/lib/mail/day-task-match";
 import { summarizeMailThreadCoverage } from "@/lib/mail/mail-threads";
 import type { MailDayCachedSummary } from "@/lib/mail/mail-day-cache-summary";
 import type { MsMailItem } from "@/lib/microsoft/mail-day";
