@@ -8,6 +8,7 @@ import {
 } from "@/lib/microsoft/oauth";
 import {
   createOutlookTodoTask,
+  deleteOutlookTodoTask,
   listOutlookTodoLists,
   listOutlookTodoTasksUpcoming,
   updateOutlookTodoTask,
@@ -27,6 +28,11 @@ const PatchSchema = z.object({
     .nullable()
     .optional(),
   moveToListId: z.string().min(1).max(200).optional(),
+});
+
+const DeleteSchema = z.object({
+  taskId: z.string().min(1).max(200),
+  listId: z.string().min(1).max(200),
 });
 
 /** Offene To-Do-Aufgaben über alle Listen (+ Listen für Verschieben). */
@@ -146,6 +152,46 @@ export async function PATCH(request: Request) {
           error instanceof Error
             ? error.message
             : "To-Do-Aufgabe konnte nicht aktualisiert werden.",
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: Request) {
+  ensureInitialized();
+  const auth = await requireModule("microsoft");
+  if (isAuthError(auth)) return auth;
+  const userId = resolveMicrosoftUserId(auth);
+  if (userId == null || !isMicrosoftConnected(userId)) {
+    return NextResponse.json(
+      { error: "Microsoft 365 nicht verbunden." },
+      { status: 400 }
+    );
+  }
+
+  let body: z.infer<typeof DeleteSchema>;
+  try {
+    body = DeleteSchema.parse(await request.json());
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : "Ungültige Anfrage",
+      },
+      { status: 400 }
+    );
+  }
+
+  try {
+    await deleteOutlookTodoTask(userId, body);
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "To-Do-Aufgabe konnte nicht gelöscht werden.",
       },
       { status: 500 }
     );

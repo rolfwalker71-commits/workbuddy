@@ -2,7 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronLeft, ChevronRight, Clock3, Plus, RefreshCw } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  Plus,
+  RefreshCw,
+  Repeat,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -42,8 +49,11 @@ import {
   MARI_SECONDARY_FLYOUT_WIDTH_CLASS,
   useFlyoutPresence,
 } from "@/components/maringo/maringo-flyout-chrome";
-import { useT } from "@/components/i18n/locale-provider";
+import { ProgressBar } from "@/components/ui/progress-bar";
+import { useLocale } from "@/components/i18n/locale-provider";
 import type { MessageKey } from "@/lib/i18n";
+import { formatSwissDate } from "@/lib/utils/dates";
+import { weekdayShort } from "@/lib/utils/weekday";
 
 const PERIOD_KEYS: Record<MariTimePeriod, MessageKey> = {
   day: "timekeeping.periodDay",
@@ -101,7 +111,7 @@ export function MaringoTimekeepingPanel({
   bookDefaults?: TimeBookFormDefaults | null;
   onTicketLinesChange?: (lines: MariTimeLine[]) => void;
 }) {
-  const t = useT();
+  const { t, intlLocale } = useLocale();
   const ticketMode = ticketIssueId != null && ticketIssueId > 0;
   const showBookForm = ticketMode && ticketPanel !== "lines";
   const showLinesOverview = !ticketMode || ticketPanel !== "book";
@@ -132,6 +142,17 @@ export function MaringoTimekeepingPanel({
   const [flyoutPortalReady, setFlyoutPortalReady] = useState(false);
   const [duplicateDefaults, setDuplicateDefaults] =
     useState<TimeBookFormDefaults | null>(null);
+  const [seriesMode, setSeriesMode] = useState(false);
+  const [seriesProgress, setSeriesProgress] = useState<{
+    current: number;
+    total: number;
+    currentDate: string;
+  } | null>(null);
+  const [seriesResult, setSeriesResult] = useState<{
+    ok: number;
+    total: number;
+    failures: { date: string; error: string }[];
+  } | null>(null);
   const bookFlyoutPresence = useFlyoutPresence(bookFlyoutOpen);
 
   const onTicketLinesChangeRef = useRef(onTicketLinesChange);
@@ -150,8 +171,7 @@ export function MaringoTimekeepingPanel({
       if (document.querySelector('[data-slot="dialog-overlay"]')) return;
       e.preventDefault();
       e.stopPropagation();
-      setBookFlyoutOpen(false);
-      setDuplicateDefaults(null);
+      closeBookFlyout();
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
@@ -361,7 +381,51 @@ export function MaringoTimekeepingPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticketMode, ticketIssueId, ticketPanel, date, period]);
 
-  async function book(values: TimeBookFormValues) {
+  async function bookSeries(values: TimeBookFormValues, dates: string[]) {
+    setStatus(null);
+    setError(null);
+    const failures: { date: string; error: string }[] = [];
+    let ok = 0;
+    for (let i = 0; i < dates.length; i++) {
+      const dayOfService = dates[i]!;
+      setSeriesProgress({
+        current: i + 1,
+        total: dates.length,
+        currentDate: dayOfService,
+      });
+      try {
+        const res = await fetch("/api/maringo/timekeeping/lines", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...values,
+            dayOfService,
+            issueId: ticketMode ? ticketIssueId : values.issueId,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || t("timekeeping.bookFailed"));
+        }
+        ok += 1;
+      } catch (err) {
+        failures.push({
+          date: dayOfService,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+    setSeriesProgress(null);
+    setSeriesResult({ ok, total: dates.length, failures });
+    overtimeForDateRef.current = null;
+    await loadPeriod(date, period, { silent: true });
+  }
+
+  async function book(values: TimeBookFormValues, seriesDates?: string[]) {
+    if (seriesDates && seriesDates.length > 0) {
+      await bookSeries(values, seriesDates);
+      return;
+    }
     setStatus(null);
     setError(null);
     const payload = {
@@ -562,6 +626,9 @@ export function MaringoTimekeepingPanel({
     setBusyLineId(line.lineId);
     try {
       const defaults = await fetchLineFormDefaults(line);
+      setSeriesMode(false);
+      setSeriesProgress(null);
+      setSeriesResult(null);
       setDuplicateDefaults(defaults);
       setFormKey((k) => k + 1);
       if (dayOverview || !showBookForm) {
@@ -577,6 +644,15 @@ export function MaringoTimekeepingPanel({
   function closeBookFlyout() {
     setBookFlyoutOpen(false);
     setDuplicateDefaults(null);
+  }
+
+  function openBookFlyout(mode: "single" | "series") {
+    setDuplicateDefaults(null);
+    setSeriesMode(mode === "series");
+    setSeriesProgress(null);
+    setSeriesResult(null);
+    setStatus(null);
+    setBookFlyoutOpen(true);
   }
 
   async function saveEdit(values: TimeBookFormValues) {
@@ -669,9 +745,16 @@ export function MaringoTimekeepingPanel({
   const isDuplicateMode = duplicateDefaults != null;
   const bookSubmitLabel = isDuplicateMode
     ? t("timekeeping.bookDuplicate")
-    : ticketMode
-      ? t("timekeeping.bookOnTicket")
-      : t("common.book");
+    : seriesMode
+      ? t("timekeeping.bookSeries")
+      : ticketMode
+        ? t("timekeeping.bookOnTicket")
+        : t("common.book");
+
+  function seriesDayLabel(ymd: string): string {
+    const wd = weekdayShort(ymd, intlLocale).replace(/\.$/, "");
+    return `${wd} ${formatSwissDate(ymd)}`;
+  }
 
   return (
     <div className={cn("space-y-4", className)}>
@@ -802,11 +885,21 @@ export function MaringoTimekeepingPanel({
                     <Button
                       type="button"
                       size="sm"
+                      variant="outline"
+                      aria-label={t("timekeeping.seriesAria")}
+                      onClick={() => openBookFlyout("series")}
+                    >
+                      <Repeat
+                        className="size-3.5"
+                        strokeWidth={APP_ICON_STROKE}
+                      />
+                      {t("timekeeping.series")}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
                       className="bg-orange-500 text-white hover:bg-orange-600"
-                      onClick={() => {
-                        setDuplicateDefaults(null);
-                        setBookFlyoutOpen(true);
-                      }}
+                      onClick={() => openBookFlyout("single")}
                     >
                       <Plus className="size-3.5" strokeWidth={APP_ICON_STROKE} />
                       {t("timekeeping.bookHours")}
@@ -980,12 +1073,16 @@ export function MaringoTimekeepingPanel({
                 title={
                   isDuplicateMode
                     ? t("timekeeping.duplicateBooking")
-                    : t("timekeeping.hoursEntry")
+                    : seriesMode
+                      ? t("timekeeping.seriesHoursEntry")
+                      : t("timekeeping.hoursEntry")
                 }
                 description={
                   isDuplicateMode
                     ? t("timekeeping.adjustThenSave")
-                    : t("timekeeping.captureNewTime")
+                    : seriesMode
+                      ? t("timekeeping.seriesCapture")
+                      : t("timekeeping.captureNewTime")
                 }
                 onClose={closeBookFlyout}
                 widthClass={MARI_SECONDARY_FLYOUT_WIDTH_CLASS}
@@ -993,23 +1090,80 @@ export function MaringoTimekeepingPanel({
                 offsetPx={0}
                 open={bookFlyoutPresence.entered}
               >
-                {status ? (
+                {status && !seriesResult ? (
                   <p className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm whitespace-pre-wrap break-words text-emerald-950 dark:border-emerald-400/30 dark:bg-emerald-500/12 dark:text-emerald-100">
                     {status}
                   </p>
                 ) : null}
-                {error ? (
+                {error && !seriesResult ? (
                   <p className="mb-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm whitespace-pre-wrap break-words text-rose-950 dark:border-rose-400/30 dark:bg-rose-500/12 dark:text-rose-100">
                     {error}
                   </p>
                 ) : null}
-                <MaringoTimeBookForm
-                  key={`${formKey}-day-flyout`}
-                  defaults={formDefaults}
-                  onSubmit={book}
-                  layout="compact"
-                  submitLabel={bookSubmitLabel}
-                />
+                {seriesProgress ? (
+                  <ProgressBar
+                    className="mb-3"
+                    value={
+                      (seriesProgress.current / seriesProgress.total) * 100
+                    }
+                    label={t("timekeeping.seriesBooking")}
+                    detail={t("timekeeping.seriesProgress", {
+                      current: seriesProgress.current,
+                      total: seriesProgress.total,
+                      date: seriesDayLabel(seriesProgress.currentDate),
+                    })}
+                  />
+                ) : null}
+                {seriesResult ? (
+                  <div className="space-y-3">
+                    <p
+                      className={cn(
+                        "rounded-xl border px-3 py-2 text-sm whitespace-pre-wrap break-words",
+                        seriesResult.ok === seriesResult.total
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-400/30 dark:bg-emerald-500/12 dark:text-emerald-100"
+                          : seriesResult.ok === 0
+                            ? "border-rose-200 bg-rose-50 text-rose-950 dark:border-rose-400/30 dark:bg-rose-500/12 dark:text-rose-100"
+                            : "border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-400/30 dark:bg-amber-500/12 dark:text-amber-100"
+                      )}
+                    >
+                      {t("timekeeping.seriesResult", {
+                        ok: seriesResult.ok,
+                        total: seriesResult.total,
+                      })}
+                    </p>
+                    {seriesResult.failures.length > 0 ? (
+                      <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-950 dark:border-rose-400/30 dark:bg-rose-500/12 dark:text-rose-100">
+                        <p className="font-medium">
+                          {t("timekeeping.seriesFailures")}
+                        </p>
+                        <ul className="mt-1.5 list-disc space-y-1 pl-4">
+                          {seriesResult.failures.map((row) => (
+                            <li key={row.date} className="break-words">
+                              {seriesDayLabel(row.date)}
+                              {": "}
+                              {row.error}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+                <div
+                  className={
+                    seriesProgress || seriesResult ? "hidden" : undefined
+                  }
+                >
+                  <MaringoTimeBookForm
+                    key={`${formKey}-day-flyout-${seriesMode ? "series" : "single"}`}
+                    defaults={formDefaults}
+                    onSubmit={book}
+                    layout="compact"
+                    submitLabel={bookSubmitLabel}
+                    seriesMode={seriesMode}
+                    seriesAnchorYmd={date}
+                  />
+                </div>
               </MariSecondaryFlyoutShell>
             </div>,
             document.body

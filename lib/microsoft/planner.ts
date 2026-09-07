@@ -1,4 +1,4 @@
-import { graphFetch, graphJson } from "@/lib/microsoft/graph";
+import { graphFetch, graphJson, MicrosoftGraphError } from "@/lib/microsoft/graph";
 
 export type PlannerBucket = {
   id: string;
@@ -308,6 +308,77 @@ export async function updatePlannerTask(
   }
   const updated = text ? (JSON.parse(text) as GraphPlannerTask) : {};
   return mapUpdatedPlannerTask(userId, updated, input.taskId, etag);
+}
+
+export async function deletePlannerTask(
+  userId: number,
+  input: { taskId: string; etag?: string | null }
+): Promise<void> {
+  const taskId = input.taskId.trim();
+  if (!taskId) throw new Error("Planner-Aufgabe: ID fehlt.");
+  let etag = input.etag?.trim() || "";
+  if (!etag) {
+    try {
+      const fresh = await getPlannerTask(userId, taskId);
+      etag = fresh.etag;
+    } catch (error) {
+      if (
+        error instanceof MicrosoftGraphError &&
+        (error.status === 404 || error.status === 410)
+      ) {
+        return;
+      }
+      throw error;
+    }
+  }
+  if (!etag) {
+    throw new Error("Planner-Aufgabe: ETag fehlt (bitte Liste neu laden).");
+  }
+
+  const res = await graphFetch(
+    userId,
+    `/planner/tasks/${encodeURIComponent(taskId)}`,
+    {
+      method: "DELETE",
+      headers: { "If-Match": etag },
+    }
+  );
+  const text = await res.text();
+  if (res.ok || res.status === 404 || res.status === 410) return;
+  if (res.status === 412 || res.status === 409) {
+    let freshEtag = "";
+    try {
+      const fresh = await getPlannerTask(userId, taskId);
+      freshEtag = fresh.etag;
+    } catch (error) {
+      if (
+        error instanceof MicrosoftGraphError &&
+        (error.status === 404 || error.status === 410)
+      ) {
+        return;
+      }
+      throw error;
+    }
+    if (!freshEtag) {
+      throw new Error("Planner-Aufgabe: ETag fehlt (bitte Liste neu laden).");
+    }
+    const retry = await graphFetch(
+      userId,
+      `/planner/tasks/${encodeURIComponent(taskId)}`,
+      {
+        method: "DELETE",
+        headers: { "If-Match": freshEtag },
+      }
+    );
+    const retryText = await retry.text();
+    if (retry.ok || retry.status === 404 || retry.status === 410) return;
+    throw new Error(
+      `Planner-Löschen fehlgeschlagen (${retry.status}): ${retryText.slice(0, 240)}`
+    );
+  }
+  throw new Error(
+    `Planner-Löschen fehlgeschlagen (${res.status}): ${text.slice(0, 240)}`
+  );
 }
 
 async function mapUpdatedPlannerTask(

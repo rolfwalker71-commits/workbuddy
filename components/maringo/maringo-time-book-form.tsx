@@ -32,8 +32,17 @@ import {
   timeBookInitialBillableDirty,
   timeBookPostHours,
 } from "@/lib/mari/time-book-hours";
-import { useT } from "@/components/i18n/locale-provider";
+import { useLocale } from "@/components/i18n/locale-provider";
 import type { MessageKey } from "@/lib/i18n";
+import { weekdayShort } from "@/lib/utils/weekday";
+import {
+  expandSeriesDates,
+  isoWeekdayUtc,
+  seriesMonthEnd,
+  seriesWeekRange,
+  type ExpandSeriesDatesError,
+  type SeriesWeekday,
+} from "@/lib/mari/time-series";
 
 const REMARK_OPTION_LABEL: Record<string, MessageKey> = {
   Umbuchen: "timekeeping.remarkRepost",
@@ -41,6 +50,32 @@ const REMARK_OPTION_LABEL: Record<string, MessageKey> = {
   Rueckfrage: "timekeeping.remarkAsk",
   Begründung: "timekeeping.remarkReason",
 };
+
+const SERIES_WEEKDAY_KEYS: { value: SeriesWeekday; key: MessageKey }[] = [
+  { value: 1, key: "timekeeping.seriesMo" },
+  { value: 2, key: "timekeeping.seriesTu" },
+  { value: 3, key: "timekeeping.seriesWe" },
+  { value: 4, key: "timekeeping.seriesTh" },
+  { value: 5, key: "timekeeping.seriesFr" },
+  { value: 6, key: "timekeeping.seriesSa" },
+  { value: 7, key: "timekeeping.seriesSu" },
+];
+
+const SERIES_EXPAND_ERROR: Record<ExpandSeriesDatesError, MessageKey> = {
+  "invalid-from": "timekeeping.seriesInvalidRange",
+  "invalid-to": "timekeeping.seriesInvalidRange",
+  "range-inverted": "timekeeping.seriesInvalidRange",
+  "span-cap": "timekeeping.seriesCap",
+  "count-cap": "timekeeping.seriesCap",
+};
+
+function seriesBoundLabel(ymd: string, locale: string): string {
+  const wd = weekdayShort(ymd, locale).replace(/\.$/, "");
+  const day = Number(ymd.slice(8, 10));
+  const month = Number(ymd.slice(5, 7));
+  if (!Number.isFinite(day) || !Number.isFinite(month)) return ymd;
+  return `${wd} ${day}.${month}.`;
+}
 
 export type TimeBookFormDefaults = {
   dayOfService?: string;
@@ -105,13 +140,22 @@ export function MaringoTimeBookForm({
   initialHint,
   preserveEventPrefillOnChips = false,
   hoursHint,
+  seriesMode = false,
+  seriesAnchorYmd,
 }: {
   defaults?: TimeBookFormDefaults | null;
   submitLabel?: string;
-  onSubmit: (values: TimeBookFormValues) => Promise<void>;
+  onSubmit: (
+    values: TimeBookFormValues,
+    seriesDates?: string[]
+  ) => Promise<void>;
   className?: string;
   /** wide = volle Breite untereinander (Stunden-Tab); compact = Dialog */
   layout?: "wide" | "compact";
+  /** Serienblock statt Einzeltag — nur Tagesübersicht. */
+  seriesMode?: boolean;
+  /** Ankerdatum für «Diese Woche» (Mo–So). */
+  seriesAnchorYmd?: string;
   enableFavorites?: boolean;
   /** Teilnehmer-Adressen — Kundenvorschläge als Chips, nie Autobuchen. */
   attendeeEmails?: string[] | null;
@@ -124,10 +168,30 @@ export function MaringoTimeBookForm({
   /** Hinweis unter den Stundenfeldern (z.B. Vorlage aus Termindauer). */
   hoursHint?: string | null;
 }) {
-  const t = useT();
+  const { t, intlLocale } = useLocale();
   const resolvedSubmit = submitLabel ?? t("common.book");
   const [dayOfService, setDayOfService] = useState(
     defaults?.dayOfService || zurichTodayYmd()
+  );
+  const seriesAnchor =
+    seriesAnchorYmd || defaults?.dayOfService || zurichTodayYmd();
+  const initialWeek = seriesWeekRange(seriesAnchor);
+  const initialWeekday = isoWeekdayUtc(seriesAnchor);
+  const [seriesFrom, setSeriesFrom] = useState(
+    initialWeek?.from || seriesAnchor
+  );
+  const [seriesTo, setSeriesTo] = useState(initialWeek?.to || seriesAnchor);
+  const [seriesWeekdays, setSeriesWeekdays] = useState<SeriesWeekday[]>(
+    initialWeekday ? [initialWeekday] : []
+  );
+  const seriesExpanded = useMemo(
+    () =>
+      expandSeriesDates({
+        from: seriesFrom,
+        to: seriesTo,
+        weekdays: seriesWeekdays,
+      }),
+    [seriesFrom, seriesTo, seriesWeekdays]
   );
   const [projectQuery, setProjectQuery] = useState("");
   const [projects, setProjects] = useState<MariKeyPair[]>([]);
@@ -519,31 +583,57 @@ export function MaringoTimeBookForm({
         return;
       }
     }
+    let seriesDates: string[] | undefined;
+    let submitDay = dayOfService;
+    if (seriesMode) {
+      const expanded = expandSeriesDates({
+        from: seriesFrom,
+        to: seriesTo,
+        weekdays: seriesWeekdays,
+      });
+      if (!expanded.ok) {
+        setError(t(SERIES_EXPAND_ERROR[expanded.error]));
+        return;
+      }
+      if (expanded.dates.length === 0) {
+        setError(
+          seriesWeekdays.length === 0
+            ? t("timekeeping.seriesNeedWeekday")
+            : t("timekeeping.seriesNoneInRange")
+        );
+        return;
+      }
+      seriesDates = expanded.dates;
+      submitDay = expanded.dates[0]!;
+    }
     setBusy(true);
     try {
-      await onSubmit({
-        dayOfService,
-        projectNumber,
-        projectLabel: projectLabel || projectNumber,
-        contractId: Number(contractId) || 0,
-        contractPositionId: contractPositionId
-          ? Number(contractPositionId)
-          : null,
-        activity: activity.trim(),
-        memoText: memoText.trim(),
-        hours: posted.hours,
-        hoursBillable: posted.hoursBillable,
-        issueId: defaults?.issueId ?? null,
-        internalRemarkVerr: internalRemarkVerr.trim() || null,
-        zeroHoursReason: zeroHoursReason.trim() || null,
-        contractVisible:
-          findMariKeyPair(contracts, contractId)?.keyVisible ||
-          contractVisible ||
-          null,
-        cardCode: defaults?.cardCode ?? null,
-        customerName: defaults?.customerName ?? null,
-        company: projectCompany,
-      });
+      await onSubmit(
+        {
+          dayOfService: submitDay,
+          projectNumber,
+          projectLabel: projectLabel || projectNumber,
+          contractId: Number(contractId) || 0,
+          contractPositionId: contractPositionId
+            ? Number(contractPositionId)
+            : null,
+          activity: activity.trim(),
+          memoText: memoText.trim(),
+          hours: posted.hours,
+          hoursBillable: posted.hoursBillable,
+          issueId: defaults?.issueId ?? null,
+          internalRemarkVerr: internalRemarkVerr.trim() || null,
+          zeroHoursReason: zeroHoursReason.trim() || null,
+          contractVisible:
+            findMariKeyPair(contracts, contractId)?.keyVisible ||
+            contractVisible ||
+            null,
+          cardCode: defaults?.cardCode ?? null,
+          customerName: defaults?.customerName ?? null,
+          company: projectCompany,
+        },
+        seriesDates
+      );
       if (enableFavorites && saveAsFavorite) {
         const name = (favoriteName.trim() || activity.trim()).slice(0, 80);
         try {
@@ -598,6 +688,45 @@ export function MaringoTimeBookForm({
   }
 
   const wide = layout === "wide";
+
+  function toggleSeriesWeekday(day: SeriesWeekday) {
+    setSeriesWeekdays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort()
+    );
+  }
+
+  function applyThisWeek() {
+    const week = seriesWeekRange(seriesAnchor);
+    if (!week) return;
+    setSeriesFrom(week.from);
+    setSeriesTo(week.to);
+  }
+
+  function applyMonthEnd() {
+    const end = seriesMonthEnd(seriesFrom || seriesAnchor);
+    if (!end) return;
+    setSeriesTo(end);
+    if (seriesFrom && end < seriesFrom) setSeriesFrom(end);
+  }
+
+  const seriesPreviewText = !seriesMode
+    ? null
+    : !seriesExpanded.ok
+      ? t(SERIES_EXPAND_ERROR[seriesExpanded.error])
+      : seriesExpanded.dates.length === 0
+        ? t("timekeeping.seriesPreviewEmpty")
+        : seriesExpanded.dates.length === 1
+          ? t("timekeeping.seriesPreviewOne", {
+              date: seriesBoundLabel(seriesExpanded.dates[0]!, intlLocale),
+            })
+          : t("timekeeping.seriesPreview", {
+              count: seriesExpanded.dates.length,
+              from: seriesBoundLabel(seriesExpanded.dates[0]!, intlLocale),
+              to: seriesBoundLabel(
+                seriesExpanded.dates[seriesExpanded.dates.length - 1]!,
+                intlLocale
+              ),
+            });
 
   return (
     <form
@@ -721,27 +850,128 @@ export function MaringoTimeBookForm({
         </div>
       ) : null}
 
+      {seriesMode ? (
+        <div className="space-y-2.5">
+          <div className="space-y-1.5">
+            <Label className="block">{t("timekeeping.seriesWeekdays")}</Label>
+            <div
+              className="inline-flex flex-wrap gap-1 rounded-lg border border-border/60 bg-muted/30 p-1"
+              role="group"
+              aria-label={t("timekeeping.seriesWeekdays")}
+            >
+              {SERIES_WEEKDAY_KEYS.map((day) => {
+                const pressed = seriesWeekdays.includes(day.value);
+                return (
+                  <Button
+                    key={day.value}
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className={cn(
+                      "h-auto rounded-md px-2.5 py-1 text-xs font-medium",
+                      pressed
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                    aria-pressed={pressed}
+                    onClick={() => toggleSeriesWeekday(day.value)}
+                  >
+                    {t(day.key)}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="tk-series-from" className="block truncate">
+                {t("timekeeping.seriesFrom")}
+              </Label>
+              <Input
+                id="tk-series-from"
+                type="date"
+                value={seriesFrom}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setSeriesFrom(next);
+                  if (seriesTo && next && next > seriesTo) setSeriesTo(next);
+                }}
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="tk-series-to" className="block truncate">
+                {t("timekeeping.seriesTo")}
+              </Label>
+              <Input
+                id="tk-series-to"
+                type="date"
+                value={seriesTo}
+                onChange={(e) => setSeriesTo(e.target.value)}
+                required
+              />
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={applyThisWeek}
+            >
+              {t("timekeeping.seriesThisWeek")}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={applyMonthEnd}
+            >
+              {t("timekeeping.seriesUntilMonthEnd")}
+            </Button>
+          </div>
+          {seriesPreviewText ? (
+            <p
+              className={cn(
+                "text-xs leading-snug",
+                seriesExpanded.ok && seriesExpanded.dates.length > 0
+                  ? "text-muted-foreground"
+                  : "text-rose-700 dark:text-rose-300"
+              )}
+            >
+              {seriesPreviewText}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="space-y-2">
         <div
           className={cn(
             "grid gap-3",
             wide
-              ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
-              : "grid-cols-1 sm:grid-cols-3"
+              ? seriesMode
+                ? "grid-cols-1 sm:grid-cols-2"
+                : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+              : seriesMode
+                ? "grid-cols-1 sm:grid-cols-2"
+                : "grid-cols-1 sm:grid-cols-3"
           )}
         >
-          <div className="space-y-1">
-            <Label htmlFor="tk-date" className="block truncate">
-              {t("common.date")}
-            </Label>
-            <Input
-              id="tk-date"
-              type="date"
-              value={dayOfService}
-              onChange={(e) => setDayOfService(e.target.value)}
-              required
-            />
-          </div>
+          {!seriesMode ? (
+            <div className="space-y-1">
+              <Label htmlFor="tk-date" className="block truncate">
+                {t("common.date")}
+              </Label>
+              <Input
+                id="tk-date"
+                type="date"
+                value={dayOfService}
+                onChange={(e) => setDayOfService(e.target.value)}
+                required
+              />
+            </div>
+          ) : null}
           <div className="space-y-1">
             <Label htmlFor="tk-hours" className="block leading-snug">
               {t("timekeeping.worked")}

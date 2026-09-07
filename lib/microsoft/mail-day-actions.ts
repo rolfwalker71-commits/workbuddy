@@ -707,6 +707,29 @@ export async function updateOutlookTodoTask(
   return mapped;
 }
 
+export async function deleteOutlookTodoTask(
+  userId: number,
+  input: { taskId: string; listId?: string | null }
+): Promise<void> {
+  const taskId = input.taskId.trim();
+  if (!taskId) throw new Error("To-Do-Aufgabe: ID fehlt.");
+  const listId =
+    input.listId?.trim() || (await resolveOutlookTodoListId(userId));
+  try {
+    await graphJson(userId, `/me/todo/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(taskId)}`, {
+      method: "DELETE",
+    });
+  } catch (error) {
+    if (
+      error instanceof MicrosoftGraphError &&
+      (error.status === 404 || error.status === 410)
+    ) {
+      return;
+    }
+    throw error;
+  }
+}
+
 export function isUsableTodoList(list: {
   wellknownListName?: string | null;
   isOwner?: boolean | null;
