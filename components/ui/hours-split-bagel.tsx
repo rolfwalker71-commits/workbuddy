@@ -73,7 +73,7 @@ export function HoursSplitBagel({
   const cx = BAGEL_VIEW / 2;
   const cy = BAGEL_VIEW / 2;
   const rOuter = BAGEL_VIEW / 2 - 1;
-  const rInner = rOuter * 0.37;
+  const rInner = rOuter * 0.62;
   const rMid = (rOuter + rInner) / 2;
   const strokeWidth = rOuter - rInner;
   const ariaLabel = bagelHoursAriaLabel(worked, billable);
