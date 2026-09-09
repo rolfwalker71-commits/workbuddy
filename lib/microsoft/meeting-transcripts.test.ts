@@ -89,11 +89,32 @@ test("transcriptFailureHint blames the tenant when the lookup itself is denied",
     meetingResolved: false,
     lookupDenied: {
       body: JSON.stringify({
-        error: { message: "Graph API access to transcripts is disabled." },
+        error: {
+          message: "Graph API access to transcripts is disabled for this tenant.",
+          innerError: { code: "GraphAccessToTranscriptsDisabled" },
+        },
       }),
     },
   });
   assert.match(hint, /Tenant-Richtlinie/);
   assert.match(hint, /access to transcripts is disabled/);
   assert.doesNotMatch(hint, /anderer Organisator/);
+});
+
+test("transcriptFailureHint keeps the organizer wording for a 3003 lookup denial", () => {
+  const hint = transcriptFailureHint({
+    status: "not_found",
+    hasMeetingScope: true,
+    hasTranscriptScope: true,
+    hasChatMessages: false,
+    meetingResolved: false,
+    lookupDenied: {
+      body: JSON.stringify({
+        error: { message: "3003: User does not have access to lookup meeting" },
+      }),
+    },
+  });
+  assert.match(hint, /anderer Organisator/);
+  assert.match(hint, /3003/);
+  assert.doesNotMatch(hint, /Tenant-Richtlinie/);
 });

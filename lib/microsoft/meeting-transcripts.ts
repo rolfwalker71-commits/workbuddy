@@ -1,4 +1,4 @@
-import { graphFetch, graphJson, getMicrosoftMe, MicrosoftGraphError } from "@/lib/microsoft/graph";
+import { graphFetch, graphJson, MicrosoftGraphError } from "@/lib/microsoft/graph";
 import { getPrimaryMariCalendarStampForIssue } from "@/lib/mari/calendar-stamp";
 import { zurichYmd } from "@/lib/microsoft/time";
 import {
@@ -107,6 +107,17 @@ export function parseGraphErrorMessage(body: string | null | undefined): string 
   return raw ? raw.slice(0, 220) : null;
 }
 
+/** Tenant switch "Transcript API access → Microsoft Graph access" is off. */
+export function isTranscriptsDisabledGraphError(
+  body: string | null | undefined
+): boolean {
+  const t = `${body || ""}`.toLowerCase();
+  return (
+    t.includes("graphaccesstotranscriptsdisabled") ||
+    t.includes("access to transcripts is disabled")
+  );
+}
+
 export function isOtherOrganizerGraphError(
   body: string | null | undefined
 ): boolean {
@@ -167,9 +178,14 @@ export function transcriptFailureHint(input: {
   if (!input.meetingResolved && input.lookupDenied) {
     const denied = parseGraphErrorMessage(input.lookupDenied.body);
     const extra = denied ? ` Graph: ${denied}` : "";
+    // A 403 here means either the tenant switch is off, or the meeting simply
+    // is not ours to look up (external organizer) — very different fixes.
+    const base = isTranscriptsDisabledGraphError(input.lookupDenied.body)
+      ? LOOKUP_DENIED_HINT
+      : OTHER_ORGANIZER_HINT;
     return input.hasChatMessages
-      ? `${LOOKUP_DENIED_HINT}${extra} Meeting-Chat als Ersatz.`
-      : `${LOOKUP_DENIED_HINT}${extra}`;
+      ? `${base}${extra} Meeting-Chat als Ersatz.`
+      : `${base}${extra}`;
   }
   if (input.status === "forbidden") {
     if (isOtherOrganizerGraphError(input.graphBody) || !missingScope) {
@@ -256,13 +272,16 @@ async function lookupOnlineMeeting(
   }
 }
 
+/**
+ * Graph only accepts JoinWebUrl and joinMeetingIdSettings/joinMeetingId as
+ * filters here, and delegated tokens may only read /me — a ChatInfo/ThreadId
+ * filter or a /users/{organizer} prefix always fails, so neither is tried.
+ */
 async function lookupOnlineMeetingId(
   userId: number,
   joinUrl: string,
   opts?: {
-    chatId?: string | null;
     conferenceId?: string | null;
-    organizerEmail?: string | null;
     denied?: { hit: LookupDenied | null };
   }
 ): Promise<MeetingHit | null> {
@@ -277,17 +296,6 @@ async function lookupOnlineMeetingId(
     if (found) return found;
   }
 
-  const threadId = opts?.chatId?.trim();
-  if (threadId) {
-    const byThread = await lookupOnlineMeeting(
-      userId,
-      `ChatInfo/ThreadId eq '${escapeODataString(threadId)}'`,
-      undefined,
-      denied
-    );
-    if (byThread) return byThread;
-  }
-
   const conferenceId = opts?.conferenceId?.trim();
   if (conferenceId) {
     const byJoinId = await lookupOnlineMeeting(
@@ -299,50 +307,6 @@ async function lookupOnlineMeetingId(
     if (byJoinId) return byJoinId;
   }
 
-  const organizer = opts?.organizerEmail?.trim();
-  if (organizer && joinUrl) {
-    const viaOrganizer = await lookupMeetingViaOrganizer(
-      userId,
-      organizer,
-      joinUrl,
-      denied
-    );
-    if (viaOrganizer) return viaOrganizer;
-  }
-
-  return null;
-}
-
-/** Delegated attendee path: /users/{organizerUpn}/onlineMeetings?$filter=JoinWebUrl */
-async function lookupMeetingViaOrganizer(
-  userId: number,
-  organizerEmail: string,
-  joinUrl: string,
-  denied?: { hit: LookupDenied | null }
-): Promise<MeetingHit | null> {
-  const upn = organizerEmail.trim();
-  if (!upn || !upn.includes("@")) return null;
-  try {
-    const me = await getMicrosoftMe(userId);
-    const mine = new Set(
-      [me.mail, me.userPrincipalName]
-        .map((v) => v?.trim().toLowerCase())
-        .filter((v): v is string => Boolean(v))
-    );
-    if (mine.has(upn.toLowerCase())) return null;
-  } catch {
-    /* still try organizer path */
-  }
-  const prefix = `/users/${encodeURIComponent(upn)}/onlineMeetings`;
-  for (const url of joinWebUrlFilterValues(joinUrl)) {
-    const found = await lookupOnlineMeeting(
-      userId,
-      `JoinWebUrl eq '${escapeODataString(url)}'`,
-      prefix,
-      denied
-    );
-    if (found) return found;
-  }
   return null;
 }
 
@@ -455,7 +419,6 @@ export async function getMeetingTranscript(input: {
   const issueId = input.issueId ?? null;
   let subject: string | null = null;
   let conferenceId: string | null = null;
-  let organizerEmail: string | null = null;
 
   const hasMeetingScope = hasMicrosoftOnlineMeetingsScope(userId);
   const hasTranscriptScope = hasMicrosoftTranscriptScope(userId);
@@ -489,7 +452,6 @@ export async function getMeetingTranscript(input: {
       if (ev) {
         subject = ev.subject || subject;
         conferenceId = ev.conferenceId;
-        organizerEmail = ev.organizerEmail;
         joinUrl = joinUrl || ev.joinUrl;
       }
     } catch {
@@ -519,35 +481,13 @@ export async function getMeetingTranscript(input: {
 
   const denied: { hit: LookupDenied | null } = { hit: null };
   const meeting = await lookupOnlineMeetingId(userId, joinUrl, {
-    chatId,
     conferenceId,
-    organizerEmail,
     denied,
   });
-  let transcript: Awaited<ReturnType<typeof fetchTranscriptContent>> | null =
-    null;
-  if (meeting?.id) {
-    subject = meeting.subject || subject;
-    transcript = await fetchTranscriptContent(
-      userId,
-      meeting.id,
-      meeting.pathPrefix
-    );
-    if (
-      (transcript.status === "forbidden" || transcript.status === "not_found") &&
-      organizerEmail &&
-      meeting.pathPrefix === "/me/onlineMeetings"
-    ) {
-      const alt = await fetchTranscriptContent(
-        userId,
-        meeting.id,
-        `/users/${encodeURIComponent(organizerEmail)}/onlineMeetings`
-      );
-      if (alt.status === "ok" || alt.status === "processing" || alt.status === "empty") {
-        transcript = alt;
-      }
-    }
-  }
+  const transcript = meeting?.id
+    ? await fetchTranscriptContent(userId, meeting.id, meeting.pathPrefix)
+    : null;
+  if (meeting?.subject) subject = meeting.subject;
 
   const chat = await attachMeetingChat(userId, joinUrl);
   if (transcript?.status === "ok" && transcript.text) {
