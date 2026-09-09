@@ -4,6 +4,7 @@ import { withMariModule } from "@/lib/mari/with-module";
 import { hasMariConfig } from "@/lib/mari/config";
 import { recognizeEventBooking } from "@/lib/mari/event-booking";
 import { upsertMariCalendarBookingRef } from "@/lib/mari/calendar-stamp";
+import { invalidateMicrosoftDayViews } from "@/lib/microsoft/day-view-cache";
 import {
   applyMeetingKind,
   classifyEventMeetingKind,
@@ -115,6 +116,9 @@ export async function POST(request: Request) {
       contractId: booking.contractId,
       contractVisible: booking.contractVisible,
     });
+
+    // The day view renders this mapping, so its cache is now stale.
+    invalidateMicrosoftDayViews(auth.userId);
 
     return NextResponse.json({
       ok: true,

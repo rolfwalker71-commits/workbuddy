@@ -14,6 +14,7 @@ import {
   resolveMicrosoftUserId,
 } from "@/lib/microsoft/oauth";
 import { isDayCloseRitualId } from "@/lib/dashboard/day-close-ritual";
+import { invalidateMicrosoftDayViews } from "@/lib/microsoft/day-view-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -95,6 +96,7 @@ export async function POST(request: Request) {
   try {
     if (body.action === "done") {
       const event = await markMicrosoftEventDone(userId, body.eventId);
+      invalidateMicrosoftDayViews(userId);
       return NextResponse.json({ ok: true, event });
     }
     if (body.action === "suggest_slots") {
@@ -121,6 +123,7 @@ export async function POST(request: Request) {
         location: body.location,
         notes: body.notes,
       });
+      invalidateMicrosoftDayViews(userId);
       return NextResponse.json({ ok: true, event });
     }
     const event = await rescheduleMicrosoftEvent(userId, body.eventId, {
@@ -128,6 +131,7 @@ export async function POST(request: Request) {
       startHm: body.startHm,
       endHm: body.endHm,
     });
+    invalidateMicrosoftDayViews(userId);
     return NextResponse.json({ ok: true, event });
   } catch (error) {
     return NextResponse.json(

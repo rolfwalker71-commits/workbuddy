@@ -8,10 +8,19 @@ import {
   resolveMicrosoftUserId,
 } from "@/lib/microsoft/oauth";
 
+import {
+  getCachedDayView,
+  setCachedDayView,
+} from "@/lib/microsoft/day-view-cache";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 /** Thread expansion can take a while for busy mailboxes. */
 export const maxDuration = 120;
+
+type MailTodayPayload = Awaited<
+  ReturnType<typeof listMicrosoftMailForRange>
+> & { todayIso: string };
 
 export async function GET(request: Request) {
   ensureInitialized();
@@ -36,16 +45,24 @@ export async function GET(request: Request) {
   if ("error" in range) {
     return NextResponse.json({ error: range.error }, { status: 400 });
   }
+  // Keyed by the whole range, not just the day: the chronicle view asks for
+  // multi-day ranges through the same route.
+  const cacheDay = `${range.fromYmd}..${range.toYmd}`;
+  const cached = getCachedDayView<MailTodayPayload>("mail", userId, cacheDay);
+  if (cached) return NextResponse.json(cached);
+
   try {
     const data = await listMicrosoftMailForRange(
       userId,
       range.fromYmd,
       range.toYmd
     );
-    return NextResponse.json({
+    const payload: MailTodayPayload = {
       ...data,
       todayIso: data.dayIso,
-    });
+    };
+    setCachedDayView("mail", userId, cacheDay, payload);
+    return NextResponse.json(payload);
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : String(error) },

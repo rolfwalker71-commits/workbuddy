@@ -16,9 +16,19 @@ import { attachDayCloseRitualMs } from "@/lib/dashboard/day-close-status";
 import { parseCalendarDay } from "@/lib/calendar/date-range";
 import { zurichYmd } from "@/lib/microsoft/time";
 import { attachMariToEvents } from "@/lib/workspace/event-mari";
+import {
+  getCachedDayView,
+  setCachedDayView,
+} from "@/lib/microsoft/day-view-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+type CalendarTodayPayload = {
+  events: Awaited<ReturnType<typeof attachMariToEvents>>;
+  openCount: number;
+  doneCount: number;
+};
 
 export async function GET(request: Request) {
   ensureInitialized();
@@ -37,6 +47,13 @@ export async function GET(request: Request) {
   if (!parsed.ok) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
+  const cached = getCachedDayView<CalendarTodayPayload>(
+    "calendar",
+    userId,
+    parsed.date
+  );
+  if (cached) return NextResponse.json(cached);
+
   return runWithRequestSecrets(auth, async () => {
     try {
       const today = zurichYmd();
@@ -60,11 +77,13 @@ export async function GET(request: Request) {
         }))
       );
       const cloud = events.filter((e) => !isDayCloseRitualId(e.id));
-      return NextResponse.json({
+      const payload: CalendarTodayPayload = {
         events,
         openCount: cloud.filter((e) => !e.done).length,
         doneCount: cloud.filter((e) => e.done).length,
-      });
+      };
+      setCachedDayView("calendar", userId, day, payload);
+      return NextResponse.json(payload);
     } catch (error) {
       return NextResponse.json(
         { error: error instanceof Error ? error.message : String(error) },

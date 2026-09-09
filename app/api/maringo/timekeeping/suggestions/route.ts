@@ -7,6 +7,7 @@ import {
   updateMariCalendarStampStatus,
 } from "@/lib/mari/calendar-stamp";
 import { eventBookingSeriesKey } from "@/lib/mari/event-booking-ref";
+import { invalidateMicrosoftDayViews } from "@/lib/microsoft/day-view-cache";
 import { zurichYmd } from "@/lib/microsoft/time";
 
 export const runtime = "nodejs";
@@ -124,6 +125,8 @@ export async function POST(request: Request) {
       contractId: body.contractId ?? null,
       contractVisible: body.contractVisible ?? null,
     });
+    // The event now counts as booked, so the cached day view is stale.
+    invalidateMicrosoftDayViews(auth.userId);
     return NextResponse.json({ ok: true, stamp });
   });
 }

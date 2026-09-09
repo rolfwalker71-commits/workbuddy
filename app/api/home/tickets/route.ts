@@ -47,16 +47,15 @@ export async function GET() {
     const tickets = await getMariTicketsWatchStateLive(ownerKey);
     let ticketRows: HomeTicketRow[] = [];
     let ttvInboxCount = 0;
-    let savedViews: HomeTicketSavedViewKpi[] = listMariTicketSavedViews(
-      ownerKey
-    )
-      .filter((v) => v.showOnHome)
-      .map((v) => ({
-        id: v.id,
-        label: v.label,
-        count: null,
-        href: mariTicketSavedViewHref(v),
-      }));
+    const homeViews = listMariTicketSavedViews(ownerKey).filter(
+      (v) => v.showOnHome
+    );
+    let savedViews: HomeTicketSavedViewKpi[] = homeViews.map((v) => ({
+      id: v.id,
+      label: v.label,
+      count: null,
+      href: mariTicketSavedViewHref(v),
+    }));
     if (hasMariConfig()) {
       try {
         const [mine, ttv] = await Promise.all([
@@ -83,9 +82,6 @@ export async function GET() {
             overdue: isOverdue(t.dueDate, today),
           }));
         ttvInboxCount = ttv.length;
-        const homeViews = listMariTicketSavedViews(ownerKey).filter(
-          (v) => v.showOnHome
-        );
         savedViews = await Promise.all(
           homeViews.map(async (view) => {
             try {
