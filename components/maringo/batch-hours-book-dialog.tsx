@@ -37,6 +37,7 @@ import {
   startBatchRun,
   type BatchRunState,
 } from "@/lib/mari/batch-hours-run";
+import type { PersistedBatchDay } from "@/lib/mari/batch-hours-store";
 import type { EventBookingRef } from "@/lib/mari/event-booking-ref";
 import type { MariKeyPair } from "@/lib/mari/timekeeping-shared";
 import { toSwissDate } from "@/lib/utils/dates";
@@ -75,27 +76,82 @@ export function BatchHoursBookDialog({
     () => new Map()
   );
 
+  // Saved drafts for this day, loaded once per open. Until they are in, no
+  // save may run — it would overwrite them with freshly seeded defaults.
+  const [stored, setStored] = useState<PersistedBatchDay | null>(null);
+  useEffect(() => {
+    if (!open) {
+      setStored(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/maringo/batch-hours-draft?date=${encodeURIComponent(date)}`
+        );
+        const json = (await res.json().catch(() => ({}))) as {
+          drafts?: PersistedBatchDay;
+        };
+        if (!cancelled) setStored(json.drafts ?? {});
+      } catch {
+        if (!cancelled) setStored({});
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, date]);
+
   // Seed drafts, and let a late recognition land — but never over an edit.
   useEffect(() => {
+    if (stored == null) return;
     setDrafts((prev) => {
       const next = new Map(prev);
       let changed = false;
       for (const row of rows) {
         if (touched.current.has(row.eventId)) continue;
         const seeded = draftFromRow(row);
+        const saved = stored[row.eventId];
+        const merged = saved ? { ...seeded, ...saved } : seeded;
+        // A saved row counts as edited, so no guess may overwrite it later.
+        if (saved) touched.current.add(row.eventId);
         const before = next.get(row.eventId);
         if (
           !before ||
-          before.projectNumber !== seeded.projectNumber ||
-          before.contractId !== seeded.contractId
+          before.projectNumber !== merged.projectNumber ||
+          before.contractId !== merged.contractId ||
+          Boolean(saved)
         ) {
-          next.set(row.eventId, seeded);
+          next.set(row.eventId, merged);
           changed = true;
         }
       }
       return changed ? next : prev;
     });
-  }, [rows]);
+  }, [rows, stored]);
+
+  // Save what the user changed, debounced.
+  useEffect(() => {
+    if (!open || stored == null || touched.current.size === 0) return;
+    const eventIds = rows.map((r) => r.eventId);
+    const payload: Record<string, BatchHoursDraft> = {};
+    for (const id of eventIds) {
+      if (!touched.current.has(id)) continue;
+      const draft = drafts.get(id);
+      if (draft) payload[id] = draft;
+    }
+    const timer = window.setTimeout(() => {
+      void fetch("/api/maringo/batch-hours-draft", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date, eventIds, drafts: payload }),
+      }).catch(() => {
+        /* a lost draft is not worth interrupting the user for */
+      });
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [open, date, rows, drafts, stored]);
 
   const pendingGuessKey = useMemo(() => {
     if (!open) return "";
