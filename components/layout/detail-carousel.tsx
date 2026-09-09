@@ -38,17 +38,18 @@ export function DetailCarousel({
   const startIndex = Math.max(0, Math.min(count - 1, initialIndex || 0));
   const [index, setIndex] = useState(startIndex);
 
+  // Depends on the already-clamped target, not on `count`: adding or removing a
+  // slide must not snap the user back to the start (see resetKey above).
   useEffect(() => {
-    const target = Math.max(0, Math.min(count - 1, initialIndex || 0));
-    setIndex(target);
+    setIndex(startIndex);
     const el = scrollerRef.current;
     if (!el) return;
     // Wait a frame so layout width is known after dialog open.
     const id = requestAnimationFrame(() => {
-      el.scrollTo({ left: target * el.clientWidth });
+      el.scrollTo({ left: startIndex * el.clientWidth });
     });
     return () => cancelAnimationFrame(id);
-  }, [resetKey, initialIndex, count]);
+  }, [resetKey, startIndex]);
 
   const syncIndex = useCallback(() => {
     const el = scrollerRef.current;

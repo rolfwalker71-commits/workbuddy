@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ExternalLink, Loader2, MapPin, Video } from "lucide-react";
 import {
   Dialog,
@@ -77,8 +77,14 @@ export function EventDetailDialog({
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
 
+  // Re-seed only when a different event is shown. Booking actions patch the
+  // event object in place, which used to wipe edits the user had not saved yet.
+  const seededFor = useRef<string | null>(null);
   useEffect(() => {
     if (!event) return;
+    const id = event.id ?? null;
+    if (id !== null && seededFor.current === id) return;
+    seededFor.current = id;
     setTitle(event.title || "");
     setDate(event.date || "");
     setTime(event.time || "09:00");

@@ -42,6 +42,8 @@ export function TaskCreateDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Only `open` may reset the form. Callers pass `lists` as a fresh array on
+  // every render, so depending on it wiped whatever the user had typed.
   useEffect(() => {
     if (!open) return;
     setTitle("");
@@ -49,8 +51,10 @@ export function TaskCreateDialog({
     setDueDate("");
     setError(null);
     setBusy(false);
-    setListId(lists[0]?.id || "");
-  }, [open, lists]);
+    setListId("");
+  }, [open]);
+
+  const selectedListId = listId || lists[0]?.id || "";
 
   async function submit() {
     const trimmed = title.trim();
@@ -73,8 +77,8 @@ export function TaskCreateDialog({
           notes: notes.trim() || null,
           dueDate: dueDate || null,
           ...(provider === "google"
-            ? { tasklistId: listId || null }
-            : { listId: listId || null }),
+            ? { tasklistId: selectedListId || null }
+            : { listId: selectedListId || null }),
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -134,7 +138,7 @@ export function TaskCreateDialog({
               <select
                 id="task-list"
                 className="h-11 w-full rounded-xl border border-border/70 bg-background px-3 text-sm"
-                value={listId}
+                value={selectedListId}
                 disabled={busy}
                 onChange={(e) => setListId(e.target.value)}
               >
