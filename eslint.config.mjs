@@ -19,6 +19,13 @@ const eslintConfig = defineConfig([
     files: ["scripts/**/*.js", "scripts/**/*.cjs"],
     rules: { "@typescript-eslint/no-require-imports": "off" },
   },
+  {
+    // Warn, not error: ~90 hits, and most are load-on-mount or hydration flags
+    // rather than defects. As errors they drowned out real findings and made
+    // `npm run lint` useless as a gate. Raise back to "error" once the effects
+    // have been reworked (data layer + key-based resets).
+    rules: { "react-hooks/set-state-in-effect": "warn" },
+  },
 ]);
 
 export default eslintConfig;

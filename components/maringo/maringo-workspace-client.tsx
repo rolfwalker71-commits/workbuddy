@@ -1129,10 +1129,10 @@ export function MaringoWorkspaceClient() {
     [analysis?.recommendedStatus]
   );
 
+  const timeline = detail?.timeline;
   const sortedTimeline = useMemo(() => {
-    if (!detail?.timeline?.length) return [];
-    const items = [...detail.timeline];
-    items.sort((a, b) => {
+    if (!timeline?.length) return [];
+    return [...timeline].sort((a, b) => {
       const ta = Date.parse(a.at) || 0;
       const tb = Date.parse(b.at) || 0;
       if (ta !== tb) {
@@ -1142,8 +1142,7 @@ export function MaringoWorkspaceClient() {
         ? b.id.localeCompare(a.id)
         : a.id.localeCompare(b.id);
     });
-    return items;
-  }, [detail?.timeline, timelineSort]);
+  }, [timeline, timelineSort]);
 
   const searchedIssueId = useMemo(
     () => parseTicketNumberQuery(listSearchQuery),
