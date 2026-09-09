@@ -74,7 +74,40 @@ export async function resolveDayCloseRitualStatus(
   return { calendarOpen, googleDayDone, microsoftDayDone, mariHoursPending };
 }
 
+/**
+ * The assistant polls its status every 20s per open tab, and this load is the
+ * only expensive part of it — one Graph and one Google calendar round trip.
+ * A short cache collapses all those tabs into one call per window.
+ *
+ * Only the calendar is cached; Maringo stamps and the mail-day flags are read
+ * fresh on every request, so a booking still shows up immediately. The count
+ * of open events may lag by up to the TTL.
+ */
+const RITUAL_CALENDAR_TTL_MS = 3 * 60_000;
+const ritualCalendarCache = new Map<
+  string,
+  { at: number; items: DayCloseCalendarItem[] }
+>();
+
 export async function loadTodayCalendarForRitual(
+  userId: number,
+  todayIso: string
+): Promise<DayCloseCalendarItem[]> {
+  const cacheKey = `${userId}:${todayIso}`;
+  const cached = ritualCalendarCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < RITUAL_CALENDAR_TTL_MS) {
+    return cached.items;
+  }
+  const items = await loadTodayCalendarUncached(userId, todayIso);
+  ritualCalendarCache.set(cacheKey, { at: Date.now(), items });
+  // Yesterday's entries are dead weight once the day rolls over.
+  for (const key of ritualCalendarCache.keys()) {
+    if (!key.endsWith(`:${todayIso}`)) ritualCalendarCache.delete(key);
+  }
+  return items;
+}
+
+async function loadTodayCalendarUncached(
   userId: number,
   todayIso: string
 ): Promise<DayCloseCalendarItem[]> {

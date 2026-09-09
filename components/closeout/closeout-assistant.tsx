@@ -284,12 +284,19 @@ export function CloseoutAssistant() {
     }
   }, []);
 
+  /**
+   * Loads once on mount (so the collapsed badge has a count) and again each
+   * time the panel is opened, but keeps polling only while it is open: the
+   * status endpoint costs a Graph and a Google calendar round trip, and it
+   * used to run every 20s in every open tab whether anyone looked or not.
+   */
   useEffect(() => {
     if (!hydrated || !me || !hasCalendar) return;
     void load();
+    if (!stored.open || stored.minimized) return;
     const t = window.setInterval(() => void load(), POLL_MS);
     return () => window.clearInterval(t);
-  }, [hydrated, me, hasCalendar, load]);
+  }, [hydrated, me, hasCalendar, load, stored.open, stored.minimized]);
 
   useEffect(() => {
     if (!hydrated || !status || !me) return;
@@ -364,6 +371,12 @@ export function CloseoutAssistant() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leadPending, status, hydrated, provider]);
 
+  /**
+   * Auto-advance moves the highlighted step, but no longer navigates. It used
+   * to call router.push from this effect, which fires on every status poll —
+   * so a background refresh could pull the page out from under you while you
+   * were working. Navigation now only happens on a click.
+   */
   useEffect(() => {
     if (!status || !stored.autoAdvance || !stored.open || stored.minimized) {
       return;
@@ -373,7 +386,7 @@ export function CloseoutAssistant() {
         (s) => s.id === "done" || !isStepComplete(s.id)
       );
       const idx = next < 0 ? steps.length - 1 : next;
-      if (idx !== activeIndex) leadToStep(idx, { minimize: false });
+      if (idx !== activeIndex) persist({ stepIndex: idx });
     }
     // status ticks drive auto-advance
     // eslint-disable-next-line react-hooks/exhaustive-deps
