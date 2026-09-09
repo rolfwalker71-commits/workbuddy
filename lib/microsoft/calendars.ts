@@ -382,7 +382,16 @@ export async function listMicrosoftCalendarEventsInRange(
         const data = await graphJson<{ value?: GraphEvent[] }>(
           userId,
           `/me/calendars/${encodeURIComponent(sel.id)}/calendarView?${qs}`,
-          { headers: { Prefer: 'outlook.timezone="Europe/Zurich"' } }
+          {
+            // Ask for plain text bodies (same as the mail side): a Teams
+            // invite as text is far smaller than its HTML, and it makes the
+            // full body available instead of the 255-char bodyPreview, which
+            // also helps the ticket and booking-ref detection.
+            headers: {
+              Prefer:
+                'outlook.timezone="Europe/Zurich", outlook.body-content-type="text"',
+            },
+          }
         );
         for (const ev of data.value || []) {
           if (!ev.id) continue;
