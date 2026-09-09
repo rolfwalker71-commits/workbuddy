@@ -397,6 +397,28 @@ export function timeLineMayHaveUnresolvedContract(
   );
 }
 
+/**
+ * Braucht diese Zeile noch den teuren Einzel-GET auf `/api/TimeKeepingLine/{id}`?
+ *
+ * Nur wenn die Batch-SQL sie nicht beantwortet hat. Beide lesen denselben
+ * Datensatz: kam die Zeile aus SQL zurück und hatte keine ContractID, dann hat
+ * die Buchung keinen Vertrag — ein zweiter Blick ändert daran nichts. Ohne diese
+ * Unterscheidung wurde jede vertragslose Buchung einzeln nachgeholt.
+ */
+export function timeLineNeedsSingleRestLookup(
+  input: MariContractListLineInput & { lineId?: number },
+  sql: { answered: boolean; withPositions: boolean }
+): boolean {
+  if (firstPositiveInt(input.lineId) <= 0) return false;
+  if (timeLineMayHaveUnresolvedContract(input)) return !sql.answered;
+  // Abgespeckte View ohne Positionsspalten: Position kann nur REST liefern.
+  return (
+    !sql.withPositions &&
+    firstPositiveInt(input.contractId) > 0 &&
+    firstPositiveInt(input.contractPositionId) <= 0
+  );
+}
+
 export function mergeMariTimeLineContractFields<
   T extends MariContractListLineInput,
 >(line: T, patch: Partial<MariContractFields>): T {

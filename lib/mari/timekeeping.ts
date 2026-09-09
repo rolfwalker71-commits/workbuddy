@@ -13,7 +13,7 @@ import {
   applyMariContractFields,
   findMariKeyPair,
   firstPositiveInt,
-  timeLineMayHaveUnresolvedContract,
+  timeLineNeedsSingleRestLookup,
   formatPeriodLabel,
   mapApprovalMode,
   mergeMariKeyPairs,
@@ -31,6 +31,7 @@ import {
   lookupMariCompanyForProject,
 } from "@/lib/mari/companies";
 import { parseMariCompanyId } from "@/lib/mari/companies-shared";
+import { mapWithConcurrency } from "@/lib/utils/map-concurrency";
 import {
   buildTimekeepingUserDefinedFieldValues,
   mergeTimekeepingUdfIntoMemo,
@@ -320,6 +321,14 @@ async function labelsFromProjectBookingList(): Promise<Map<string, string>> {
 
 type EnrichDepth = "list" | "detail";
 
+/**
+ * Vertrags- und Positionslisten pro Projekt bzw. Vertrag. Jeder Eintrag fächert
+ * intern noch einmal über alle Mandanten auf, darum eine kleine Schranke: ein
+ * Quartal mit vielen verschiedenen Projekten hat Maringo sonst unbegrenzt viele
+ * gleichzeitige Requests geschickt.
+ */
+const MARI_LOOKUP_CONCURRENCY = 6;
+
 async function enrichTimeLinesProjectCustomer(
   lines: MariTimeLine[],
   _depth: EnrichDepth
@@ -348,14 +357,16 @@ async function enrichTimeLinesContracts(
   }
   if (needLookup.size === 0) return lines;
   const byPn = new Map<string, MariKeyPair[]>();
-  await Promise.all(
-    [...needLookup].map(async (pn) => {
+  await mapWithConcurrency(
+    [...needLookup],
+    MARI_LOOKUP_CONCURRENCY,
+    async (pn) => {
       try {
         byPn.set(pn, await listContractsForProject(pn, false));
       } catch {
         /* Vertragsbezeichnung optional */
       }
-    })
+    }
   );
   return lines.map((l) => {
     if (l.contractId <= 0 && !l.contractNumber) return l;
@@ -389,14 +400,16 @@ async function enrichTimeLinesPositions(
   }
   if (need.size === 0) return lines;
   const byContract = new Map<number, MariKeyPair[]>();
-  await Promise.all(
-    [...need].map(async (cid) => {
+  await mapWithConcurrency(
+    [...need],
+    MARI_LOOKUP_CONCURRENCY,
+    async (cid) => {
       try {
         byContract.set(cid, await listContractPositionsForTimeKeeping(cid));
       } catch {
         /* Positionsbezeichnung optional */
       }
-    })
+    }
   );
   return lines.map((l) => {
     if (l.contractPositionId <= 0) return l;
@@ -439,13 +452,28 @@ WHERE t."TimeSheetEntryID" IN ({{IN}})`,
 
 let contractFieldSql: string | null | undefined;
 
+type ContractFieldSqlOutcome = {
+  lines: MariTimeLine[];
+  /**
+   * Line ids the query actually returned a row for. It reads the same
+   * `MARIProjectTimeKeepingLines` record the single REST GET would, so a row
+   * that comes back without a ContractID means the booking has no contract —
+   * not that we failed to find one.
+   */
+  answered: Set<number>;
+  /** Whether the winning template carries the contract-position columns. */
+  withPositions: boolean;
+};
+
 async function enrichContractFieldsFromSql(
   lines: MariTimeLine[]
-): Promise<MariTimeLine[]> {
+): Promise<ContractFieldSqlOutcome> {
   const need = lines.filter(
     (l) => l.lineId > 0 && l.contractId <= 0 && !l.contractNumber
   );
-  if (need.length === 0) return lines;
+  if (need.length === 0) {
+    return { lines, answered: new Set(), withPositions: true };
+  }
   const inList = need.map((l) => String(l.lineId)).join(",");
   const queries =
     contractFieldSql != null && contractFieldSql !== ""
@@ -465,16 +493,20 @@ async function enrichContractFieldsFromSql(
       }
       if (byId.size === 0) continue;
       contractFieldSql = tmpl;
-      return lines.map((l) => {
-        const row = byId.get(l.lineId);
-        return row ? { ...l, ...applyMariContractFields(l, row) } : l;
-      });
+      return {
+        lines: lines.map((l) => {
+          const row = byId.get(l.lineId);
+          return row ? { ...l, ...applyMariContractFields(l, row) } : l;
+        }),
+        answered: new Set(byId.keys()),
+        withPositions: tmpl.includes("ContractPositionID"),
+      };
     } catch {
       /* nächste Variante */
     }
   }
   if (contractFieldSql === undefined) contractFieldSql = "";
-  return lines;
+  return { lines, answered: new Set(), withPositions: false };
 }
 
 const REST_CONTRACT_CONCURRENCY = 16;
@@ -513,7 +545,7 @@ async function enrichTimeLines(
   let next =
     depth === "detail"
       ? await enrichTimeLinesFromRest(lines)
-      : await enrichContractFieldsFromSql(lines);
+      : (await enrichContractFieldsFromSql(lines)).lines;
   next = await enrichTimeLinesProjectCustomer(next, depth);
   if (depth === "list") return next;
   next = await enrichTimeLinesContracts(next);
@@ -639,19 +671,27 @@ function stubLineForLabels(
 
 /**
  * Vertrag/Position für bereits geladene Listenzeilen — nach dem ersten Paint.
- * SQL zuerst, dann gecachte REST-Listen; Einzel-GET nur wenn die ID fehlt.
+ * SQL zuerst, dann gecachte REST-Listen; Einzel-GET nur wenn SQL die Zeile
+ * nicht beantwortet hat.
+ *
+ * Der Einzel-GET war die Kostenstelle dieser Route: «kein Vertrag» und «Vertrag
+ * nicht gefunden» sahen gleich aus, also wurde jede vertragslose Buchung noch
+ * einmal komplett über REST geholt — bei einem Quartal hunderte Male. Die
+ * SQL-Abfrage liest denselben Datensatz; was sie beantwortet hat, ist beantwortet.
  */
 export async function enrichTimeLineContractLabels(
   inputs: z.infer<typeof TimeLineLabelInputSchema>[]
 ): Promise<MariTimeLine[]> {
   if (inputs.length === 0) return [];
-  let next = inputs.map(stubLineForLabels);
-  next = await enrichContractFieldsFromSql(next);
-  next = await enrichContractNamesFromSql(next);
+  const sql = await enrichContractFieldsFromSql(inputs.map(stubLineForLabels));
+  let next = await enrichContractNamesFromSql(sql.lines);
   next = await enrichTimeLinesContracts(next);
   next = await enrichTimeLinesPositions(next);
-  const unresolved = next.filter(
-    (l) => l.lineId > 0 && timeLineMayHaveUnresolvedContract(l)
+  const unresolved = next.filter((l) =>
+    timeLineNeedsSingleRestLookup(l, {
+      answered: sql.answered.has(l.lineId),
+      withPositions: sql.withPositions,
+    })
   );
   if (unresolved.length > 0) {
     const fromRest = await enrichTimeLinesFromRest(unresolved);

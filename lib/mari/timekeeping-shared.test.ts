@@ -12,11 +12,68 @@ import {
   mergeMariTimeLineContractFields,
   timeLineMayHaveUnresolvedContract,
   timeLineNeedsContractLabels,
+  timeLineNeedsSingleRestLookup,
   mergeMariKeyPairs,
   projectNumbersNeedingLabel,
   timeLineToBookPrefill,
   type MariKeyPair,
 } from "./timekeeping-shared.ts";
+
+test("a booking the batch SQL answered needs no single REST lookup", () => {
+  const noContract = {
+    lineId: 4711,
+    contractId: 0,
+    contractNumber: null,
+    contractName: null,
+    contractPositionId: 0,
+    contractPositionNumber: null,
+    contractPositionName: null,
+  };
+  // Das ist der Fall, der die Route langsam gemacht hat: «kein Vertrag».
+  assert.equal(
+    timeLineNeedsSingleRestLookup(noContract, {
+      answered: true,
+      withPositions: true,
+    }),
+    false
+  );
+  // Zeile war nicht in der SQL-Antwort — dann darf REST ran.
+  assert.equal(
+    timeLineNeedsSingleRestLookup(noContract, {
+      answered: false,
+      withPositions: true,
+    }),
+    true
+  );
+  // Vertrag bekannt, Position fehlt, View ohne Positionsspalten: REST nötig.
+  const contractWithoutPosition = {
+    ...noContract,
+    contractId: 88421,
+    contractNumber: "V60007408",
+  };
+  assert.equal(
+    timeLineNeedsSingleRestLookup(contractWithoutPosition, {
+      answered: true,
+      withPositions: false,
+    }),
+    true
+  );
+  // Dieselbe Zeile, aber die View hat die Positionsspalten: nichts zu holen.
+  assert.equal(
+    timeLineNeedsSingleRestLookup(contractWithoutPosition, {
+      answered: true,
+      withPositions: true,
+    }),
+    false
+  );
+  assert.equal(
+    timeLineNeedsSingleRestLookup(
+      { ...noContract, lineId: 0 },
+      { answered: false, withPositions: false }
+    ),
+    false
+  );
+});
 
 test("firstPositiveInt skips 0 so missing SQL ContractID does not hide REST", () => {
   assert.equal(firstPositiveInt(0, 88421), 88421);
