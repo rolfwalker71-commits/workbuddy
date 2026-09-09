@@ -2085,6 +2085,27 @@ export const de = {
     generic: "Etwas ist schiefgelaufen.",
     loadFailed: "Laden fehlgeschlagen.",
   },
+  batchHours: {
+    open: "Batch Stundenbuchen",
+    title: "Stunden buchen · {date}",
+    description:
+      "Alle noch nicht gebuchten Termine des Tages. Erkannte Projekte sind vorbelegt.",
+    empty: "Für diesen Tag ist alles gebucht.",
+    recognising: "Projekte werden erkannt…",
+    columnEvent: "Termin",
+    columnProject: "Projekt",
+    columnContract: "Vertrag",
+    columnWorked: "Geleistet",
+    columnBillable: "Verrechenbar",
+    noProject: "nicht erkannt",
+    noContract: "kein Vertrag nötig",
+    allDay: "ganztägig",
+    notDone: "offen",
+    missingProject: "Projekt fehlt",
+    missingContract: "Vertrag fehlt",
+    selectedCount: "{selected} von {total} ausgewählt",
+    bookAll: "Alle buchen",
+  },
   brand: {
     tagline:
       "Microsoft 365, Google Workspace und Maringo Support — klar getrennt, pro Person.",

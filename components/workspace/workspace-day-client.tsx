@@ -7,6 +7,7 @@ import {
   Check,
   CalendarClock,
   CalendarPlus,
+  Clock,
   Circle,
   CircleCheck,
   ListTodo,
@@ -63,6 +64,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { AdhocEventDialog } from "@/components/calendar/adhoc-event-dialog";
 import { EventArtCard } from "@/components/calendar/event-art-card";
 import { EventHoursBookDialog } from "@/components/calendar/event-hours-book-dialog";
+import { BatchHoursBookDialog } from "@/components/maringo/batch-hours-book-dialog";
 import { EventMariBlock } from "@/components/calendar/event-mari-block";
 import {
   classifyEventMeetingKind,
@@ -751,6 +753,7 @@ export function WorkspaceDayClient({
   const [detailEvent, setDetailEvent] = useState<WorkspaceCalEvent | null>(null);
   const [hoursBookEvent, setHoursBookEvent] =
     useState<WorkspaceCalEvent | null>(null);
+  const [batchBookOpen, setBatchBookOpen] = useState(false);
 
   function applyEventBooking(eventId: string, booking: EventBookingRef) {
     const patch = (e: WorkspaceCalEvent): WorkspaceCalEvent =>
@@ -2101,6 +2104,17 @@ export function WorkspaceDayClient({
                     <CalendarPlus className="size-3.5" strokeWidth={APP_ICON_STROKE} />
                     {t("workspace.newEvent")}
                   </Button>
+                  {modules.includes("maringo") ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setBatchBookOpen(true)}
+                    >
+                      <Clock className="size-3.5" strokeWidth={APP_ICON_STROKE} />
+                      {t("batchHours.open")}
+                    </Button>
+                  ) : null}
                   <Button
                     type="button"
                     size="sm"
@@ -2268,6 +2282,12 @@ export function WorkspaceDayClient({
                   setHoursBookEvent(null);
                   void loadCalendar();
                 }}
+              />
+              <BatchHoursBookDialog
+                open={batchBookOpen}
+                onOpenChange={setBatchBookOpen}
+                date={calDate}
+                events={events}
               />
               <AdhocEventDialog
                 open={adhocOpen}

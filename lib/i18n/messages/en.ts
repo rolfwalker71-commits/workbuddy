@@ -2072,6 +2072,27 @@ export const en = {
     generic: "Something went wrong.",
     loadFailed: "Failed to load.",
   },
+  batchHours: {
+    open: "Batch hours",
+    title: "Book hours · {date}",
+    description:
+      "Every event of the day that is not booked yet. Detected projects are prefilled.",
+    empty: "Everything is booked for this day.",
+    recognising: "Detecting projects…",
+    columnEvent: "Event",
+    columnProject: "Project",
+    columnContract: "Contract",
+    columnWorked: "Worked",
+    columnBillable: "Billable",
+    noProject: "not detected",
+    noContract: "no contract needed",
+    allDay: "all day",
+    notDone: "open",
+    missingProject: "project missing",
+    missingContract: "contract missing",
+    selectedCount: "{selected} of {total} selected",
+    bookAll: "Book all",
+  },
   brand: {
     tagline:
       "Microsoft 365, Google Workspace, and Maringo Support — clearly separated, per person.",
