@@ -17,7 +17,8 @@ import {
   parseMariSupportGroupId,
   supportGroupStaffHint,
 } from "@/lib/mari/support-group-staff";
-import { useT } from "@/components/i18n/locale-provider";
+import { useLocale, useT } from "@/components/i18n/locale-provider";
+import { weekdayLong } from "@/lib/utils/weekday";
 
 type DutyUser = {
   id: number;
@@ -34,6 +35,7 @@ type DutyDay = {
 
 export function TtvDutyPanel() {
   const t = useT();
+  const { intlLocale } = useLocale();
   const [today, setToday] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -224,11 +226,10 @@ export function TtvDutyPanel() {
               >
                 <span className="w-32 shrink-0 font-semibold tabular-nums">
                   {formatSwissDate(ymd)}
-                  {ymd === today ? (
-                    <span className="mt-0.5 block text-[0.6875rem] font-medium text-muted-foreground">
-                      {t("duty.todayLower")}
-                    </span>
-                  ) : null}
+                  <span className="mt-0.5 block text-[0.6875rem] font-medium text-muted-foreground">
+                    {weekdayLong(ymd, intlLocale)}
+                    {ymd === today ? ` · ${t("duty.todayLower")}` : ""}
+                  </span>
                 </span>
                 <select
                   className="h-10 min-h-10 min-w-[10rem] flex-1 rounded-xl border-0 bg-muted px-3 text-sm disabled:opacity-70"
