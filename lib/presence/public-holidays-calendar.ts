@@ -14,6 +14,7 @@ import { readVacationCalendarConfig } from "@/lib/presence/vacation-calendar";
 import { readTechUpgradesCalendarConfig } from "@/lib/technik/tech-upgrades-calendar";
 import { getAppUserById } from "@/lib/users/queries";
 import { parseCalendarDateRange } from "@/lib/calendar/date-range";
+import { mapWithConcurrency } from "@/lib/utils/map-concurrency";
 import {
   groupPublicHolidaysByDay,
   parsePublicHolidayCountries,
@@ -232,7 +233,9 @@ async function listViaMailbox(
   }
   const out: PublicHolidayEvent[] = [];
   const trace: string[] = [];
-  for (const cal of calendars) {
+  // One calendarView per calendar, but no longer one after another: these
+  // compete with the home page's other Graph calls for the same 2-wide gate.
+  const perCalendar = await mapWithConcurrency(calendars, 4, async (cal) => {
     try {
       const events = await calendarViewOn(
         readerUserId,
@@ -245,14 +248,18 @@ async function listViaMailbox(
         .map((ev) => ev.subject)
         .filter(Boolean)
         .slice(0, 4);
-      trace.push(
-        `${cal.name || cal.id}: ${events.length}${samples.length ? ` (${samples.join("; ")})` : ""}`
-      );
-      out.push(...events);
+      return {
+        events,
+        trace: `${cal.name || cal.id}: ${events.length}${samples.length ? ` (${samples.join("; ")})` : ""}`,
+      };
     } catch (error) {
       const hint = error instanceof Error ? error.message : String(error);
-      trace.push(`${cal.name || cal.id}: ${hint.slice(0, 160)}`);
+      return { events: [], trace: `${cal.name || cal.id}: ${hint.slice(0, 160)}` };
     }
+  });
+  for (const part of perCalendar) {
+    trace.push(part.trace);
+    out.push(...part.events);
   }
   console.warn("[holidays] room mailbox", mailbox, trace.join(" | "));
   return out;
@@ -314,6 +321,17 @@ async function listForReader(
   }
 }
 
+/**
+ * Public holidays change once a year, but the home page asked Graph for them
+ * on every load — several calendarView calls through the same 2-wide gate that
+ * the calendar and mail cards are waiting in.
+ */
+const HOLIDAY_DAYS_TTL_MS = 6 * 60 * 60_000;
+const holidayDaysCache = new Map<
+  string,
+  { at: number; days: PublicHolidayDay[] }
+>();
+
 export async function listPublicHolidayDays(input: {
   from: string;
   to: string;
@@ -331,6 +349,11 @@ export async function listPublicHolidayDays(input: {
     };
   }
   const config = readPublicHolidaysCalendarConfig();
+  const cacheKey = `${config.mailbox}:${parsed.range.from}:${parsed.range.to}`;
+  const cached = holidayDaysCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < HOLIDAY_DAYS_TTL_MS) {
+    return { days: cached.days, mailbox: config.mailbox };
+  }
   const readers = [
     config.readerUserId,
     readVacationCalendarConfig().readerUserId,
@@ -354,10 +377,9 @@ export async function listPublicHolidayDays(input: {
       if (config.readerUserId !== readerUserId) {
         writePublicHolidaysCalendarConfig({ readerUserId });
       }
-      return {
-        days: groupPublicHolidaysByDay(events),
-        mailbox: config.mailbox,
-      };
+      const days = groupPublicHolidaysByDay(events);
+      holidayDaysCache.set(cacheKey, { at: Date.now(), days });
+      return { days, mailbox: config.mailbox };
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error);
     }

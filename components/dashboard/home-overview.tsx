@@ -552,6 +552,19 @@ export function HomeOverview() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
+      /**
+       * Start the slow ones right away. `details` (Graph calendar, mail,
+       * Planner, To Do, Teams) and `kpis` do not depend on `overview`, which
+       * is pure SQLite — waiting for it just added a round trip in front of
+       * every Graph call, and those queue two at a time as it is. They are
+       * merged further down, once the overview payload is in state.
+       */
+      const detailsPromise = fetch("/api/home/details")
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
+      const kpisPromise = fetch("/api/home/kpis")
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
       try {
         const res = await fetch("/api/home/overview");
         const json = (await res.json()) as HomeOverviewPayload & {
@@ -564,14 +577,10 @@ export function HomeOverview() {
         setData(json);
         setLoading(false);
         setDetailsLoading(true);
-        void fetch("/api/home/kpis")
-          .then(async (kpiRes) => {
-            if (!kpiRes.ok || cancelled) return;
-            const kpis = (await kpiRes.json()) as HomeKpiLive;
-            if (cancelled) return;
-            setData((prev) => (prev ? mergeHomeKpis(prev, kpis) : prev));
-          })
-          .catch(() => undefined);
+        void kpisPromise.then((kpis: HomeKpiLive | null) => {
+          if (!kpis || cancelled) return;
+          setData((prev) => (prev ? mergeHomeKpis(prev, kpis) : prev));
+        });
         if (json.maringo) {
           void fetch("/api/home/tickets")
             .then(async (ticketsRes) => {
@@ -604,10 +613,8 @@ export function HomeOverview() {
             })
             .catch(() => undefined);
         }
-        const detailsRes = await fetch("/api/home/details");
-        if (!detailsRes.ok || cancelled) return;
-        const details = (await detailsRes.json()) as HomeDetailsPayload;
-        if (cancelled) return;
+        const details = (await detailsPromise) as HomeDetailsPayload | null;
+        if (!details || cancelled) return;
         setData((prev) =>
           prev ? mergeHomeOverviewDetails(prev, details) : prev
         );

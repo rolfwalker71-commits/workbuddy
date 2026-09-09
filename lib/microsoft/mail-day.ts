@@ -15,6 +15,7 @@ import {
   splitMailsByFolder,
 } from "@/lib/mail/mail-threads";
 import { listUserMailSenderBlacklistEmails } from "@/lib/mail/sender-blacklist-store";
+import { mapWithConcurrency } from "@/lib/utils/map-concurrency";
 
 export type MsMailFolder = "inbox" | "sent";
 
@@ -195,15 +196,13 @@ async function expandMicrosoftThreads(
   }
 
   const sentFolderId = await getSentFolderId(userId);
-  const extras: MsMailItem[] = [];
-  const concurrency = 2;
-  for (let i = 0; i < convIds.length; i += concurrency) {
-    const batch = convIds.slice(i, i + concurrency);
-    const parts = await Promise.all(
-      batch.map((id) => listConversationMessages(userId, id, sentFolderId))
-    );
-    for (const list of parts) extras.push(...list);
-  }
+  // Keeps two calls in flight continuously instead of waiting for each pair to
+  // finish. Same load on Graph — the mailbox gate caps concurrency anyway —
+  // but without the idle gap at every batch boundary.
+  const parts = await mapWithConcurrency(convIds, 2, (id) =>
+    listConversationMessages(userId, id, sentFolderId)
+  );
+  const extras: MsMailItem[] = parts.flat();
 
   const merged = mergeMailItemsById(annotatedSeeds, extras);
   return merged.map((m) => annotateMailInRange(m, fromYmd, toYmd));

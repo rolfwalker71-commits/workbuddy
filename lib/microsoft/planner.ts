@@ -1,4 +1,5 @@
 import { graphFetch, graphJson, MicrosoftGraphError } from "@/lib/microsoft/graph";
+import { mapWithConcurrency } from "@/lib/utils/map-concurrency";
 
 export type PlannerBucket = {
   id: string;
@@ -42,42 +43,66 @@ function dueYmd(due: string | null | undefined): string | null {
   return due.slice(0, 10);
 }
 
+/**
+ * Plan and bucket names, cached across requests. They are effectively static,
+ * and every Graph call here competes for the 2-wide per-user mailbox gate —
+ * so re-fetching them on each load was slowing down everything else too.
+ */
+const NAME_TTL_MS = 30 * 60_000;
+const planTitleCache = new Map<string, { at: number; value: string | null }>();
+const bucketNameCache = new Map<string, { at: number; value: string | null }>();
+
+function readNameCache(
+  cache: Map<string, { at: number; value: string | null }>,
+  key: string
+): { hit: boolean; value: string | null } {
+  const entry = cache.get(key);
+  if (!entry) return { hit: false, value: null };
+  if (Date.now() - entry.at > NAME_TTL_MS) {
+    cache.delete(key);
+    return { hit: false, value: null };
+  }
+  return { hit: true, value: entry.value };
+}
+
 async function getPlanTitle(
   userId: number,
-  planId: string,
-  cache: Map<string, string | null>
+  planId: string
 ): Promise<string | null> {
-  if (cache.has(planId)) return cache.get(planId) ?? null;
+  const key = `${userId}:${planId}`;
+  const cached = readNameCache(planTitleCache, key);
+  if (cached.hit) return cached.value;
   try {
     const plan = await graphJson<GraphPlan>(
       userId,
       `/planner/plans/${encodeURIComponent(planId)}`
     );
     const title = plan.title?.trim() || null;
-    cache.set(planId, title);
+    planTitleCache.set(key, { at: Date.now(), value: title });
     return title;
   } catch {
-    cache.set(planId, null);
+    planTitleCache.set(key, { at: Date.now(), value: null });
     return null;
   }
 }
 
 async function getBucketName(
   userId: number,
-  bucketId: string,
-  cache: Map<string, string | null>
+  bucketId: string
 ): Promise<string | null> {
-  if (cache.has(bucketId)) return cache.get(bucketId) ?? null;
+  const key = `${userId}:${bucketId}`;
+  const cached = readNameCache(bucketNameCache, key);
+  if (cached.hit) return cached.value;
   try {
     const bucket = await graphJson<GraphBucket>(
       userId,
       `/planner/buckets/${encodeURIComponent(bucketId)}`
     );
     const name = bucket.name?.trim() || null;
-    cache.set(bucketId, name);
+    bucketNameCache.set(key, { at: Date.now(), value: name });
     return name;
   } catch {
-    cache.set(bucketId, null);
+    bucketNameCache.set(key, { at: Date.now(), value: null });
     return null;
   }
 }
@@ -117,24 +142,44 @@ export async function listMyPlannerTasks(
     "/me/planner/tasks"
   );
 
-  const planCache = new Map<string, string | null>();
-  const bucketCache = new Map<string, string | null>();
   const out: PlannerTaskItem[] = [];
 
-  for (const t of page.value || []) {
-    if (!t.id || !(t.title || "").trim()) continue;
+  const usable = (page.value || []).filter(
+    (t): t is GraphPlannerTask & { id: string; planId: string } => {
+      if (!t.id || !(t.title || "").trim()) return false;
+      if (openOnly && (Number(t.percentComplete) || 0) >= 100) return false;
+      return Boolean(t.planId);
+    }
+  );
+
+  /**
+   * Warm the plan and bucket names first, in parallel. These lookups used to
+   * sit inside the loop below, so every distinct plan and bucket cost its own
+   * Graph round trip one after another — the reason the tasks tab took far
+   * longer than mail or calendar. Afterwards every lookup is a cache hit.
+   */
+  const planIds = [...new Set(usable.map((t) => t.planId))];
+  const bucketIds = [
+    ...new Set(
+      usable.map((t) => t.bucketId).filter((id): id is string => Boolean(id))
+    ),
+  ];
+  const [planTitles, bucketNames] = await Promise.all([
+    mapWithConcurrency(planIds, 6, (id) => getPlanTitle(userId, id)),
+    mapWithConcurrency(bucketIds, 6, (id) => getBucketName(userId, id)),
+  ]);
+  const planById = new Map(planIds.map((id, i) => [id, planTitles[i] ?? null]));
+  const bucketById = new Map(
+    bucketIds.map((id, i) => [id, bucketNames[i] ?? null])
+  );
+
+  for (const t of usable) {
     const percent = Number(t.percentComplete) || 0;
     const status: "open" | "done" = percent >= 100 ? "done" : "open";
-    if (openOnly && status === "done") continue;
-    const planId = t.planId || "";
-    if (!planId) continue;
+    const planId = t.planId;
     const bucketId = t.bucketId || null;
-    const [planTitle, bucketName] = await Promise.all([
-      getPlanTitle(userId, planId, planCache),
-      bucketId
-        ? getBucketName(userId, bucketId, bucketCache)
-        : Promise.resolve(null),
-    ]);
+    const planTitle = planById.get(planId) ?? null;
+    const bucketName = bucketId ? bucketById.get(bucketId) ?? null : null;
     out.push({
       id: t.id,
       title: (t.title || "").trim(),
@@ -204,10 +249,8 @@ export async function getPlannerTask(
   const planId = t.planId || "";
   const bucketId = t.bucketId || null;
   const [planTitle, bucketName] = await Promise.all([
-    planId ? getPlanTitle(userId, planId, new Map()) : Promise.resolve(null),
-    bucketId
-      ? getBucketName(userId, bucketId, new Map())
-      : Promise.resolve(null),
+    planId ? getPlanTitle(userId, planId) : Promise.resolve(null),
+    bucketId ? getBucketName(userId, bucketId) : Promise.resolve(null),
   ]);
   const percent = Number(t.percentComplete) || 0;
   return {
@@ -388,12 +431,10 @@ async function mapUpdatedPlannerTask(
   fallbackEtag: string
 ): Promise<PlannerTaskItem> {
   const planId = updated.planId || "";
-  const planTitle = planId
-    ? await getPlanTitle(userId, planId, new Map())
-    : null;
+  const planTitle = planId ? await getPlanTitle(userId, planId) : null;
   const bucketId = updated.bucketId || null;
   const bucketName = bucketId
-    ? await getBucketName(userId, bucketId, new Map())
+    ? await getBucketName(userId, bucketId)
     : null;
   const percent = Number(updated.percentComplete) || 0;
   const id = updated.id || fallbackId;
