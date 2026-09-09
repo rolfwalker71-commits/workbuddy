@@ -109,7 +109,9 @@ function PickerImageTile({
     filenameLooksLikeChrome(item.attachment.orgFilename)
   );
   const onSignatureHintRef = useRef(onSignatureHint);
-  onSignatureHintRef.current = onSignatureHint;
+  useEffect(() => {
+    onSignatureHintRef.current = onSignatureHint;
+  }, [onSignatureHint]);
 
   useEffect(() => {
     let cancelled = false;

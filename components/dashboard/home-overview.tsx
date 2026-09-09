@@ -218,12 +218,14 @@ function MariStatusDonut({
       </svg>
     );
   }
-  let angle = 0;
+  const spans = segments.map((seg) => (seg.count / total) * 360);
+  const startAngles = spans.map((_, i) =>
+    spans.slice(0, i).reduce((sum, span) => sum + span, 0)
+  );
   const slices = segments.map((seg, i) => {
-    const span = (seg.count / total) * 360;
-    const startAngle = angle;
-    const endAngle = i === segments.length - 1 ? 360 : angle + span;
-    angle = endAngle;
+    const startAngle = startAngles[i];
+    const endAngle =
+      i === segments.length - 1 ? 360 : startAngle + spans[i];
     return {
       ...seg,
       color: mariDonutColor(seg.statusId, i),

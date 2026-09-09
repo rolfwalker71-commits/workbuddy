@@ -298,11 +298,11 @@ export async function fetchAnalyzeVendorDocs(opts: {
   if (!query || opts.modules.length === 0) return [];
 
   const jobs: Array<Promise<SearchHit[]>> = [];
-  for (const module of opts.modules) {
-    if (module.sapProductId) {
-      jobs.push(searchSapHelp(module, query));
+  for (const mod of opts.modules) {
+    if (mod.sapProductId) {
+      jobs.push(searchSapHelp(mod, query));
     }
-    if (module.id === "coresuite") {
+    if (mod.id === "coresuite") {
       jobs.push(searchCoresuiteHelp(query));
     }
   }

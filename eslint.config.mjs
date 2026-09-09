@@ -13,6 +13,12 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  {
+    // Node CJS helper scripts (git hooks run them directly, package.json has no
+    // "type": "module"), so require() is correct here.
+    files: ["scripts/**/*.js", "scripts/**/*.cjs"],
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
 ]);
 
 export default eslintConfig;

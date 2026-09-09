@@ -53,8 +53,8 @@ export function inEveningCloseWindow(
 export function listEveningCloseUsers(): Array<{ id: number }> {
   const seen = new Set<number>();
   const out: Array<{ id: number }> = [];
-  for (const module of ["microsoft", "google"] as const satisfies AppModule[]) {
-    for (const user of listActiveUsersWithModule(module)) {
+  for (const mod of ["microsoft", "google"] as const satisfies AppModule[]) {
+    for (const user of listActiveUsersWithModule(mod)) {
       if (seen.has(user.id)) continue;
       seen.add(user.id);
       out.push({ id: user.id });

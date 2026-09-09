@@ -472,8 +472,8 @@ export function setUserModules(userId: number, modules: AppModule[]): void {
     const insert = db.prepare(
       `INSERT INTO user_module_access (user_id, module) VALUES (?, ?)`
     );
-    for (const module of normalized) {
-      insert.run(userId, module);
+    for (const mod of normalized) {
+      insert.run(userId, mod);
     }
   });
   tx();

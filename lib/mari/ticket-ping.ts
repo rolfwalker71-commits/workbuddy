@@ -55,7 +55,7 @@ export async function pingColleagueAboutTicket(input: {
 
   let microsoftId = input.microsoftId?.trim() || null;
   let email = input.email?.trim() || null;
-  let existingChatId = input.existingChatId?.trim() || null;
+  const existingChatId = input.existingChatId?.trim() || null;
 
   if (input.colleagueUserId != null) {
     const colleague = getAppUserById(input.colleagueUserId);

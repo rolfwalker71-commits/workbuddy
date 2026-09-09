@@ -1420,7 +1420,9 @@ export function MaringoWorkspaceClient() {
     ttvLookbackDays,
   ]);
 
-  ticketsRef.current = tickets;
+  useEffect(() => {
+    ticketsRef.current = tickets;
+  }, [tickets]);
 
   const lookupTicketByNumber = useCallback(async (issueId: number) => {
     if (!Number.isInteger(issueId) || issueId <= 0) return;

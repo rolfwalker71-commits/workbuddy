@@ -80,7 +80,9 @@ export function RealtimeToasts() {
   );
   const timersRef = useRef<Map<string, number>>(new Map());
   const prefsRef = useRef(prefs);
-  prefsRef.current = prefs;
+  useEffect(() => {
+    prefsRef.current = prefs;
+  }, [prefs]);
 
   const dismiss = useCallback((id: string) => {
     const t = timersRef.current.get(id);

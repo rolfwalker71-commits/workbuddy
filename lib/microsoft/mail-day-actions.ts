@@ -599,7 +599,7 @@ export async function updateOutlookTodoTask(
     moveToListId?: string | null;
   }
 ): Promise<OutlookTodoTaskItem> {
-  let listId =
+  const listId =
     input.listId?.trim() || (await resolveOutlookTodoListId(userId));
   const taskId = input.taskId.trim();
   const moveTo = input.moveToListId?.trim() || null;
