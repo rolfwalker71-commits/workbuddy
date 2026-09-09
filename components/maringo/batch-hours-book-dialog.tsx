@@ -22,8 +22,9 @@ import {
 } from "@/lib/mari/batch-hours-rows";
 import {
   draftFromRow,
-  draftBlockers,
+  draftBlockersWithPositions,
   draftToLinePayload,
+  type BatchHoursBlocker,
   type BatchHoursDraft,
 } from "@/lib/mari/batch-hours-draft";
 import {
@@ -252,6 +253,39 @@ export function BatchHoursBookDialog({
     () => new Set()
   );
 
+  const [positionsByKey, setPositionsByKey] = useState<
+    Map<string, MariKeyPair[]>
+  >(() => new Map());
+  const positionsAsked = useRef<Set<string>>(new Set());
+  const needPositions = useCallback((eventId: string, contractId: number) => {
+    if (!Number.isInteger(contractId) || contractId <= 0) return;
+    const key = `${eventId}:${contractId}`;
+    if (positionsAsked.current.has(key)) return;
+    positionsAsked.current.add(key);
+    setContractsLoading((prev) => new Set(prev).add(key));
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/maringo/timekeeping/contracts/${encodeURIComponent(String(contractId))}/positions`
+        );
+        const json = (await res.json().catch(() => ({}))) as {
+          positions?: MariKeyPair[];
+        };
+        setPositionsByKey((prev) =>
+          new Map(prev).set(key, json.positions ?? [])
+        );
+      } catch {
+        setPositionsByKey((prev) => new Map(prev).set(key, []));
+      } finally {
+        setContractsLoading((prev) => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+      }
+    })();
+  }, []);
+
   const contractsAsked = useRef<Set<string>>(new Set());
   const needContracts = useCallback(
     (eventId: string, projectNumber: string) => {
@@ -289,10 +323,35 @@ export function BatchHoursBookDialog({
   useEffect(() => {
     if (!open) return;
     for (const row of rows) {
-      const projectNumber = drafts.get(row.eventId)?.projectNumber;
-      if (projectNumber) needContracts(row.eventId, projectNumber);
+      const draft = drafts.get(row.eventId);
+      if (draft?.projectNumber) needContracts(row.eventId, draft.projectNumber);
+      if (draft?.contractId != null && draft.contractId > 0) {
+        needPositions(row.eventId, draft.contractId);
+      }
     }
-  }, [open, rows, drafts, needContracts]);
+  }, [open, rows, drafts, needContracts, needPositions]);
+
+  /** Maringo requires a position; with exactly one there is nothing to choose. */
+  useEffect(() => {
+    if (positionsByKey.size === 0) return;
+    setDrafts((prev) => {
+      let next = prev;
+      for (const row of rows) {
+        const draft = next.get(row.eventId);
+        if (!draft || draft.contractPositionId != null) continue;
+        if (draft.contractId == null || draft.contractId <= 0) continue;
+        const options = positionsByKey.get(
+          `${row.eventId}:${draft.contractId}`
+        );
+        if (!options || options.length !== 1) continue;
+        const only = Number(options[0]!.keyInternal);
+        if (!Number.isInteger(only) || only <= 0) continue;
+        if (next === prev) next = new Map(prev);
+        next.set(row.eventId, { ...draft, contractPositionId: only });
+      }
+      return next;
+    });
+  }, [rows, positionsByKey]);
 
   /**
    * The recognition may hand us a contract by its visible number while the
@@ -351,11 +410,22 @@ export function BatchHoursBookDialog({
   const isSelected = (row: BatchHoursRow) =>
     selection.get(row.eventId) ?? row.selected;
 
-  const selectedRows = rows.filter(isSelected);
-  const blockedCount = selectedRows.filter((row) => {
+  const positionsFor = (row: BatchHoursRow) => {
     const draft = drafts.get(row.eventId);
-    return !draft || draftBlockers(draft).length > 0;
-  }).length;
+    if (draft?.contractId == null || draft.contractId <= 0) return [];
+    return positionsByKey.get(`${row.eventId}:${draft.contractId}`) ?? [];
+  };
+
+  const blockersFor = (row: BatchHoursRow): BatchHoursBlocker[] => {
+    const draft = drafts.get(row.eventId);
+    if (!draft) return ["project"];
+    return draftBlockersWithPositions(draft, positionsFor(row).length);
+  };
+
+  const selectedRows = rows.filter(isSelected);
+  const blockedCount = selectedRows.filter(
+    (row) => blockersFor(row).length > 0
+  ).length;
 
   function updateDraft(eventId: string, next: BatchHoursDraft) {
     touched.current.add(eventId);
@@ -363,10 +433,7 @@ export function BatchHoursBookDialog({
   }
 
   const [run, setRun] = useState<BatchRunState | null>(null);
-  const bookable = selectedRows.filter((row) => {
-    const draft = drafts.get(row.eventId);
-    return draft && draftBlockers(draft).length === 0;
-  });
+  const bookable = selectedRows.filter((row) => blockersFor(row).length === 0);
 
   async function bookRow(
     row: BatchHoursRow,
@@ -535,8 +602,14 @@ export function BatchHoursBookDialog({
                     setProjectRow(eventId);
                     setProjectQuery(q);
                   }}
+                  blockers={blockersFor(row)}
                   contracts={key ? contractsByKey.get(key) : undefined}
-                  contractsLoading={key ? contractsLoading.has(key) : false}
+                  positions={positionsFor(row)}
+                  optionsLoading={
+                    (key ? contractsLoading.has(key) : false) ||
+                    (draft.contractId != null &&
+                      contractsLoading.has(`${row.eventId}:${draft.contractId}`))
+                  }
                   onNeedContracts={needContracts}
                   status={run?.byId[row.eventId]?.status}
                   error={

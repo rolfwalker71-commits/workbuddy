@@ -3,6 +3,7 @@ import test from "node:test";
 import { batchHoursRowsForDay } from "./batch-hours-rows.ts";
 import {
   draftBlockers,
+  draftBlockersWithPositions,
   draftFromRow,
   draftToLinePayload,
   isKnownInternalRemark,
@@ -108,6 +109,17 @@ test("blockers list every field Maringo would reject", () => {
     "hours",
     "project",
   ]);
+});
+
+test("a position is required as soon as the contract offers any", () => {
+  const row = rowWithProject();
+  const draft = { ...draftFromRow(row), contractPositionId: null };
+  assert.deepEqual(draftBlockersWithPositions(draft, 0), [], "none offered");
+  assert.deepEqual(draftBlockersWithPositions(draft, 3), ["position"]);
+  assert.deepEqual(
+    draftBlockersWithPositions({ ...draft, contractPositionId: 7 }, 3),
+    []
+  );
 });
 
 test("an internal meeting needs no contract", () => {

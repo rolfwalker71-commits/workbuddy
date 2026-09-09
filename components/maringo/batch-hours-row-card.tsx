@@ -7,9 +7,9 @@ import { Input } from "@/components/ui/input";
 import { useT } from "@/components/i18n/locale-provider";
 import type { BatchHoursRow } from "@/lib/mari/batch-hours-rows";
 import {
-  draftBlockers,
   setDraftBillable,
   setDraftHours,
+  type BatchHoursBlocker,
   type BatchHoursDraft,
 } from "@/lib/mari/batch-hours-draft";
 import type { BatchRowStatus } from "@/lib/mari/batch-hours-run";
@@ -20,20 +20,25 @@ import {
 } from "@/lib/mari/timekeeping-shared";
 import { TIMEKEEPING_INT_BEMERKUNG_OPTIONS } from "@/lib/mari/timekeeping-udfs";
 
-const FIELD = "h-8 text-[0.8125rem]";
-const LABEL = "text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground";
+const FIELD = "h-9 w-full text-[0.8125rem]";
+const SELECT =
+  "h-9 w-full min-w-0 rounded-md border border-border bg-background px-2 text-[0.8125rem]";
+const LABEL =
+  "mb-0.5 block text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground";
 
 export function BatchHoursRowCard({
   row,
   draft,
   selected,
+  blockers,
   onToggle,
   onChange,
   projectHits,
   projectSearching,
   onProjectQuery,
   contracts,
-  contractsLoading,
+  positions,
+  optionsLoading,
   onNeedContracts,
   status,
   error,
@@ -41,13 +46,15 @@ export function BatchHoursRowCard({
   row: BatchHoursRow;
   draft: BatchHoursDraft;
   selected: boolean;
+  blockers: BatchHoursBlocker[];
   onToggle: () => void;
   onChange: (next: BatchHoursDraft) => void;
   projectHits: MariKeyPair[];
   projectSearching: boolean;
   onProjectQuery: (eventId: string, query: string) => void;
   contracts: MariKeyPair[] | undefined;
-  contractsLoading: boolean;
+  positions: MariKeyPair[];
+  optionsLoading: boolean;
   onNeedContracts: (eventId: string, projectNumber: string) => void;
   status?: BatchRowStatus;
   error?: string | null;
@@ -55,32 +62,32 @@ export function BatchHoursRowCard({
   const t = useT();
   const [projectOpen, setProjectOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const blockers = draftBlockers(draft);
   // Recognition may deliver a visible contract number, the options key on the
   // internal id — match tolerantly, the way the single dialog does.
   const contractHit =
     findMariKeyPair(contracts ?? [], draft.contractId) ||
     findMariKeyPair(contracts ?? [], draft.contractVisible);
+  const positionHit = findMariKeyPair(positions, draft.contractPositionId);
 
   return (
     <div
       className={
-        "space-y-2 rounded-xl border bg-card px-2.5 py-2 " +
+        "space-y-2.5 rounded-xl border bg-card p-3 " +
         (selected ? "border-teal-600/50" : "border-border/60")
       }
     >
-      <div className="grid grid-cols-[1.25rem_minmax(0,1fr)] items-start gap-2 sm:grid-cols-[1.25rem_minmax(0,1.6fr)_minmax(0,1.5fr)_minmax(0,1fr)_4.25rem_4.25rem] sm:items-end">
+      {/* Line 1 — what and how long */}
+      <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
         <input
           type="checkbox"
-          className="mt-1 size-4 accent-teal-700 sm:mb-2 sm:mt-0"
+          className="mt-1 size-4 shrink-0 accent-teal-700"
           checked={selected}
           onChange={onToggle}
           aria-label={row.title}
         />
-
-        <div className="min-w-0 sm:pb-1">
-          <p className="truncate text-sm font-medium">{row.title}</p>
-          <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium leading-snug">{row.title}</p>
+          <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
             <span className="tabular-nums">
               {row.isAllDay
                 ? t("batchHours.allDay")
@@ -91,11 +98,6 @@ export function BatchHoursRowCard({
                 {t("batchHours.notDone")}
               </Badge>
             ) : null}
-            {selected && blockers.length > 0 && !status ? (
-              <span className="text-amber-700 dark:text-amber-300">
-                {t("batchHours.rowIncomplete")}
-              </span>
-            ) : null}
             {status === "running" ? (
               <Loader2 className="size-3.5 animate-spin" aria-hidden />
             ) : null}
@@ -105,18 +107,47 @@ export function BatchHoursRowCard({
                 {t("batchHours.rowBooked")}
               </span>
             ) : null}
-            {status === "booked" && error ? (
-              <span className="min-w-0 text-amber-700 dark:text-amber-300">
-                {error}
+            {selected && blockers.length > 0 && !status ? (
+              <span className="text-amber-700 dark:text-amber-300">
+                {t("batchHours.rowIncomplete")}
               </span>
-            ) : null}
-            {status === "failed" ? (
-              <span className="min-w-0 text-destructive">{error}</span>
             ) : null}
           </p>
         </div>
+        <div className="w-[5.25rem] shrink-0">
+          <span className={LABEL}>{t("batchHours.columnWorked")}</span>
+          <Input
+            className={FIELD + " text-right tabular-nums"}
+            value={draft.hoursRaw}
+            inputMode="decimal"
+            onValueChange={(v) => onChange(setDraftHours(draft, v))}
+          />
+        </div>
+        <div className="w-[5.25rem] shrink-0">
+          <span className={LABEL}>{t("batchHours.columnBillable")}</span>
+          <Input
+            className={FIELD + " text-right tabular-nums"}
+            value={draft.hoursBillableRaw}
+            inputMode="decimal"
+            onValueChange={(v) => onChange(setDraftBillable(draft, v))}
+          />
+        </div>
+      </div>
 
-        {/* Projekt — search hits replace the value, the input keeps the label */}
+      {/* Maringo's own words, full width so nothing gets cut */}
+      {status === "failed" && error ? (
+        <p className="rounded-md bg-destructive/10 px-2 py-1.5 text-xs leading-snug text-destructive">
+          {error}
+        </p>
+      ) : null}
+      {status === "booked" && error ? (
+        <p className="rounded-md bg-amber-500/10 px-2 py-1.5 text-xs leading-snug text-amber-800 dark:text-amber-200">
+          {error}
+        </p>
+      ) : null}
+
+      {/* Line 2 — where it books to */}
+      <div className="grid gap-2.5 md:grid-cols-3">
         <div className="relative min-w-0">
           <span className={LABEL}>{t("batchHours.columnProject")}</span>
           <Input
@@ -134,7 +165,7 @@ export function BatchHoursRowCard({
             }}
           />
           {projectOpen ? (
-            <div className="absolute z-10 mt-1 max-h-52 w-[min(22rem,80vw)] overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-lg">
+            <div className="absolute z-20 mt-1 max-h-56 w-[min(26rem,85vw)] overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-lg">
               {projectSearching ? (
                 <p className="px-2 py-1.5 text-xs text-muted-foreground">
                   {t("batchHours.projectSearching")}
@@ -148,7 +179,7 @@ export function BatchHoursRowCard({
                   <button
                     key={`${hit.keyVisible}-${hit.company ?? 0}`}
                     type="button"
-                    className="block w-full truncate rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted"
+                    className="block w-full rounded-md px-2 py-1.5 text-left text-xs leading-snug hover:bg-muted"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => {
                       onChange({
@@ -167,7 +198,9 @@ export function BatchHoursRowCard({
                     }}
                   >
                     <span className="font-medium">{hit.keyVisible}</span>{" "}
-                    <span className="text-muted-foreground">{hit.matchcode}</span>
+                    <span className="text-muted-foreground">
+                      {hit.matchcode}
+                    </span>
                   </button>
                 ))
               )}
@@ -175,11 +208,10 @@ export function BatchHoursRowCard({
           ) : null}
         </div>
 
-        {/* Vertrag — options load when the field is first used */}
         <div className="min-w-0">
           <span className={LABEL}>{t("batchHours.columnContract")}</span>
           <select
-            className="h-8 w-full rounded-md border border-border bg-background px-2 text-[0.8125rem]"
+            className={SELECT}
             value={contractHit?.keyInternal ?? ""}
             onFocus={() => {
               if (draft.projectNumber) {
@@ -192,7 +224,7 @@ export function BatchHoursRowCard({
               onChange({
                 ...draft,
                 contractId: raw === "" ? null : Number(raw),
-                contractVisible: hit?.keyVisible ?? draft.contractVisible,
+                contractVisible: hit?.keyVisible ?? null,
                 contractPositionId: null,
               });
             }}
@@ -200,7 +232,7 @@ export function BatchHoursRowCard({
             <option value="">
               {draft.contractOptional
                 ? t("batchHours.contractNone")
-                : contractsLoading
+                : optionsLoading
                   ? t("batchHours.contractLoading")
                   : t("batchHours.contractKeep")}
             </option>
@@ -219,26 +251,40 @@ export function BatchHoursRowCard({
         </div>
 
         <div className="min-w-0">
-          <span className={LABEL}>{t("batchHours.columnWorked")}</span>
-          <Input
-            className={FIELD + " text-right tabular-nums"}
-            value={draft.hoursRaw}
-            inputMode="decimal"
-            onValueChange={(v) => onChange(setDraftHours(draft, v))}
-          />
-        </div>
-        <div className="min-w-0">
-          <span className={LABEL}>{t("batchHours.columnBillable")}</span>
-          <Input
-            className={FIELD + " text-right tabular-nums"}
-            value={draft.hoursBillableRaw}
-            inputMode="decimal"
-            onValueChange={(v) => onChange(setDraftBillable(draft, v))}
-          />
+          <span className={LABEL}>{t("batchHours.columnPosition")}</span>
+          <select
+            className={
+              SELECT +
+              (blockers.includes("position") ? " border-amber-600" : "")
+            }
+            value={positionHit?.keyInternal ?? ""}
+            disabled={draft.contractId == null || draft.contractId <= 0}
+            onChange={(e) => {
+              const raw = e.target.value;
+              onChange({
+                ...draft,
+                contractPositionId: raw === "" ? null : Number(raw),
+              });
+            }}
+          >
+            <option value="">
+              {optionsLoading
+                ? t("batchHours.contractLoading")
+                : positions.length === 0
+                  ? t("batchHours.positionNone")
+                  : t("batchHours.positionPick")}
+            </option>
+            {positions.map((p) => (
+              <option key={p.keyInternal} value={p.keyInternal}>
+                {p.keyVisible} {p.matchcode}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-[minmax(0,1.6fr)_minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)] sm:pl-[1.75rem]">
+      {/* Line 3 — the text Maringo stores with the line */}
+      <div className="grid gap-2.5 md:grid-cols-4">
         <div className="min-w-0">
           <span className={LABEL}>{t("batchHours.fieldActivity")}</span>
           <Input
@@ -260,7 +306,7 @@ export function BatchHoursRowCard({
         <div className="min-w-0">
           <span className={LABEL}>{t("batchHours.fieldRemark")}</span>
           <select
-            className="h-8 w-full rounded-md border border-border bg-background px-2 text-[0.8125rem]"
+            className={SELECT}
             value={draft.internalRemarkVerr ?? ""}
             onChange={(e) =>
               onChange({

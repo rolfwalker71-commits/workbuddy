@@ -42,6 +42,7 @@ export type BatchHoursLinePayload = {
 export type BatchHoursBlocker =
   | "project"
   | "contract"
+  | "position"
   | "activity"
   | "hours"
   | "billable";
@@ -110,6 +111,22 @@ export function draftBlockers(draft: BatchHoursDraft): BatchHoursBlocker[] {
   if (!draft.activity.trim()) out.push("activity");
   if (parseDraftHours(draft.hoursRaw) == null) out.push("hours");
   if (parseDraftHours(draft.hoursBillableRaw) == null) out.push("billable");
+  return out;
+}
+
+/**
+ * Maringo answers "Vertragsposition fehlt" when a contract has positions and
+ * none is picked, so the position counts as required as soon as the contract
+ * offers any. The count comes from the loaded dropdown, hence the extra arg.
+ */
+export function draftBlockersWithPositions(
+  draft: BatchHoursDraft,
+  positionCount: number
+): BatchHoursBlocker[] {
+  const out = draftBlockers(draft);
+  if (positionCount > 0 && draft.contractPositionId == null) {
+    out.push("position");
+  }
   return out;
 }
 
