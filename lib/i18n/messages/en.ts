@@ -1978,6 +1978,7 @@ export const en = {
     attendeeContact: "Contact on the appointment",
     memoCollapse: "Collapse memo",
     memoExpand: "Expand memo",
+    sortByProject: "Sort by project number",
     contractPrefix: "Contract: ",
     positionPrefix: "Contract position: ",
     editBookingAria: "Edit booking",

@@ -1,7 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, Copy, Pencil, Trash2 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  ChevronRight,
+  Copy,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import {
   formatMariContractLabel,
   formatMariContractListLines,
@@ -11,6 +19,11 @@ import {
   type MariTimeLine,
 } from "@/lib/mari/timekeeping-shared";
 import { labelForInternalRemarkVerr } from "@/lib/mari/timekeeping-udfs";
+import {
+  nextTimeLinesSort,
+  sortMariTimeLines,
+  type TimeLinesSort,
+} from "@/lib/mari/time-lines-sort";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { toSwissDate, toSwissWeekday } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils";
@@ -341,6 +354,8 @@ export function MaringoTimeLinesTable({
 }) {
   const t = useT();
   const resolvedEmpty = emptyText ?? t("timekeeping.noBookings");
+  const [sort, setSort] = useState<TimeLinesSort>(null);
+  const sortedLines = sortMariTimeLines(lines, sort);
   const total =
     totalHours ??
     Math.round(lines.reduce((s, l) => s + l.hours, 0) * 100) / 100;
@@ -385,7 +400,7 @@ export function MaringoTimeLinesTable({
       <div className={cn("space-y-1.5", className)}>
         {summaryVariant === "chart" ? totals : null}
         <ul className="space-y-1.5">
-          {lines.map((l) => {
+          {sortedLines.map((l) => {
             const busy = busyLineId === l.lineId;
             const locked = Boolean(l.approved);
             return (
@@ -479,7 +494,24 @@ export function MaringoTimeLinesTable({
           <thead className="bg-muted/40 text-[0.5625rem] font-semibold uppercase tracking-wide text-muted-foreground">
             <tr>
               <th className="px-2 py-1.5">{t("common.date")}</th>
-              <th className="px-2 py-1.5">{t("common.project")}</th>
+              <th className="px-0 py-0">
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-1 px-2 py-1.5 text-left uppercase hover:text-foreground"
+                  onClick={() => setSort((prev) => nextTimeLinesSort(prev))}
+                  aria-label={t("timekeeping.sortByProject")}
+                  title={t("timekeeping.sortByProject")}
+                >
+                  {t("common.project")}
+                  {sort === "project-asc" ? (
+                    <ArrowUp className="size-3" aria-hidden />
+                  ) : sort === "project-desc" ? (
+                    <ArrowDown className="size-3" aria-hidden />
+                  ) : (
+                    <ArrowUpDown className="size-3 opacity-40" aria-hidden />
+                  )}
+                </button>
+              </th>
               <th className="px-2 py-1.5">{t("timekeeping.activityMemo")}</th>
               <th className="px-2 py-1.5">{t("tickets.handler")}</th>
               <th className="px-2 py-1.5">{t("timekeeping.approval")}</th>
@@ -493,7 +525,7 @@ export function MaringoTimeLinesTable({
             </tr>
           </thead>
           <tbody>
-            {lines.map((l) => {
+            {sortedLines.map((l) => {
               const busy = busyLineId === l.lineId;
               const locked = Boolean(l.approved);
               return (

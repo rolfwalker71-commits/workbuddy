@@ -1988,6 +1988,7 @@ export const de = {
     attendeeContact: "Ansprechpartner im Termin",
     memoCollapse: "Memo zuklappen",
     memoExpand: "Memo aufklappen",
+    sortByProject: "Nach Projektnummer sortieren",
     contractPrefix: "Vertrag: ",
     positionPrefix: "Vertragsposition: ",
     editBookingAria: "Buchung ändern",
