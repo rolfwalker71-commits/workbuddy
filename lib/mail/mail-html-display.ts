@@ -9,7 +9,7 @@ export type PreparedMailHtml = {
   hasHtml: boolean;
 };
 
-/** Strip scripts/handlers; keep basic formatting for Outlook/Gmail HTML. */
+/** Strip scripts/handlers; keep basic formatting for inbound mail HTML. */
 export function sanitizeMailHtml(html: string): string {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, "")

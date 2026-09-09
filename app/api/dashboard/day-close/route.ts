@@ -27,9 +27,7 @@ export async function GET() {
   const todayIso = zurichYmd();
   const weekday = isZurichWeekday(todayIso);
   const hasCalendarModule =
-    auth.isAdmin ||
-    auth.modules.includes("microsoft") ||
-    auth.modules.includes("google");
+    auth.isAdmin || auth.modules.includes("microsoft");
   if (!hasCalendarModule) {
     return NextResponse.json({ error: "Kein Kalender-Modul." }, { status: 403 });
   }
@@ -62,7 +60,6 @@ export async function GET() {
     ritual,
     ritualComplete: isDayCloseRitualComplete(ritual),
     ticketHourSuggestions,
-    googleConnected: ritual.googleDayDone !== null,
     microsoftConnected: ritual.microsoftDayDone !== null,
     maringoModule,
   });

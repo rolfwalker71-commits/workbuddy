@@ -24,13 +24,11 @@ export type TaskListOption = {
 export function TaskCreateDialog({
   open,
   onOpenChange,
-  provider,
   lists,
   onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  provider: "microsoft" | "google";
   lists: TaskListOption[];
   onCreated?: () => void;
 }) {
@@ -65,20 +63,14 @@ export function TaskCreateDialog({
     setBusy(true);
     setError(null);
     try {
-      const url =
-        provider === "google"
-          ? "/api/google/tasks"
-          : "/api/microsoft/todo/tasks";
-      const res = await fetch(url, {
+      const res = await fetch("/api/microsoft/todo/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: trimmed,
           notes: notes.trim() || null,
           dueDate: dueDate || null,
-          ...(provider === "google"
-            ? { tasklistId: selectedListId || null }
-            : { listId: selectedListId || null }),
+          listId: selectedListId || null,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -107,11 +99,7 @@ export function TaskCreateDialog({
             />
             {t("workspace.newTask")}
           </DialogTitle>
-          <DialogDescription>
-            {provider === "google"
-              ? t("workspace.createInGoogleTasks")
-              : t("workspace.createInToDo")}
-          </DialogDescription>
+          <DialogDescription>{t("workspace.createInToDo")}</DialogDescription>
         </DialogHeader>
         <form
           className="space-y-4"

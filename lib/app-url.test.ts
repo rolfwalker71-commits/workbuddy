@@ -38,17 +38,13 @@ async function withIsolatedPublicUrl<T>(
 test("absoluteOauthRedirectUrl prefers APP_PUBLIC_URL over Docker request host", async () => {
   await withIsolatedPublicUrl("https://workbuddy.rolfwalker.ch", async () => {
     const { absoluteOauthRedirectUrl } = await import("./app-url.ts");
-    const req = new Request("http://0.0.0.0:3311/api/google/oauth/start", {
+    const req = new Request("http://0.0.0.0:3311/api/microsoft/oauth/start", {
       headers: {
         host: "0.0.0.0:3311",
         "x-forwarded-proto": "https",
         "x-forwarded-host": "0.0.0.0:3311",
       },
     });
-    assert.equal(
-      absoluteOauthRedirectUrl("/api/google/oauth/callback", req),
-      "https://workbuddy.rolfwalker.ch/api/google/oauth/callback"
-    );
     assert.equal(
       absoluteOauthRedirectUrl("/api/microsoft/oauth/callback", req),
       "https://workbuddy.rolfwalker.ch/api/microsoft/oauth/callback"
@@ -66,8 +62,8 @@ test("absoluteOauthRedirectUrl strips trailing slash on APP_PUBLIC_URL origin", 
       },
     });
     assert.equal(
-      absoluteOauthRedirectUrl("/api/google/oauth/callback", req),
-      "https://workbuddy.rolfwalker.ch/api/google/oauth/callback"
+      absoluteOauthRedirectUrl("/api/microsoft/oauth/callback", req),
+      "https://workbuddy.rolfwalker.ch/api/microsoft/oauth/callback"
     );
   });
 });

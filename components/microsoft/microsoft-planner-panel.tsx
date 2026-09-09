@@ -675,7 +675,6 @@ export function MicrosoftPlannerPanel() {
       <TaskCreateDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        provider="microsoft"
         lists={todoLists.map((l) => ({ id: l.id, title: l.displayName }))}
         onCreated={() => {
           setNotice(t("common.createdTask"));

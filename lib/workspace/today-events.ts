@@ -13,15 +13,13 @@ import {
 } from "@/lib/workspace/merge-today";
 
 /**
- * Today's events from connected Microsoft and/or Google calendars.
+ * Today's events from the connected Microsoft calendar.
  * Shape stays ritual-ready (`id`, `title`, `time`, `planningRelevant`).
  */
 export async function loadWorkspaceTodayEvents(
   userId: number,
   options?: {
-    request?: Request | null;
     wantMicrosoft?: boolean;
-    wantGoogle?: boolean;
   }
 ): Promise<WorkspaceTodayEvent[]> {
   const today = zurichYmd();

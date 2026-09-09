@@ -75,9 +75,6 @@ function hostLabelFromUrl(url: string | URL): string {
     if (host.includes("login.microsoftonline.com")) {
       return "Microsoft-Anmeldung";
     }
-    if (host.includes("googleapis.com") || host.includes("google.com")) {
-      return "Google";
-    }
     return host;
   } catch {
     return "Der Dienst";

@@ -13,7 +13,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { GoogleLogo, MicrosoftLogo } from "@/components/branding/provider-logos";
+import { MicrosoftLogo } from "@/components/branding/provider-logos";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/auth/auth-provider";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
@@ -25,7 +25,6 @@ import {
   pathMatchesStep,
   stepDetail,
   stepDone,
-  type CloseoutProvider,
   type CloseoutStatusPayload,
   type CloseoutStepId,
 } from "@/lib/closeout/steps";
@@ -35,10 +34,8 @@ import type { MessageKey } from "@/lib/i18n";
 
 function closeoutStepText(
   t: (key: MessageKey, params?: Record<string, string | number | null | undefined>) => string,
-  stepId: CloseoutStepId,
-  provider: CloseoutProvider
+  stepId: CloseoutStepId
 ) {
-  const label = provider === "google" ? "Gmail" : "Outlook";
   switch (stepId) {
     case "calendar":
       return {
@@ -48,7 +45,7 @@ function closeoutStepText(
       };
     case "day-analysis":
       return {
-        title: t("closeout.dayAnalysis", { label }),
+        title: t("closeout.dayAnalysis", { label: "Outlook" }),
         hint: t("closeout.dayAnalysisHint"),
         cta: t("closeout.dayAnalysisCta"),
       };
@@ -75,7 +72,6 @@ const POLL_MS = 20_000;
 type StoredState = {
   open: boolean;
   minimized: boolean;
-  provider: CloseoutProvider;
   dismissedDate: string | null;
   stepIndex: number;
   autoAdvance: boolean;
@@ -85,7 +81,6 @@ type StoredState = {
 const DEFAULT_STORED: StoredState = {
   open: false,
   minimized: false,
-  provider: "microsoft",
   dismissedDate: null,
   stepIndex: 0,
   autoAdvance: true,
@@ -113,20 +108,15 @@ function writeStored(next: StoredState) {
 
 function userHasCalendarModule(modules: string[] | undefined, isAdmin: boolean) {
   if (isAdmin) return true;
-  return (
-    Boolean(modules?.includes("microsoft")) ||
-    Boolean(modules?.includes("google"))
-  );
+  return Boolean(modules?.includes("microsoft"));
 }
 
 function StepVisual({
   stepId,
-  provider,
   here,
   done,
 }: {
   stepId: CloseoutStepId;
-  provider: CloseoutProvider;
   here: boolean;
   done: boolean;
 }) {
@@ -145,9 +135,7 @@ function StepVisual({
     <div className="space-y-2 rounded-2xl bg-muted px-3 py-2.5 ring-1 ring-foreground/10">
       <div className="flex items-center gap-3">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-card shadow-sm ring-1 ring-foreground/10">
-          {stepId === "day-analysis" && provider === "google" ? (
-            <GoogleLogo className="size-5" />
-          ) : stepId === "day-analysis" && provider === "microsoft" ? (
+          {stepId === "day-analysis" ? (
             <MicrosoftLogo className="size-5" />
           ) : (
             <Icon
@@ -235,8 +223,6 @@ export function CloseoutAssistant() {
 
   const modules = me?.modules || [];
   const hasCalendar = userHasCalendarModule(modules, Boolean(me?.isAdmin));
-  const hasGoogle = Boolean(me?.isAdmin || modules.includes("google"));
-  const hasMicrosoft = Boolean(me?.isAdmin || modules.includes("microsoft"));
 
   useEffect(() => {
     const s = readStored();
@@ -287,8 +273,8 @@ export function CloseoutAssistant() {
   /**
    * Loads once on mount (so the collapsed badge has a count) and again each
    * time the panel is opened, but keeps polling only while it is open: the
-   * status endpoint costs a Graph and a Google calendar round trip, and it
-   * used to run every 20s in every open tab whether anyone looked or not.
+   * status endpoint costs a Graph round trip, and it used to run every 20s in
+   * every open tab whether anyone looked or not.
    */
   useEffect(() => {
     if (!hydrated || !me || !hasCalendar) return;
@@ -319,26 +305,14 @@ export function CloseoutAssistant() {
     }
   }, [hydrated, status, me, stored.dismissedDate, stored.open, persist]);
 
-  const provider = stored.provider;
   const steps = useMemo(
     () =>
-      closeoutStepsFor(provider, {
+      closeoutStepsFor({
         includeMariHours: status?.maringoModule ?? false,
         locale,
       }),
-    [provider, status?.maringoModule, locale]
+    [status?.maringoModule, locale]
   );
-
-  useEffect(() => {
-    if (!status || !hydrated) return;
-    if (status.microsoftConnected && !status.googleConnected) {
-      if (provider !== "microsoft") persist({ provider: "microsoft" });
-    } else if (status.googleConnected && !status.microsoftConnected) {
-      if (provider !== "google") persist({ provider: "google" });
-    } else if (hasGoogle && !hasMicrosoft && provider !== "google") {
-      persist({ provider: "google" });
-    }
-  }, [status, hydrated, provider, persist, hasGoogle, hasMicrosoft]);
 
   const activeIndex = Math.min(Math.max(0, stored.stepIndex), steps.length - 1);
   const active = steps[activeIndex];
@@ -359,17 +333,17 @@ export function CloseoutAssistant() {
   function isStepComplete(stepId: CloseoutStepId): boolean {
     if (!status) return false;
     if (stored.skipped.includes(stepId) && stepId !== "done") return true;
-    return stepDone(stepId, provider, status);
+    return stepDone(stepId, status);
   }
 
   useEffect(() => {
     if (!leadPending || !status || !hydrated) return;
-    const idx = firstOpenStepIndex(provider, status);
+    const idx = firstOpenStepIndex(status);
     leadToStep(idx);
     setLeadPending(false);
     // leadToStep is recreated each render — only react to the pending flag + status
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leadPending, status, hydrated, provider]);
+  }, [leadPending, status, hydrated]);
 
   /**
    * Auto-advance moves the highlighted step, but no longer navigates. It used
@@ -398,7 +372,6 @@ export function CloseoutAssistant() {
     stored.skipped,
     active.id,
     activeIndex,
-    provider,
     persist,
   ]);
 
@@ -407,11 +380,6 @@ export function CloseoutAssistant() {
     : 0;
   const progressDone = steps.filter((s) => isStepComplete(s.id)).length;
   const allClear = status != null && remaining === 0;
-  const showGoogleToggle =
-    hasGoogle && (status == null || status.googleConnected !== false);
-  const showMicrosoftToggle =
-    hasMicrosoft && (status == null || status.microsoftConnected !== false);
-  const showProviderSwitch = showGoogleToggle && showMicrosoftToggle;
 
   if (loading || !hydrated || !me || !hasCalendar) return null;
   if (pathname === "/login") return null;
@@ -458,13 +426,8 @@ export function CloseoutAssistant() {
           FLOAT_POS
         )}
       >
-        {provider === "google" ? (
-          <GoogleLogo className="size-3.5" />
-        ) : (
-          <MicrosoftLogo className="size-3.5" />
-        )}
-        {provider === "google" ? "Google" : "Outlook"} · {activeIndex + 1}/
-        {steps.length}
+        <MicrosoftLogo className="size-3.5" />
+        Outlook · {activeIndex + 1}/{steps.length}
         {remaining > 0 ? (
           <span className="rounded-full bg-orange-500 px-1.5 py-0.5 text-[0.625rem]">
             {remaining}
@@ -490,9 +453,7 @@ export function CloseoutAssistant() {
         <Sparkles className="size-4 text-orange-400" aria-hidden />
         <div className="min-w-0 flex-1">
           <p className="break-words text-[0.8125rem] font-bold leading-snug tracking-tight">
-            {t("closeout.headingWithProvider", {
-              provider: provider === "google" ? "Google" : "Outlook",
-            })}
+            {t("closeout.headingWithProvider", { provider: "Outlook" })}
           </p>
           <p className="text-[0.625rem] text-white/70">
             {t("closeout.stepOf", {
@@ -538,50 +499,6 @@ export function CloseoutAssistant() {
         />
       </div>
 
-      {showProviderSwitch ? (
-        <div className="flex gap-1 border-b border-border/50 bg-muted p-1.5">
-          {(
-            [
-              {
-                id: "google" as const,
-                label: "Google",
-                logo: <GoogleLogo className="size-3.5" />,
-                enabled: showGoogleToggle,
-              },
-              {
-                id: "microsoft" as const,
-                label: "Outlook",
-                logo: <MicrosoftLogo className="size-3.5" />,
-                enabled: showMicrosoftToggle,
-              },
-            ] as const
-          ).map((p) => (
-            <Button
-              key={p.id}
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={!p.enabled && p.id !== provider}
-              onClick={() =>
-                persist({
-                  provider: p.id,
-                  stepIndex: status ? firstOpenStepIndex(p.id, status) : 0,
-                })
-              }
-              className={cn(
-                "h-9 min-h-0 flex-1 rounded-full px-2 py-0 text-[0.6875rem] font-semibold",
-                provider === p.id
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-card/60"
-              )}
-            >
-              {p.logo}
-              {p.label}
-            </Button>
-          ))}
-        </div>
-      ) : null}
-
       <div className="max-h-[min(70vh,28rem)] space-y-3 overflow-y-auto p-3">
         {error ? <p className="text-xs text-destructive">{error}</p> : null}
 
@@ -594,7 +511,6 @@ export function CloseoutAssistant() {
         {active ? (
           <StepVisual
             stepId={active.id}
-            provider={provider}
             here={here}
             done={isStepComplete(active.id)}
           />
@@ -635,7 +551,7 @@ export function CloseoutAssistant() {
                   <span className="min-w-0 flex-1">
                     <span className="flex items-start justify-between gap-2">
                       <span className="break-words text-[0.8125rem] font-semibold leading-snug tracking-tight">
-                        {closeoutStepText(t, step.id, provider).title}
+                        {closeoutStepText(t, step.id).title}
                       </span>
                       {status ? (
                         <span
@@ -646,13 +562,13 @@ export function CloseoutAssistant() {
                         >
                           {skipped
                             ? t("closeout.skipped")
-                            : stepDetail(step.id, provider, status, locale)}
+                            : stepDetail(step.id, status, locale)}
                         </span>
                       ) : null}
                     </span>
                     {current ? (
                       <span className="mt-0.5 block text-[0.6875rem] text-muted-foreground">
-                        {closeoutStepText(t, step.id, provider).hint}
+                        {closeoutStepText(t, step.id).hint}
                       </span>
                     ) : null}
                   </span>
@@ -669,7 +585,7 @@ export function CloseoutAssistant() {
               className="min-h-11 min-w-0 flex-1 gap-1.5 bg-orange-500 text-white hover:bg-orange-600"
               onClick={() => leadToStep(activeIndex)}
             >
-              {closeoutStepText(t, active.id, provider).cta} →
+              {closeoutStepText(t, active.id).cta} →
             </Button>
             <Button
               type="button"

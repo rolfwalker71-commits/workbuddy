@@ -73,7 +73,7 @@ export const ExistingDayTaskRefSchema = z.object({
   doneAt: z.string().max(80).nullable().optional(),
   href: z.string().max(500).nullable().optional(),
   match: z.enum(["title", "theme", "notes", "source"]),
-  source: z.enum(["todo", "planner", "google"]).nullable().optional(),
+  source: z.enum(["todo", "planner"]).nullable().optional(),
 });
 
 /** Apply-Body: AI-Felder + optionaler To-Do-Treffer. */
@@ -158,7 +158,7 @@ const MsDaySummaryOnlySchema = z.object({
 export type ExistingDayTaskRef = z.infer<typeof ExistingDayTaskRefSchema>;
 
 export type MsDayTaskSuggestion = z.infer<typeof MsDayTaskSuggestionSchema> & {
-  /** Treffer in Google Tasks / Outlook To Do (nach Analyse angereichert). */
+  /** Treffer in Outlook To Do / Planner (nach Analyse angereichert). */
   existingTask?: ExistingDayTaskRef | null;
 };
 export type MsDayEventSuggestion = z.infer<typeof MsDayEventSuggestionSchema>;

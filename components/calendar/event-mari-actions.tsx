@@ -49,7 +49,6 @@ export function EventMariActions({
     maringoOn &&
     ended &&
     !booked &&
-    provider !== "google" &&
     provider !== "buddy" &&
     calendarType !== "birthday" &&
     Boolean(onBookHours || hasTicket);

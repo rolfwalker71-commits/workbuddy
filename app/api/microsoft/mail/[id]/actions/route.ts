@@ -59,7 +59,7 @@ export async function POST(request: Request, context: Ctx) {
     );
   }
 
-  const stored = getMailAnalysis(userId, id, "microsoft");
+  const stored = getMailAnalysis(userId, id);
   let mailFrom = "";
   let fromEmail = stored?.fromEmail || null;
   try {
@@ -213,7 +213,7 @@ export async function POST(request: Request, context: Ctx) {
 
   const okCount = created.filter((c) => c.ok).length;
   if (okCount > 0) {
-    updateMailAnalysisStatus(userId, id, "applied", "microsoft");
+    updateMailAnalysisStatus(userId, id, "applied");
     recordMailSenderApplied(userId, fromEmail);
   }
 

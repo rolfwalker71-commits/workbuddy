@@ -1,5 +1,5 @@
 /**
- * Shared Kalender/Mail merge for the unified workspace (Microsoft + Google).
+ * Shared Kalender/Mail merge for the unified workspace.
  * Ritual-ready event shape is the contract for Home and the day client.
  */
 
@@ -10,7 +10,7 @@ import {
 } from "@/lib/dashboard/day-close-ritual";
 import type { WorkspaceEventMari } from "@/lib/workspace/event-mari-shared";
 
-export type WorkspaceProvider = "microsoft" | "google" | "buddy";
+export type WorkspaceProvider = "microsoft" | "buddy";
 
 function zurichTodayYmd(d = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -93,7 +93,7 @@ export function ritualAsWorkspaceTodayEvent(
 /**
  * Merge + sort today events (time, then title) and inject the virtual
  * Tagesabschluss item (`buddy-day-close`, 18:30 Mo–Fr). Never written to
- * Outlook/Google.
+ * Outlook.
  */
 export function mergeWorkspaceTodayEvents(
   ...groups: WorkspaceTodayEvent[][]

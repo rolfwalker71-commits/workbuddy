@@ -1,6 +1,6 @@
 /**
  * Virtual weekday ritual «Tagesabschluss» (default 18:30–18:45 Europe/Zurich).
- * Start time is per-user (Konto). Buddy-only — never written to Google or Outlook.
+ * Start time is per-user (Konto). Buddy-only — never written to Outlook.
  * This module is client-safe (no db / OAuth imports).
  */
 
@@ -34,7 +34,6 @@ export function isZurichWeekday(ymd: string): boolean {
 
 export type DayCloseRitualStatus = {
   calendarOpen: number;
-  googleDayDone: boolean | null;
   microsoftDayDone: boolean | null;
   /** null = Maringo module off / unknown */
   mariHoursPending: number | null;
@@ -85,14 +84,8 @@ function ritualSubtitle(
       );
     }
     const analyses: string[] = [];
-    if (status.googleDayDone === false) {
-      analyses.push(translate(locale, "closeout.gmailMissing"));
-    }
     if (status.microsoftDayDone === false) {
       analyses.push(translate(locale, "closeout.outlookMissing"));
-    }
-    if (status.googleDayDone === true) {
-      analyses.push(translate(locale, "closeout.gmailOk"));
     }
     if (status.microsoftDayDone === true) {
       analyses.push(translate(locale, "closeout.outlookOk"));
@@ -118,7 +111,6 @@ export function isDayCloseRitualComplete(
 ): boolean {
   if (!status) return false;
   if (status.calendarOpen > 0) return false;
-  if (status.googleDayDone === false) return false;
   if (status.microsoftDayDone === false) return false;
   if (status.mariHoursPending != null && status.mariHoursPending > 0) {
     return false;
@@ -238,63 +230,6 @@ export function withDayCloseRitualMsEvents<
     schedule,
     locale
   );
-}
-
-export type DayCloseGoogleReviewEvent = {
-  id: string;
-  calendarId: string;
-  subject: string;
-  date: string;
-  startHm: string | null;
-  endHm: string | null;
-  location: string | null;
-  isAllDay: boolean;
-  done: boolean;
-  htmlLink: string | null;
-  description?: string | null;
-  meetUrl?: string | null;
-  calendarType?: string | null;
-  calendarName?: string | null;
-};
-
-export function ritualAsGoogleReviewEvent(
-  ritual: DayCloseRitualItem
-): DayCloseGoogleReviewEvent {
-  return {
-    id: ritual.id,
-    calendarId: DAY_CLOSE_CALENDAR_ID,
-    subject: ritual.title,
-    date: ritual.date,
-    startHm: ritual.time,
-    endHm: ritual.endTime,
-    location: ritual.calendarName,
-    isAllDay: false,
-    done: ritual.title.startsWith("✅"),
-    htmlLink: null,
-    description: ritual.description,
-    meetUrl: null,
-    calendarType: "other",
-    calendarName: ritual.calendarName,
-  };
-}
-
-export function withDayCloseRitualGoogleEvents<
-  T extends DayCloseGoogleReviewEvent,
->(
-  events: T[],
-  todayIso: string,
-  status?: DayCloseRitualStatus | null,
-  schedule?: DayCloseSchedule | null,
-  locale: Locale | string = DEFAULT_LOCALE
-): T[] {
-  return withDayCloseRitual(
-    events,
-    todayIso,
-    status,
-    (ritual) => ritualAsGoogleReviewEvent(ritual),
-    schedule,
-    locale
-  ) as T[];
 }
 
 export function countOpenPlanningEvents(

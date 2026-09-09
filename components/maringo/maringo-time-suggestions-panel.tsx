@@ -12,7 +12,7 @@ import type { TimeBookFormDefaults } from "@/components/maringo/maringo-time-boo
 import { useT } from "@/components/i18n/locale-provider";
 
 export type MariTimeSuggestion = {
-  eventProvider: "microsoft" | "google";
+  eventProvider: "microsoft";
   eventId: string;
   calendarId: string | null;
   issueId: number;
@@ -153,7 +153,7 @@ export function MaringoTimeSuggestionsPanel({
                         ? ` · ${s.startHm}–${s.endHm}`
                         : ""}
                       {s.hours != null ? ` · ${s.hours} h` : ""}
-                      {` · ${s.eventProvider === "google" ? "Google" : "Outlook"}`}
+                      {" · Outlook"}
                     </p>
                     {s.memo ? (
                       <p className="mt-1 line-clamp-2 text-xs text-foreground/80">

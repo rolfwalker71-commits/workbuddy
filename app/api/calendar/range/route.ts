@@ -32,13 +32,12 @@ export async function GET(request: Request) {
   const loaded = await loadWorkspaceAgendaInRange(
     userId,
     parsed.range.from,
-    parsed.range.to,
-    { request }
+    parsed.range.to
   );
 
-  if (!loaded.sources.microsoft && !loaded.sources.google) {
+  if (!loaded.sources.microsoft) {
     return NextResponse.json(
-      { error: "Weder Microsoft 365 noch Google Workspace ist verbunden." },
+      { error: "Microsoft 365 ist nicht verbunden." },
       { status: 400 }
     );
   }

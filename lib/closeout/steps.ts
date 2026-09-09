@@ -2,8 +2,6 @@
 
 import { DEFAULT_LOCALE, translate, type Locale } from "@/lib/i18n";
 
-export type CloseoutProvider = "google" | "microsoft";
-
 export type CloseoutStepId =
   | "calendar"
   | "day-analysis"
@@ -24,40 +22,36 @@ export type CloseoutStatusPayload = {
   weekday: boolean;
   ritual: {
     calendarOpen: number;
-    googleDayDone: boolean | null;
     microsoftDayDone: boolean | null;
     mariHoursPending: number | null;
   };
   ritualComplete: boolean;
   ticketHourSuggestions: number;
-  googleConnected: boolean;
   microsoftConnected: boolean;
   maringoModule: boolean;
   /** User's virtual Tagesabschluss start (Europe/Zurich). */
   startHm?: string;
 };
 
-export function closeoutStepsFor(
-  provider: CloseoutProvider,
-  opts?: { includeMariHours?: boolean; locale?: Locale }
-): CloseoutStepDef[] {
+export function closeoutStepsFor(opts?: {
+  includeMariHours?: boolean;
+  locale?: Locale;
+}): CloseoutStepDef[] {
   const locale = opts?.locale ?? DEFAULT_LOCALE;
-  const base = provider === "google" ? "/google" : "/microsoft";
-  const label = provider === "google" ? "Gmail" : "Outlook";
   const steps: CloseoutStepDef[] = [
     {
       id: "calendar",
       title: translate(locale, "closeout.checkOpenEvents"),
       hint: translate(locale, "closeout.checkOpenEventsHint"),
-      href: `${base}?tab=calendar&review=1`,
+      href: "/microsoft?tab=calendar&review=1",
       cta: translate(locale, "closeout.checkEventsCta"),
       visualLabel: translate(locale, "closeout.calendar"),
     },
     {
       id: "day-analysis",
-      title: translate(locale, "closeout.dayAnalysis", { label }),
+      title: translate(locale, "closeout.dayAnalysis", { label: "Outlook" }),
       hint: translate(locale, "closeout.dayAnalysisHint"),
-      href: `${base}?tab=mail&view=tagesanalysen`,
+      href: "/microsoft?tab=mail&view=tagesanalysen",
       cta: translate(locale, "closeout.dayAnalysisCta"),
       visualLabel: translate(locale, "closeout.analysis"),
     },
@@ -85,28 +79,20 @@ export function closeoutStepsFor(
 
 export function stepDone(
   stepId: CloseoutStepId,
-  provider: CloseoutProvider,
   status: CloseoutStatusPayload
 ): boolean {
   switch (stepId) {
     case "calendar":
       return status.ritual.calendarOpen <= 0;
-    case "day-analysis": {
-      const flag =
-        provider === "google"
-          ? status.ritual.googleDayDone
-          : status.ritual.microsoftDayDone;
-      return flag !== false;
-    }
+    case "day-analysis":
+      return status.ritual.microsoftDayDone !== false;
     case "ticket-hours":
       if (!status.maringoModule) return true;
       return status.ticketHourSuggestions <= 0;
     case "done":
-      return closeoutStepsFor(provider, {
-        includeMariHours: status.maringoModule,
-      })
+      return closeoutStepsFor({ includeMariHours: status.maringoModule })
         .filter((s) => s.id !== "done")
-        .every((s) => stepDone(s.id, provider, status));
+        .every((s) => stepDone(s.id, status));
     default:
       return false;
   }
@@ -114,7 +100,6 @@ export function stepDone(
 
 export function stepDetail(
   stepId: CloseoutStepId,
-  provider: CloseoutProvider,
   status: CloseoutStatusPayload,
   locale: Locale = DEFAULT_LOCALE
 ): string {
@@ -126,10 +111,7 @@ export function stepDetail(
           })
         : translate(locale, "common.noneOpen");
     case "day-analysis": {
-      const flag =
-        provider === "google"
-          ? status.ritual.googleDayDone
-          : status.ritual.microsoftDayDone;
+      const flag = status.ritual.microsoftDayDone;
       if (flag === null) return translate(locale, "closeout.notConnected");
       return flag
         ? translate(locale, "closeout.completed")
@@ -146,7 +128,7 @@ export function stepDetail(
           )
         : translate(locale, "common.noneOpen");
     case "done":
-      return stepDone("done", provider, status)
+      return stepDone("done", status)
         ? translate(locale, "closeout.ready")
         : translate(locale, "closeout.stillOpen");
     default:
@@ -154,24 +136,16 @@ export function stepDetail(
   }
 }
 
-export function firstOpenStepIndex(
-  provider: CloseoutProvider,
-  status: CloseoutStatusPayload
-): number {
-  const steps = closeoutStepsFor(provider, {
-    includeMariHours: status.maringoModule,
-  });
-  const idx = steps.findIndex((s) => !stepDone(s.id, provider, status));
+export function firstOpenStepIndex(status: CloseoutStatusPayload): number {
+  const steps = closeoutStepsFor({ includeMariHours: status.maringoModule });
+  const idx = steps.findIndex((s) => !stepDone(s.id, status));
   return idx < 0 ? steps.length - 1 : idx;
 }
 
-export function openStepCount(
-  provider: CloseoutProvider,
-  status: CloseoutStatusPayload
-): number {
-  return closeoutStepsFor(provider, {
+export function openStepCount(status: CloseoutStatusPayload): number {
+  return closeoutStepsFor({
     includeMariHours: status.maringoModule,
-  }).filter((s) => s.id !== "done" && !stepDone(s.id, provider, status)).length;
+  }).filter((s) => s.id !== "done" && !stepDone(s.id, status)).length;
 }
 
 export function microChecksFor(

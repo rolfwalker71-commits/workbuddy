@@ -1,13 +1,11 @@
 /**
- * Cluster the next 90 days of connected calendars for 3dclay art coverage.
+ * Cluster the next 90 days of the connected calendar for 3dclay art coverage.
  * Prints title/location frequencies only — no tokens, no secrets.
  *
  *   node --env-file=.env --import tsx scripts/crawl-calendar-art.ts
  */
 import { resolveEventArt } from "../lib/calendar/event-art";
 import { getDb } from "../lib/db/client";
-import { listGoogleAgendaInRange } from "../lib/google/calendars";
-import { hasGoogleCalendarScope, isGoogleMailConnected } from "../lib/google/oauth";
 import { listMicrosoftAgendaInRange } from "../lib/microsoft/calendars";
 import {
   hasMicrosoftCalendarScope,
@@ -16,7 +14,7 @@ import {
 import { addDaysYmd, zurichYmd } from "../lib/microsoft/time";
 
 type Row = {
-  provider: "microsoft" | "google";
+  provider: "microsoft";
   title: string;
   location: string | null;
   meetUrl: string | null;
@@ -51,7 +49,6 @@ function countMap(items: string[]): Array<{ key: string; count: number }> {
 
 async function loadUserEvents(userId: number): Promise<{
   microsoft: boolean;
-  google: boolean;
   events: Row[];
 }> {
   const start = zurichYmd();
@@ -59,7 +56,6 @@ async function loadUserEvents(userId: number): Promise<{
   const events: Row[] = [];
   const microsoft =
     isMicrosoftConnected(userId) && hasMicrosoftCalendarScope(userId);
-  const google = isGoogleMailConnected(userId) && hasGoogleCalendarScope(userId);
 
   if (microsoft) {
     const { events: rows } = await listMicrosoftAgendaInRange(userId, start, end);
@@ -76,22 +72,7 @@ async function loadUserEvents(userId: number): Promise<{
     }
   }
 
-  if (google) {
-    const { events: rows } = await listGoogleAgendaInRange(userId, start, end);
-    for (const e of rows) {
-      events.push({
-        provider: "google",
-        title: norm(e.summary) || "(ohne Titel)",
-        location: e.location,
-        meetUrl: e.meetUrl,
-        calendarType: e.type,
-        calendarName: e.calendarName,
-        date: e.date,
-      });
-    }
-  }
-
-  return { microsoft, google, events };
+  return { microsoft, events };
 }
 
 async function main() {
@@ -115,11 +96,9 @@ async function main() {
   for (const user of users) {
     const loaded = await loadUserEvents(user.id);
     console.log(
-      `User #${user.id} ${user.username}: Microsoft=${loaded.microsoft ? "ja" : "nein"} Google=${loaded.google ? "ja" : "nein"} Events=${loaded.events.length}`
+      `User #${user.id} ${user.username}: Microsoft=${loaded.microsoft ? "ja" : "nein"} Events=${loaded.events.length}`
     );
-    if (!loaded.microsoft && !loaded.google) {
-      continue;
-    }
+    if (!loaded.microsoft) continue;
     total += loaded.events.length;
     for (const event of loaded.events) {
       const art = resolveEventArt({
@@ -136,7 +115,7 @@ async function main() {
 
   if (total === 0) {
     console.error(
-      "Keine Termine. Bitte anmelden und Microsoft- oder Google-Kalender verbinden."
+      "Keine Termine. Bitte anmelden und Microsoft-Kalender verbinden."
     );
     process.exit(3);
   }

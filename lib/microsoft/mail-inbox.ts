@@ -1,6 +1,6 @@
 import { graphJson } from "@/lib/microsoft/graph";
 import { addDaysYmd, dayWindowLocal, zurichYmd } from "@/lib/microsoft/time";
-import type { MailListFilter, MailListItem, MailMessageDetail } from "@/lib/mail/gmail";
+import type { MailListFilter, MailListItem, MailMessageDetail } from "@/lib/mail/mail-types";
 
 type GraphRecipient = {
   emailAddress?: { name?: string | null; address?: string | null };
@@ -78,7 +78,7 @@ function mapToDetail(m: GraphMessage): MailMessageDetail | null {
   };
 }
 
-/** Inbox-Liste mit Filtern analog Gmail (today / week / unread). */
+/** Inbox-Liste mit Filtern (today / week / unread). */
 export async function listMicrosoftInboxMessages(
   userId: number,
   options?: { filter?: MailListFilter; limit?: number }

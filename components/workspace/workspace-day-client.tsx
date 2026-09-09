@@ -30,9 +30,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  GmailLogo,
-  GoogleLogo,
-  GoogleTasksLogo,
   MicrosoftLogo,
   MicrosoftPlannerLogo,
   MicrosoftTeamsLogo,
@@ -158,6 +155,8 @@ function clampMailRange(from: string, to: string): { from: string; to: string } 
   return { from: f, to: t };
 }
 
+const EVENT_ACTION_URL = "/api/microsoft/calendar/actions";
+
 type Tab = "calendar" | "mail" | "planner" | "teams";
 
 function parseTab(
@@ -178,8 +177,6 @@ function parseMailView(raw: string | null, tabRaw: string | null): MailWorkspace
   if (tabRaw === "day") return "tagesanalysen";
   return "chronik";
 }
-
-type CloudProvider = "microsoft" | "google";
 
 type WorkspaceCalEvent = {
   id: string;
@@ -263,8 +260,6 @@ type FreeSlot = {
   durationMinutes: number;
 };
 
-type MsMail = MsMailItem & { provider: CloudProvider };
-
 type DayTask = {
   title: string;
   notes?: string | null;
@@ -284,7 +279,7 @@ type DayTask = {
     doneAt?: string | null;
     href?: string | null;
     match?: "title" | "theme" | "notes" | "source";
-    source?: "todo" | "planner" | "google" | null;
+    source?: "todo" | "planner" | null;
   } | null;
 };
 
@@ -371,11 +366,6 @@ function existingTaskStatusLabel(
     return done
       ? t("workspace.dayExistingPlannerDone")
       : t("workspace.dayExistingPlannerOpen");
-  }
-  if (existing.source === "google") {
-    return done
-      ? t("workspace.dayExistingGoogleDone")
-      : t("workspace.dayExistingGoogleOpen");
   }
   return done
     ? t("workspace.dayExistingTodoDone")
@@ -537,17 +527,7 @@ const STATUS_KEY: Record<string, MessageKey> = {
   fyi: "workspace.info",
 };
 
-function tagMailProvider(
-  items: MsMailItem[] | undefined,
-  provider: CloudProvider
-): MsMail[] {
-  return ((items || []) as MsMailItem[]).map((m) => ({ ...m, provider }));
-}
-
-function mapTodayEvents(
-  raw: unknown[],
-  provider: CloudProvider
-): WorkspaceCalEvent[] {
+function mapTodayEvents(raw: unknown[]): WorkspaceCalEvent[] {
   return (raw || []).map((row) => {
     const e = row as Record<string, unknown>;
     const mapped = toWorkspaceTodayEvent({
@@ -560,7 +540,7 @@ function mapTodayEvents(
       endTime: typeof e.endTime === "string" ? e.endTime : null,
       planningRelevant:
         typeof e.planningRelevant === "boolean" ? e.planningRelevant : true,
-      provider: isDayCloseRitualId(String(e.id || "")) ? "buddy" : provider,
+      provider: isDayCloseRitualId(String(e.id || "")) ? "buddy" : "microsoft",
       calendarId: typeof e.calendarId === "string" ? e.calendarId : null,
       date: typeof e.date === "string" ? e.date : "",
       location: typeof e.location === "string" ? e.location : null,
@@ -707,11 +687,7 @@ function EventDetailActions({
   );
 }
 
-export function WorkspaceDayClient({
-  providerScope,
-}: {
-  providerScope?: CloudProvider;
-} = {}) {
+export function WorkspaceDayClient() {
   const searchParams = useSearchParams();
   const pathname = usePathname() || "";
   const router = useRouter();
@@ -719,14 +695,9 @@ export function WorkspaceDayClient({
   const { intlLocale } = useLocale();
   const { me, loading: authLoading } = useAuth();
   const modules = me?.modules ?? [];
-  const scope: CloudProvider =
-    providerScope ??
-    (pathname.startsWith("/google") ? "google" : "microsoft");
-  const wantMs = scope === "microsoft" && modules.includes("microsoft");
-  const wantGoogle = scope === "google" && modules.includes("google");
+  const wantMs = modules.includes("microsoft");
   const teamsEnabled =
     me?.teamsEnabled !== false && me?.teamsModuleEnabled !== false;
-  const routeHint = scope;
 
   const [tab, setTab] = useState<Tab>(() =>
     parseTab(searchParams.get("tab"), searchParams.get("open"), true)
@@ -734,19 +705,11 @@ export function WorkspaceDayClient({
   const [mailView, setMailView] = useState<MailWorkspaceView>(() =>
     parseMailView(searchParams.get("view"), searchParams.get("tab"))
   );
-  const [openMailId, setOpenMailId] = useState<string | null>(
-    () => searchParams.get("open")
-  );
   const [msConnected, setMsConnected] = useState<boolean | null>(null);
-  const [googleConnected, setGoogleConnected] = useState<boolean | null>(null);
   const [msEmail, setMsEmail] = useState<string | null>(null);
-  const [googleEmail, setGoogleEmail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [adhocOpen, setAdhocOpen] = useState(false);
-  const [analysisProvider, setAnalysisProvider] = useState<CloudProvider>(
-    routeHint
-  );
 
   const [events, setEvents] = useState<WorkspaceCalEvent[]>([]);
   const [calDate, setCalDate] = useState(() => zurichYmdClient());
@@ -807,8 +770,8 @@ export function WorkspaceDayClient({
     Record<string, number>
   >({});
 
-  const [inbox, setInbox] = useState<MsMail[]>([]);
-  const [sent, setSent] = useState<MsMail[]>([]);
+  const [inbox, setInbox] = useState<MsMailItem[]>([]);
+  const [sent, setSent] = useState<MsMailItem[]>([]);
   const [mailFrom, setMailFrom] = useState(() => zurichYmdClient());
   const [mailTo, setMailTo] = useState(() => zurichYmdClient());
   const [mailLoading, setMailLoading] = useState(false);
@@ -840,90 +803,46 @@ export function WorkspaceDayClient({
   const pollRef = useRef<number | null>(null);
 
   const loadConnection = useCallback(async () => {
+    if (!wantMs) {
+      setMsConnected(false);
+      return;
+    }
     try {
-      const fetches: Promise<void>[] = [];
-      if (wantMs) {
-        fetches.push(
-          fetch("/api/microsoft/connection")
-            .then(async (res) => {
-              const json = await res.json();
-              if (!res.ok) throw new Error(json.error || t("workspace.msStatusFailed"));
-              setMsConnected(Boolean(json.connected));
-              setMsEmail(json.connectedEmail || null);
-            })
-            .catch((err) => {
-              setMsConnected(false);
-              setError(err instanceof Error ? err.message : String(err));
-            })
-        );
-      } else {
-        setMsConnected(false);
-      }
-      if (wantGoogle) {
-        fetches.push(
-          fetch("/api/google/connection")
-            .then(async (res) => {
-              const json = await res.json();
-              if (!res.ok) throw new Error(json.error || t("workspace.googleStatusFailed"));
-              setGoogleConnected(Boolean(json.connected));
-              setGoogleEmail(json.connectedEmail || null);
-            })
-            .catch((err) => {
-              setGoogleConnected(false);
-              setError(err instanceof Error ? err.message : String(err));
-            })
-        );
-      } else {
-        setGoogleConnected(false);
-      }
-      await Promise.all(fetches);
+      const res = await fetch("/api/microsoft/connection");
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || t("workspace.msStatusFailed"));
+      setMsConnected(Boolean(json.connected));
+      setMsEmail(json.connectedEmail || null);
     } catch (err) {
+      setMsConnected(false);
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, [wantMs, wantGoogle]);
+  }, [wantMs]);
 
   const loadCalendar = useCallback(async () => {
     setCalLoading(true);
     setError(null);
     try {
-      const fetches: Promise<WorkspaceCalEvent[]>[] = [];
       const qs = new URLSearchParams({ date: calDate });
-      if (msConnected) {
-        fetches.push(
-          fetch(`/api/microsoft/calendar/today?${qs}`)
+      const rows = msConnected
+        ? await fetch(`/api/microsoft/calendar/today?${qs}`)
             .then(async (res) => {
               const json = await res.json();
               if (!res.ok) throw new Error(json.error || t("workspace.outlookCalFailed"));
-              return mapTodayEvents((json.events || []) as unknown[], "microsoft");
+              return mapTodayEvents((json.events || []) as unknown[]);
             })
             .catch((err) => {
               setError(err instanceof Error ? err.message : String(err));
               return [] as WorkspaceCalEvent[];
             })
-        );
-      }
-      if (googleConnected) {
-        fetches.push(
-          fetch(`/api/google/calendar/today?${qs}`)
-            .then(async (res) => {
-              const json = await res.json();
-              if (!res.ok) throw new Error(json.error || t("workspace.googleCalFailed"));
-              return mapTodayEvents((json.events || []) as unknown[], "google");
-            })
-            .catch((err) => {
-              setError(err instanceof Error ? err.message : String(err));
-              return [] as WorkspaceCalEvent[];
-            })
-        );
-      }
-      const groups = await Promise.all(fetches);
-      setEvents(mergeWorkspaceTodayEvents(...groups).map(asCalEvent));
+        : [];
+      setEvents(mergeWorkspaceTodayEvents(rows).map(asCalEvent));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setCalLoading(false);
     }
-  }, [msConnected, googleConnected, calDate]);
+  }, [msConnected, calDate]);
 
   const loadMail = useCallback(async (from?: string, to?: string) => {
     const clamped = clampMailRange(from || mailFrom, to || mailTo);
@@ -934,69 +853,51 @@ export function WorkspaceDayClient({
         from: clamped.from,
         to: clamped.to,
       });
-      const fetches: Promise<{ inbox: MsMail[]; sent: MsMail[]; fromYmd?: string; toYmd?: string }>[] = [];
-      if (msConnected) {
-        fetches.push(
-          fetch(`/api/microsoft/mail/today?${qs}`).then(async (res) => {
-            const json = await res.json();
-            if (!res.ok) throw new Error(json.error || t("workspace.outlookMailFailed"));
-            return {
-              inbox: tagMailProvider(json.inbox, "microsoft"),
-              sent: tagMailProvider(json.sent, "microsoft"),
-              fromYmd: json.fromYmd as string | undefined,
-              toYmd: json.toYmd as string | undefined,
-            };
-          })
-        );
-      }
-      if (googleConnected) {
-        fetches.push(
-          fetch(`/api/google/mail/today?${qs}`).then(async (res) => {
-            const json = await res.json();
-            if (!res.ok) throw new Error(json.error || t("workspace.gmailFailed"));
-            return {
-              inbox: tagMailProvider(json.inbox, "google"),
-              sent: tagMailProvider(json.sent, "google"),
-              fromYmd: json.fromYmd as string | undefined,
-              toYmd: json.toYmd as string | undefined,
-            };
-          })
-        );
-      }
-      const parts = await Promise.all(
-        fetches.map((p) =>
-          p.catch((err) => {
-            setError(err instanceof Error ? err.message : String(err));
-            return {
-              inbox: [] as MsMail[],
-              sent: [] as MsMail[],
-              fromYmd: undefined as string | undefined,
-              toYmd: undefined as string | undefined,
-            };
-          })
-        )
-      );
-      setInbox(parts.flatMap((p) => p.inbox));
-      setSent(parts.flatMap((p) => p.sent));
-      const fromHit = parts.find((p) => p.fromYmd)?.fromYmd;
-      const toHit = parts.find((p) => p.toYmd)?.toYmd;
-      if (fromHit) setMailFrom(fromHit);
-      if (toHit) setMailTo(toHit);
+      const part = msConnected
+        ? await fetch(`/api/microsoft/mail/today?${qs}`)
+            .then(async (res) => {
+              const json = await res.json();
+              if (!res.ok) throw new Error(json.error || t("workspace.outlookMailFailed"));
+              return {
+                inbox: (json.inbox || []) as MsMailItem[],
+                sent: (json.sent || []) as MsMailItem[],
+                fromYmd: json.fromYmd as string | undefined,
+                toYmd: json.toYmd as string | undefined,
+              };
+            })
+            .catch((err) => {
+              setError(err instanceof Error ? err.message : String(err));
+              return {
+                inbox: [] as MsMailItem[],
+                sent: [] as MsMailItem[],
+                fromYmd: undefined as string | undefined,
+                toYmd: undefined as string | undefined,
+              };
+            })
+        : {
+            inbox: [] as MsMailItem[],
+            sent: [] as MsMailItem[],
+            fromYmd: undefined as string | undefined,
+            toYmd: undefined as string | undefined,
+          };
+      setInbox(part.inbox);
+      setSent(part.sent);
+      if (part.fromYmd) setMailFrom(part.fromYmd);
+      if (part.toYmd) setMailTo(part.toYmd);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setMailLoading(false);
     }
-  }, [mailFrom, mailTo, msConnected, googleConnected]);
+  }, [mailFrom, mailTo, msConnected]);
 
   useEffect(() => {
     if (authLoading) return;
     void loadConnection();
   }, [authLoading, loadConnection]);
 
-  const anyConnected = Boolean(msConnected || googleConnected);
-  const connectionReady =
-    !authLoading && msConnected !== null && googleConnected !== null;
+  const anyConnected = Boolean(msConnected);
+  const connectionReady = !authLoading && msConnected !== null;
 
   useEffect(() => {
     const t = searchParams.get("tab");
@@ -1019,15 +920,13 @@ export function WorkspaceDayClient({
 
   useEffect(() => {
     if (searchParams.get("tab") !== "teams") {
-      if (tab === "teams" && (scope !== "microsoft" || !teamsEnabled)) {
-        setTab("mail");
-      }
+      if (tab === "teams" && !teamsEnabled) setTab("mail");
       return;
     }
-    if (scope === "microsoft" && teamsEnabled) return;
+    if (teamsEnabled) return;
     setTab("mail");
     replaceQuery({ tab: "mail", chat: null });
-  }, [scope, tab, teamsEnabled, searchParams, replaceQuery]);
+  }, [tab, teamsEnabled, searchParams, replaceQuery]);
 
   function goTab(next: Tab) {
     setTab(next);
@@ -1063,18 +962,6 @@ export function WorkspaceDayClient({
     if (anyConnected) void loadCalendar();
   }, [anyConnected, loadCalendar]);
 
-  useEffect(() => {
-    if (routeHint === "google" && googleConnected) {
-      setAnalysisProvider("google");
-    } else if (routeHint === "microsoft" && msConnected) {
-      setAnalysisProvider("microsoft");
-    } else if (msConnected) {
-      setAnalysisProvider("microsoft");
-    } else if (googleConnected) {
-      setAnalysisProvider("google");
-    }
-  }, [routeHint, msConnected, googleConnected]);
-
   // Kalender lists the full day (today APIs skip overview grace).
   const visibleEvents = events;
 
@@ -1098,19 +985,8 @@ export function WorkspaceDayClient({
     [inbox, sent]
   );
 
-  function eventActionUrl(provider: CloudProvider): string {
-    return provider === "google"
-      ? "/api/google/calendar/actions"
-      : "/api/microsoft/calendar/actions";
-  }
-
-  function cloudProviderOf(
-    event: WorkspaceCalEvent
-  ): CloudProvider | null {
-    if (event.provider === "buddy" || isDayCloseRitualId(event.id)) {
-      return null;
-    }
-    return event.provider;
+  function isCloudEvent(event: WorkspaceCalEvent): boolean {
+    return event.provider !== "buddy" && !isDayCloseRitualId(event.id);
   }
 
   async function markDone(event: WorkspaceCalEvent) {
@@ -1122,9 +998,8 @@ export function WorkspaceDayClient({
     setBusyId(key);
     setError(null);
     try {
-      const cloud = cloudProviderOf(event);
-      if (!cloud) return;
-      const res = await fetch(eventActionUrl(cloud), {
+      if (!isCloudEvent(event)) return;
+      const res = await fetch(EVENT_ACTION_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1163,9 +1038,8 @@ export function WorkspaceDayClient({
     setBusyId(key);
     setError(null);
     try {
-      const cloud = cloudProviderOf(event);
-      if (!cloud) return;
-      const res = await fetch(eventActionUrl(cloud), {
+      if (!isCloudEvent(event)) return;
+      const res = await fetch(EVENT_ACTION_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1199,9 +1073,8 @@ export function WorkspaceDayClient({
     setBusyId(key);
     setError(null);
     try {
-      const cloud = cloudProviderOf(event);
-      if (!cloud) return;
-      const res = await fetch(eventActionUrl(cloud), {
+      if (!isCloudEvent(event)) return;
+      const res = await fetch(EVENT_ACTION_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1240,15 +1113,11 @@ export function WorkspaceDayClient({
     setBusyId(key);
     setError(null);
     try {
-      const cloud = cloudProviderOf(event);
-      if (!cloud) return;
+      if (!isCloudEvent(event)) return;
       if (!values.title.trim() || !values.date) {
         throw new Error(t("workspace.titleDateRequired"));
       }
-      if (cloud === "google" && !event.calendarId) {
-        throw new Error(t("workspace.calendarIdMissing"));
-      }
-      const res = await fetch(eventActionUrl(cloud), {
+      const res = await fetch(EVENT_ACTION_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1276,8 +1145,8 @@ export function WorkspaceDayClient({
     }
   }
 
-  function mailApi(provider: CloudProvider, path: string): string {
-    return provider === "google" ? `/api/google/mail/${path}` : `/api/microsoft/mail/${path}`;
+  function mailApi(path: string): string {
+    return `/api/microsoft/mail/${path}`;
   }
 
   const applyAnalysisPayload = useCallback(
@@ -1349,7 +1218,11 @@ export function WorkspaceDayClient({
         rangeKey?: string;
         finishedAt?: string | null;
         error?: string | null;
-        mail?: { inbox?: MsMail[]; sent?: MsMail[]; dayIso?: string } | null;
+        mail?: {
+          inbox?: MsMailItem[];
+          sent?: MsMailItem[];
+          dayIso?: string;
+        } | null;
         analysis?: DayAnalysis | null;
       },
       opts?: { syncDay?: boolean; fromCache?: boolean; revealView?: boolean }
@@ -1359,8 +1232,8 @@ export function WorkspaceDayClient({
       const toYmd = job.toYmd || job.dayIso;
       const label = formatMailRangeLabel(fromYmd, toYmd);
       if (job.mail) {
-        setInbox((job.mail.inbox || []) as MsMail[]);
-        setSent((job.mail.sent || []) as MsMail[]);
+        setInbox((job.mail.inbox || []) as MsMailItem[]);
+        setSent((job.mail.sent || []) as MsMailItem[]);
       }
       if (job.status === "running") {
         setAnalyzing(true);
@@ -1395,34 +1268,21 @@ export function WorkspaceDayClient({
   );
 
   const mergeCachedFromJson = useCallback(
-    (
-      primary: MailDayCachedSummary[] | undefined,
-      extra?: MailDayCachedSummary[]
-    ) => {
-      const tagged = (primary || []).map((e) => ({
-        ...e,
-        provider: e.provider || analysisProvider,
-      }));
-      const more = (extra || []).map((e) => ({
-        ...e,
-        provider:
-          e.provider ||
-          (analysisProvider === "google" ? "microsoft" : "google"),
-      }));
-      const all = [...tagged, ...more].sort((a, b) =>
+    (primary: MailDayCachedSummary[] | undefined) => {
+      const all = [...(primary || [])].sort((a, b) =>
         b.finishedAt.localeCompare(a.finishedAt)
       );
       setCachedEntries(all);
       setCachedDays(all.map((e) => e.rangeKey));
     },
-    [analysisProvider]
+    []
   );
 
   const pollJobOnce = useCallback(async () => {
     const key = mailRangeKey(mailFrom, mailTo);
     try {
       const qs = new URLSearchParams({ from: mailFrom, to: mailTo });
-      const res = await fetch(`${mailApi(analysisProvider, "analyze")}?${qs}`);
+      const res = await fetch(`${mailApi("analyze")}?${qs}`);
       const json = await res.json();
       if (!res.ok) return json.status as string | undefined;
       mergeCachedFromJson(json.cachedEntries);
@@ -1443,7 +1303,7 @@ export function WorkspaceDayClient({
     } catch {
       return undefined;
     }
-  }, [analysisProvider, hydrateFromJob, mailFrom, mailTo, mergeCachedFromJson, stopPoll]);
+  }, [hydrateFromJob, mailFrom, mailTo, mergeCachedFromJson, stopPoll]);
 
   const startPolling = useCallback(() => {
     stopPoll();
@@ -1462,7 +1322,7 @@ export function WorkspaceDayClient({
           from: clamped.from,
           to: clamped.to,
         });
-        const res = await fetch(`${mailApi(analysisProvider, "analyze")}?${qs}`);
+        const res = await fetch(`${mailApi("analyze")}?${qs}`);
         const json = await res.json();
         if (!res.ok) return;
         mergeCachedFromJson(json.cachedEntries);
@@ -1518,7 +1378,7 @@ export function WorkspaceDayClient({
         /* ignore */
       }
     },
-    [analysisProvider, hydrateFromJob, mergeCachedFromJson, startPolling]
+    [hydrateFromJob, mergeCachedFromJson, startPolling]
   );
 
   useEffect(() => {
@@ -1531,38 +1391,22 @@ export function WorkspaceDayClient({
     let cancelled = false;
     void (async () => {
       try {
-        const providers: CloudProvider[] = [];
-        if (msConnected) providers.push("microsoft");
-        if (googleConnected) providers.push("google");
-        const results = await Promise.all(
-          providers.map(async (p) => {
-            const res = await fetch(mailApi(p, "analyze"));
-            const json = await res.json();
-            return { p, ok: res.ok, json };
-          })
-        );
-        if (cancelled) return;
-        const entries = results.flatMap(({ p, ok, json }) =>
-          ok && Array.isArray(json.cachedEntries)
-            ? (json.cachedEntries as MailDayCachedSummary[]).map((e) => ({
-                ...e,
-                provider: e.provider || p,
-              }))
-            : []
-        );
+        const res = await fetch(mailApi("analyze"));
+        const json = await res.json();
+        if (cancelled || !res.ok) return;
+        const entries = Array.isArray(json.cachedEntries)
+          ? (json.cachedEntries as MailDayCachedSummary[])
+          : [];
         entries.sort((a, b) => b.finishedAt.localeCompare(a.finishedAt));
         setCachedEntries(entries);
         setCachedDays(entries.map((e) => e.rangeKey));
-        const preferred =
-          results.find((r) => r.p === analysisProvider && r.ok && r.json.job) ||
-          results.find((r) => r.ok && r.json.job);
-        if (!preferred) return;
-        hydrateFromJob(preferred.json.job, {
+        if (!json.job) return;
+        hydrateFromJob(json.job, {
           syncDay: true,
-          fromCache: Boolean(preferred.json.fromCache),
+          fromCache: Boolean(json.fromCache),
           revealView: false,
         });
-        if (preferred.json.status === "running") startPolling();
+        if (json.status === "running") startPolling();
       } catch {
         /* ignore */
       }
@@ -1587,7 +1431,7 @@ export function WorkspaceDayClient({
     );
     void (async () => {
       try {
-        const res = await fetch(mailApi(analysisProvider, "analyze"), {
+        const res = await fetch(mailApi("analyze"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ from: clamped.from, to: clamped.to }),
@@ -1639,14 +1483,14 @@ export function WorkspaceDayClient({
     setApplying(true);
     setError(null);
     try {
-      const res = await fetch(mailApi(analysisProvider, "apply"), {
+      const res = await fetch(mailApi("apply"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tasks: draftTasks,
           events: draftEvents,
           replies: draftReplies,
-          sendReplies: analysisProvider === "microsoft" ? sendReplies : undefined,
+          sendReplies,
         }),
       });
       const json = await res.json();
@@ -1656,17 +1500,15 @@ export function WorkspaceDayClient({
           (json.errors || []).join(" · ") || t("workspace.applyFailed")
         );
       }
-      const dest = analysisProvider === "google" ? "Google" : "Outlook";
-      const replyLabel =
-        analysisProvider === "microsoft" && sendReplies
-          ? t("workspace.repliesSent", { count: json.replyOk })
-          : t("workspace.draftsTo", { count: json.replyOk, dest });
+      const dest = "Outlook";
+      const replyLabel = sendReplies
+        ? t("workspace.repliesSent", { count: json.replyOk })
+        : t("workspace.draftsTo", { count: json.replyOk, dest });
       const parts = [
         json.taskOk
           ? t("workspace.tasksTo", {
               count: json.taskOk,
-              dest:
-                analysisProvider === "google" ? "Google Tasks" : "Outlook To Do",
+              dest: "Outlook To Do",
             })
           : null,
         json.eventOk
@@ -1753,7 +1595,7 @@ export function WorkspaceDayClient({
     targetLang: ReplyLang
   ): Promise<DayReply> {
     if (currentReplyLang(reply) === targetLang) return reply;
-    const res = await fetch(mailApi(analysisProvider, "translate-reply"), {
+    const res = await fetch(mailApi("translate-reply"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1872,33 +1714,19 @@ export function WorkspaceDayClient({
   return (
     <div className="min-w-0 space-y-5 pb-10">
       <PageHeader
-        title={
-          scope === "google" ? "Google Workspace" : "Microsoft 365"
-        }
+        title="Microsoft 365"
         description={
-          scope === "google"
-            ? t("workspace.googleDesc")
-            : teamsEnabled
-              ? t("workspace.msDescTeams")
-              : t("workspace.msDesc")
+          teamsEnabled ? t("workspace.msDescTeams") : t("workspace.msDesc")
         }
-        logo={
-          scope === "google" ? (
-            <GoogleLogo className="size-8" />
-          ) : (
-            <MicrosoftLogo className="size-8" />
-          )
-        }
-        tone={scope === "google" ? "teal" : "blue"}
+        logo={<MicrosoftLogo className="size-8" />}
+        tone="blue"
       />
 
       {connectionReady && !anyConnected ? (
         <Card>
           <CardContent className="space-y-3 p-5">
             <p className="text-sm text-muted-foreground">
-              {scope === "google"
-                ? t("workspace.noGoogleAccount")
-                : t("workspace.noMicrosoftAccount")}
+              {t("workspace.noMicrosoftAccount")}
             </p>
             <Link
               href="/account"
@@ -1924,21 +1752,11 @@ export function WorkspaceDayClient({
               ) : wantMs ? (
                 <span>{t("workspace.outlookDisconnected")}</span>
               ) : null}
-              {googleConnected ? (
-                <span className="inline-flex items-center gap-1.5">
-                  <GoogleLogo className="size-3.5" />
-                  <span className="font-semibold text-foreground">
-                    {googleEmail || "Google"}
-                  </span>
-                </span>
-              ) : wantGoogle ? (
-                <span>{t("workspace.googleDisconnected")}</span>
-              ) : null}
             </p>
             <nav
               className={cn(segmentedTrackClass, "overflow-visible")}
               aria-label={
-                scope === "microsoft" && teamsEnabled
+                teamsEnabled
                   ? t("workspace.navCalMailTeamsTasks")
                   : t("workspace.navCalMailTasks")
               }
@@ -1947,32 +1765,28 @@ export function WorkspaceDayClient({
                 type="button"
                 variant="ghost"
                 data-segment="true"
-                className={mailWorkspaceTabClass(tab === "mail", routeHint)}
+                className={mailWorkspaceTabClass(tab === "mail")}
                 onClick={() => goTab("mail")}
               >
-                {scope === "google" ? (
-                  <GmailLogo className="size-4 shrink-0" />
-                ) : (
-                  <OutlookLogo className="size-4 shrink-0" />
-                )}
+                <OutlookLogo className="size-4 shrink-0" />
                 {t("workspace.mail")}
               </Button>
               <Button
                 type="button"
                 variant="ghost"
                 data-segment="true"
-                className={mailWorkspaceTabClass(tab === "calendar", routeHint)}
+                className={mailWorkspaceTabClass(tab === "calendar")}
                 onClick={() => goTab("calendar")}
               >
                 <CalendarClock className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} />
                 {t("workspace.calendar")}
               </Button>
-              {scope === "microsoft" && teamsEnabled ? (
+              {teamsEnabled ? (
                 <Button
                   type="button"
                   variant="ghost"
                   data-segment="true"
-                  className={mailWorkspaceTabClass(tab === "teams", routeHint)}
+                  className={mailWorkspaceTabClass(tab === "teams")}
                   onClick={() => goTab("teams")}
                 >
                   <MicrosoftTeamsLogo className="size-4 shrink-0" />
@@ -1983,18 +1797,12 @@ export function WorkspaceDayClient({
                 type="button"
                 variant="ghost"
                 data-segment="true"
-                className={mailWorkspaceTabClass(tab === "planner", routeHint)}
+                className={mailWorkspaceTabClass(tab === "planner")}
                 onClick={() => goTab("planner")}
               >
                 <span className="inline-flex items-center gap-0.5 overflow-visible">
-                  {scope === "microsoft" ? (
-                    <>
-                      <MicrosoftPlannerLogo className="size-4" />
-                      <MicrosoftToDoLogo className="size-4" />
-                    </>
-                  ) : (
-                    <GoogleTasksLogo className="size-4" />
-                  )}
+                  <MicrosoftPlannerLogo className="size-4" />
+                  <MicrosoftToDoLogo className="size-4" />
                 </span>
                 {t("workspace.tasks")}
               </Button>
@@ -2002,11 +1810,7 @@ export function WorkspaceDayClient({
           </div>
 
           {tab === "mail" ? (
-            <MailWorkspaceSubnav
-              view={mailView}
-              onChange={goMailView}
-              accent={routeHint}
-            />
+            <MailWorkspaceSubnav view={mailView} onChange={goMailView} />
           ) : null}
 
           {error ? (
@@ -2225,7 +2029,7 @@ export function WorkspaceDayClient({
                   detailEvent &&
                     !detailEvent.done &&
                     !isDayCloseRitualId(detailEvent.id) &&
-                    cloudProviderOf(detailEvent)
+                    detailEvent.provider === "microsoft"
                 )}
                 saving={
                   detailEvent
@@ -2294,10 +2098,9 @@ export function WorkspaceDayClient({
                 open={adhocOpen}
                 onOpenChange={setAdhocOpen}
                 onCreated={() => void loadCalendar()}
-                providerScope={scope}
               />
             </section>
-          ) : tab === "teams" && scope === "microsoft" && teamsEnabled ? (
+          ) : tab === "teams" && teamsEnabled ? (
             <MicrosoftTeamsPanel initialChatId={searchParams.get("chat")} />
           ) : tab === "planner" ? (
             <section className="space-y-3">
@@ -2305,14 +2108,9 @@ export function WorkspaceDayClient({
                 {t("workspace.tasksBySource")}
               </h2>
               <p className="text-sm text-muted-foreground">
-                {scope === "google"
-                  ? t("workspace.googleTasksHint")
-                  : t("workspace.todoPlannerHint")}
+                {t("workspace.todoPlannerHint")}
               </p>
-              <WorkspaceTasksPanel
-                microsoft={Boolean(msConnected)}
-                google={Boolean(googleConnected)}
-              />
+              <WorkspaceTasksPanel microsoft={Boolean(msConnected)} />
             </section>
           ) : tab === "mail" && mailView === "chronik" ? (
             <section className="space-y-4">
@@ -2362,7 +2160,7 @@ export function WorkspaceDayClient({
                   <Button
                     type="button"
                     size="sm"
-                    className={cn("h-9", mailWorkspacePrimaryBtnClass(routeHint))}
+                    className={cn("h-9", mailWorkspacePrimaryBtnClass())}
                     disabled={mailLoading}
                     onClick={() => void loadMail(mailFrom, mailTo)}
                   >
@@ -2413,7 +2211,6 @@ export function WorkspaceDayClient({
               <MailChronikList
                 items={mergeMailChronik(inbox, sent)}
                 loading={mailLoading}
-                provider={scope}
                 onItemsChanged={() => void loadMail()}
                 showBlacklistButton={false}
                 blacklistOpen={blacklistSheetOpen}
@@ -2435,36 +2232,6 @@ export function WorkspaceDayClient({
                   <h2 className="text-[1.375rem] font-semibold tracking-tight text-foreground">
                     {t("workspace.dayAnalyses")}
                   </h2>
-                  {msConnected && googleConnected ? (
-                    <div className={segmentedTrackClass} aria-label={t("workspace.analysisMailbox")}>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        data-segment="true"
-                        className={mailWorkspaceTabClass(
-                          analysisProvider === "microsoft",
-                          "microsoft"
-                        )}
-                        onClick={() => setAnalysisProvider("microsoft")}
-                      >
-                        <OutlookLogo className="size-4 shrink-0" />
-                        Outlook
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        data-segment="true"
-                        className={mailWorkspaceTabClass(
-                          analysisProvider === "google",
-                          "google"
-                        )}
-                        onClick={() => setAnalysisProvider("google")}
-                      >
-                        <GmailLogo className="size-4 shrink-0" />
-                        Gmail
-                      </Button>
-                    </div>
-                  ) : null}
                   <div className="flex flex-wrap items-center gap-2">
                     <Label
                       htmlFor="ms-mail-from-ta"
@@ -2543,7 +2310,7 @@ export function WorkspaceDayClient({
                   <Button
                     type="button"
                     size="sm"
-                    className={cn("h-9", mailWorkspacePrimaryBtnClass(analysisProvider))}
+                    className={cn("h-9", mailWorkspacePrimaryBtnClass())}
                     disabled={analyzing}
                     onClick={() => startAnalyze()}
                   >
@@ -2565,15 +2332,8 @@ export function WorkspaceDayClient({
               />
               <MailTagesanalysenList
                 entries={cachedEntries}
-                selectedKey={`${analysisProvider}:${mailRangeKey(mailFrom, mailTo)}`}
-                accent={analysisProvider}
+                selectedKey={`microsoft:${mailRangeKey(mailFrom, mailTo)}`}
                 onSelect={(entry) => {
-                  if (
-                    entry.provider === "microsoft" ||
-                    entry.provider === "google"
-                  ) {
-                    setAnalysisProvider(entry.provider);
-                  }
                   setMailFrom(entry.fromYmd);
                   setMailTo(entry.toYmd);
                   setPicks({ tasks: {}, events: {}, replies: {} });
@@ -2887,9 +2647,7 @@ export function WorkspaceDayClient({
                           {t("workspace.reviewSelected", { count: selectedCount })}
                         </Button>
                         <p className="text-[0.6875rem] text-muted-foreground">
-                          {analysisProvider === "google"
-                            ? t("workspace.applyGoogleHint")
-                            : t("workspace.applyOutlookHint")}
+                          {t("workspace.applyOutlookHint")}
                         </p>
                       </div>
                     ) : null}
@@ -2909,18 +2667,14 @@ export function WorkspaceDayClient({
           <DialogHeader className="border-b border-border/60 px-4 py-3">
             <DialogTitle>{t("workspace.confirmApply")}</DialogTitle>
             <DialogDescription>
-              {t("workspace.confirmApplyDesc", {
-                dest: analysisProvider === "google" ? "Google" : "Outlook",
-              })}
+              {t("workspace.confirmApplyDesc", { dest: "Outlook" })}
             </DialogDescription>
           </DialogHeader>
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3">
             {draftTasks.map((task, i) => (
               <div key={`dt-${i}`} className="space-y-2 rounded-lg border border-border/60 p-3">
                 <p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">
-                  {analysisProvider === "google"
-                    ? t("workspace.taskDestGoogle")
-                    : t("workspace.taskDestToDo")}
+                  {t("workspace.taskDestToDo")}
                 </p>
                 <div className="space-y-1">
                   <Label>{t("common.title")}</Label>
@@ -2971,12 +2725,8 @@ export function WorkspaceDayClient({
               <AnalysisEventDraftCard
                 key={`de-${i}`}
                 event={ev}
-                calendarLabel={
-                  analysisProvider === "google"
-                    ? t("workspace.googleCalendar")
-                    : t("workspace.outlookCalendar")
-                }
-                slotProvider={analysisProvider}
+                calendarLabel={t("workspace.outlookCalendar")}
+                slotProvider="microsoft"
                 disabled={applying}
                 onChange={(next) =>
                   setDraftEvents((prev) =>
@@ -2993,11 +2743,9 @@ export function WorkspaceDayClient({
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">
                     {t("common.reply")} ·{" "}
-                    {analysisProvider === "microsoft" && sendReplies
+                    {sendReplies
                       ? t("workspace.replySendDirect")
-                      : analysisProvider === "google"
-                        ? t("workspace.replyGmailDraft")
-                        : t("workspace.replyOutlookDraft")}
+                      : t("workspace.replyOutlookDraft")}
                     {busy ? t("workspace.translating") : ""}
                   </p>
                   <ReplyLangToggle
@@ -3051,7 +2799,7 @@ export function WorkspaceDayClient({
             })}
           </div>
           <DialogFooter className="flex-col gap-3 border-t border-border/60 px-4 py-3 sm:flex-col sm:space-x-0">
-            {draftReplies.length > 0 && analysisProvider === "microsoft" ? (
+            {draftReplies.length > 0 ? (
               <label className="flex w-full items-start gap-2 text-left text-xs text-muted-foreground">
                 <input
                   type="checkbox"
@@ -3088,13 +2836,9 @@ export function WorkspaceDayClient({
             >
               {applying
                 ? "…"
-                : sendReplies &&
-                    draftReplies.length > 0 &&
-                    analysisProvider === "microsoft"
+                : sendReplies && draftReplies.length > 0
                   ? t("workspace.createAndSend")
-                  : analysisProvider === "google"
-                    ? t("workspace.createInGoogle")
-                    : t("workspace.createInOutlook")}
+                  : t("workspace.createInOutlook")}
             </Button>
             </div>
           </DialogFooter>

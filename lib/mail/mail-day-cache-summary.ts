@@ -16,7 +16,7 @@ export type MailDayCachedSummary = {
   replyCount: number;
   model: string | null;
   usageLine: string | null;
-  provider?: "microsoft" | "google";
+  provider?: "microsoft";
 };
 
 export function toMailDayCachedSummary(entry: {

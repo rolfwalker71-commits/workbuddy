@@ -19,21 +19,13 @@ import {
   deleteOutlookCalendarEvent,
 } from "@/lib/microsoft/mail-day-actions";
 import { listMicrosoftCalendarsForUser } from "@/lib/microsoft/calendars";
-import {
-  hasGoogleCalendarEventsWriteScope,
-  hasGoogleCalendarScope,
-  isGoogleMailConnected,
-} from "@/lib/google/oauth";
-import { suggestGoogleFreeSlotsForDuration } from "@/lib/google/calendar-review";
-import { createGoogleCalendarEvent } from "@/lib/google/calendar-write";
-import { listGoogleCalendarsForUser } from "@/lib/google/calendars";
 import { resolveAppUserId } from "@/lib/users/resolve-user";
 import { addDaysYmd, zurichYmd } from "@/lib/microsoft/time";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ProviderSchema = z.enum(["microsoft", "google", "auto"]);
+const ProviderSchema = z.enum(["microsoft", "auto"]);
 
 const BodySchema = z.discriminatedUnion("action", [
   z.object({
@@ -73,7 +65,7 @@ const BodySchema = z.discriminatedUnion("action", [
   }),
 ]);
 
-export async function GET(request: Request) {
+export async function GET() {
   ensureInitialized();
   const auth = await requireAuth();
   if (isAuthError(auth)) return auth;
@@ -82,22 +74,14 @@ export async function GET(request: Request) {
     return NextResponse.json({ targets: [] });
   }
 
-  const scopeRaw = new URL(request.url).searchParams.get("provider");
-  const scope =
-    scopeRaw === "google" || scopeRaw === "microsoft" ? scopeRaw : null;
-
   const targets: Array<{
-    provider: "microsoft" | "google";
+    provider: "microsoft";
     id: string;
     name: string;
     primary: boolean;
   }> = [];
 
-  if (
-    scope !== "google" &&
-    isMicrosoftConnected(userId) &&
-    hasMicrosoftCalendarScope(userId)
-  ) {
+  if (isMicrosoftConnected(userId) && hasMicrosoftCalendarScope(userId)) {
     try {
       const { calendars } = await listMicrosoftCalendarsForUser(userId);
       const writable = calendars.filter((x) => x.canEdit);
@@ -106,34 +90,6 @@ export async function GET(request: Request) {
       for (const c of use.length > 0 ? use : writable.slice(0, 3)) {
         targets.push({
           provider: "microsoft",
-          id: c.id,
-          name: c.name,
-          primary: c.primary,
-        });
-      }
-    } catch {
-      /* ignore */
-    }
-  }
-  if (
-    scope !== "microsoft" &&
-    isGoogleMailConnected(userId) &&
-    hasGoogleCalendarScope(userId)
-  ) {
-    try {
-      const { calendars } = await listGoogleCalendarsForUser(userId);
-      const writable = calendars.filter((x) => {
-        const role = (x.accessRole || "").toLowerCase();
-        return !role || role === "owner" || role === "writer";
-      });
-      const pool = writable.filter((x) => x.enabled);
-      const use =
-        pool.length > 0
-          ? pool
-          : writable.filter((x) => x.primary || writable.length === 1);
-      for (const c of use.length > 0 ? use : writable.slice(0, 3)) {
-        targets.push({
-          provider: "google",
           id: c.id,
           name: c.name,
           primary: c.primary,
@@ -159,10 +115,6 @@ export async function POST(request: Request) {
 
   const msOk =
     isMicrosoftConnected(userId) && hasMicrosoftCalendarScope(userId);
-  const googleOk =
-    isGoogleMailConnected(userId) &&
-    (hasGoogleCalendarEventsWriteScope(userId) ||
-      hasGoogleCalendarScope(userId));
 
   let body: z.infer<typeof BodySchema>;
   try {
@@ -225,53 +177,26 @@ export async function POST(request: Request) {
     });
   }
 
-  const requested =
-    body.provider && body.provider !== "auto" ? body.provider : null;
-  const provider: "microsoft" | "google" | null =
-    requested === "google"
-      ? googleOk
-        ? "google"
-        : null
-      : requested === "microsoft"
-        ? msOk
-          ? "microsoft"
-          : null
-        : msOk
-          ? "microsoft"
-          : googleOk
-            ? "google"
-            : null;
-
-  if (!provider) {
+  if (!msOk) {
     return NextResponse.json(
       { error: "Kein Kalender verbunden." },
       { status: 400 }
     );
   }
+  const provider = "microsoft" as const;
 
   try {
     if (body.action === "suggest_slots") {
       const rangeDays = body.rangeDays ?? 7;
       const today = zurichYmd();
-      const slots =
-        provider === "google"
-          ? await suggestGoogleFreeSlotsForDuration(userId, {
-              durationMinutes: body.durationMinutes,
-              fromToday: true,
-              rangeStart: today,
-              rangeEnd: addDaysYmd(today, rangeDays),
-              maxSlots: 48,
-              maxSlotsPerDay: 6,
-              request,
-            })
-          : await suggestFreeSlotsForDuration(userId, {
-              durationMinutes: body.durationMinutes,
-              fromToday: true,
-              rangeStart: today,
-              rangeEnd: addDaysYmd(today, rangeDays),
-              maxSlots: 48,
-              maxSlotsPerDay: 6,
-            });
+      const slots = await suggestFreeSlotsForDuration(userId, {
+        durationMinutes: body.durationMinutes,
+        fromToday: true,
+        rangeStart: today,
+        rangeEnd: addDaysYmd(today, rangeDays),
+        maxSlots: 48,
+        maxSlotsPerDay: 6,
+      });
       return NextResponse.json({
         ok: true,
         provider,
@@ -295,32 +220,6 @@ export async function POST(request: Request) {
         { error: "Startzeit oder ganztägig wählen." },
         { status: 400 }
       );
-    }
-
-    if (provider === "google") {
-      const calendarId = body.calendarId?.trim() || "primary";
-      const created = await createGoogleCalendarEvent(
-        userId,
-        {
-          calendarId,
-          title: body.title,
-          startDate: body.date,
-          startTime: allDay ? null : body.startHm,
-          endDate: body.date,
-          endTime: allDay ? null : body.endHm,
-          allDay,
-          location: body.location,
-          description: notes,
-        },
-        request
-      );
-      return NextResponse.json({
-        ok: true,
-        provider: "google",
-        event: created,
-        teamsMeeting: false,
-        mariIssueId,
-      });
     }
 
     const created = await createOutlookCalendarEvent(userId, {

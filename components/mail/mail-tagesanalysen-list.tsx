@@ -7,9 +7,7 @@ import { cn } from "@/lib/utils";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { formatSwissDateRange, formatSwissDateTime } from "@/lib/utils/dates";
 import type { MailDayCachedSummary } from "@/lib/mail/mail-day-cache-summary";
-import type { MailWorkspaceAccent } from "@/components/mail/mail-workspace-subnav";
 import { useT } from "@/components/i18n/locale-provider";
-import { ProviderBadge } from "@/components/workspace/provider-badge";
 
 function finishedLabel(iso: string): string {
   return formatSwissDateTime(iso);
@@ -24,13 +22,11 @@ export function MailTagesanalysenList({
   selectedKey,
   onSelect,
   emptyHint,
-  accent = "microsoft",
 }: {
   entries: MailDayCachedSummary[];
   selectedKey: string | null;
   onSelect: (entry: MailDayCachedSummary) => void;
   emptyHint?: string;
-  accent?: MailWorkspaceAccent;
 }) {
   const t = useT();
   if (entries.length === 0) {
@@ -43,13 +39,8 @@ export function MailTagesanalysenList({
   }
 
   const activeBorder =
-    accent === "google"
-      ? "border-teal-700/70 bg-teal-50/30 dark:border-teal-400/40 dark:bg-teal-500/10"
-      : "border-[var(--brand-docs)]/50 bg-[var(--brand-docs-soft)]/40";
-  const iconWrap =
-    accent === "google"
-      ? "bg-teal-50 text-teal-800 dark:bg-teal-500/15 dark:text-teal-100"
-      : "bg-[var(--brand-docs-soft)] text-[var(--brand-docs)]";
+    "border-[var(--brand-docs)]/50 bg-[var(--brand-docs-soft)]/40";
+  const iconWrap = "bg-[var(--brand-docs-soft)] text-[var(--brand-docs)]";
 
   return (
     <ul className="space-y-2.5">
@@ -90,15 +81,8 @@ export function MailTagesanalysenList({
                     · {rangeLabel(e.fromYmd, e.toYmd)}
                   </span>
                 </p>
-                <p className="flex flex-wrap items-center gap-2 text-[0.9375rem] font-black tracking-tight">
+                <p className="text-[0.9375rem] font-black tracking-tight">
                   {t("workspace.aiDayImage")}
-                  {e.provider ? (
-                    <ProviderBadge
-                      provider={e.provider}
-                      kind="mail"
-                      className="font-semibold"
-                    />
-                  ) : null}
                 </p>
                 <p className="line-clamp-2 text-[0.8125rem] leading-snug text-muted-foreground">
                   {e.daySummary ||

@@ -11,7 +11,7 @@ export default function MicrosoftPage() {
         <TranslatedLoading messageKey="layout.loadingMicrosoft" />
       }
     >
-      <WorkspaceDayClient providerScope="microsoft" />
+      <WorkspaceDayClient />
     </Suspense>
   );
 }

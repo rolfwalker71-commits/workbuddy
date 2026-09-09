@@ -43,7 +43,7 @@ export function AnalysisEventDraftCard({
   event: AnalysisDraftEvent;
   calendarLabel: string;
   /** Prefer calendar provider for slot search. */
-  slotProvider: "microsoft" | "google";
+  slotProvider: "microsoft";
   disabled?: boolean;
   onChange: (next: AnalysisDraftEvent) => void;
 }) {

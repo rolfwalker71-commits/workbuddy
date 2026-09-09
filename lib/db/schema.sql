@@ -27,8 +27,6 @@ CREATE TABLE IF NOT EXISTS users (
   chat_api_key_enc TEXT,
   chat_base_url TEXT,
   chat_model TEXT,
-  google_oauth_client_id TEXT,
-  google_oauth_client_secret_enc TEXT,
   notification_prefs TEXT,
   teams_enabled INTEGER,
   organization TEXT,
@@ -112,26 +110,6 @@ CREATE TABLE IF NOT EXISTS mail_sender_prefs (
   updated_at TEXT NOT NULL,
   PRIMARY KEY (user_id, from_domain)
 );
-
-CREATE TABLE IF NOT EXISTS mail_applied_links (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL,
-  message_id TEXT NOT NULL,
-  thread_id TEXT,
-  kind TEXT NOT NULL,
-  title TEXT NOT NULL,
-  google_event_id TEXT,
-  calendar_id TEXT,
-  task_id TEXT,
-  reference TEXT,
-  start_date TEXT,
-  start_time TEXT,
-  end_date TEXT,
-  provider TEXT NOT NULL DEFAULT 'microsoft',
-  created_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_mail_applied_links_user
-  ON mail_applied_links(user_id, message_id);
 
 CREATE TABLE IF NOT EXISTS mari_ticket_analyses (
   issue_id INTEGER NOT NULL PRIMARY KEY,

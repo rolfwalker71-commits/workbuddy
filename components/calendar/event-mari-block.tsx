@@ -36,7 +36,6 @@ export function EventMariBlock({
   const maringoOn = me?.modules?.includes("maringo") ?? false;
   const showHint =
     maringoOn &&
-    event.provider !== "google" &&
     event.provider !== "buddy" &&
     event.calendarType !== "birthday";
 

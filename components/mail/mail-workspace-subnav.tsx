@@ -11,25 +11,19 @@ import { useT } from "@/components/i18n/locale-provider";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 
 export type MailWorkspaceView = "chronik" | "tagesanalysen";
-export type MailWorkspaceAccent = "google" | "microsoft";
 
 /** Soft pill tabs — muted track + elevated active pill. */
-export function mailWorkspaceTabClass(
-  active: boolean,
-  _accent: MailWorkspaceAccent = "microsoft"
-) {
+export function mailWorkspaceTabClass(active: boolean) {
   return segmentedTriggerClass(active);
 }
 
 export function MailWorkspaceSubnav({
   view,
   onChange,
-  accent = "microsoft",
   className,
 }: {
   view: MailWorkspaceView;
   onChange: (view: MailWorkspaceView) => void;
-  accent?: MailWorkspaceAccent;
   className?: string;
 }) {
   const t = useT();
@@ -51,7 +45,7 @@ export function MailWorkspaceSubnav({
           role="tab"
           data-segment="true"
           aria-selected={view === "chronik"}
-          className={mailWorkspaceTabClass(view === "chronik", accent)}
+          className={mailWorkspaceTabClass(view === "chronik")}
           onClick={() => onChange("chronik")}
         >
           <History className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} aria-hidden />
@@ -63,7 +57,7 @@ export function MailWorkspaceSubnav({
           role="tab"
           data-segment="true"
           aria-selected={view === "tagesanalysen"}
-          className={mailWorkspaceTabClass(view === "tagesanalysen", accent)}
+          className={mailWorkspaceTabClass(view === "tagesanalysen")}
           onClick={() => onChange("tagesanalysen")}
         >
           <Sparkles className="size-4 shrink-0" strokeWidth={APP_ICON_STROKE} aria-hidden />
@@ -83,8 +77,6 @@ export function MailWorkspaceSubnav({
   );
 }
 
-export function mailWorkspacePrimaryBtnClass(accent: MailWorkspaceAccent = "microsoft") {
-  return accent === "google"
-    ? "bg-teal-800 text-white hover:bg-teal-800/90"
-    : "bg-[var(--brand-docs)] text-white hover:bg-[var(--brand-docs)]/90";
+export function mailWorkspacePrimaryBtnClass() {
+  return "bg-[var(--brand-docs)] text-white hover:bg-[var(--brand-docs)]/90";
 }

@@ -11,7 +11,7 @@ import type {
 export type { ExistingDayTaskRef };
 export { isConfidentExistingTaskRef, titlesAreSameTask };
 
-/** Eigene Aufgabe aus Google Tasks / Outlook To Do / Planner. */
+/** Eigene Aufgabe aus Outlook To Do / Planner. */
 export type DayTaskCatalogItem = {
   id: string;
   title: string;
@@ -19,7 +19,7 @@ export type DayTaskCatalogItem = {
   status: "open" | "done";
   doneAt: string | null;
   href: string | null;
-  source?: "todo" | "planner" | "google";
+  source?: "todo" | "planner";
 };
 
 const MIN_SUBJECT = 12;

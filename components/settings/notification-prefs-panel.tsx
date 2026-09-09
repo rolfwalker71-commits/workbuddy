@@ -21,12 +21,11 @@ import type { MessageKey } from "@/lib/i18n";
 type CatalogItem = {
   reason: NotifyReason;
   label: string;
-  domain: "maringo" | "microsoft" | "google" | "app";
+  domain: "maringo" | "microsoft" | "app";
 };
 
 const DOMAIN_KEY: Record<CatalogItem["domain"], MessageKey | null> = {
   microsoft: "nav.microsoft",
-  google: "nav.google",
   maringo: "nav.maringo",
   app: null,
 };
@@ -195,7 +194,6 @@ export function NotificationPrefsPanel() {
   const byDomain = useMemo(() => {
     const map: Record<CatalogItem["domain"], CatalogItem[]> = {
       microsoft: [],
-      google: [],
       maringo: [],
       app: [],
     };
@@ -513,7 +511,7 @@ export function NotificationPrefsPanel() {
         <span className="text-xs text-muted-foreground">{t("account.durationSec")}</span>
       </div>
 
-      {(["microsoft", "google", "maringo", "app"] as const).map((domain) => {
+      {(["microsoft", "maringo", "app"] as const).map((domain) => {
         const items = byDomain[domain] || [];
         if (!items.length) return null;
         const domainKey = DOMAIN_KEY[domain];

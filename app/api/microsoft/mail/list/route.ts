@@ -12,7 +12,7 @@ import { listMicrosoftInboxMessages } from "@/lib/microsoft/mail-inbox";
 import { syncMicrosoftMailAnalysesForItems } from "@/lib/microsoft/sync-mail-analysis";
 import { getMailAnalysesForMessages } from "@/lib/mail/mail-analysis-store";
 import { chipForStatus, chipLabelDe } from "@/lib/mail/mail-heuristic";
-import type { MailListFilter } from "@/lib/mail/gmail";
+import type { MailListFilter } from "@/lib/mail/mail-types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -72,8 +72,7 @@ export async function GET(request: Request) {
 
     const analyses = getMailAnalysesForMessages(
       userId,
-      items.map((i) => i.id),
-      "microsoft"
+      items.map((i) => i.id)
     );
     const enriched = items.map((item) => {
       const a = analyses.get(item.id);

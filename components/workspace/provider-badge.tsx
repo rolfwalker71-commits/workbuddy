@@ -1,8 +1,6 @@
 "use client";
 
 import {
-  GmailLogo,
-  GoogleLogo,
   MicrosoftLogo,
   OutlookLogo,
 } from "@/components/branding/provider-logos";
@@ -32,15 +30,8 @@ export function ProviderBadge({
       </span>
     );
   }
-  const Logo =
-    provider === "google"
-      ? kind === "mail"
-        ? GmailLogo
-        : GoogleLogo
-      : kind === "mail"
-        ? OutlookLogo
-        : MicrosoftLogo;
-  const label = provider === "google" ? "Google" : "Microsoft";
+  const Logo = kind === "mail" ? OutlookLogo : MicrosoftLogo;
+  const label = "Microsoft";
   return (
     <span
       className={cn(

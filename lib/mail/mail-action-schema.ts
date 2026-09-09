@@ -21,9 +21,7 @@ export const MailSuggestionSchema = z.object({
     .optional(),
   allDay: z.boolean().optional(),
   location: z.string().max(400).nullable().optional(),
-  /** When set, update this Google Calendar event instead of creating a new one. */
-  patchEventId: z.string().max(200).nullable().optional(),
-  /** Calendar that owns patchEventId (required for patch). */
+  /** Target calendar for the event. */
   calendarId: z.string().max(200).nullable().optional(),
   /** task */
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
@@ -85,7 +83,6 @@ export const MailActionsBodySchema = z.object({
         reference: z.string().optional().nullable(),
         calendarId: z.string().optional().nullable(),
         tasklistId: z.string().optional().nullable(),
-        patchEventId: z.string().optional().nullable(),
         tripType: z.string().optional().nullable(),
         provider: z.string().optional().nullable(),
         bookingReference: z.string().optional().nullable(),

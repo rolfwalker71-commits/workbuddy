@@ -10,15 +10,11 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  GoogleLogo,
-  GoogleTasksLogo,
-  GmailLogo,
   MaringoLogo,
   MicrosoftLogo,
   MicrosoftPlannerLogo,
   MicrosoftToDoLogo,
   MicrosoftTeamsLogo,
-  OutlookLogo,
 } from "@/components/branding/provider-logos";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { formatSwissDate, formatSwissDateTime } from "@/lib/utils/dates";
@@ -107,7 +103,6 @@ function MailUnreadKpi({
   href,
   count,
   logo,
-  caption,
   unreadUnknown,
   unreadKnown,
   captionLine,
@@ -115,7 +110,6 @@ function MailUnreadKpi({
   href: string;
   count: number | null;
   logo: ReactNode;
-  caption: string;
   unreadUnknown: string;
   unreadKnown: string;
   captionLine: string;
@@ -296,12 +290,7 @@ function TaskGroupList({
       {items.map((task) => (
         <li key={task.key}>
           <Link
-            href={
-              task.href ||
-              (task.source === "google"
-                ? "/google?tab=planner"
-                : "/microsoft?tab=planner")
-            }
+            href={task.href || "/microsoft?tab=planner"}
             className="flex items-start justify-between gap-2 rounded-xl bg-muted/40 px-3 py-2 hover:bg-muted"
           >
             <span className="min-w-0">
@@ -330,13 +319,11 @@ function TaskGroupList({
 function TasksCard({
   items,
   showMicrosoft,
-  showGoogle,
   display,
   onDisplayChange,
 }: {
   items: HomeTaskItem[];
   showMicrosoft: boolean;
-  showGoogle: boolean;
   display: MsTaskDisplayPrefs;
   onDisplayChange: (next: MsTaskDisplayPrefs) => void;
 }) {
@@ -345,7 +332,6 @@ function TasksCard({
   const showTodo = showMicrosoft && display.todo;
   const planner = items.filter((t) => t.source === "planner").slice(0, 5);
   const todo = items.filter((t) => t.source === "todo").slice(0, 5);
-  const google = items.filter((t) => t.source === "google").slice(0, 5);
   return (
     <Card className={ASIDE_WIDGET_CLASS}>
       <CardContent className="space-y-4 p-4 sm:p-5">
@@ -420,33 +406,6 @@ function TasksCard({
               />
             </section>
           </>
-        ) : null}
-        {showGoogle ? (
-          <section
-            className={cn(
-              "space-y-2.5",
-              (showPlanner || showTodo) && "border-t border-border/60 pt-4"
-            )}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="flex items-center gap-2 text-base font-bold">
-                <GoogleTasksLogo className="size-4" />
-                Google Tasks
-              </h3>
-              <Link
-                href="/google?tab=planner"
-                className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
-              >
-                {t("common.open")}
-                <ChevronRight className="size-3.5" />
-              </Link>
-            </div>
-            <TaskGroupList
-              items={google}
-              emptyLabel={t("home.noOpenTasksSoon")}
-              overdueLabel={t("common.overdue")}
-            />
-          </section>
         ) : null}
       </CardContent>
     </Card>
@@ -645,20 +604,10 @@ export function HomeOverview() {
   );
 
   const mailSample =
-    data?.todayMail[0] ||
-    data?.microsoft?.mailInbox[0] ||
-    data?.google?.mailInbox[0] ||
-    null;
-  const calendarHref =
-    data?.google && !data.microsoft
-      ? "/google?tab=calendar"
-      : "/microsoft?tab=calendar";
-  const mailHref =
-    data?.google && !data.microsoft ? "/google?tab=mail" : "/microsoft?tab=mail";
-  const analysisHref =
-    data?.google && !data.microsoft
-      ? "/google?tab=mail&view=tagesanalysen"
-      : "/microsoft?tab=mail&view=tagesanalysen";
+    data?.todayMail[0] || data?.microsoft?.mailInbox[0] || null;
+  const calendarHref = "/microsoft?tab=calendar";
+  const mailHref = "/microsoft?tab=mail";
+  const analysisHref = "/microsoft?tab=mail&view=tagesanalysen";
   const showTeamsCard = Boolean(
     data?.microsoft?.connected && data.microsoft.teamsEnabled !== false
   );
@@ -672,18 +621,9 @@ export function HomeOverview() {
     ? data?.microsoft?.teamsOpenTitle?.trim() || null
     : null;
   const teamsHref = "/microsoft?tab=teams";
-  const anyMailConnected = Boolean(
-    data?.microsoft?.connected || data?.google?.connected
-  );
+  const anyMailConnected = Boolean(data?.microsoft?.connected);
   const showOutlookUnread = Boolean(data?.microsoft?.connected);
-  const showGoogleUnread = Boolean(data?.google?.connected);
-  const taskItems = [
-    ...(data?.microsoft?.tasks.items || []),
-    ...(data?.google && !data.microsoft ? data.google.tasks.items : []),
-    ...(data?.microsoft && data?.google
-      ? data.google.tasks.items.filter((t) => t.source === "google")
-      : []),
-  ];
+  const taskItems = data?.microsoft?.tasks.items || [];
   const uniqueTasks = Array.from(
     new Map(taskItems.map((t) => [t.key, t])).values()
   );
@@ -750,35 +690,19 @@ export function HomeOverview() {
               )}
             </div>
           </div>
-          {data &&
-          (showOutlookUnread || showGoogleUnread || data.maringo) ? (
+          {data && (showOutlookUnread || data.maringo) ? (
             <div className="grid grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))] gap-2">
               {showOutlookUnread ? (
                 <MailUnreadKpi
                   href="/microsoft?tab=mail"
                   count={data.microsoft?.unreadCount ?? null}
                   logo={<MicrosoftLogo className="size-5" title="Microsoft" />}
-                  caption="Outlook"
                   unreadUnknown={t("home.unreadMailsUnknown", { caption: "Outlook" })}
                   unreadKnown={t("home.unreadMails", {
                     count: data.microsoft?.unreadCount ?? 0,
                     caption: "Outlook",
                   })}
                   captionLine={t("home.unreadMailsCaption", { caption: "Outlook" })}
-                />
-              ) : null}
-              {showGoogleUnread ? (
-                <MailUnreadKpi
-                  href="/google?tab=mail"
-                  count={data.google?.unreadCount ?? null}
-                  logo={<GoogleLogo className="size-5" title="Google" />}
-                  caption="Gmail"
-                  unreadUnknown={t("home.unreadMailsUnknown", { caption: "Gmail" })}
-                  unreadKnown={t("home.unreadMails", {
-                    count: data.google?.unreadCount ?? 0,
-                    caption: "Gmail",
-                  })}
-                  captionLine={t("home.unreadMailsCaption", { caption: "Gmail" })}
                 />
               ) : null}
               {data.maringo ? (
@@ -833,14 +757,10 @@ export function HomeOverview() {
         <p className="text-sm text-muted-foreground">{t("home.loadingOverview")}</p>
       ) : null}
 
-      {data?.microsoft || data?.google ? (
+      {data?.microsoft ? (
         <section className="space-y-3">
           <h2 className="text-sm font-bold tracking-tight">
-            {data.microsoft && data.google
-              ? t("home.todayMsGoogle")
-              : data.google
-                ? t("nav.google")
-                : t("nav.microsoft")}
+            {t("nav.microsoft")}
           </h2>
           <div
             className={cn(
@@ -873,25 +793,8 @@ export function HomeOverview() {
             ) : null}
             <FocusTile
               href={mailHref}
-              logo={
-                data.microsoft && data.google ? (
-                  <span className="inline-flex items-center gap-1">
-                    <OutlookLogo className="size-5" />
-                    <GmailLogo className="size-5" />
-                  </span>
-                ) : data.google ? (
-                  <GmailLogo className="size-5" />
-                ) : (
-                  <MicrosoftLogo className="size-5" />
-                )
-              }
-              eyebrow={
-                data.microsoft && data.google
-                  ? t("home.inbox")
-                  : data.google
-                    ? "Gmail"
-                    : t("home.outlookMail")
-              }
+              logo={<MicrosoftLogo className="size-5" />}
+              eyebrow={t("home.outlookMail")}
               title={
                 mailSample?.subject ||
                 (detailsLoading ? t("home.mailsLoading") : t("home.inbox"))
@@ -912,24 +815,17 @@ export function HomeOverview() {
               eyebrow={t("home.dayAnalysis")}
               title={
                 data.microsoft?.mailDay?.headline ||
-                data.google?.mailDay?.headline ||
-                (data.microsoft?.mailDay || data.google?.mailDay
+                (data.microsoft?.mailDay
                   ? t("home.inboxCount", {
-                      count:
-                        (data.microsoft?.mailDay || data.google?.mailDay)
-                          ?.inboxCount ?? 0,
+                      count: data.microsoft.mailDay.inboxCount,
                     })
                   : t("home.noAnalysisYet"))
               }
               detail={
-                data.microsoft?.mailDay || data.google?.mailDay
+                data.microsoft?.mailDay
                   ? t("home.analysisCounts", {
-                      inbox:
-                        (data.microsoft?.mailDay || data.google?.mailDay)
-                          ?.inboxCount ?? 0,
-                      sent:
-                        (data.microsoft?.mailDay || data.google?.mailDay)
-                          ?.sentCount ?? 0,
+                      inbox: data.microsoft.mailDay.inboxCount,
+                      sent: data.microsoft.mailDay.sentCount,
                     })
                   : t("home.startAnalysisInMail")
               }
@@ -1049,7 +945,6 @@ export function HomeOverview() {
           <TasksCard
             items={uniqueTasks}
             showMicrosoft={Boolean(data.microsoft)}
-            showGoogle={Boolean(data.google)}
             display={taskDisplay}
             onDisplayChange={(next) => {
               setTaskDisplay(next);
@@ -1058,26 +953,14 @@ export function HomeOverview() {
           />
 
           <p className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-            {data.microsoft ? (
-              <span className="inline-flex items-center gap-1.5">
-                <MicrosoftLogo className="size-3.5" />
-                {t("home.o365", {
-                  state: data.microsoft.connected
-                    ? t("common.connected")
-                    : t("common.notConnected"),
-                })}
-              </span>
-            ) : null}
-            {data.google ? (
-              <span className="inline-flex items-center gap-1.5">
-                <GoogleLogo className="size-3.5" />
-                {t("home.googleState", {
-                  state: data.google.connected
-                    ? t("common.connected")
-                    : t("common.notConnected"),
-                })}
-              </span>
-            ) : null}
+            <span className="inline-flex items-center gap-1.5">
+              <MicrosoftLogo className="size-3.5" />
+              {t("home.o365", {
+                state: data.microsoft.connected
+                  ? t("common.connected")
+                  : t("common.notConnected"),
+              })}
+            </span>
             <Link href="/account" className="font-medium text-foreground hover:underline">
               {t("common.account")}
             </Link>

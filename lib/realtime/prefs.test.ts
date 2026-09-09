@@ -4,11 +4,11 @@ import { notifyReasonVisibleForModules } from "./prefs.ts";
 
 test("prefs catalog filters reasons by user modules", () => {
   assert.equal(
-    notifyReasonVisibleForModules("google_mail_day", ["google"], false),
+    notifyReasonVisibleForModules("microsoft_mail_day", ["microsoft"], false),
     true
   );
   assert.equal(
-    notifyReasonVisibleForModules("google_mail_day", ["microsoft"], false),
+    notifyReasonVisibleForModules("microsoft_mail_day", ["maringo"], false),
     false
   );
   assert.equal(

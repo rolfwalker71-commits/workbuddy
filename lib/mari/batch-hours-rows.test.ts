@@ -36,7 +36,7 @@ test("isBatchHoursCandidate drops booked, foreign and ritual events", () => {
     ),
     false
   );
-  assert.equal(isBatchHoursCandidate(event({ provider: "google" })), false);
+  assert.equal(isBatchHoursCandidate(event({ provider: "buddy" })), false);
   assert.equal(
     isBatchHoursCandidate(event({ id: "buddy-day-close" })),
     false

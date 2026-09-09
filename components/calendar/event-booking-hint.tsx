@@ -58,7 +58,6 @@ export function EventBookingHint({
   const t = useT();
   const provider = event.provider;
   const hide =
-    provider === "google" ||
     provider === "buddy" ||
     event.calendarType === "birthday";
   const meetingKind = classifyEventMeetingKind(event.attendeeEmails);

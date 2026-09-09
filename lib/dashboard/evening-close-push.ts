@@ -51,16 +51,8 @@ export function inEveningCloseWindow(
 }
 
 export function listEveningCloseUsers(): Array<{ id: number }> {
-  const seen = new Set<number>();
-  const out: Array<{ id: number }> = [];
-  for (const mod of ["microsoft", "google"] as const satisfies AppModule[]) {
-    for (const user of listActiveUsersWithModule(mod)) {
-      if (seen.has(user.id)) continue;
-      seen.add(user.id);
-      out.push({ id: user.id });
-    }
-  }
-  return out;
+  const mod: AppModule = "microsoft";
+  return listActiveUsersWithModule(mod).map((user) => ({ id: user.id }));
 }
 
 function calendarHref(userId: number): string {
@@ -69,9 +61,6 @@ function calendarHref(userId: number): string {
     const admin = Boolean(user?.is_admin);
     if (userHasModule(userId, "microsoft", admin)) {
       return "/microsoft?tab=calendar";
-    }
-    if (userHasModule(userId, "google", admin)) {
-      return "/google?tab=calendar";
     }
   } catch {
     /* fall through */
@@ -91,9 +80,7 @@ export async function dispatchEveningCloseForUser(
     ritual.calendarOpen > 0
       ? `${ritual.calendarOpen} Termin(e) prüfen`
       : "Termine geprüft",
-    ritual.googleDayDone === false ? "Gmail-Tagesanalyse offen" : null,
     ritual.microsoftDayDone === false ? "Outlook-Tagesanalyse offen" : null,
-    ritual.googleDayDone === true ? "Gmail-Analyse ✓" : null,
     ritual.microsoftDayDone === true ? "Outlook-Analyse ✓" : null,
     ritual.mariHoursPending != null && ritual.mariHoursPending > 0
       ? `${ritual.mariHoursPending} Stunden-Vorschlag${

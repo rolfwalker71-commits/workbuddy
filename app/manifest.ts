@@ -41,12 +41,6 @@ export default function manifest(): MetadataRoute.Manifest {
         icons: [{ src: "/icon-192.png", sizes: "192x192" }],
       },
       {
-        name: BRAND.google,
-        short_name: "Google",
-        url: "/google",
-        icons: [{ src: "/icon-192.png", sizes: "192x192" }],
-      },
-      {
         name: BRAND.maringo,
         short_name: "Maringo",
         url: "/maringo",

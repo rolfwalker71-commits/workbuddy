@@ -6,10 +6,8 @@ import type { MsCalendarEvent } from "@/lib/microsoft/calendar-review";
 import {
   countOpenPlanningEvents,
   isDayCloseRitualId,
-  withDayCloseRitualGoogleEvents,
   withDayCloseRitualMsEvents,
   type DayCloseCalendarItem,
-  type DayCloseGoogleReviewEvent,
   type DayCloseRitualStatus,
 } from "@/lib/dashboard/day-close-ritual";
 import { getDayCloseSchedule } from "@/lib/dashboard/day-close-prefs";
@@ -26,22 +24,10 @@ export async function resolveDayCloseRitualStatus(
     zurichHm()
   );
 
-  let googleDayDone: boolean | null = null;
   let microsoftDayDone: boolean | null = null;
   let mariHoursPending: number | null = null;
 
   if (userId != null) {
-    try {
-      const { isGoogleMailConnected } = await import("@/lib/google/oauth");
-      if (isGoogleMailConnected(userId)) {
-        const { getGoogleMailDayCached } = await import(
-          "@/lib/google/mail-day-analysis-job"
-        );
-        googleDayDone = Boolean(getGoogleMailDayCached(userId, todayIso));
-      }
-    } catch {
-      /* optional */
-    }
     try {
       const { isMicrosoftConnected } = await import("@/lib/microsoft/oauth");
       if (isMicrosoftConnected(userId)) {
@@ -71,12 +57,12 @@ export async function resolveDayCloseRitualStatus(
     }
   }
 
-  return { calendarOpen, googleDayDone, microsoftDayDone, mariHoursPending };
+  return { calendarOpen, microsoftDayDone, mariHoursPending };
 }
 
 /**
  * The assistant polls its status every 20s per open tab, and this load is the
- * only expensive part of it — one Graph and one Google calendar round trip.
+ * only expensive part of it — one Graph round trip.
  * A short cache collapses all those tabs into one call per window.
  *
  * Only the calendar is cached; Maringo stamps and the mail-day flags are read
@@ -139,35 +125,6 @@ async function loadTodayCalendarUncached(
   } catch {
     /* optional */
   }
-  try {
-    const { isGoogleMailConnected, hasGoogleCalendarScope } = await import(
-      "@/lib/google/oauth"
-    );
-    if (isGoogleMailConnected(userId) && hasGoogleCalendarScope(userId)) {
-      const { listGoogleCalendarEventsInRange } = await import(
-        "@/lib/google/calendars"
-      );
-      const events = await listGoogleCalendarEventsInRange(
-        userId,
-        todayIso,
-        todayIso
-      );
-      for (const e of events) {
-        if (isDayCloseRitualId(e.id)) continue;
-        items.push({
-          id: e.id,
-          title: e.summary,
-          date: e.date,
-          planningRelevant: e.planningRelevant,
-          time: e.time,
-          endTime: e.endTime,
-          isAllDay: !e.time,
-        });
-      }
-    }
-  } catch {
-    /* optional */
-  }
   return items;
 }
 
@@ -201,33 +158,4 @@ export async function attachDayCloseRitualMs(
     status,
     schedule
   ) as MsCalendarEvent[];
-}
-
-export async function attachDayCloseRitualGoogle<
-  T extends DayCloseGoogleReviewEvent,
->(
-  userId: number | null,
-  todayIso: string,
-  events: T[]
-): Promise<T[]> {
-  const calendar =
-    userId != null
-      ? await loadTodayCalendarForRitual(userId, todayIso).catch(() =>
-          events.map((e) => ({
-            id: e.id,
-            title: e.subject,
-            date: e.date,
-            planningRelevant: true as const,
-          }))
-        )
-      : events.map((e) => ({
-          id: e.id,
-          title: e.subject,
-          date: e.date,
-          planningRelevant: true as const,
-        }));
-  const status = await resolveDayCloseRitualStatus(userId, todayIso, calendar);
-  const schedule =
-    userId != null ? getDayCloseSchedule(userId) : undefined;
-  return withDayCloseRitualGoogleEvents(events, todayIso, status, schedule);
 }

@@ -35,7 +35,7 @@ export async function GET(_request: Request, context: Ctx) {
   }
   try {
     const message = await getMicrosoftMessage(userId, id);
-    const stored = getMailAnalysis(userId, id, "microsoft");
+    const stored = getMailAnalysis(userId, id);
     return NextResponse.json({
       message,
       analysis: stored?.analysis ?? null,

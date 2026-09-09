@@ -10,7 +10,6 @@ import { AccountWeatherPanel } from "@/components/settings/account-weather-panel
 import { AccountDayClosePanel } from "@/components/settings/account-day-close-panel";
 import { AccountPresenceWeekPanel } from "@/components/settings/account-presence-week-panel";
 import { AccountTechnikPanel } from "@/components/settings/account-technik-panel";
-import { AccountGoogleSection } from "@/components/settings/account-google-section";
 import { MailSenderBlacklistAccountPanel } from "@/components/mail/mail-sender-blacklist-editor";
 
 export const dynamic = "force-dynamic";
@@ -61,8 +60,6 @@ export default function AccountPage() {
         </Suspense>
         <SettingsMicrosoftCalendarsPanel />
       </section>
-
-      <AccountGoogleSection />
 
       <section className="space-y-3">
         <AccountPageCopy titleKey="account.hideMail" hintKey="account.hideMailHint" />

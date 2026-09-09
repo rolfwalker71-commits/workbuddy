@@ -34,7 +34,6 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 function isPublicPath(pathname: string): boolean {
   if (PUBLIC_PATHS.has(pathname)) return true;
   if (pathname === "/api/microsoft/oauth/callback") return true;
-  if (pathname === "/api/google/oauth/callback") return true;
   if (pathname === "/api/push/media" || pathname.startsWith("/api/push/media/")) {
     return true;
   }
@@ -80,13 +79,6 @@ function isAlwaysAllowedForLimitedUser(pathname: string): boolean {
   ) {
     return true;
   }
-  if (
-    pathname === "/api/google/connection" ||
-    pathname.startsWith("/api/google/oauth/") ||
-    pathname === "/api/google/calendars"
-  ) {
-    return true;
-  }
   return false;
 }
 
@@ -103,17 +95,6 @@ function isModulePathAllowed(
       pathname !== "/api/microsoft/settings" &&
       !pathname.startsWith("/api/microsoft/settings/")
     ) {
-      return true;
-    }
-    if (pathname === "/api/calendar/adhoc" || pathname === "/api/calendar/range") {
-      return true;
-    }
-  }
-  if (modules.includes("google")) {
-    if (pathname === "/google" || pathname.startsWith("/google/")) {
-      return true;
-    }
-    if (pathname.startsWith("/api/google/")) {
       return true;
     }
     if (pathname === "/api/calendar/adhoc" || pathname === "/api/calendar/range") {

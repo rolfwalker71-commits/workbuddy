@@ -43,7 +43,7 @@ export function PageHeader({
   description?: string;
   actions?: ReactNode;
   icon?: LucideIcon;
-  /** Brand mark (Google/Microsoft/…) — preferred over Lucide `icon` when set. */
+  /** Brand mark (Microsoft/Maringo/…) — preferred over Lucide `icon` when set. */
   logo?: ReactNode;
   tone?: IconTone;
   titleClassName?: string;

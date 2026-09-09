@@ -31,5 +31,5 @@ Push-Klick öffnet `/` bzw. den Workspace-Kalender (nicht `/dashboard`).
 ## Scheduler
 
 Mo–Fr 18:30–19:30 Europe/Zurich sendet der In-Process-Scheduler
-`evening_digest` («Tagesabschluss») an User mit Microsoft- und/oder
-Google-Modul. Kein Morgen-Briefing, kein Wochenend-Digest.
+`evening_digest` («Tagesabschluss») an User mit Microsoft-Modul.
+Kein Morgen-Briefing, kein Wochenend-Digest.

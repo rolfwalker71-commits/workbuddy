@@ -12,8 +12,6 @@ function emptyTasks() {
   return {
     microsoftConnected: true,
     hasMicrosoftScope: false,
-    googleConnected: true,
-    hasGoogleScope: false,
     items: [],
   };
 }
@@ -22,7 +20,7 @@ test("mergeHomeOverviewDetails keeps unread KPIs and fills lists", () => {
   const overview: HomeOverviewPayload = {
     greetingName: "Rolf",
     today: "2026-08-23",
-    modules: ["microsoft", "google"],
+    modules: ["microsoft"],
     microsoft: {
       enabled: true,
       connected: true,
@@ -33,15 +31,6 @@ test("mergeHomeOverviewDetails keeps unread KPIs and fills lists", () => {
       tasks: emptyTasks(),
       teamsOpenCount: 4,
       teamsOpenTitle: "Damian Schwegler",
-    },
-    google: {
-      enabled: true,
-      connected: true,
-      events: [],
-      mailInbox: [],
-      unreadCount: null,
-      mailDay: null,
-      tasks: emptyTasks(),
     },
     todayEvents: [],
     todayMail: [],
@@ -81,11 +70,6 @@ test("mergeHomeOverviewDetails keeps unread KPIs and fills lists", () => {
         lastUpdatedAt: "2026-08-23T07:10:00.000Z",
       },
     },
-    google: {
-      events: [],
-      mailInbox: [],
-      tasks: emptyTasks(),
-    },
     todayEvents: [
       {
         id: "e1",
@@ -114,7 +98,6 @@ test("mergeHomeOverviewDetails keeps unread KPIs and fills lists", () => {
 
   const merged = mergeHomeOverviewDetails(overview, details);
   assert.equal(merged.microsoft?.unreadCount, 12);
-  assert.equal(merged.google?.unreadCount, null);
   assert.equal(merged.microsoft?.events.length, 1);
   assert.equal(merged.todayEvents[0]?.title, "Standup");
   assert.equal(merged.todayMail[0]?.subject, "Hallo");
@@ -129,7 +112,6 @@ test("mergeHomeMaringoTickets updates bagel counts without dropping modules", ()
     today: "2026-08-23",
     modules: ["maringo"],
     microsoft: null,
-    google: null,
     todayEvents: [],
     todayMail: [],
     maringo: {
@@ -173,22 +155,13 @@ test("mergeHomeKpis fills unread zeros and keeps weather if live weather missing
   const overview: HomeOverviewPayload = {
     greetingName: "Rolf",
     today: "2026-08-23",
-    modules: ["microsoft", "google"],
+    modules: ["microsoft"],
     microsoft: {
       enabled: true,
       connected: true,
       events: [],
       mailInbox: [],
       unreadCount: 9,
-      mailDay: null,
-      tasks: emptyTasks(),
-    },
-    google: {
-      enabled: true,
-      connected: true,
-      events: [],
-      mailInbox: [],
-      unreadCount: null,
       mailDay: null,
       tasks: emptyTasks(),
     },
@@ -213,10 +186,8 @@ test("mergeHomeKpis fills unread zeros and keeps weather if live weather missing
   };
   const merged = mergeHomeKpis(overview, {
     microsoftUnread: 0,
-    googleUnread: 3,
     weather: null,
   });
   assert.equal(merged.microsoft?.unreadCount, 0);
-  assert.equal(merged.google?.unreadCount, 3);
   assert.equal(merged.weather?.placeLabel, "Altdorf");
 });

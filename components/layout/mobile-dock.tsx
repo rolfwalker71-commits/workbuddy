@@ -13,7 +13,6 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import {
-  GoogleLogo,
   MaringoLogo,
   MicrosoftLogo,
 } from "@/components/branding/provider-logos";
@@ -24,7 +23,7 @@ import type { MessageKey } from "@/lib/i18n";
 type DockItem = {
   href: string;
   labelKey: MessageKey;
-  module?: "microsoft" | "maringo" | "google";
+  module?: "microsoft" | "maringo";
   adminOnly?: boolean;
   logo?: React.ReactNode;
   icon?: React.ReactNode;
@@ -58,12 +57,6 @@ export function MobileDock() {
       labelKey: "nav.microsoftShort",
       module: "microsoft",
       logo: <MicrosoftLogo className="size-4" />,
-    },
-    {
-      href: "/google",
-      labelKey: "nav.googleShort",
-      module: "google",
-      logo: <GoogleLogo className="size-4" />,
     },
     {
       href: "/maringo",

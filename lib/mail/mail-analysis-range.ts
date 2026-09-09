@@ -92,7 +92,7 @@ export function resolveMailAnalysisRange(input?: {
   };
 }
 
-/** Inbox/sent list caps — slightly higher for multi-day (Gmail maxResults ≤ 50). */
+/** Inbox/sent list caps — slightly higher for multi-day ranges. */
 export function mailAnalysisListLimits(dayCount: number): {
   inboxLimit: number;
   sentLimit: number;
@@ -111,7 +111,7 @@ export function formatMailAnalysisRangeLabel(range: {
   return formatSwissDateRange(range.fromYmd, range.toYmd);
 }
 
-/** Exclusive upper bound YMD for Gmail `before:` / Graph `lt`. */
+/** Exclusive upper bound YMD for the Graph `lt` filter. */
 export function mailAnalysisRangeExclusiveEnd(toYmd: string): string {
   return addDaysYmd(toYmd, 1);
 }

@@ -1,5 +1,5 @@
 import { hasOpenAIKey } from "@/lib/ai/client";
-import type { MailListItem } from "@/lib/mail/gmail";
+import type { MailListItem } from "@/lib/mail/mail-types";
 import { analyzeMailForActions } from "@/lib/mail/analyze-mail";
 import {
   shouldAnalyzeMail,
@@ -9,7 +9,6 @@ import {
   getMailAnalysesForMessages,
   listMailAnalysesByThread,
   upsertMailAnalysis,
-  type MailProvider,
 } from "@/lib/mail/mail-analysis-store";
 import {
   emailDomain,
@@ -18,8 +17,6 @@ import {
 } from "@/lib/mail/mail-sender-prefs";
 import { getMicrosoftMessage } from "@/lib/microsoft/mail-inbox";
 import type { MailSyncResult } from "@/lib/mail/sync-mail-analysis";
-
-const PROVIDER: MailProvider = "microsoft";
 
 function zurichToday(): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -36,12 +33,9 @@ function buildThreadContext(
   currentMessageId: string
 ): string | null {
   if (!threadId?.trim()) return null;
-  const siblings = listMailAnalysesByThread(
-    userId,
-    threadId,
-    6,
-    PROVIDER
-  ).filter((r) => r.messageId !== currentMessageId);
+  const siblings = listMailAnalysesByThread(userId, threadId, 6).filter(
+    (r) => r.messageId !== currentMessageId
+  );
   if (siblings.length === 0) return null;
   const lines = siblings.map((r) => {
     const sum = r.summary || r.snippet || "—";
@@ -50,10 +44,7 @@ function buildThreadContext(
   return `Frühere Mails in diesem Thread:\n${lines.join("\n")}`;
 }
 
-/**
- * Analyze new Outlook inbox mails. Caps AI calls per invocation.
- * No Gmail label writeback (MVP).
- */
+/** Analyze new Outlook inbox mails. Caps AI calls per invocation. */
 export async function syncMicrosoftMailAnalysesForItems(
   userId: number,
   items: MailListItem[],
@@ -62,8 +53,7 @@ export async function syncMicrosoftMailAnalysesForItems(
   const maxAi = Math.max(0, options?.maxAi ?? 3);
   const existing = getMailAnalysesForMessages(
     userId,
-    items.map((i) => i.id),
-    PROVIDER
+    items.map((i) => i.id)
   );
 
   const result: MailSyncResult = {
@@ -130,7 +120,6 @@ export async function syncMicrosoftMailAnalysesForItems(
       upsertMailAnalysis({
         userId,
         messageId: item.id,
-        provider: PROVIDER,
         threadId: item.threadId,
         subject: item.subject,
         fromName: item.fromName,
@@ -161,7 +150,6 @@ export async function syncMicrosoftMailAnalysesForItems(
       upsertMailAnalysis({
         userId,
         messageId: item.id,
-        provider: PROVIDER,
         threadId,
         subject: detail.subject,
         fromName: detail.fromName,
@@ -179,7 +167,6 @@ export async function syncMicrosoftMailAnalysesForItems(
       upsertMailAnalysis({
         userId,
         messageId: item.id,
-        provider: PROVIDER,
         threadId: item.threadId,
         subject: item.subject,
         fromName: item.fromName,

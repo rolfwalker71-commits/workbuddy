@@ -46,10 +46,6 @@ function accountPayload(userId: number) {
     user,
     mari: getMariSettingsPublic(userId),
     openai: openaiAccountPayload(row),
-    google: {
-      clientId: row?.google_oauth_client_id || "",
-      hasGoogleOauthClient: Boolean(row?.google_oauth_client_secret_enc),
-    },
     teamsEnabled: parseTeamsEnabled(row?.teams_enabled),
     teamsModuleEnabled: isTeamsModuleEnabled(),
     technikEnabled: isTechnikNavEnabled(userId),
@@ -69,9 +65,6 @@ const PutSchema = z.object({
   chatBaseUrl: z.string().optional().nullable(),
   chatModel: z.string().optional().nullable(),
   mariEmployeeNumber: z.string().optional().nullable(),
-  googleOauthClientId: z.string().optional().nullable(),
-  googleOauthClientSecret: z.string().optional(),
-  clearGoogleOauthClientSecret: z.boolean().optional(),
   teamsEnabled: z.boolean().optional(),
   technikEnabled: z.boolean().optional(),
 });

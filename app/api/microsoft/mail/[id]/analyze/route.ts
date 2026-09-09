@@ -66,8 +66,7 @@ export async function POST(request: Request, context: Ctx) {
     const siblings = listMailAnalysesByThread(
       userId,
       message.threadId || "",
-      6,
-      "microsoft"
+      6
     ).filter((r) => r.messageId !== id);
     const threadContext =
       siblings.length > 0
@@ -86,7 +85,6 @@ export async function POST(request: Request, context: Ctx) {
     const stored = upsertMailAnalysis({
       userId,
       messageId: id,
-      provider: "microsoft",
       threadId: message.threadId,
       subject: message.subject,
       fromName: message.fromName,

@@ -1,5 +1,5 @@
 /** App modules that can be granted to non-admin users. */
-export const APP_MODULES = ["microsoft", "maringo", "google"] as const;
+export const APP_MODULES = ["microsoft", "maringo"] as const;
 
 export type AppModule = (typeof APP_MODULES)[number];
 

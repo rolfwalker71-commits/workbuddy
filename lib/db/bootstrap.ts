@@ -29,6 +29,7 @@ export function bootstrapDatabase(db: Database.Database): void {
   ensureMariTicketAnalysesShared(db);
   ensureTeamsThreadState(db);
   ensureUserActivityTables(db);
+  purgeGoogleRemnants(db);
 }
 
 function tableColumnNames(
@@ -58,8 +59,6 @@ function ensureUsersColumns(db: Database.Database): void {
     ["chat_api_key_enc", "TEXT"],
     ["chat_base_url", "TEXT"],
     ["chat_model", "TEXT"],
-    ["google_oauth_client_id", "TEXT"],
-    ["google_oauth_client_secret_enc", "TEXT"],
     ["teams_enabled", "INTEGER"],
     ["organization", "TEXT"],
     ["can_manage_presence", "INTEGER NOT NULL DEFAULT 0"],
@@ -135,6 +134,29 @@ function ensureMariTicketAnalysesShared(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_mari_ticket_analyses_analyzed
       ON mari_ticket_analyses(analyzed_at DESC);
   `);
+}
+
+/**
+ * Clear what the removed Google integration left behind. The two `users`
+ * columns are not dropped — an ALTER on a live table is the riskier move — but
+ * the encrypted OAuth client secret in them is a credential, so it goes. The
+ * `settings` rows held refresh tokens and cached Gmail day analyses.
+ */
+function purgeGoogleRemnants(db: Database.Database): void {
+  const names = tableColumnNames(db, "users");
+  if (names.has("google_oauth_client_secret_enc")) {
+    db.exec(
+      `UPDATE users SET google_oauth_client_secret_enc = NULL, google_oauth_client_id = NULL
+       WHERE google_oauth_client_secret_enc IS NOT NULL
+          OR google_oauth_client_id IS NOT NULL`
+    );
+  }
+  db.exec(
+    `DELETE FROM settings
+     WHERE key LIKE 'google_oauth_%' OR key LIKE 'google_calendars_%'
+        OR key LIKE 'g_mail_day_%'`
+  );
+  db.exec(`DELETE FROM mail_analyses WHERE provider = 'google'`);
 }
 
 function ensureMailAnalysesProvider(db: Database.Database): void {

@@ -34,8 +34,6 @@ export type AppUserRow = {
   chat_api_key_enc: string | null;
   chat_base_url: string | null;
   chat_model: string | null;
-  google_oauth_client_id: string | null;
-  google_oauth_client_secret_enc: string | null;
   notification_prefs: string | null;
   teams_enabled: number | null;
   organization: UserOrganization | null;
@@ -53,14 +51,12 @@ export type AppUserPublic = Omit<
   | "mari_rest_password_enc"
   | "openai_api_key_enc"
   | "chat_api_key_enc"
-  | "google_oauth_client_secret_enc"
 > & {
   modules: AppModule[];
   avatar_url: string | null;
   has_mari_password: boolean;
   has_openai_key: boolean;
   has_chat_key: boolean;
-  has_google_oauth_client: boolean;
   canManagePresence: boolean;
 };
 
@@ -84,7 +80,6 @@ function mapPublic(row: AppUserRow, modules: AppModule[]): AppUserPublic {
     mari_rest_password_enc,
     openai_api_key_enc,
     chat_api_key_enc,
-    google_oauth_client_secret_enc,
     ...rest
   } = row;
   return {
@@ -92,11 +87,9 @@ function mapPublic(row: AppUserRow, modules: AppModule[]): AppUserPublic {
     gender: normalizeGender(row.gender),
     mari_employee_number: row.mari_employee_number?.trim() || null,
     mari_rest_username: row.mari_rest_username?.trim() || null,
-    google_oauth_client_id: row.google_oauth_client_id?.trim() || null,
     has_mari_password: secretIsSet(mari_rest_password_enc),
     has_openai_key: secretIsSet(openai_api_key_enc),
     has_chat_key: secretIsSet(chat_api_key_enc),
-    has_google_oauth_client: secretIsSet(google_oauth_client_secret_enc),
     avatar_url: avatarUrlFromPath(avatar_path),
     modules,
     organization: parseUserOrganization(row.organization),
@@ -122,8 +115,6 @@ function coerceUserRow(row: AppUserRow & { mari_rest_password?: string | null })
     chat_api_key_enc: row.chat_api_key_enc ?? null,
     chat_base_url: row.chat_base_url ?? null,
     chat_model: row.chat_model ?? null,
-    google_oauth_client_id: row.google_oauth_client_id ?? null,
-    google_oauth_client_secret_enc: row.google_oauth_client_secret_enc ?? null,
     notification_prefs: row.notification_prefs ?? null,
     teams_enabled:
       row.teams_enabled === 0 || row.teams_enabled === 1
@@ -248,9 +239,6 @@ export function updateAppUser(
     clearChatApiKey?: boolean;
     chatBaseUrl?: string | null;
     chatModel?: string | null;
-    googleOauthClientId?: string | null;
-    googleOauthClientSecret?: string | null;
-    clearGoogleOauthClientSecret?: boolean;
     teamsEnabled?: boolean;
     organization?: UserOrganization | null;
     canManagePresence?: boolean;
@@ -297,22 +285,6 @@ export function updateAppUser(
     chatApiKeyEnc = encryptSecret(input.chatApiKey.trim());
   }
 
-  let googleOauthClientId = existing.google_oauth_client_id;
-  if (input.googleOauthClientId !== undefined) {
-    googleOauthClientId = input.googleOauthClientId?.trim() || null;
-  }
-  let googleOauthClientSecretEnc = existing.google_oauth_client_secret_enc;
-  if (input.clearGoogleOauthClientSecret) {
-    googleOauthClientSecretEnc = null;
-  } else if (
-    input.googleOauthClientSecret != null &&
-    input.googleOauthClientSecret.trim()
-  ) {
-    googleOauthClientSecretEnc = encryptSecret(
-      input.googleOauthClientSecret.trim()
-    );
-  }
-
   try {
     db.prepare(
       `UPDATE users SET
@@ -332,8 +304,6 @@ export function updateAppUser(
          chat_api_key_enc = ?,
          chat_base_url = ?,
          chat_model = ?,
-         google_oauth_client_id = ?,
-         google_oauth_client_secret_enc = ?,
          teams_enabled = ?,
          organization = ?,
          can_manage_presence = ?,
@@ -368,8 +338,6 @@ export function updateAppUser(
       input.chatModel !== undefined
         ? input.chatModel?.trim() || null
         : existing.chat_model,
-      googleOauthClientId,
-      googleOauthClientSecretEnc,
       input.teamsEnabled !== undefined
         ? input.teamsEnabled
           ? 1
@@ -406,12 +374,6 @@ export function getUserOpenAiApiKey(user: AppUserRow): string | null {
 
 export function getUserChatApiKey(user: AppUserRow): string | null {
   return decryptSecret(user.chat_api_key_enc);
-}
-
-export function getUserGoogleOauthClientSecret(
-  user: AppUserRow
-): string | null {
-  return decryptSecret(user.google_oauth_client_secret_enc);
 }
 
 export function setUserAvatar(

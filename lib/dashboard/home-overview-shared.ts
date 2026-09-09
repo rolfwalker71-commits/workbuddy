@@ -24,7 +24,7 @@ export type HomeMailSample = {
   subject: string;
   from: string;
   receivedOrSentAt: string | null;
-  provider?: "microsoft" | "google";
+  provider?: "microsoft";
 };
 
 export type HomeMailDaySummary = {
@@ -79,7 +79,6 @@ export type HomeOverviewPayload = {
   today: string;
   modules: AppModule[];
   microsoft: HomeProviderBlock | null;
-  google: HomeProviderBlock | null;
   todayEvents: WorkspaceTodayEvent[];
   todayMail: WorkspaceMailSample[];
   maringo: {
@@ -100,7 +99,6 @@ export type HomeDetailsPayload = {
     HomeProviderBlock,
     "events" | "mailInbox" | "tasks" | "lastTeams"
   > | null;
-  google: Pick<HomeProviderBlock, "events" | "mailInbox" | "tasks"> | null;
   todayEvents: WorkspaceTodayEvent[];
   todayMail: WorkspaceMailSample[];
   pendingStamps?: HomePendingStamp[];
@@ -123,15 +121,6 @@ export function mergeHomeOverviewDetails(
               details.microsoft.lastTeams ?? overview.microsoft.lastTeams,
           }
         : overview.microsoft,
-    google:
-      overview.google && details.google
-        ? {
-            ...overview.google,
-            events: details.google.events,
-            mailInbox: details.google.mailInbox,
-            tasks: details.google.tasks,
-          }
-        : overview.google,
     todayEvents: details.todayEvents,
     todayMail: details.todayMail,
     pendingStamps: details.pendingStamps ?? overview.pendingStamps,
@@ -140,7 +129,6 @@ export function mergeHomeOverviewDetails(
 
 export type HomeKpiLive = {
   microsoftUnread: number | null;
-  googleUnread: number | null;
   weather: HomeWeatherCard | null;
 };
 
@@ -160,15 +148,6 @@ export function mergeHomeKpis(
               : overview.microsoft.unreadCount,
         }
       : overview.microsoft,
-    google: overview.google
-      ? {
-          ...overview.google,
-          unreadCount:
-            kpis.googleUnread != null
-              ? kpis.googleUnread
-              : overview.google.unreadCount,
-        }
-      : overview.google,
   };
 }
 

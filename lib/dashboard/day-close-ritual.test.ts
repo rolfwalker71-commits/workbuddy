@@ -127,12 +127,11 @@ test("open-calendar count skips timed events after end + 30 min", () => {
   assert.equal(countOpenPlanningEvents("2026-08-24", items), 2);
 });
 
-test("completeness requires closed calendar, mail days, and Maringo stamps", () => {
+test("completeness requires closed calendar, mail day, and Maringo stamps", () => {
   assert.equal(isDayCloseRitualComplete(null), false);
   assert.equal(
     isDayCloseRitualComplete({
       calendarOpen: 1,
-      googleDayDone: true,
       microsoftDayDone: true,
       mariHoursPending: 0,
     }),
@@ -141,16 +140,6 @@ test("completeness requires closed calendar, mail days, and Maringo stamps", () 
   assert.equal(
     isDayCloseRitualComplete({
       calendarOpen: 0,
-      googleDayDone: false,
-      microsoftDayDone: true,
-      mariHoursPending: 0,
-    }),
-    false
-  );
-  assert.equal(
-    isDayCloseRitualComplete({
-      calendarOpen: 0,
-      googleDayDone: true,
       microsoftDayDone: false,
       mariHoursPending: 0,
     }),
@@ -159,7 +148,6 @@ test("completeness requires closed calendar, mail days, and Maringo stamps", () 
   assert.equal(
     isDayCloseRitualComplete({
       calendarOpen: 0,
-      googleDayDone: true,
       microsoftDayDone: true,
       mariHoursPending: 2,
     }),
@@ -168,7 +156,6 @@ test("completeness requires closed calendar, mail days, and Maringo stamps", () 
   assert.equal(
     isDayCloseRitualComplete({
       calendarOpen: 0,
-      googleDayDone: true,
       microsoftDayDone: true,
       mariHoursPending: 0,
     }),
@@ -177,8 +164,7 @@ test("completeness requires closed calendar, mail days, and Maringo stamps", () 
   assert.equal(
     isDayCloseRitualComplete({
       calendarOpen: 0,
-      googleDayDone: null,
-      microsoftDayDone: true,
+      microsoftDayDone: null,
       mariHoursPending: null,
     }),
     true
@@ -188,7 +174,6 @@ test("completeness requires closed calendar, mail days, and Maringo stamps", () 
 test("complete ritual title is marked done and maps to MsCalendarEvent", () => {
   const item = buildDayCloseRitualItem("2026-08-24", {
     calendarOpen: 0,
-    googleDayDone: true,
     microsoftDayDone: null,
     mariHoursPending: null,
   });
@@ -200,7 +185,6 @@ test("complete ritual title is marked done and maps to MsCalendarEvent", () => {
   assert.equal(ev.done, true);
   const injected = withDayCloseRitualMsEvents([], "2026-08-24", {
     calendarOpen: 0,
-    googleDayDone: true,
     microsoftDayDone: null,
     mariHoursPending: null,
   });

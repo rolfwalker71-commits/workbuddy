@@ -9,25 +9,24 @@ import {
 
 test("normalizeAppModules filters unknowns", () => {
   assert.deepEqual(
-    normalizeAppModules(["microsoft", "nope", "maringo", "google", "microsoft"]),
-    ["microsoft", "maringo", "google"]
+    normalizeAppModules(["microsoft", "nope", "maringo", "microsoft"]),
+    ["microsoft", "maringo"]
   );
 });
 
 test("isAppModule", () => {
   assert.equal(isAppModule("travel"), false);
   assert.equal(isAppModule("microsoft"), true);
-  assert.equal(isAppModule("google"), true);
+  assert.equal(isAppModule("maringo"), true);
 });
 
-test("APP_MODULES includes google", () => {
-  assert.ok(APP_MODULES.includes("google"));
+test("APP_MODULES is microsoft and maringo", () => {
+  assert.deepEqual([...APP_MODULES], ["microsoft", "maringo"]);
 });
 
 test("homePathForModules is overview when any module is granted", () => {
   assert.equal(homePathForModules(["maringo", "microsoft"]), "/");
   assert.equal(homePathForModules(["maringo"]), "/");
   assert.equal(homePathForModules(["microsoft"]), "/");
-  assert.equal(homePathForModules(["google"]), "/");
   assert.equal(homePathForModules([]), "/account");
 });

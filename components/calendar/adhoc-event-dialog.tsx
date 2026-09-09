@@ -40,7 +40,6 @@ export function AdhocEventDialog({
   dialogTitle,
   dialogDescription,
   defaultDurationMinutes = 60,
-  providerScope,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -52,8 +51,6 @@ export function AdhocEventDialog({
   dialogTitle?: string;
   dialogDescription?: string;
   defaultDurationMinutes?: number;
-  /** When set, only that cloud’s calendars appear as targets. */
-  providerScope?: "microsoft" | "google";
 }) {
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
@@ -70,7 +67,7 @@ export function AdhocEventDialog({
   const [providerLabel, setProviderLabel] = useState<string | null>(null);
   const [targets, setTargets] = useState<
     Array<{
-      provider: "microsoft" | "google";
+      provider: "microsoft";
       id: string;
       name: string;
       primary: boolean;
@@ -84,7 +81,7 @@ export function AdhocEventDialog({
   const selectedTarget = targets.find(
     (t) => `${t.provider}:${t.id}` === targetKey
   );
-  const teamsMeeting = selectedTarget?.provider !== "google" && !allDay;
+  const teamsMeeting = !allDay;
 
   function reset() {
     setTitle("");
@@ -125,16 +122,10 @@ export function AdhocEventDialog({
     setMsg(null);
     setBusy(false);
     setProviderLabel(null);
-    const qs = providerScope
-      ? `?provider=${encodeURIComponent(providerScope)}`
-      : "";
-    void fetch(`/api/calendar/adhoc${qs}`)
+    void fetch("/api/calendar/adhoc")
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
-        const raw = (data.targets || []) as typeof targets;
-        const next = providerScope
-          ? raw.filter((t) => t.provider === providerScope)
-          : raw;
+        const next = (data.targets || []) as typeof targets;
         setTargets(next);
         setTargetKey((prev) => {
           if (prev && next.some((t) => `${t.provider}:${t.id}` === prev)) {
@@ -154,7 +145,6 @@ export function AdhocEventDialog({
     defaultDurationMinutes,
     mariIssueId,
     isMari,
-    providerScope,
   ]);
 
   async function suggestSlots() {
@@ -180,12 +170,7 @@ export function AdhocEventDialog({
       }
       const next = (data.slots || []) as FreeSlot[];
       setSlots(next);
-      const prov =
-        data.provider === "google"
-          ? "Google"
-          : data.provider === "microsoft"
-            ? "Outlook"
-            : null;
+      const prov = data.provider === "microsoft" ? "Outlook" : null;
       setProviderLabel(prov);
       setMsg(
         next.length
@@ -235,11 +220,7 @@ export function AdhocEventDialog({
         throw new Error(data.error || t("calendarUi.createFailed"));
       }
       const prov =
-        data.provider === "google"
-          ? "Google"
-          : data.provider === "microsoft"
-            ? "Outlook"
-            : t("workspace.calendar");
+        data.provider === "microsoft" ? "Outlook" : t("workspace.calendar");
       const teamsHint =
         data.provider === "microsoft" && data.teamsMeeting
           ? t("calendarUi.teamsMeetingHint")
@@ -470,7 +451,7 @@ export function AdhocEventDialog({
               >
                 {targets.map((cal) => (
                   <option key={`${cal.provider}:${cal.id}`} value={`${cal.provider}:${cal.id}`}>
-                    {cal.provider === "google" ? "Google" : "Outlook"}
+                    Outlook
                     {" · "}
                     {cal.name}
                     {cal.primary ? ` ${t("common.primaryParen")}` : ""}
@@ -503,7 +484,7 @@ export function AdhocEventDialog({
             </div>
           </div>
 
-          {selectedTarget?.provider !== "google" && !allDay ? (
+          {!allDay ? (
             <p className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5 text-[0.6875rem] leading-snug text-muted-foreground">
               {t("calendarUi.outlookTeamsHint")}
             </p>

@@ -17,7 +17,7 @@ import { MailTicketImportDialog } from "@/components/mail/mail-ticket-import-dia
 import { MailHtmlBody } from "@/components/mail/mail-html-body";
 import { cn } from "@/lib/utils";
 import type { MsMailItem } from "@/lib/microsoft/mail-day";
-import type { MailMessageDetail } from "@/lib/mail/gmail";
+import type { MailMessageDetail } from "@/lib/mail/mail-types";
 import {
   MailSenderBlacklistOpenButton,
   MailSenderBlacklistSheet,
@@ -33,9 +33,6 @@ import {
 } from "@/lib/mail/mail-threads";
 import { formatSwissDateTime } from "@/lib/utils/dates";
 import { useT } from "@/components/i18n/locale-provider";
-import { ProviderBadge } from "@/components/workspace/provider-badge";
-
-export type MailChronikProvider = "microsoft" | "google";
 
 function formatDetailWhen(detail: MailMessageDetail): string {
   if (detail.internalDate) {
@@ -85,18 +82,16 @@ export function MailChronikSummary({
   );
 }
 
-type ChronikMail = MsMailItem & { provider?: MailChronikProvider };
+type ChronikMail = MsMailItem;
 
 function MailChronikRow({
   mail,
   indented,
   onOpen,
-  listProvider,
 }: {
   mail: ChronikMail;
   indented: boolean;
   onOpen: (m: ChronikMail) => void;
-  listProvider: MailChronikProvider;
 }) {
   const t = useT();
   const isInbox = mail.folder === "inbox";
@@ -176,14 +171,6 @@ function MailChronikRow({
         >
           {sub}
         </p>
-        {mail.provider || listProvider ? (
-          <div className="mt-1">
-            <ProviderBadge
-              provider={mail.provider || listProvider}
-              kind="mail"
-            />
-          </div>
-        ) : null}
       </div>
     </Button>
   );
@@ -192,7 +179,6 @@ function MailChronikRow({
 export function MailChronikList({
   items,
   loading,
-  provider,
   onItemsChanged,
   showBlacklistButton = true,
   blacklistOpen,
@@ -200,7 +186,6 @@ export function MailChronikList({
 }: {
   items: ChronikMail[];
   loading?: boolean;
-  provider: MailChronikProvider;
   onItemsChanged?: () => void;
   showBlacklistButton?: boolean;
   blacklistOpen?: boolean;
@@ -208,7 +193,6 @@ export function MailChronikList({
 }) {
   const t = useT();
   const [openId, setOpenId] = useState<string | null>(null);
-  const [openProvider, setOpenProvider] = useState<MailChronikProvider>(provider);
   const [webLink, setWebLink] = useState<string | null>(null);
   const [openFolder, setOpenFolder] = useState<"inbox" | "sent" | null>(null);
   const [openFromEmail, setOpenFromEmail] = useState<string | null>(null);
@@ -254,8 +238,6 @@ export function MailChronikList({
 
   const openMail = useCallback(
     async (item: ChronikMail) => {
-      const itemProvider = item.provider || provider;
-      setOpenProvider(itemProvider);
       setOpenId(item.id);
       setWebLink(item.webLink);
       setOpenFolder(item.folder);
@@ -265,25 +247,6 @@ export function MailChronikList({
       setDetailError(null);
       setDetailLoading(true);
       try {
-        if (itemProvider === "google") {
-          setDetail({
-            id: item.id,
-            threadId: item.conversationId || item.id,
-            from: item.fromEmail || item.from,
-            fromName: item.from,
-            subject: item.subject,
-            snippet: item.preview,
-            date: item.receivedOrSentAt,
-            internalDate: item.receivedOrSentAt
-              ? String(new Date(item.receivedOrSentAt).getTime())
-              : null,
-            unread: !item.isRead,
-            to: item.toPreview,
-            bodyHtml: null,
-            bodyText: item.bodyText || item.preview,
-          });
-          return;
-        }
         const res = await fetch(
           `/api/microsoft/mail/${encodeURIComponent(item.id)}`
         );
@@ -300,7 +263,7 @@ export function MailChronikList({
         setDetailLoading(false);
       }
     },
-    [provider, t]
+    [t]
   );
 
   const openSenderEmail =
@@ -392,8 +355,7 @@ export function MailChronikList({
     );
   }
 
-  const externalLabel =
-    openProvider === "microsoft" ? t("mail.openInOutlook") : t("mail.openInGmail");
+  const externalLabel = t("mail.openInOutlook");
 
   return (
     <>
@@ -430,7 +392,6 @@ export function MailChronikList({
                       <MailChronikRow
                         mail={m}
                         indented={idx > 0}
-                        listProvider={provider}
                         onOpen={(item) => void openMail(item)}
                       />
                     </li>
@@ -469,9 +430,7 @@ export function MailChronikList({
                       ? ` <${detail.from}>`
                       : ""
                   }${formatDetailWhen(detail) ? ` · ${formatDetailWhen(detail)}` : ""}`
-                : openProvider === "microsoft"
-                  ? t("mail.outlookMessage")
-                  : t("mail.gmailMessage")}
+                : t("mail.outlookMessage")}
             </DialogDescription>
           </DialogHeader>
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden px-4 py-3">
@@ -503,7 +462,7 @@ export function MailChronikList({
                   {t("mail.hideSender")}
                 </Button>
               ) : null}
-              {openProvider === "microsoft" && openId ? (
+              {openId ? (
                 <MicrosoftMailQuickActions
                   messageId={openId}
                   unread={detail?.unread}
@@ -559,32 +518,28 @@ export function MailChronikList({
         </DialogContent>
       </Dialog>
 
-      {openProvider === "microsoft" ? (
-        <MicrosoftMailComposeDialog
-          open={composeOpen}
-          onOpenChange={setComposeOpen}
-          mode="reply"
-          sourceMailId={openId}
-          defaultTo={openFromEmail || detail?.from || ""}
-          defaultSubject={
-            openSubject
-              ? openSubject.toLowerCase().startsWith("re:")
-                ? openSubject
-                : `Re: ${openSubject}`
-              : ""
-          }
-          defaultBody=""
-          onSent={() => onItemsChanged?.()}
-        />
-      ) : null}
+      <MicrosoftMailComposeDialog
+        open={composeOpen}
+        onOpenChange={setComposeOpen}
+        mode="reply"
+        sourceMailId={openId}
+        defaultTo={openFromEmail || detail?.from || ""}
+        defaultSubject={
+          openSubject
+            ? openSubject.toLowerCase().startsWith("re:")
+              ? openSubject
+              : `Re: ${openSubject}`
+            : ""
+        }
+        defaultBody=""
+        onSent={() => onItemsChanged?.()}
+      />
 
-      {openProvider === "microsoft" ? (
-        <MailTicketImportDialog
-          open={ticketImportOpen}
-          onOpenChange={setTicketImportOpen}
-          mail={ticketImportMail}
-        />
-      ) : null}
+      <MailTicketImportDialog
+        open={ticketImportOpen}
+        onOpenChange={setTicketImportOpen}
+        mail={ticketImportMail}
+      />
 
       {blacklistSheet}
     </>

@@ -67,7 +67,6 @@ const NOTIFY_MESSAGE: Record<NotifyReason, MessageKey> = {
   mail_calendar_patch: "notify.mailCalendarPatch",
   microsoft_mail_day: "notify.microsoftMailDay",
   microsoft_teams_day: "notify.microsoftTeamsDay",
-  google_mail_day: "notify.googleMailDay",
   evening_digest: "notify.eveningDigest",
   app_status: "notify.appStatus",
 };

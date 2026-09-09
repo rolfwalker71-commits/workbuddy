@@ -28,9 +28,9 @@ test("mergeWorkspaceTodayEvents sorts by time then title", () => {
   const merged = mergeWorkspaceTodayEvents(
     [
       ev({
-        id: "g1",
+        id: "m3",
         title: "Standup",
-        provider: "google",
+        provider: "microsoft",
         time: "09:30",
         isAllDay: false,
       }),
@@ -54,7 +54,7 @@ test("mergeWorkspaceTodayEvents sorts by time then title", () => {
   );
   assert.deepEqual(
     merged.map((e) => e.id),
-    ["m1", "g1", "buddy-day-close", "m2"]
+    ["m1", "m3", "buddy-day-close", "m2"]
   );
   const ritual = merged.find((e) => e.id === "buddy-day-close");
   assert.equal(ritual?.time, "18:30");
@@ -62,21 +62,20 @@ test("mergeWorkspaceTodayEvents sorts by time then title", () => {
   assert.equal(ritual?.calendarId, "buddy-ritual");
 });
 
-test("mergeWorkspaceTodayEvents keeps ritual on a single-provider list", () => {
+test("mergeWorkspaceTodayEvents appends the ritual to a Microsoft list", () => {
   const merged = mergeWorkspaceTodayEvents([
     ev({
-      id: "g1",
+      id: "m1",
       title: "Review",
-      provider: "google",
+      provider: "microsoft",
       time: "11:00",
       isAllDay: false,
     }),
   ]);
   assert.deepEqual(
     merged.map((e) => e.provider),
-    ["google", "buddy"]
+    ["microsoft", "buddy"]
   );
-  assert.ok(!merged.some((e) => e.provider === "microsoft"));
 });
 
 test("mergeWorkspaceTodayEvents omits ritual on weekends", () => {
@@ -84,7 +83,7 @@ test("mergeWorkspaceTodayEvents omits ritual on weekends", () => {
     ev({
       id: "x",
       title: "Weekend",
-      provider: "google",
+      provider: "microsoft",
       date: "2026-08-23",
       time: "10:00",
       isAllDay: false,
@@ -99,7 +98,7 @@ test("toWorkspaceTodayEvent keeps ritual-ready id/title/time/planningRelevant", 
     summary: "Review",
     startHm: "14:00",
     endHm: "14:30",
-    provider: "google",
+    provider: "microsoft",
     calendarId: "primary",
     date: "2026-08-24",
     planningRelevant: false,
@@ -108,25 +107,25 @@ test("toWorkspaceTodayEvent keeps ritual-ready id/title/time/planningRelevant", 
   assert.equal(event.title, "Review");
   assert.equal(event.time, "14:00");
   assert.equal(event.planningRelevant, false);
-  assert.equal(event.provider, "google");
-  assert.equal(workspaceEventKey(event), "google:primary:abc");
+  assert.equal(event.provider, "microsoft");
+  assert.equal(workspaceEventKey(event), "microsoft:primary:abc");
 });
 
-test("mergeWorkspaceMailSamples sorts newest first and keeps provider", () => {
+test("mergeWorkspaceMailSamples sorts newest first across groups", () => {
   const merged = mergeWorkspaceMailSamples(
     [
       {
-        id: "g",
-        subject: "Gmail",
-        from: "a@g",
+        id: "old",
+        subject: "Älter",
+        from: "a@m",
         receivedOrSentAt: "2026-08-24T08:00:00.000Z",
-        provider: "google",
+        provider: "microsoft",
       },
     ],
     [
       {
-        id: "m",
-        subject: "Outlook",
+        id: "new",
+        subject: "Neuer",
         from: "b@m",
         receivedOrSentAt: "2026-08-24T10:00:00.000Z",
         provider: "microsoft",
@@ -134,7 +133,7 @@ test("mergeWorkspaceMailSamples sorts newest first and keeps provider", () => {
     ]
   );
   assert.deepEqual(
-    merged.map((m) => m.provider),
-    ["microsoft", "google"]
+    merged.map((m) => m.id),
+    ["new", "old"]
   );
 });

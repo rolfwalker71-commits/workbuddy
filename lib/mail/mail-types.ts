@@ -1,4 +1,4 @@
-/** Shared mail types (historically Gmail-shaped; used by Microsoft inbox too). */
+/** Shared mail types for the Outlook inbox and the analysis pipeline. */
 
 export type MailListFilter = "today" | "week" | "unread";
 

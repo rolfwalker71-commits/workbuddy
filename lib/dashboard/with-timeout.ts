@@ -1,4 +1,4 @@
-/** Per-provider ceiling so one hanging Graph/Gmail/MARI call cannot stall Home. */
+/** Per-provider ceiling so one hanging Graph/MARI call cannot stall Home. */
 export const HOME_PROVIDER_TIMEOUT_MS = 3000;
 
 export async function withTimeout<T>(
