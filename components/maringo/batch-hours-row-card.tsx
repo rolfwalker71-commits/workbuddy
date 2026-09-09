@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Check, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useT } from "@/components/i18n/locale-provider";
@@ -11,6 +12,7 @@ import {
   setDraftHours,
   type BatchHoursDraft,
 } from "@/lib/mari/batch-hours-draft";
+import type { BatchRowStatus } from "@/lib/mari/batch-hours-run";
 import type { MariKeyPair } from "@/lib/mari/timekeeping-shared";
 import { TIMEKEEPING_INT_BEMERKUNG_OPTIONS } from "@/lib/mari/timekeeping-udfs";
 
@@ -29,6 +31,8 @@ export function BatchHoursRowCard({
   contracts,
   contractsLoading,
   onNeedContracts,
+  status,
+  error,
 }: {
   row: BatchHoursRow;
   draft: BatchHoursDraft;
@@ -41,6 +45,8 @@ export function BatchHoursRowCard({
   contracts: MariKeyPair[] | undefined;
   contractsLoading: boolean;
   onNeedContracts: (eventId: string, projectNumber: string) => void;
+  status?: BatchRowStatus;
+  error?: string | null;
 }) {
   const t = useT();
   const [projectOpen, setProjectOpen] = useState(false);
@@ -76,10 +82,27 @@ export function BatchHoursRowCard({
                 {t("batchHours.notDone")}
               </Badge>
             ) : null}
-            {selected && blockers.length > 0 ? (
+            {selected && blockers.length > 0 && !status ? (
               <span className="text-amber-700 dark:text-amber-300">
                 {t("batchHours.rowIncomplete")}
               </span>
+            ) : null}
+            {status === "running" ? (
+              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            ) : null}
+            {status === "booked" ? (
+              <span className="inline-flex items-center gap-1 font-medium text-emerald-700 dark:text-emerald-300">
+                <Check className="size-3.5" aria-hidden />
+                {t("batchHours.rowBooked")}
+              </span>
+            ) : null}
+            {status === "booked" && error ? (
+              <span className="min-w-0 text-amber-700 dark:text-amber-300">
+                {error}
+              </span>
+            ) : null}
+            {status === "failed" ? (
+              <span className="min-w-0 text-destructive">{error}</span>
             ) : null}
           </p>
         </div>

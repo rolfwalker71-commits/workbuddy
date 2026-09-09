@@ -2288,6 +2288,7 @@ export function WorkspaceDayClient({
                 onOpenChange={setBatchBookOpen}
                 date={calDate}
                 events={events}
+                onBooked={() => void loadCalendar()}
               />
               <AdhocEventDialog
                 open={adhocOpen}

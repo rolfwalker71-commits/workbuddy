@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { useT } from "@/components/i18n/locale-provider";
 import { BatchHoursRowCard } from "@/components/maringo/batch-hours-row-card";
 import {
@@ -21,8 +23,20 @@ import {
 import {
   draftFromRow,
   draftBlockers,
+  draftToLinePayload,
   type BatchHoursDraft,
 } from "@/lib/mari/batch-hours-draft";
+import {
+  batchRunFullySucceeded,
+  batchRunPending,
+  batchRunProgress,
+  finishBatchRun,
+  markRowBooked,
+  markRowFailed,
+  markRowRunning,
+  startBatchRun,
+  type BatchRunState,
+} from "@/lib/mari/batch-hours-run";
 import type { EventBookingRef } from "@/lib/mari/event-booking-ref";
 import type { MariKeyPair } from "@/lib/mari/timekeeping-shared";
 import { toSwissDate } from "@/lib/utils/dates";
@@ -32,11 +46,14 @@ export function BatchHoursBookDialog({
   onOpenChange,
   date,
   events,
+  onBooked,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   date: string;
   events: readonly BatchHoursSourceEvent[];
+  /** At least one line landed in Maringo — reload the day. */
+  onBooked?: () => void;
 }) {
   const t = useT();
   const baseRows = useMemo(() => batchHoursRowsForDay(events), [events]);
@@ -53,7 +70,10 @@ export function BatchHoursBookDialog({
     () => new Map()
   );
   const touched = useRef<Set<string>>(new Set());
-  const [deselected, setDeselected] = useState<Set<string>>(() => new Set());
+  /** Explicit overrides; a row without one follows its preselection. */
+  const [selection, setSelection] = useState<Map<string, boolean>>(
+    () => new Map()
+  );
 
   // Seed drafts, and let a late recognition land — but never over an edit.
   useEffect(() => {
@@ -215,8 +235,11 @@ export function BatchHoursBookDialog({
     }
   }, [open, rows, drafts, needContracts]);
 
+  /** Recognition or a contract list is still on its way. */
+  const busy = guessing || contractsLoading.size > 0;
+
   const isSelected = (row: BatchHoursRow) =>
-    row.selected && !deselected.has(row.eventId);
+    selection.get(row.eventId) ?? row.selected;
 
   const selectedRows = rows.filter(isSelected);
   const blockedCount = selectedRows.filter((row) => {
@@ -229,6 +252,129 @@ export function BatchHoursBookDialog({
     setDrafts((prev) => new Map(prev).set(eventId, next));
   }
 
+  const [run, setRun] = useState<BatchRunState | null>(null);
+  const bookable = selectedRows.filter((row) => {
+    const draft = drafts.get(row.eventId);
+    return draft && draftBlockers(draft).length === 0;
+  });
+
+  async function bookRow(
+    row: BatchHoursRow,
+    draft: BatchHoursDraft
+  ): Promise<{
+    lineId: number | null;
+    stampedDone: boolean;
+    warning: string | null;
+  }> {
+    const payload = draftToLinePayload(row, draft);
+    if (!payload) throw new Error(t("batchHours.rowIncomplete"));
+
+    const res = await fetch("/api/maringo/timekeeping/lines", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      line?: { lineId?: number };
+    };
+    if (!res.ok) throw new Error(json.error || t("timekeeping.bookFailed"));
+    const rawLineId = Number(json.line?.lineId);
+    const lineId = Number.isInteger(rawLineId) && rawLineId > 0 ? rawLineId : null;
+
+    // Stamp the event as booked so it drops out of this list next time.
+    // The line is already in Maringo from here on, so a failure below must not
+    // mark the row failed — a retry would book it a second time.
+    let warning: string | null = null;
+    const stampRes = await fetch("/api/maringo/timekeeping/suggestions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        eventProvider: "microsoft",
+        eventId: row.eventId,
+        calendarId: row.calendarId,
+        eventDate: row.date,
+        startHm: row.startHm,
+        endHm: row.endHm,
+        title: row.title,
+        memo: payload.memoText,
+        // The stamp rejects 0; a zero-hours booking still gets its line.
+        hours: payload.hours > 0 ? payload.hours : null,
+        hoursBillable: payload.hoursBillable,
+        issueId: payload.issueId,
+        bookedLineId: lineId,
+        seriesMasterId: row.seriesMasterId,
+        iCalUId: row.iCalUId,
+        cardCode: row.defaults.cardCode ?? null,
+        customerName: row.defaults.customerName ?? null,
+        projectNumber: payload.projectNumber,
+        projectLabel: draft.projectLabel,
+        contractId: payload.contractId,
+        contractVisible: draft.contractVisible,
+      }),
+    });
+    const stampJson = (await stampRes.json().catch(() => ({}))) as {
+      error?: string;
+    };
+    if (!stampRes.ok) {
+      warning = stampJson.error || t("timekeeping.stampFailed");
+    }
+
+    // The ✅ in the Outlook subject. Idempotent, so already-done rows are fine.
+    let stampedDone = false;
+    try {
+      const doneRes = await fetch("/api/microsoft/calendar/actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "done",
+          eventId: row.eventId,
+          calendarId: row.calendarId || undefined,
+        }),
+      });
+      stampedDone = doneRes.ok;
+    } catch {
+      stampedDone = false;
+    }
+    if (!stampedDone) {
+      warning = warning || t("batchHours.doneStampFailed");
+    }
+    return { lineId, stampedDone, warning };
+  }
+
+  async function runBatch() {
+    const ids = bookable.map((r) => r.eventId);
+    if (ids.length === 0) return;
+    let state = startBatchRun(ids, run);
+    setRun(state);
+    for (const eventId of batchRunPending(state)) {
+      const row = rows.find((r) => r.eventId === eventId);
+      const draft = drafts.get(eventId);
+      if (!row || !draft) continue;
+      state = markRowRunning(state, eventId);
+      setRun(state);
+      try {
+        const { lineId, stampedDone, warning } = await bookRow(row, draft);
+        state = markRowBooked(state, eventId, lineId, stampedDone, warning);
+      } catch (err) {
+        state = markRowFailed(
+          state,
+          eventId,
+          err instanceof Error ? err.message : String(err)
+        );
+      }
+      setRun(state);
+    }
+    state = finishBatchRun(state);
+    setRun(state);
+    if (batchRunFullySucceeded(state)) {
+      onOpenChange(false);
+      onBooked?.();
+    }
+  }
+
+  const progress = run ? batchRunProgress(run) : null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl lg:max-w-5xl">
@@ -237,11 +383,6 @@ export function BatchHoursBookDialog({
             {t("batchHours.title", { date: toSwissDate(date) })}
           </DialogTitle>
           <DialogDescription>{t("batchHours.description")}</DialogDescription>
-          {guessing ? (
-            <p className="text-xs text-muted-foreground">
-              {t("batchHours.recognising")}
-            </p>
-          ) : null}
         </DialogHeader>
 
         {rows.length === 0 ? (
@@ -249,7 +390,15 @@ export function BatchHoursBookDialog({
             {t("batchHours.empty")}
           </p>
         ) : (
-          <div className="space-y-2">
+          <div className="relative space-y-2">
+            {busy ? (
+              <div className="pointer-events-none absolute inset-0 z-20 flex items-start justify-center rounded-xl bg-background/60">
+                <span className="mt-6 inline-flex items-center gap-2 rounded-full border border-border bg-popover px-3 py-1.5 text-sm shadow-lg">
+                  <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                  {t("batchHours.pleaseWait")}
+                </span>
+              </div>
+            ) : null}
             {rows.map((row) => {
               const draft = drafts.get(row.eventId);
               if (!draft) return null;
@@ -263,12 +412,9 @@ export function BatchHoursBookDialog({
                   draft={draft}
                   selected={isSelected(row)}
                   onToggle={() =>
-                    setDeselected((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(row.eventId)) next.delete(row.eventId);
-                      else next.add(row.eventId);
-                      return next;
-                    })
+                    setSelection((prev) =>
+                      new Map(prev).set(row.eventId, !isSelected(row))
+                    )
                   }
                   onChange={(next) => updateDraft(row.eventId, next)}
                   projectHits={projectRow === row.eventId ? projectHits : []}
@@ -282,6 +428,12 @@ export function BatchHoursBookDialog({
                   contracts={key ? contractsByKey.get(key) : undefined}
                   contractsLoading={key ? contractsLoading.has(key) : false}
                   onNeedContracts={needContracts}
+                  status={run?.byId[row.eventId]?.status}
+                  error={
+                    run?.byId[row.eventId]?.error ??
+                    run?.byId[row.eventId]?.warning ??
+                    null
+                  }
                 />
               );
             })}
@@ -289,19 +441,45 @@ export function BatchHoursBookDialog({
         )}
 
         {rows.length > 0 ? (
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
-            <p className="text-xs tabular-nums text-muted-foreground">
-              {t("batchHours.selectedCount", {
-                selected: selectedRows.length,
-                total: rows.length,
-              })}
-              {blockedCount > 0
-                ? ` · ${blockedCount}× ${t("batchHours.rowIncomplete")}`
-                : ""}
-            </p>
-            <Button type="button" size="sm" disabled>
-              {t("batchHours.bookAll")}
-            </Button>
+          <div className="space-y-2 border-t pt-3">
+            {progress ? (
+              <div className="space-y-1">
+                <Progress value={progress.percent} />
+                <p className="text-xs tabular-nums text-muted-foreground">
+                  {t("batchHours.progress", {
+                    finished: progress.finished,
+                    total: progress.total,
+                  })}
+                  {progress.failed > 0
+                    ? ` · ${t("batchHours.runFailed", { count: progress.failed })}`
+                    : ""}
+                </p>
+              </div>
+            ) : null}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs tabular-nums text-muted-foreground">
+                {t("batchHours.selectedCount", {
+                  selected: selectedRows.length,
+                  total: rows.length,
+                })}
+                {blockedCount > 0
+                  ? ` · ${blockedCount}× ${t("batchHours.rowIncomplete")}`
+                  : ""}
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                disabled={bookable.length === 0 || Boolean(run?.running)}
+                onClick={() => void runBatch()}
+              >
+                {run?.running ? (
+                  <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                ) : null}
+                {progress && progress.failed > 0 && !run?.running
+                  ? t("batchHours.retryFailed")
+                  : t("batchHours.bookAll")}
+              </Button>
+            </div>
           </div>
         ) : null}
       </DialogContent>
