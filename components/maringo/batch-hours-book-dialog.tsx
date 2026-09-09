@@ -62,6 +62,21 @@ export function BatchHoursBookDialog({
 }) {
   const t = useT();
   const baseRows = useMemo(() => batchHoursRowsForDay(events), [events]);
+  // Declared before the recognition effect on purpose: that effect seeds these
+  // caches from the batch response, and the React compiler rejects reading a
+  // binding declared further down.
+  const [contractsByKey, setContractsByKey] = useState<
+    Map<string, MariKeyPair[]>
+  >(() => new Map());
+  const [contractsLoading, setContractsLoading] = useState<Set<string>>(
+    () => new Set()
+  );
+  const contractsAsked = useRef<Set<string>>(new Set());
+  const [positionsByKey, setPositionsByKey] = useState<
+    Map<string, MariKeyPair[]>
+  >(() => new Map());
+  const positionsAsked = useRef<Set<string>>(new Set());
+
   const [guesses, setGuesses] = useState<Map<string, EventBookingRef | null>>(
     () => new Map()
   );
@@ -186,14 +201,57 @@ export function BatchHoursBookDialog({
           }),
         });
         const json = (await res.json().catch(() => ({}))) as {
-          results?: Array<{ eventId: string; booking: EventBookingRef | null }>;
+          results?: Array<{
+            eventId: string;
+            booking: EventBookingRef | null;
+            projectNumber?: string | null;
+            contracts?: MariKeyPair[];
+            positions?: MariKeyPair[];
+            contractId?: number | null;
+            contractVisible?: string | null;
+          }>;
         };
         if (cancelled) return;
+        // The route already resolved the option lists — seed the caches so no
+        // further round trip is needed to fill the dropdowns.
+        const hits = json.results ?? [];
+        setContractsByKey((prev) => {
+          const next = new Map(prev);
+          for (const hit of hits) {
+            if (!hit.projectNumber || !hit.contracts) continue;
+            const key = `${hit.eventId}:${hit.projectNumber}`;
+            contractsAsked.current.add(key);
+            next.set(key, hit.contracts);
+          }
+          return next;
+        });
+        setPositionsByKey((prev) => {
+          const next = new Map(prev);
+          for (const hit of hits) {
+            if (hit.contractId == null || !hit.positions) continue;
+            const key = `${hit.eventId}:${hit.contractId}`;
+            positionsAsked.current.add(key);
+            next.set(key, hit.positions);
+          }
+          return next;
+        });
         setGuesses((prev) => {
           const next = new Map(prev);
           for (const id of ids) next.set(id, null);
-          for (const hit of json.results ?? []) {
-            next.set(hit.eventId, hit.booking ?? null);
+          for (const hit of hits) {
+            // Carry the server's resolved contract, so a project with exactly
+            // one contract needs no click either.
+            next.set(
+              hit.eventId,
+              hit.booking
+                ? {
+                    ...hit.booking,
+                    contractId: hit.contractId ?? hit.booking.contractId,
+                    contractVisible:
+                      hit.contractVisible ?? hit.booking.contractVisible,
+                  }
+                : null
+            );
           }
           return next;
         });
@@ -246,17 +304,6 @@ export function BatchHoursBookDialog({
     };
   }, [projectRow, projectQuery]);
 
-  const [contractsByKey, setContractsByKey] = useState<
-    Map<string, MariKeyPair[]>
-  >(() => new Map());
-  const [contractsLoading, setContractsLoading] = useState<Set<string>>(
-    () => new Set()
-  );
-
-  const [positionsByKey, setPositionsByKey] = useState<
-    Map<string, MariKeyPair[]>
-  >(() => new Map());
-  const positionsAsked = useRef<Set<string>>(new Set());
   const needPositions = useCallback((eventId: string, contractId: number) => {
     if (!Number.isInteger(contractId) || contractId <= 0) return;
     const key = `${eventId}:${contractId}`;
@@ -286,7 +333,6 @@ export function BatchHoursBookDialog({
     })();
   }, []);
 
-  const contractsAsked = useRef<Set<string>>(new Set());
   const needContracts = useCallback(
     (eventId: string, projectNumber: string) => {
       const key = `${eventId}:${projectNumber}`;

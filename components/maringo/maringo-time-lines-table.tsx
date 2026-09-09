@@ -150,7 +150,9 @@ function ContractCell({
     <Button
       type="button"
       variant="ghost"
-      className="h-auto min-h-0 w-full justify-start rounded-md p-0 text-left font-normal hover:bg-transparent"
+      // text-[length:inherit] keeps the table's size — the button base class
+      // carries text-sm, which made unresolved rows render visibly larger.
+      className="h-auto min-h-0 w-full justify-start whitespace-normal rounded-md p-0 text-left text-[length:inherit] font-normal hover:bg-transparent"
       onClick={() => onResolveLine(line)}
       aria-label={`${line.projectCustomer || line.projectNumber} — ${t("timekeeping.resolveContractAria")}`}
     >
