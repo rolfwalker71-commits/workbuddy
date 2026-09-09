@@ -79,3 +79,21 @@ test("transcriptFailureHint explains unresolved meetings without reconnect", () 
   assert.doesNotMatch(hint, /Neu verbinden/);
   assert.match(hint, /anderen Organisator|Online-Meetings/);
 });
+
+test("transcriptFailureHint blames the tenant when the lookup itself is denied", () => {
+  const hint = transcriptFailureHint({
+    status: "not_found",
+    hasMeetingScope: true,
+    hasTranscriptScope: true,
+    hasChatMessages: false,
+    meetingResolved: false,
+    lookupDenied: {
+      body: JSON.stringify({
+        error: { message: "Graph API access to transcripts is disabled." },
+      }),
+    },
+  });
+  assert.match(hint, /Tenant-Richtlinie/);
+  assert.match(hint, /access to transcripts is disabled/);
+  assert.doesNotMatch(hint, /anderer Organisator/);
+});

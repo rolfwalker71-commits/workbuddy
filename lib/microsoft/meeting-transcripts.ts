@@ -73,6 +73,9 @@ const RECONNECT_HINT =
 const OTHER_ORGANIZER_HINT =
   "Graph findet dieses Meeting nicht unter deinen Online-Meetings. Häufig: ein anderer Organisator, das Meeting ist abgelaufen, oder die Join-URL weicht ab. Delegiert lesbar sind vor allem Meetings, die du organisiert hast.";
 
+const LOOKUP_DENIED_HINT =
+  "Graph verweigert die Abfrage deiner Online-Meetings (403) — das liegt nicht am Organisator. Meist sperrt eine Tenant-Richtlinie den Graph-Zugriff auf Meetings bzw. Transkripte; das muss die Teams-Administration freigeben.";
+
 function result(partial: Partial<MeetingTranscriptResult>): MeetingTranscriptResult {
   return {
     status: partial.status || "empty",
@@ -147,6 +150,8 @@ export function transcriptFailureHint(input: {
   graphBody?: string | null;
   hasChatMessages: boolean;
   meetingResolved: boolean;
+  /** Set when Graph answered 403 to the online-meeting lookup itself. */
+  lookupDenied?: { body: string | null } | null;
 }): string {
   const missingScope = !input.hasMeetingScope || !input.hasTranscriptScope;
   if (missingScope && (input.status === "forbidden" || !input.meetingResolved)) {
@@ -158,6 +163,13 @@ export function transcriptFailureHint(input: {
   const graphMsg = parseGraphErrorMessage(input.graphBody);
   if (input.status === "processing") {
     return "Transkript wird noch verarbeitet. Später erneut öffnen.";
+  }
+  if (!input.meetingResolved && input.lookupDenied) {
+    const denied = parseGraphErrorMessage(input.lookupDenied.body);
+    const extra = denied ? ` Graph: ${denied}` : "";
+    return input.hasChatMessages
+      ? `${LOOKUP_DENIED_HINT}${extra} Meeting-Chat als Ersatz.`
+      : `${LOOKUP_DENIED_HINT}${extra}`;
   }
   if (input.status === "forbidden") {
     if (isOtherOrganizerGraphError(input.graphBody) || !missingScope) {
@@ -213,10 +225,14 @@ export async function getOutlookEventMeetingInfo(
   }
 }
 
+/** Collects a 403 on the lookup itself, so it is not reported as "other organizer". */
+type LookupDenied = { body: string | null };
+
 async function lookupOnlineMeeting(
   userId: number,
   filter: string,
-  pathPrefix = "/me/onlineMeetings"
+  pathPrefix = "/me/onlineMeetings",
+  denied?: { hit: LookupDenied | null }
 ): Promise<MeetingHit | null> {
   const encoded = encodeURIComponent(filter);
   try {
@@ -231,6 +247,9 @@ async function lookupOnlineMeeting(
       error instanceof MicrosoftGraphError &&
       (error.status === 400 || error.status === 403 || error.status === 404)
     ) {
+      if (error.status === 403 && denied && !denied.hit) {
+        denied.hit = { body: error.body ?? null };
+      }
       return null;
     }
     throw error;
@@ -244,12 +263,16 @@ async function lookupOnlineMeetingId(
     chatId?: string | null;
     conferenceId?: string | null;
     organizerEmail?: string | null;
+    denied?: { hit: LookupDenied | null };
   }
 ): Promise<MeetingHit | null> {
+  const denied = opts?.denied;
   for (const url of joinWebUrlFilterValues(joinUrl)) {
     const found = await lookupOnlineMeeting(
       userId,
-      `JoinWebUrl eq '${escapeODataString(url)}'`
+      `JoinWebUrl eq '${escapeODataString(url)}'`,
+      undefined,
+      denied
     );
     if (found) return found;
   }
@@ -258,7 +281,9 @@ async function lookupOnlineMeetingId(
   if (threadId) {
     const byThread = await lookupOnlineMeeting(
       userId,
-      `ChatInfo/ThreadId eq '${escapeODataString(threadId)}'`
+      `ChatInfo/ThreadId eq '${escapeODataString(threadId)}'`,
+      undefined,
+      denied
     );
     if (byThread) return byThread;
   }
@@ -267,7 +292,9 @@ async function lookupOnlineMeetingId(
   if (conferenceId) {
     const byJoinId = await lookupOnlineMeeting(
       userId,
-      `joinMeetingIdSettings/joinMeetingId eq '${escapeODataString(conferenceId)}'`
+      `joinMeetingIdSettings/joinMeetingId eq '${escapeODataString(conferenceId)}'`,
+      undefined,
+      denied
     );
     if (byJoinId) return byJoinId;
   }
@@ -277,7 +304,8 @@ async function lookupOnlineMeetingId(
     const viaOrganizer = await lookupMeetingViaOrganizer(
       userId,
       organizer,
-      joinUrl
+      joinUrl,
+      denied
     );
     if (viaOrganizer) return viaOrganizer;
   }
@@ -289,7 +317,8 @@ async function lookupOnlineMeetingId(
 async function lookupMeetingViaOrganizer(
   userId: number,
   organizerEmail: string,
-  joinUrl: string
+  joinUrl: string,
+  denied?: { hit: LookupDenied | null }
 ): Promise<MeetingHit | null> {
   const upn = organizerEmail.trim();
   if (!upn || !upn.includes("@")) return null;
@@ -309,7 +338,8 @@ async function lookupMeetingViaOrganizer(
     const found = await lookupOnlineMeeting(
       userId,
       `JoinWebUrl eq '${escapeODataString(url)}'`,
-      prefix
+      prefix,
+      denied
     );
     if (found) return found;
   }
@@ -422,7 +452,7 @@ export async function getMeetingTranscript(input: {
   let calendarId = input.calendarId?.trim() || null;
   let joinUrl = input.joinUrl?.trim() || null;
   let chatId = input.chatId?.trim() || null;
-  let issueId = input.issueId ?? null;
+  const issueId = input.issueId ?? null;
   let subject: string | null = null;
   let conferenceId: string | null = null;
   let organizerEmail: string | null = null;
@@ -487,10 +517,12 @@ export async function getMeetingTranscript(input: {
     }
   }
 
+  const denied: { hit: LookupDenied | null } = { hit: null };
   const meeting = await lookupOnlineMeetingId(userId, joinUrl, {
     chatId,
     conferenceId,
     organizerEmail,
+    denied,
   });
   let transcript: Awaited<ReturnType<typeof fetchTranscriptContent>> | null =
     null;
@@ -543,6 +575,7 @@ export async function getMeetingTranscript(input: {
     graphBody: transcript?.graphBody ?? null,
     hasChatMessages: chat.chatMessages.length > 0,
     meetingResolved,
+    lookupDenied: denied.hit,
   });
 
   return result({
