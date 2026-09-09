@@ -2092,7 +2092,7 @@ export const de = {
       "Alle noch nicht gebuchten Termine des Tages. Erkannte Projekte sind vorbelegt.",
     empty: "Für diesen Tag ist alles gebucht.",
     recognising: "Projekte werden erkannt…",
-    pleaseWait: "Kurz warten …",
+    pleaseWait: "Projekte, Verträge werden geladen, bitte warten …",
     progress: "{finished} von {total} gebucht",
     runFailed: "{count} fehlgeschlagen",
     retryFailed: "Fehlgeschlagene erneut buchen",

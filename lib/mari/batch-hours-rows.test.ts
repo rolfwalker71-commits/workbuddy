@@ -158,6 +158,41 @@ test("only rows without a project ask the server for a guess", () => {
   );
 });
 
+test("a guessed project shows its number, not just the customer", () => {
+  const rows = batchHoursRowsForDay([event({ id: "plain", title: "Kanadevia" })]);
+  const merged = applyBatchHoursGuesses(
+    rows,
+    new Map([
+      [
+        "plain",
+        {
+          cardCode: "C7",
+          customerName: "Kanadevia Inova AG",
+          projectNumber: "P600310",
+          // Recognition returns the plain customer name here.
+          projectLabel: "Kanadevia Inova AG",
+          contractId: null,
+          contractVisible: null,
+          source: "guess" as const,
+          meetingKind: "external" as const,
+          contractOptional: false,
+        },
+      ],
+    ])
+  );
+  assert.equal(merged[0]?.defaults.projectNumber, "P600310");
+  // App-wide label format (same helper the single booking dialog uses).
+  assert.equal(
+    merged[0]?.defaults.projectLabel,
+    "Kanadevia Inova AG (P600310)"
+  );
+  assert.match(
+    merged[0]?.defaults.projectLabel ?? "",
+    /P600310/,
+    "the number has to be visible in the field"
+  );
+});
+
 test("a guess fills an empty row and never overrides a mapped one", () => {
   const rows = batchHoursRowsForDay([
     event({ id: "plain", title: "Rinco: Server" }),

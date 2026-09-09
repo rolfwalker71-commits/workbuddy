@@ -13,7 +13,11 @@ import {
   type BatchHoursDraft,
 } from "@/lib/mari/batch-hours-draft";
 import type { BatchRowStatus } from "@/lib/mari/batch-hours-run";
-import type { MariKeyPair } from "@/lib/mari/timekeeping-shared";
+import {
+  findMariKeyPair,
+  formatMariProjectLabel,
+  type MariKeyPair,
+} from "@/lib/mari/timekeeping-shared";
 import { TIMEKEEPING_INT_BEMERKUNG_OPTIONS } from "@/lib/mari/timekeeping-udfs";
 
 const FIELD = "h-8 text-[0.8125rem]";
@@ -52,6 +56,11 @@ export function BatchHoursRowCard({
   const [projectOpen, setProjectOpen] = useState(false);
   const [query, setQuery] = useState("");
   const blockers = draftBlockers(draft);
+  // Recognition may deliver a visible contract number, the options key on the
+  // internal id — match tolerantly, the way the single dialog does.
+  const contractHit =
+    findMariKeyPair(contracts ?? [], draft.contractId) ||
+    findMariKeyPair(contracts ?? [], draft.contractVisible);
 
   return (
     <div
@@ -145,7 +154,10 @@ export function BatchHoursRowCard({
                       onChange({
                         ...draft,
                         projectNumber: hit.keyVisible,
-                        projectLabel: `${hit.keyVisible} ${hit.matchcode}`.trim(),
+                        projectLabel: formatMariProjectLabel(
+                          hit.keyVisible,
+                          hit.matchcode
+                        ),
                         contractId: null,
                         contractVisible: null,
                         contractPositionId: null,
@@ -168,7 +180,7 @@ export function BatchHoursRowCard({
           <span className={LABEL}>{t("batchHours.columnContract")}</span>
           <select
             className="h-8 w-full rounded-md border border-border bg-background px-2 text-[0.8125rem]"
-            value={draft.contractId != null ? String(draft.contractId) : ""}
+            value={contractHit?.keyInternal ?? ""}
             onFocus={() => {
               if (draft.projectNumber) {
                 onNeedContracts(row.eventId, draft.projectNumber);
@@ -192,11 +204,9 @@ export function BatchHoursRowCard({
                   ? t("batchHours.contractLoading")
                   : t("batchHours.contractKeep")}
             </option>
-            {draft.contractId != null &&
-            !(contracts ?? []).some(
-              (c) => c.keyInternal === String(draft.contractId)
-            ) ? (
-              <option value={String(draft.contractId)}>
+            {(draft.contractId != null || draft.contractVisible) &&
+            !contractHit ? (
+              <option value={String(draft.contractId ?? "")}>
                 {draft.contractVisible || String(draft.contractId)}
               </option>
             ) : null}

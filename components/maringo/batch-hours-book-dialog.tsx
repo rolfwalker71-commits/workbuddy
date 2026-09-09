@@ -39,7 +39,10 @@ import {
 } from "@/lib/mari/batch-hours-run";
 import type { PersistedBatchDay } from "@/lib/mari/batch-hours-store";
 import type { EventBookingRef } from "@/lib/mari/event-booking-ref";
-import type { MariKeyPair } from "@/lib/mari/timekeeping-shared";
+import {
+  findMariKeyPair,
+  type MariKeyPair,
+} from "@/lib/mari/timekeeping-shared";
 import { toSwissDate } from "@/lib/utils/dates";
 
 export function BatchHoursBookDialog({
@@ -290,6 +293,57 @@ export function BatchHoursBookDialog({
       if (projectNumber) needContracts(row.eventId, projectNumber);
     }
   }, [open, rows, drafts, needContracts]);
+
+  /**
+   * The recognition may hand us a contract by its visible number while the
+   * dropdown keys on the internal id. Once a row's contract list is in, map
+   * the value onto the real option — otherwise the field shows a bare number
+   * that matches nothing. Not an edit, so it is not marked as touched.
+   */
+  useEffect(() => {
+    if (contractsByKey.size === 0) return;
+    setDrafts((prev) => {
+      let next = prev;
+      for (const row of rows) {
+        const draft = next.get(row.eventId);
+        if (!draft?.projectNumber) continue;
+        const options = contractsByKey.get(
+          `${row.eventId}:${draft.projectNumber}`
+        );
+        if (!options || options.length === 0) continue;
+        const hit =
+          findMariKeyPair(options, draft.contractId) ||
+          findMariKeyPair(options, draft.contractVisible);
+        if (!hit) {
+          // The recognised contract is not one of this project's — drop it
+          // instead of booking a number that matches nothing in Maringo.
+          if (draft.contractId == null && !draft.contractVisible) continue;
+          if (next === prev) next = new Map(prev);
+          next.set(row.eventId, {
+            ...draft,
+            contractId: null,
+            contractVisible: null,
+          });
+          continue;
+        }
+        const internal = Number(hit.keyInternal);
+        if (!Number.isInteger(internal)) continue;
+        if (
+          draft.contractId === internal &&
+          draft.contractVisible === hit.keyVisible
+        ) {
+          continue;
+        }
+        if (next === prev) next = new Map(prev);
+        next.set(row.eventId, {
+          ...draft,
+          contractId: internal,
+          contractVisible: hit.keyVisible,
+        });
+      }
+      return next;
+    });
+  }, [rows, contractsByKey]);
 
   /** Recognition or a contract list is still on its way. */
   const busy = guessing || contractsLoading.size > 0;

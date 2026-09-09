@@ -2079,7 +2079,7 @@ export const en = {
       "Every event of the day that is not booked yet. Detected projects are prefilled.",
     empty: "Everything is booked for this day.",
     recognising: "Detecting projects…",
-    pleaseWait: "One moment …",
+    pleaseWait: "Loading projects and contracts, one moment …",
     progress: "{finished} of {total} booked",
     runFailed: "{count} failed",
     retryFailed: "Retry the failed rows",

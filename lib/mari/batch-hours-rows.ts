@@ -15,6 +15,7 @@ import {
   calendarEventToBookDefaults,
   type CalendarEventBookDefaults,
 } from "@/lib/mari/event-title-tokens";
+import { formatMariProjectLabel } from "@/lib/mari/timekeeping-shared";
 import type { WorkspaceEventMari } from "@/lib/workspace/event-mari-shared";
 
 export type BatchHoursSourceEvent = {
@@ -128,7 +129,12 @@ export function applyBatchHoursGuesses(
       defaults: {
         ...row.defaults,
         projectNumber: guess.projectNumber,
-        projectLabel: guess.projectLabel || guess.projectNumber,
+        // Recognition hands back the customer name only; the number lives in
+        // projectNumber, so build the same label the single dialog shows.
+        projectLabel: formatMariProjectLabel(
+          guess.projectNumber,
+          guess.projectLabel || guess.customerName
+        ),
         contractId:
           row.defaults.contractId ??
           (guess.contractId != null && guess.contractId > 0
