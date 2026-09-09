@@ -60,7 +60,9 @@ export function draftFromRow(row: BatchHoursRow): BatchHoursDraft {
     contractPositionId: d.contractPositionId,
     contractOptional: d.contractOptional === true,
     activity: d.activity,
-    memoText: d.memoText,
+    // No memo suggestion — the title is already the activity, and a prefilled
+    // memo only had to be cleared again on every row.
+    memoText: "",
     hoursRaw: formatHoursInput(d.hours),
     hoursBillableRaw: formatHoursInput(d.hoursBillable),
     billableDirty: d.hours !== d.hoursBillable,

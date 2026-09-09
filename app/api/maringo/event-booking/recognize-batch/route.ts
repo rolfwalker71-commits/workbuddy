@@ -4,6 +4,7 @@ import { withMariModule } from "@/lib/mari/with-module";
 import { hasMariConfig } from "@/lib/mari/config";
 import { recognizeEventBooking } from "@/lib/mari/event-booking";
 import { classifyEventMeetingKind } from "@/lib/mari/event-booking-ref";
+import { mapWithConcurrency } from "@/lib/utils/map-concurrency";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,36 +44,36 @@ export async function POST(request: Request) {
       );
     }
 
-    const results = [];
-    for (const event of body.events) {
+    // Each recognition is its own MARI round trip. Sequentially that is ~1.5s
+    // per event, so a normal day took ten seconds before the list filled in.
+    const results = await mapWithConcurrency(body.events, 5, async (event) => {
       const emails = event.attendeeEmails ?? [];
       if (!event.title && emails.length === 0) {
-        results.push({
+        return {
           eventId: event.eventId,
           booking: null,
           meetingKind: classifyEventMeetingKind(emails),
-        });
-        continue;
+        };
       }
       try {
         const hit = await recognizeEventBooking({
           title: event.title,
           attendeeEmails: emails,
         });
-        results.push({
+        return {
           eventId: event.eventId,
           booking: hit.booking,
           meetingKind: hit.meetingKind,
-        });
+        };
       } catch {
         // One unrecognised row must not fail the whole day.
-        results.push({
+        return {
           eventId: event.eventId,
           booking: null,
           meetingKind: classifyEventMeetingKind(emails),
-        });
+        };
       }
-    }
+    });
 
     return NextResponse.json({ results });
   });

@@ -60,6 +60,14 @@ test("draft starts from the row defaults", () => {
   assert.deepEqual(draftBlockers(draft), []);
 });
 
+test("memo starts empty and is sent as null when untouched", () => {
+  const row = rowWithProject();
+  const draft = draftFromRow(row);
+  assert.equal(draft.memoText, "");
+  assert.equal(draftToLinePayload(row, draft)?.memoText, null);
+  assert.equal(draft.activity, "Rinco: Server", "activity keeps the title");
+});
+
 test("Verrechenbar follows Geleistet until it is edited", () => {
   const row = rowWithProject();
   let draft = draftFromRow(row);

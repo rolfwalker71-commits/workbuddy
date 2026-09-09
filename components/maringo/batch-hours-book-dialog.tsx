@@ -205,6 +205,16 @@ export function BatchHoursBookDialog({
     []
   );
 
+  // Warm the contract lists as soon as a row has a project, so the dropdown
+  // shows its real label right away instead of a bare id that changes later.
+  useEffect(() => {
+    if (!open) return;
+    for (const row of rows) {
+      const projectNumber = drafts.get(row.eventId)?.projectNumber;
+      if (projectNumber) needContracts(row.eventId, projectNumber);
+    }
+  }, [open, rows, drafts, needContracts]);
+
   const isSelected = (row: BatchHoursRow) =>
     row.selected && !deselected.has(row.eventId);
 
