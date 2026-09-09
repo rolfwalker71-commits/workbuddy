@@ -17,3 +17,7 @@ npm-debug.log*
 !.gitkeep
 *.tsbuildinfo
 next-env.d.ts
+# Design mockups stay local: anything under public/ is served without auth.
+/public/mockups/*
+!/public/mockups/teams-inbox/
+!/public/mockups/workbuddy-surfaces-mockup.png
