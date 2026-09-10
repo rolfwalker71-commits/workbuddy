@@ -50,18 +50,42 @@ export function mariStatusSuggestsStaleAuth(status: number): boolean {
   );
 }
 
+/**
+ * Ceiling per MARI call. Matters more since requests are serialized: without
+ * it one hung call blocks every other one behind the gate, with no way out but
+ * restarting the process. Measured calls land at 35-250ms and a login at ~2s,
+ * so this only ever fires on a genuinely stuck request.
+ */
+export const MARI_REQUEST_TIMEOUT_MS = 20_000;
+
+/** An aborted fetch is a timeout, not a dead session — never retry-login it. */
+export function isMariTimeoutError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const name = (err as { name?: unknown }).name;
+  return name === "TimeoutError" || name === "AbortError";
+}
+
+function withTimeout(init: RequestInit): RequestInit {
+  // A caller that brought its own signal owns cancellation.
+  if (init.signal) return init;
+  return { ...init, signal: AbortSignal.timeout(MARI_REQUEST_TIMEOUT_MS) };
+}
+
 async function fetchToken(cfg: MariConfig): Promise<TokenCache> {
   const body = new URLSearchParams({
     username: cfg.username,
     password: cfg.password,
     grant_type: "password",
   });
-  const res = await fetch(`${cfg.baseUrl}/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-    cache: "no-store",
-  });
+  const res = await fetch(
+    `${cfg.baseUrl}/token`,
+    withTimeout({
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+      cache: "no-store",
+    })
+  );
   const json = (await res.json().catch(() => null)) as {
     access_token?: string;
     expires_in?: number;
@@ -218,8 +242,17 @@ async function mariFetchUnguarded(
 
   let res: Response;
   try {
-    res = await fetch(url, { ...init, headers, cache: "no-store" });
+    res = await fetch(url, withTimeout({ ...init, headers, cache: "no-store" }));
   } catch (err) {
+    if (isMariTimeoutError(err)) {
+      // Fail fast rather than doubling the wait behind the gate.
+      throw new MariApiError(
+        `MARI hat auf ${path} nicht innerhalb von ${Math.round(
+          MARI_REQUEST_TIMEOUT_MS / 1000
+        )} Sekunden geantwortet.`,
+        504
+      );
+    }
     // Transient network blip after idle — one re-login + retry.
     if (staleGeneration === undefined) {
       return mariFetchUnguarded(path, init, auth.generation);
