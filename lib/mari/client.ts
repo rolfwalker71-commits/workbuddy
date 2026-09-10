@@ -1,4 +1,5 @@
 import { getMariConfig, type MariConfig } from "@/lib/mari/config";
+import { createLane } from "@/lib/utils/lane";
 
 type TokenCache = {
   accessToken: string;
@@ -183,45 +184,35 @@ export function requireMariConfig(): MariConfig {
 }
 
 /**
- * One MARI request at a time, per process.
+ * MARI tolerates parallel SQL but not parallel REST — measured, in two lanes.
  *
- * Measured against the live service: `/api/TimeKeepingLine/{id}` answered 40 of
- * 40 requests when issued one after another, lost 24 of 40 with two in flight,
- * and lost every single one from four upwards. The list endpoints behave the
- * same as soon as anything else is in flight. MARI reports the overload as the
- * same opaque `{"Message":"An error has occurred."}` it uses for a dead session,
- * so parallel calls did not just fail — they were read as expired logins and
- * each bought a ~2s re-login, which in turn invalidated the session the other
- * in-flight calls were using.
+ * `/api/TimeKeepingLine/{id}` answered 40 of 40 requests issued one after
+ * another, lost 24 of 40 with two in flight, and lost every single one from
+ * four upwards. The list endpoints behave the same as soon as anything else is
+ * in flight. MARI reports the overload as the same opaque
+ * `{"Message":"An error has occurred."}` it uses for a dead session, so
+ * parallel REST did not merely fail — it looked like an expired login and each
+ * failure bought a ~2s re-login, which invalidated the session the calls still
+ * running were using. Serialising REST is what makes the hours list return
+ * complete contract labels at all.
  *
- * The gate is what makes the hours list return complete contract data at all.
- * Serial is also barely slower: a full month measured 11.6s serial against
- * 13-17s parallel, and the parallel run dropped most of the labels.
+ * SQL is a different story: 20 SELECTs four deep came back clean, and stayed
+ * clean while REST ran serially beside them. Putting SQL behind the same single
+ * gate made booking recognition — which is nothing but SELECTs — crawl, so it
+ * gets its own lane.
  */
-let mariGate: Promise<void> = Promise.resolve();
-
-function enterMariGate(): Promise<() => void> {
-  let release!: () => void;
-  const next = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  const waitFor = mariGate;
-  mariGate = mariGate.then(() => next);
-  return waitFor.then(() => release);
-}
+const SQL_PATH = "/api/SystemToolsReadDataFromDB";
+const mariSqlLane = createLane(4);
+const mariRestLane = createLane(1);
 
 export async function mariFetch(
   path: string,
   init: RequestInit = {}
 ): Promise<Response> {
-  const release = await enterMariGate();
-  try {
-    // The gate spans the retry too: a re-login must not race the calls that
-    // are still using the old token, or it invalidates them mid-flight.
-    return await mariFetchUnguarded(path, init);
-  } finally {
-    release();
-  }
+  const lane = path.startsWith(SQL_PATH) ? mariSqlLane : mariRestLane;
+  // The lane spans the retry too: a re-login must not race the calls that are
+  // still using the old token, or it invalidates them mid-flight.
+  return lane.run(() => mariFetchUnguarded(path, init));
 }
 
 async function mariFetchUnguarded(
@@ -306,6 +297,44 @@ export async function mariJson<T>(
   return (json ?? null) as T;
 }
 
+/**
+ * Tables this MARI schema does not expose.
+ *
+ * Several lookups walk a list of candidate tables — MARIProject, MARIProjects,
+ * OPRJ, OCRD, OOAT — because the schema differs between installations. On this
+ * one most of them do not exist, and each miss cost a full round trip: booking
+ * recognition spent 3-6s per appointment re-asking for a table that has never
+ * been there. A missing table stays missing for the life of the process.
+ */
+const missingSqlTables = new Set<string>();
+
+export function missingSqlTableFromMessage(message: string): string | null {
+  const hit = /Could not find table\/view\s+([A-Za-z0-9_]+)\s+in schema/i.exec(
+    message
+  );
+  return hit?.[1] ?? null;
+}
+
+/** Only FROM/JOIN targets — a column may legitimately share a table's name. */
+export function sqlTargetsTable(sql: string, tables: Set<string>): string | null {
+  if (tables.size === 0) return null;
+  for (const m of sql.matchAll(/\b(?:FROM|JOIN)\s+"?([A-Za-z0-9_]+)"?/gi)) {
+    const name = m[1];
+    if (name && tables.has(name.toUpperCase())) return name;
+  }
+  return null;
+}
+
+/** Test seam — the set is process-wide and must not leak between cases. */
+export function resetMissingSqlTables(): void {
+  missingSqlTables.clear();
+}
+
+function rememberMissingTable(message: unknown): void {
+  const missing = missingSqlTableFromMessage(String(message ?? ""));
+  if (missing) missingSqlTables.add(missing.toUpperCase());
+}
+
 /** Nur SELECT — HANA quoted identifiers. */
 export async function mariSql<T extends Record<string, unknown>>(
   sql: string
@@ -313,15 +342,29 @@ export async function mariSql<T extends Record<string, unknown>>(
   if (!/^\s*SELECT\b/i.test(sql) || /;/.test(sql)) {
     throw new MariApiError("Nur ein SELECT ohne Semikolon erlaubt.", 400);
   }
-  const rows = await mariJson<T[] | { Message?: string }>(
-    "/api/SystemToolsReadDataFromDB",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ SQL: sql }),
-    }
-  );
+  const knownMissing = sqlTargetsTable(sql, missingSqlTables);
+  if (knownMissing) {
+    throw new MariApiError(
+      `Tabelle ${knownMissing} existiert in diesem MARI-Schema nicht.`,
+      400
+    );
+  }
+  let rows: T[] | { Message?: string };
+  try {
+    rows = await mariJson<T[] | { Message?: string }>(
+      "/api/SystemToolsReadDataFromDB",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ SQL: sql }),
+      }
+    );
+  } catch (err) {
+    if (err instanceof MariApiError) rememberMissingTable(err.message);
+    throw err;
+  }
   if (!Array.isArray(rows)) {
+    rememberMissingTable((rows as { Message?: string })?.Message);
     throw new MariApiError(
       (rows as { Message?: string })?.Message || "SQL-Antwort ungültig",
       502,
@@ -335,11 +378,9 @@ export async function mariSql<T extends Record<string, unknown>>(
     "Message" in rows[0] &&
     typeof (rows[0] as unknown as { Message: unknown }).Message === "string"
   ) {
-    throw new MariApiError(
-      String((rows[0] as unknown as { Message: string }).Message),
-      502,
-      rows[0]
-    );
+    const message = String((rows[0] as unknown as { Message: string }).Message);
+    rememberMissingTable(message);
+    throw new MariApiError(message, 502, rows[0]);
   }
   return rows;
 }
