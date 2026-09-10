@@ -120,6 +120,7 @@ export function MaringoTicketKopfForm({
       : ""
   );
   const [positions, setPositions] = useState<MariKeyPair[]>([]);
+  const [positionsLoading, setPositionsLoading] = useState(false);
   const [contractPositionId, setContractPositionId] = useState(
     defaults.contractPositionId != null && defaults.contractPositionId > 0
       ? String(defaults.contractPositionId)
@@ -265,9 +266,11 @@ export function MaringoTicketKopfForm({
   useEffect(() => {
     if (!contractId) {
       setPositions([]);
+      setPositionsLoading(false);
       return;
     }
     let cancelled = false;
+    setPositionsLoading(true);
     void (async () => {
       try {
         const res = await fetch(
@@ -289,6 +292,8 @@ export function MaringoTicketKopfForm({
         if (!cancelled) {
           setError(err instanceof Error ? err.message : String(err));
         }
+      } finally {
+        if (!cancelled) setPositionsLoading(false);
       }
     })();
     return () => {
@@ -546,13 +551,19 @@ export function MaringoTicketKopfForm({
             setContractPositionId("");
           }}
         />
-        {positions.length > 0 ? (
+        {Number(contractId) > 0 ? (
           <MariKeyPairPicker
             id="tk-kopf-pos"
             label={t("timekeeping.contractPosition")}
             value={contractPositionId}
             options={positions}
             placeholder={t("timekeeping.choosePosition")}
+            emptyLabel={
+              positionsLoading
+                ? t("timekeeping.loadingPositions")
+                : t("timekeeping.noPositionAvailable")
+            }
+            disabled={positionsLoading}
             onChange={setContractPositionId}
           />
         ) : null}

@@ -209,6 +209,7 @@ export function MaringoTimeBookForm({
     defaults?.contractId != null ? String(defaults.contractId) : ""
   );
   const [positions, setPositions] = useState<MariKeyPair[]>([]);
+  const [positionsLoading, setPositionsLoading] = useState(false);
   const [contractPositionId, setContractPositionId] = useState(
     defaults?.contractPositionId != null
       ? String(defaults.contractPositionId)
@@ -394,9 +395,11 @@ export function MaringoTimeBookForm({
     if (!contractId || Number(contractId) <= 0) {
       setPositions([]);
       setContractPositionId("");
+      setPositionsLoading(false);
       return;
     }
     let cancelled = false;
+    setPositionsLoading(true);
     (async () => {
       try {
         const qs =
@@ -423,6 +426,8 @@ export function MaringoTimeBookForm({
         if (!cancelled) {
           setError(err instanceof Error ? err.message : String(err));
         }
+      } finally {
+        if (!cancelled) setPositionsLoading(false);
       }
     })();
     return () => {
@@ -1089,13 +1094,25 @@ export function MaringoTimeBookForm({
             setContractPositionId("");
           }}
         />
-        {positions.length > 0 ? (
+        {/*
+          Shown as soon as a contract is picked, even with no options yet.
+          Hiding it on an empty list meant a failed position lookup silently
+          removed a field MARI insists on — the booking then came back with
+          «Vertragsposition fehlt» and nothing on screen explained why.
+        */}
+        {Number(contractId) > 0 ? (
           <MariKeyPairPicker
             id="tk-pos"
             label={t("timekeeping.contractPosition")}
             value={contractPositionId}
             options={positions}
             placeholder={t("timekeeping.choosePosition")}
+            emptyLabel={
+              positionsLoading
+                ? t("timekeeping.loadingPositions")
+                : t("timekeeping.noPositionAvailable")
+            }
+            disabled={positionsLoading}
             onChange={setContractPositionId}
           />
         ) : null}

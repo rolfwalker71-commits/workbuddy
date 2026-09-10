@@ -1860,6 +1860,8 @@ export const en = {
     chooseContract: "Choose contract…",
     noContractNeeded: "No contract needed",
     choosePosition: "Choose position…",
+    loadingPositions: "Loading positions…",
+    noPositionAvailable: "No position available",
     activityMissing: "Activity is missing.",
     chooseProject: "Please choose a project.",
     chooseContractErr: "Please choose a contract.",

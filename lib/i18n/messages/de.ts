@@ -1869,6 +1869,8 @@ export const de = {
     chooseContract: "Vertrag wählen…",
     noContractNeeded: "Kein Vertrag nötig",
     choosePosition: "Position wählen…",
+    loadingPositions: "Positionen werden geladen…",
+    noPositionAvailable: "Keine Position vorhanden",
     activityMissing: "Aktivität fehlt.",
     chooseProject: "Bitte Projekt wählen.",
     chooseContractErr: "Bitte Vertrag wählen.",
