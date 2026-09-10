@@ -15,6 +15,11 @@ import {
   type EventBookingRef,
   type EventMeetingKind,
 } from "@/lib/mari/event-booking-ref";
+import {
+  eventRecognitionKey,
+  readEventRecognition,
+  writeEventRecognition,
+} from "@/lib/mari/event-recognition-cache";
 import { eventTitleHasInternMarker } from "@/lib/mari/event-title-tokens";
 import { formatMariProjectLabel } from "@/lib/mari/timekeeping-shared";
 import type { MariTicketListItem } from "@/lib/mari/tickets";
@@ -100,6 +105,13 @@ export async function recognizeEventBooking(input: {
   meetingKind: EventMeetingKind;
 }> {
   const meetingKind = classifyEventMeetingKind(input.attendeeEmails);
+  // The result depends on nothing but title and attendees, and the same
+  // recurring meetings come round every day — so it is worth remembering.
+  // meetingKind is derived locally and stays out of the cache.
+  const cacheKey = eventRecognitionKey(input.title, input.attendeeEmails);
+  const cached = readEventRecognition(cacheKey);
+  if (cached) return { booking: cached.booking, meetingKind };
+
   const titleForceIntern = eventTitleHasInternMarker(input.title);
   const titleResult = await suggestMariPartnersFromEventTitle(
     (input.title || "").slice(0, 200)
@@ -135,6 +147,7 @@ export async function recognizeEventBooking(input: {
       contractId: s.contractId,
     })),
   });
+  writeEventRecognition(cacheKey, input.title, booking);
   return { booking, meetingKind };
 }
 

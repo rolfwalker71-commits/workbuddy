@@ -31,6 +31,7 @@ export function bootstrapDatabase(db: Database.Database): void {
   ensureTeamsThreadState(db);
   ensureUserActivityTables(db);
   ensureMariTimeLineLabels(db);
+  ensureMariEventRecognition(db);
   encryptStoredOauthTokens(db);
   purgeGoogleRemnants(db);
 }
@@ -70,6 +71,17 @@ function encryptStoredOauthTokens(db: Database.Database): void {
   console.log(
     `[workbuddy] encrypted ${rows.length} stored OAuth token row(s) at rest.`
   );
+}
+
+function ensureMariEventRecognition(db: Database.Database): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS mari_event_recognition (
+      cache_key TEXT PRIMARY KEY,
+      title TEXT,
+      booking_json TEXT,
+      recognised_at TEXT NOT NULL
+    );
+  `);
 }
 
 function ensureMariTimeLineLabels(db: Database.Database): void {

@@ -111,6 +111,13 @@ CREATE TABLE IF NOT EXISTS mail_sender_prefs (
   PRIMARY KEY (user_id, from_domain)
 );
 
+CREATE TABLE IF NOT EXISTS mari_event_recognition (
+  cache_key TEXT PRIMARY KEY,
+  title TEXT,
+  booking_json TEXT,
+  recognised_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS mari_time_line_labels (
   line_id INTEGER PRIMARY KEY,
   contract_id INTEGER,
