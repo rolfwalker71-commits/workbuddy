@@ -18,6 +18,15 @@ export function getEncryptionKey(): Buffer {
   return createHash("sha256").update(secret).digest();
 }
 
+/**
+ * Whether a usable key is configured. Callers that must not fail — storing a
+ * refresh token, say, where throwing would force the user to reconnect — check
+ * this and fall back to writing plaintext instead of losing the value.
+ */
+export function hasEncryptionKey(): boolean {
+  return encryptionSecret().length >= 32;
+}
+
 export function encryptSecret(plaintext: string | null | undefined): string | null {
   const value = plaintext?.trim() || "";
   if (!value) return null;

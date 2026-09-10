@@ -1,6 +1,7 @@
 import type Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
+import { encryptSecret, hasEncryptionKey } from "@/lib/crypto/secret-box";
 
 /**
  * Apply schema + safe column migrations to an open DB connection.
@@ -30,7 +31,45 @@ export function bootstrapDatabase(db: Database.Database): void {
   ensureTeamsThreadState(db);
   ensureUserActivityTables(db);
   ensureMariTimeLineLabels(db);
+  encryptStoredOauthTokens(db);
   purgeGoogleRemnants(db);
+}
+
+/**
+ * Move OAuth refresh tokens from plain JSON to the encrypted form, in place.
+ *
+ * Deliberately a rewrite and not a re-issue: the readers accept both shapes, so
+ * nobody has to sign in again or reconnect their Microsoft account. Skipped
+ * entirely when no key is configured — encrypting then would throw and the
+ * token would be the thing that breaks.
+ */
+function encryptStoredOauthTokens(db: Database.Database): void {
+  if (!hasEncryptionKey()) return;
+  const rows = db
+    .prepare(
+      `SELECT key, value FROM settings
+       WHERE key LIKE 'microsoft_oauth_tokens_u%'
+         AND value IS NOT NULL AND TRIM(value) != ''
+         AND value NOT LIKE 'wb1:%'`
+    )
+    .all() as Array<{ key: string; value: string }>;
+  if (rows.length === 0) return;
+  const update = db.prepare(`UPDATE settings SET value = ? WHERE key = ?`);
+  for (const row of rows) {
+    try {
+      const encrypted = encryptSecret(row.value);
+      if (encrypted) update.run(encrypted, row.key);
+    } catch (error) {
+      // Leave the plaintext row alone — readable beats lost.
+      console.warn(
+        `[workbuddy] could not encrypt ${row.key}:`,
+        error instanceof Error ? error.message : error
+      );
+    }
+  }
+  console.log(
+    `[workbuddy] encrypted ${rows.length} stored OAuth token row(s) at rest.`
+  );
 }
 
 function ensureMariTimeLineLabels(db: Database.Database): void {

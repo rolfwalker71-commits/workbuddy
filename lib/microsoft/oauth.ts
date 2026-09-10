@@ -1,4 +1,9 @@
 import { getSetting, setSetting } from "@/lib/db/migrations";
+import {
+  encryptSecret,
+  hasEncryptionKey,
+  readStoredSecret,
+} from "@/lib/crypto/secret-box";
 import { absoluteOauthRedirectUrl } from "@/lib/app-url";
 import { outboundFetch } from "@/lib/net/outbound-fetch";
 import type { AuthContext } from "@/lib/auth/current-user";
@@ -111,13 +116,20 @@ function tokenEndpoint(): string {
   return `https://login.microsoftonline.com/${encodeURIComponent(getMicrosoftOauthTenant())}/oauth2/v2.0/token`;
 }
 
+/**
+ * A refresh token is standing access to the mailbox, calendar and Teams chats,
+ * so it is encrypted at rest like every other secret. Rows written before that
+ * are plain JSON and stay readable — `readStoredSecret` passes anything without
+ * the `wb1:` prefix straight through, so nobody has to reconnect. Bootstrap
+ * rewrites them encrypted on the next start.
+ */
 export function readMicrosoftUserTokens(
   userId: number
 ): MicrosoftUserTokens | null {
-  const raw = getSetting(tokensSettingKey(userId));
-  if (!raw) return null;
+  const stored = readStoredSecret(getSetting(tokensSettingKey(userId)));
+  if (!stored.value) return null;
   try {
-    const parsed = JSON.parse(raw) as MicrosoftUserTokens;
+    const parsed = JSON.parse(stored.value) as MicrosoftUserTokens;
     if (!parsed?.refreshToken) return null;
     return parsed;
   } catch {
@@ -133,12 +145,15 @@ export function saveMicrosoftUserTokens(
     setSetting(tokensSettingKey(userId), null);
     return;
   }
+  const json = JSON.stringify({
+    ...tokens,
+    updatedAt: new Date().toISOString(),
+  } satisfies MicrosoftUserTokens);
+  // Without a key, store plaintext rather than throw: losing the token here
+  // would silently disconnect the user on their next refresh.
   setSetting(
     tokensSettingKey(userId),
-    JSON.stringify({
-      ...tokens,
-      updatedAt: new Date().toISOString(),
-    } satisfies MicrosoftUserTokens)
+    hasEncryptionKey() ? encryptSecret(json) : json
   );
 }
 
