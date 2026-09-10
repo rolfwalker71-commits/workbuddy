@@ -591,7 +591,7 @@ export function HomeOverview() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   const todayEvents = useMemo(
     () =>

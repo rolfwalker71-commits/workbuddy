@@ -301,7 +301,7 @@ export function CustomerWorkspacePanel({
     return () => {
       cancelled = true;
     };
-  }, [cardCode, refreshKey]);
+  }, [cardCode, refreshKey, t]);
 
   useEffect(() => {
     const q = query.trim();

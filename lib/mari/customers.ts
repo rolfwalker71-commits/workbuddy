@@ -897,11 +897,9 @@ async function suggestPartnersFromTitleName(
 export async function suggestMariPartnersFromEventTitle(
   title: string
 ): Promise<MariEventTitleSuggestResult> {
-  const {
-    parseEventTitleTokens,
-    eventTitleNameCandidates,
-    isConfidentCustomerNameHit,
-  } = await import("@/lib/mari/event-title-tokens");
+  const { parseEventTitleTokens, eventTitleNameCandidates } = await import(
+    "@/lib/mari/event-title-tokens"
+  );
   const tokens = parseEventTitleTokens(title);
   const out: MariEmailPartnerSuggestion[] = [];
   const seen = new Set<string>();

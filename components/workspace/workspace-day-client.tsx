@@ -817,7 +817,7 @@ export function WorkspaceDayClient() {
       setMsConnected(false);
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, [wantMs]);
+  }, [wantMs, t]);
 
   const loadCalendar = useCallback(async () => {
     setCalLoading(true);
@@ -842,7 +842,7 @@ export function WorkspaceDayClient() {
     } finally {
       setCalLoading(false);
     }
-  }, [msConnected, calDate]);
+  }, [msConnected, calDate, t]);
 
   const loadMail = useCallback(async (from?: string, to?: string) => {
     const clamped = clampMailRange(from || mailFrom, to || mailTo);
@@ -889,7 +889,7 @@ export function WorkspaceDayClient() {
     } finally {
       setMailLoading(false);
     }
-  }, [mailFrom, mailTo, msConnected]);
+  }, [mailFrom, mailTo, msConnected, t]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -1198,7 +1198,7 @@ export function WorkspaceDayClient() {
       setMailView("tagesanalysen");
       replaceQuery({ tab: "mail", view: "tagesanalysen", review: null });
     },
-    [replaceQuery]
+    [replaceQuery, t]
   );
 
   const stopPoll = useCallback(() => {
@@ -1264,7 +1264,7 @@ export function WorkspaceDayClient() {
         setAnalyzeNotice(null);
       }
     },
-    [applyAnalysisPayload]
+    [applyAnalysisPayload, t]
   );
 
   const mergeCachedFromJson = useCallback(
@@ -1378,7 +1378,7 @@ export function WorkspaceDayClient() {
         /* ignore */
       }
     },
-    [hydrateFromJob, mergeCachedFromJson, startPolling]
+    [hydrateFromJob, mergeCachedFromJson, startPolling, t]
   );
 
   useEffect(() => {

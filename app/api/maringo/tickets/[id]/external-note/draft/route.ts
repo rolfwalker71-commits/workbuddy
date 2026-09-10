@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function POST(_request: Request, context: Ctx) {
-  return withMariModule(async (auth) => {
+  return withMariModule(async () => {
   if (!hasMariConfig()) {
     return NextResponse.json(
       { error: "MARI nicht konfiguriert." },

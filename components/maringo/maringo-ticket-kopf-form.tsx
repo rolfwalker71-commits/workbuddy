@@ -230,7 +230,7 @@ export function MaringoTicketKopfForm({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [projectOpen, projectQuery]);
+  }, [projectOpen, projectQuery, t]);
 
   useEffect(() => {
     if (!projectNumber) {
@@ -260,7 +260,7 @@ export function MaringoTicketKopfForm({
     return () => {
       cancelled = true;
     };
-  }, [projectNumber]);
+  }, [projectNumber, t]);
 
   useEffect(() => {
     if (!contractId) {

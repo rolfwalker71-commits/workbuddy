@@ -20,6 +20,23 @@ const eslintConfig = defineConfig([
     rules: { "@typescript-eslint/no-require-imports": "off" },
   },
   {
+    // A leading underscore is how this codebase marks a binding that exists
+    // only to be discarded — a destructured field that must not be forwarded,
+    // or a parameter kept for signature compatibility. Without this the
+    // convention reads as ten warnings and hides the genuinely dead code.
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          destructuredArrayIgnorePattern: "^_",
+        },
+      ],
+    },
+  },
+  {
     // Warn, not error: ~90 hits, and most are load-on-mount or hydration flags
     // rather than defects. As errors they drowned out real findings and made
     // `npm run lint` useless as a gate. Raise back to "error" once the effects

@@ -324,7 +324,7 @@ export function MailTicketImportDialog({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [open, projectOpen, projectQuery]);
+  }, [open, projectOpen, projectQuery, t]);
 
   useEffect(() => {
     if (!open || !projectNumber) {

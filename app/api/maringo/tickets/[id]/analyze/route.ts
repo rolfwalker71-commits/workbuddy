@@ -28,7 +28,7 @@ function parseIssueId(raw: string): number | null {
 }
 
 export async function GET(_request: Request, context: Ctx) {
-  return withMariModule(async (auth) => {
+  return withMariModule(async () => {
 
   const { id: raw } = await context.params;
   const id = parseIssueId(raw);

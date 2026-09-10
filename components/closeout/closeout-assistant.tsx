@@ -268,7 +268,7 @@ export function CloseoutAssistant() {
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [t]);
 
   /**
    * Loads once on mount (so the collapsed badge has a count) and again each

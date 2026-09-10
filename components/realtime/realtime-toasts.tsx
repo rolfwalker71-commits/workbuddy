@@ -233,7 +233,7 @@ export function RealtimeToasts() {
     window.addEventListener(BUDDY_ACTION_FEEDBACK_EVENT, onFeedback);
     return () =>
       window.removeEventListener(BUDDY_ACTION_FEEDBACK_EVENT, onFeedback);
-  }, [enqueueToast]);
+  }, [enqueueToast, t]);
 
   useEffect(() => {
     if (toasts.length === 0) return;

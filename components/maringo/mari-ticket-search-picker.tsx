@@ -97,7 +97,7 @@ export function MariTicketSearchPicker({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     const q = query.trim();

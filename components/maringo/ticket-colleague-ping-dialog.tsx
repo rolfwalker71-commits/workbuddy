@@ -134,7 +134,7 @@ export function TicketColleaguePingDialog({
       window.clearTimeout(loadTimer);
       loadCtrl.abort();
     };
-  }, [open]);
+  }, [open, t]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

@@ -284,7 +284,7 @@ export function MaringoTimeBookForm({
     } finally {
       setFavoritesLoading(false);
     }
-  }, [enableFavorites]);
+  }, [enableFavorites, t]);
 
   useEffect(() => {
     void loadFavorites();
@@ -318,7 +318,7 @@ export function MaringoTimeBookForm({
     return () => {
       cancelled = true;
     };
-  }, [externalAttendeeEmails]);
+  }, [externalAttendeeEmails, t]);
 
   const loadProjects = useCallback(async (q: string) => {
     setLoadingProjects(true);
@@ -334,7 +334,7 @@ export function MaringoTimeBookForm({
     } finally {
       setLoadingProjects(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     const t = window.setTimeout(() => {

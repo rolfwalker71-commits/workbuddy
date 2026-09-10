@@ -190,7 +190,7 @@ export function EventHoursBookDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, event]);
+  }, [open, event, t]);
 
   const issueId =
     event?.mari?.issueId != null && event.mari.issueId > 0

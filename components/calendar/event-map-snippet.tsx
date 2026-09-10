@@ -50,7 +50,7 @@ export function EventMapSnippet({
     return () => {
       cancelled = true;
     };
-  }, [location]);
+  }, [location, t]);
 
   if (!isPhysicalAgendaLocation(location)) return null;
 

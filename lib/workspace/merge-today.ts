@@ -62,11 +62,6 @@ export function workspaceEventKey(event: {
   return `${event.provider}:${event.calendarId || ""}:${event.id}`;
 }
 
-function timeSortKey(time: string | null | undefined, isAllDay: boolean): string {
-  if (isAllDay || !time) return "99:99";
-  return time;
-}
-
 export function ritualAsWorkspaceTodayEvent(
   ritual: DayCloseRitualItem
 ): WorkspaceTodayEvent {

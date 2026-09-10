@@ -561,11 +561,6 @@ function isOverdue(iso: string | null): boolean {
   return d < today;
 }
 
-function joinMeta(parts: Array<string | null | undefined>): string | null {
-  const cleaned = parts.map((p) => p?.trim()).filter(Boolean) as string[];
-  return cleaned.length ? cleaned.join(" · ") : null;
-}
-
 function StatusChip({
   status,
   statusName,
@@ -1109,7 +1104,6 @@ export function MaringoWorkspaceClient() {
   const [pendingStampBook, setPendingStampBook] =
     useState<MariTimeSuggestion | null>(null);
   const [suggestionsRefresh, setSuggestionsRefresh] = useState(0);
-  const [busyTicketLineId, setBusyTicketLineId] = useState<number | null>(null);
   const [ticketTimeLines, setTicketTimeLines] = useState<MariTimeLine[]>([]);
   const [ticketTimeLoading, setTicketTimeLoading] = useState(false);
   const [ticketReview, setTicketReview] = useState(false);

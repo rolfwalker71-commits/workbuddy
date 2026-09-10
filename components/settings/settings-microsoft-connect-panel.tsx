@@ -98,7 +98,7 @@ export function SettingsMicrosoftConnectPanel() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   async function saveSignature() {
     setSigSaving(true);
@@ -136,7 +136,7 @@ export function SettingsMicrosoftConnectPanel() {
       const reason = searchParams.get("reason") || t("common.unknownLower");
       setError(t("common.connectFailed", { reason }));
     }
-  }, [searchParams, load]);
+  }, [searchParams, load, t]);
 
   async function saveTeamsEnabled(next: boolean) {
     setTeamsSaving(true);

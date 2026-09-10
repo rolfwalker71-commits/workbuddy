@@ -147,10 +147,6 @@ export const MsDayMailAnalysisSchema = z.object({
   clusters: z.array(MsDayClusterSchema).max(80),
 });
 
-const MsDayBatchClustersSchema = z.object({
-  clusters: z.array(MsDayClusterSchema).max(20),
-});
-
 const MsDaySummaryOnlySchema = z.object({
   daySummary: z.string().max(3200),
 });
