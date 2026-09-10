@@ -3,12 +3,19 @@ import { getMariConfig, type MariConfig } from "@/lib/mari/config";
 type TokenCache = {
   accessToken: string;
   expiresAt: number;
+  /**
+   * Bumped on every successful login. A retry passes the generation whose
+   * token failed, so a burst of concurrent failures shares one re-login
+   * instead of each forcing its own.
+   */
+  generation: number;
 };
 
 /** Per MARI username — colleagues must not share the admin token. */
 const tokenCaches = new Map<string, TokenCache>();
 /** Single-flight logins per cache key (avoids stampede after expiry / 500). */
 const tokenInflight = new Map<string, Promise<TokenCache>>();
+let loginGeneration = 0;
 
 export class MariApiError extends Error {
   status: number;
@@ -25,6 +32,13 @@ export class MariApiError extends Error {
 /**
  * MARI often returns opaque HTTP 500 ("An error has occurred.") for dead
  * sessions instead of 401. Treat those as refreshable once.
+ *
+ * Do not try to narrow this by how old the token is. MARI appears to invalidate
+ * the previous session whenever the same user logs in again, so a token can be
+ * dead seconds after it was issued — measured: a 500 on a 20s-old token
+ * returned its data fine right after a re-login. An age-based guard withheld
+ * contract labels on every booking. The cost of these retries is contained by
+ * the request gate below, which keeps logins from racing live calls at all.
  */
 export function mariStatusSuggestsStaleAuth(status: number): boolean {
   return (
@@ -67,6 +81,7 @@ async function fetchToken(cfg: MariConfig): Promise<TokenCache> {
   return {
     accessToken: json.access_token,
     expiresAt: Date.now() + Math.max(30, expiresIn - skewSec) * 1000,
+    generation: ++loginGeneration,
   };
 }
 
@@ -76,21 +91,25 @@ function cacheKey(cfg: MariConfig): string {
 
 async function getAccessToken(
   cfg: MariConfig,
-  opts?: { force?: boolean }
-): Promise<string> {
+  opts?: { staleGeneration?: number }
+): Promise<TokenCache> {
   const key = cacheKey(cfg);
-  if (!opts?.force) {
-    const cached = tokenCaches.get(key);
-    if (cached && cached.expiresAt > Date.now()) {
-      return cached.accessToken;
-    }
+  const cached = tokenCaches.get(key);
+  const stale = opts?.staleGeneration;
+
+  if (stale === undefined) {
+    if (cached && cached.expiresAt > Date.now()) return cached;
+  } else if (cached && cached.generation > stale) {
+    // A concurrent failure already re-logged in after the token we used.
+    return cached;
   } else {
     tokenCaches.delete(key);
   }
 
+  // Always join an in-flight login: it can only return a token newer than the
+  // one that just failed, so there is nothing to gain from a second one.
   let inflight = tokenInflight.get(key);
-  if (!inflight || opts?.force) {
-    // Force: abandon joining a pre-existing login that may still write a stale token.
+  if (!inflight) {
     const login = fetchToken(cfg)
       .then((next) => {
         tokenCaches.set(key, next);
@@ -105,8 +124,7 @@ async function getAccessToken(
     inflight = login;
   }
 
-  const next = await inflight;
-  return next.accessToken;
+  return inflight;
 }
 
 /** Call after credentials change in Einstellungen / User-Admin. */
@@ -140,16 +158,62 @@ export function requireMariConfig(): MariConfig {
   return cfg;
 }
 
+/**
+ * One MARI request at a time, per process.
+ *
+ * Measured against the live service: `/api/TimeKeepingLine/{id}` answered 40 of
+ * 40 requests when issued one after another, lost 24 of 40 with two in flight,
+ * and lost every single one from four upwards. The list endpoints behave the
+ * same as soon as anything else is in flight. MARI reports the overload as the
+ * same opaque `{"Message":"An error has occurred."}` it uses for a dead session,
+ * so parallel calls did not just fail — they were read as expired logins and
+ * each bought a ~2s re-login, which in turn invalidated the session the other
+ * in-flight calls were using.
+ *
+ * The gate is what makes the hours list return complete contract data at all.
+ * Serial is also barely slower: a full month measured 11.6s serial against
+ * 13-17s parallel, and the parallel run dropped most of the labels.
+ */
+let mariGate: Promise<void> = Promise.resolve();
+
+function enterMariGate(): Promise<() => void> {
+  let release!: () => void;
+  const next = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const waitFor = mariGate;
+  mariGate = mariGate.then(() => next);
+  return waitFor.then(() => release);
+}
+
 export async function mariFetch(
   path: string,
+  init: RequestInit = {}
+): Promise<Response> {
+  const release = await enterMariGate();
+  try {
+    // The gate spans the retry too: a re-login must not race the calls that
+    // are still using the old token, or it invalidates them mid-flight.
+    return await mariFetchUnguarded(path, init);
+  } finally {
+    release();
+  }
+}
+
+async function mariFetchUnguarded(
+  path: string,
   init: RequestInit = {},
-  retried = false
+  /** Internal: login generation whose token just failed. Set on the retry. */
+  staleGeneration?: number
 ): Promise<Response> {
   const cfg = requireMariConfig();
-  const token = await getAccessToken(cfg, { force: retried });
+  const auth = await getAccessToken(
+    cfg,
+    staleGeneration === undefined ? undefined : { staleGeneration }
+  );
   const url = path.startsWith("http") ? path : `${cfg.baseUrl}${path}`;
   const headers = new Headers(init.headers);
-  headers.set("Authorization", `Bearer ${token}`);
+  headers.set("Authorization", `Bearer ${auth.accessToken}`);
   if (!headers.has("Accept")) headers.set("Accept", "application/json");
 
   let res: Response;
@@ -157,18 +221,16 @@ export async function mariFetch(
     res = await fetch(url, { ...init, headers, cache: "no-store" });
   } catch (err) {
     // Transient network blip after idle — one re-login + retry.
-    if (!retried) {
-      clearMariTokenCache(cfg.username);
-      return mariFetch(path, init, true);
+    if (staleGeneration === undefined) {
+      return mariFetchUnguarded(path, init, auth.generation);
     }
     throw err;
   }
 
-  if (!retried && mariStatusSuggestsStaleAuth(res.status)) {
+  if (staleGeneration === undefined && mariStatusSuggestsStaleAuth(res.status)) {
     // Consume body so the socket can be reused; ignore content.
     await res.text().catch(() => "");
-    clearMariTokenCache(cfg.username);
-    return mariFetch(path, init, true);
+    return mariFetchUnguarded(path, init, auth.generation);
   }
   return res;
 }

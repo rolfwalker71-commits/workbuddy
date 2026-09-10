@@ -29,7 +29,23 @@ export function bootstrapDatabase(db: Database.Database): void {
   ensureMariTicketAnalysesShared(db);
   ensureTeamsThreadState(db);
   ensureUserActivityTables(db);
+  ensureMariTimeLineLabels(db);
   purgeGoogleRemnants(db);
+}
+
+function ensureMariTimeLineLabels(db: Database.Database): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS mari_time_line_labels (
+      line_id INTEGER PRIMARY KEY,
+      contract_id INTEGER,
+      contract_number TEXT,
+      contract_name TEXT,
+      contract_position_id INTEGER,
+      contract_position_number TEXT,
+      contract_position_name TEXT,
+      fetched_at TEXT NOT NULL
+    );
+  `);
 }
 
 function tableColumnNames(

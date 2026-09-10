@@ -17,10 +17,12 @@ import {
   formatPeriodLabel,
   mapApprovalMode,
   mergeMariKeyPairs,
+  mergeMariTimeLineContractFields,
   projectNumbersNeedingLabel,
   resolveTimePeriodRange,
   TIMEKEEPING_SOURCE_SUPPORT_ISSUE,
   type MariApprovalStatus,
+  type MariContractFields,
   type MariDayTimeSummary,
   type MariKeyPair,
   type MariTimeLine,
@@ -32,6 +34,11 @@ import {
 } from "@/lib/mari/companies";
 import { parseMariCompanyId } from "@/lib/mari/companies-shared";
 import { mapWithConcurrency } from "@/lib/utils/map-concurrency";
+import {
+  forgetTimeLineLabels,
+  readTimeLineLabels,
+  writeTimeLineLabels,
+} from "@/lib/mari/time-line-label-cache";
 import {
   buildTimekeepingUserDefinedFieldValues,
   mergeTimekeepingUdfIntoMemo,
@@ -322,12 +329,14 @@ async function labelsFromProjectBookingList(): Promise<Map<string, string>> {
 type EnrichDepth = "list" | "detail";
 
 /**
- * Vertrags- und Positionslisten pro Projekt bzw. Vertrag. Jeder Eintrag fächert
- * intern noch einmal über alle Mandanten auf, darum eine kleine Schranke: ein
- * Quartal mit vielen verschiedenen Projekten hat Maringo sonst unbegrenzt viele
- * gleichzeitige Requests geschickt.
+ * Vertrags- und Positionslisten pro Projekt bzw. Vertrag. Anders als die
+ * Einzelzeilen-Abfrage vertragen diese Endpunkte Parallelität (gemessen: 4
+ * gleichzeitig, kein einziger Fehlschlag). Eine Schranke braucht es trotzdem,
+ * weil jeder Eintrag intern noch einmal über alle Mandanten auffächert — ein
+ * Quartal mit vielen Projekten hat Maringo sonst unbegrenzt viele Requests
+ * gleichzeitig geschickt.
  */
-const MARI_LOOKUP_CONCURRENCY = 6;
+const MARI_LOOKUP_CONCURRENCY = 4;
 
 async function enrichTimeLinesProjectCustomer(
   lines: MariTimeLine[],
@@ -509,8 +518,18 @@ async function enrichContractFieldsFromSql(
   return { lines, answered: new Set(), withPositions: false };
 }
 
-const REST_CONTRACT_CONCURRENCY = 16;
-
+/**
+ * One at a time — measured, not guessed. `/api/TimeKeepingLine/{id}` tolerates
+ * exactly one concurrent request per session: over 40 lines, serial gave 40×200
+ * in 1.8s, two in parallel already lost 24 of 40 to HTTP 500, and four or more
+ * lost every single one. The endpoint reports the overload as the same opaque
+ * `{"Message":"An error has occurred."}` it uses for everything else, so the
+ * failures looked like dead sessions and bought a ~2s re-login each.
+ *
+ * That is why contract and position labels appeared only sporadically: the list
+ * was not slow *and* incomplete by coincidence — the parallelism caused both.
+ * SQL and the list endpoints are unaffected and stay parallel.
+ */
 async function enrichTimeLinesFromRest(
   lines: MariTimeLine[]
 ): Promise<MariTimeLine[]> {
@@ -521,20 +540,44 @@ async function enrichTimeLinesFromRest(
     .filter((i) => i >= 0);
   if (needIdx.length === 0) return lines;
   const next = lines.slice();
-  for (let i = 0; i < needIdx.length; i += REST_CONTRACT_CONCURRENCY) {
-    const batch = needIdx.slice(i, i + REST_CONTRACT_CONCURRENCY);
-    await Promise.all(
-      batch.map(async (idx) => {
-        const line = next[idx]!;
-        try {
-          const raw = await getTimeKeepingLine(line.lineId);
-          next[idx] = { ...line, ...applyMariContractFields(line, raw) };
-        } catch {
-          /* REST optional — SQL-Werte bleiben */
-        }
-      })
-    );
+
+  // Cache first: this is one serialized MARI round trip per line, so a month
+  // costs ~7s the first time. Switching Tag → Woche → Monat re-reads mostly the
+  // same lines, and those come back for free.
+  const cached = readTimeLineLabels(needIdx.map((i) => next[i]!.lineId));
+  const misses: number[] = [];
+  for (const idx of needIdx) {
+    const line = next[idx]!;
+    const hit = cached.get(line.lineId);
+    if (hit) {
+      next[idx] = mergeMariTimeLineContractFields(line, hit);
+    } else {
+      misses.push(idx);
+    }
   }
+  if (misses.length === 0) return next;
+
+  const fetched: Array<{ lineId: number } & MariContractFields> = [];
+  for (const idx of misses) {
+    const line = next[idx]!;
+    try {
+      const raw = await getTimeKeepingLine(line.lineId);
+      const patched = { ...line, ...applyMariContractFields(line, raw) };
+      next[idx] = patched;
+      fetched.push({
+        lineId: patched.lineId,
+        contractId: patched.contractId,
+        contractNumber: patched.contractNumber,
+        contractName: patched.contractName,
+        contractPositionId: patched.contractPositionId,
+        contractPositionNumber: patched.contractPositionNumber,
+        contractPositionName: patched.contractPositionName,
+      });
+    } catch {
+      /* REST optional — SQL-Werte bleiben */
+    }
+  }
+  writeTimeLineLabels(fetched);
   return next;
 }
 
@@ -972,25 +1015,29 @@ export async function listContractsForProject(
     async () => {
       const encoded = encodeURIComponent(pn);
       const flag = activeOnly ? "true" : "false";
-      const raw = await mariJson<RawKeyPair[]>(
-        `/api/ProjectListContracts/${encoded}/${flag}`
+      const raw = await tryMariKeyPairList(
+        `/api/ProjectListContracts/${encoded}/${flag}`,
+        true
       );
-      const defaultList = (Array.isArray(raw) ? raw : [])
-        .map(mapKeyPair)
-        .filter((x): x is MariKeyPair => x != null && Boolean(x.keyInternal));
+      // The plain call answers for every project we measured (27/27). Only ask
+      // per company when it really came back empty — that fan-out multiplies
+      // one lookup into one call per Mandant, and it used to run for all of
+      // them because concurrency-induced 500s made the plain call look broken.
+      if (raw.length > 0) return raw;
       const companies =
         company != null && company > 0
           ? [{ id: company }]
           : await listMariCompanies().catch(() => []);
-      const extras = await Promise.all(
-        companies.map((c) =>
-          tryMariKeyPairList(
+      const extras: MariKeyPair[][] = [];
+      for (const c of companies) {
+        extras.push(
+          await tryMariKeyPairList(
             `/api/ProjectListContracts/${encoded}/${flag}/${c.id}`,
             true
           )
-        )
-      );
-      return mergeMariKeyPairs([defaultList, ...extras]);
+        );
+      }
+      return mergeMariKeyPairs(extras);
     }
   );
 }
@@ -1288,7 +1335,11 @@ export async function deleteTimeKeepingLine(lineId: number): Promise<void> {
     method: "DELETE",
   });
   const text = (await res.text()).trim();
-  if (res.ok) return;
+  if (res.ok) {
+    // Ändern läuft über löschen + neu anlegen, damit deckt das beide Fälle ab.
+    forgetTimeLineLabels(lineId);
+    return;
+  }
   let detail = "";
   if (text) {
     try {

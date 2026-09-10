@@ -111,6 +111,17 @@ CREATE TABLE IF NOT EXISTS mail_sender_prefs (
   PRIMARY KEY (user_id, from_domain)
 );
 
+CREATE TABLE IF NOT EXISTS mari_time_line_labels (
+  line_id INTEGER PRIMARY KEY,
+  contract_id INTEGER,
+  contract_number TEXT,
+  contract_name TEXT,
+  contract_position_id INTEGER,
+  contract_position_number TEXT,
+  contract_position_name TEXT,
+  fetched_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS mari_ticket_analyses (
   issue_id INTEGER NOT NULL PRIMARY KEY,
   owner_key TEXT NOT NULL,
