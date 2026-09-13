@@ -49,6 +49,16 @@ async function tick(): Promise<void> {
     } else {
       state.lastResult = `mari:${mariSync?.reason ?? "idle"}`;
     }
+    const { syncMariMasterData } = await import(
+      "@/lib/mari/sync-master-data-if-due"
+    );
+    const masterSync = await syncMariMasterData().catch((error) => {
+      console.warn("[scheduler] maringo master data:", error);
+      return null;
+    });
+    if (masterSync?.attempted) {
+      state.lastResult += ` master:c${masterSync.contracts ?? 0}/p${masterSync.positions ?? 0}`;
+    }
     const { syncOofPresenceIfDue } = await import("@/lib/presence/oof-sync");
     const oofSync = await syncOofPresenceIfDue().catch((error) => {
       console.warn("[scheduler] presence oof:", error);

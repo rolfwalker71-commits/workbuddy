@@ -40,6 +40,14 @@ import {
   writeTimeLineLabels,
 } from "@/lib/mari/time-line-label-cache";
 import {
+  readContractsForProject,
+  readPositionsForContract,
+} from "@/lib/mari/contract-cache";
+import {
+  readCachedProjectList,
+  writeCachedProjectList,
+} from "@/lib/mari/project-list-cache";
+import {
   buildTimekeepingUserDefinedFieldValues,
   mergeTimekeepingUdfIntoMemo,
   parseTimekeepingUdfFromMemo,
@@ -242,61 +250,6 @@ async function mariSqlTimeLines(
     : new MariApiError("Zeitbuchungen konnten nicht gelesen werden.", 502);
 }
 
-function sqlQuoteIdent(value: string): string {
-  return `'${value.replace(/'/g, "''")}'`;
-}
-
-const PROJECT_LABEL_SQL = [
-  `SELECT p."ProjectNumber" AS "ProjectNumber",
-  COALESCE(NULLIF(p."Matchcode", ''), NULLIF(p."CardName", ''), NULLIF(p."Name", '')) AS "Name"
-FROM "MARIProject" p
-WHERE p."ProjectNumber" IN ({{IN}})`,
-  `SELECT p."ProjectNumber" AS "ProjectNumber",
-  COALESCE(NULLIF(p."Matchcode", ''), NULLIF(p."Name", '')) AS "Name"
-FROM "MARIProjects" p
-WHERE p."ProjectNumber" IN ({{IN}})`,
-  `SELECT p."PrjCode" AS "ProjectNumber",
-  COALESCE(NULLIF(p."PrjName", ''), NULLIF(c."CardName", '')) AS "Name"
-FROM "OPRJ" p
-LEFT JOIN "OCRD" c ON c."CardCode" = p."CardCode"
-WHERE p."PrjCode" IN ({{IN}})`,
-];
-
-let projectLabelSql: string | null | undefined;
-
-async function lookupProjectLabelsByNumbers(
-  pns: string[]
-): Promise<Map<string, string>> {
-  const out = new Map<string, string>();
-  if (pns.length === 0) return out;
-  const inList = pns.map(sqlQuoteIdent).join(",");
-  const queries =
-    projectLabelSql != null && projectLabelSql !== ""
-      ? [projectLabelSql]
-      : projectLabelSql === ""
-        ? []
-        : PROJECT_LABEL_SQL;
-  for (const tmpl of queries) {
-    try {
-      const rows = await mariSql<{ ProjectNumber?: unknown; Name?: unknown }>(
-        tmpl.replace("{{IN}}", inList)
-      );
-      for (const row of rows) {
-        const pn = String(row.ProjectNumber || "").trim();
-        const name = String(row.Name || "").trim();
-        if (pn && name) out.set(pn, name);
-      }
-      if (out.size === 0) continue;
-      projectLabelSql = tmpl;
-      return out;
-    } catch {
-      /* nächste Variante */
-    }
-  }
-  if (projectLabelSql === undefined) projectLabelSql = "";
-  return out;
-}
-
 function applyProjectLabels(
   lines: MariTimeLine[],
   byPn: Map<string, string>
@@ -338,19 +291,24 @@ type EnrichDepth = "list" | "detail";
  */
 const MARI_LOOKUP_CONCURRENCY = 4;
 
+/**
+ * Projektnamen nachtragen.
+ *
+ * Es gibt keinen Projektstamm, den man per SQL fragen könnte: `MARIProject`,
+ * `MARIProjects` und `OPRJ` existieren in diesem Schema alle nicht
+ * (`Could not find table/view … in schema MARI_PROJEKTANG`). Die frühere
+ * SQL-Variante hier hat darum nie eine Zeile geliefert, nur drei Fehlversuche
+ * pro Prozess gekostet. Bleibt die Buchungs-Projektliste als einzige Quelle —
+ * die kommt inzwischen aus dem lokalen Cache.
+ */
 async function enrichTimeLinesProjectCustomer(
   lines: MariTimeLine[],
-  _depth: EnrichDepth
+  depth: EnrichDepth
 ): Promise<MariTimeLine[]> {
   if (lines.length === 0) return lines;
-  const missing = projectNumbersNeedingLabel(lines);
-  if (missing.length === 0) return lines;
-
-  const fromSql = await lookupProjectLabelsByNumbers(missing);
-  const next = applyProjectLabels(lines, fromSql);
-  if (projectNumbersNeedingLabel(next).length === 0) return next;
-  if (_depth === "list") return next;
-  return applyProjectLabels(next, await labelsFromProjectBookingList());
+  if (projectNumbersNeedingLabel(lines).length === 0) return lines;
+  if (depth === "list") return lines;
+  return applyProjectLabels(lines, await labelsFromProjectBookingList());
 }
 
 async function enrichTimeLinesContracts(
@@ -852,53 +810,12 @@ function cachedKeyPairList(
   return next;
 }
 
-const PROJECT_MASTER_SQL = [
-  `SELECT TOP 800 p."ProjectNumber" AS "sKeyVisible",
-  COALESCE(NULLIF(p."Matchcode", ''), NULLIF(p."CardName", ''), NULLIF(p."Name", ''), p."ProjectNumber") AS "sMatchcode",
-  p."ProjectNumber" AS "sKeyInternal",
-  p."Company" AS "nCompany"
-FROM "MARIProject" p
-WHERE p."ProjectNumber" IS NOT NULL AND p."ProjectNumber" <> ''`,
-  `SELECT TOP 800 p."ProjectNumber" AS "sKeyVisible",
-  COALESCE(NULLIF(p."Matchcode", ''), NULLIF(p."Name", ''), p."ProjectNumber") AS "sMatchcode",
-  p."ProjectNumber" AS "sKeyInternal",
-  p."Company" AS "nCompany"
-FROM "MARIProjects" p
-WHERE p."ProjectNumber" IS NOT NULL AND p."ProjectNumber" <> ''`,
-  `SELECT TOP 800 p."PrjCode" AS "sKeyVisible",
-  COALESCE(NULLIF(p."PrjName", ''), p."PrjCode") AS "sMatchcode",
-  p."PrjCode" AS "sKeyInternal",
-  p."Company" AS "nCompany"
-FROM "OPRJ" p
-WHERE p."PrjCode" IS NOT NULL AND p."PrjCode" <> ''`,
-];
-
-let projectMasterSql: string | null | undefined;
-
-async function listProjectsFromAllCompaniesSql(): Promise<MariKeyPair[]> {
-  const queries =
-    projectMasterSql != null && projectMasterSql !== ""
-      ? [projectMasterSql]
-      : projectMasterSql === ""
-        ? []
-        : PROJECT_MASTER_SQL;
-  for (const sql of queries) {
-    try {
-      const rows = await mariSql<RawKeyPair>(sql);
-      const mapped = (rows || [])
-        .map(mapKeyPair)
-        .filter((x): x is MariKeyPair => x != null);
-      if (mapped.length === 0) continue;
-      projectMasterSql = sql;
-      return mapped;
-    } catch {
-      /* nächste Variante */
-    }
-  }
-  if (projectMasterSql === undefined) projectMasterSql = "";
-  return [];
-}
-
+/**
+ * Die frühere SQL-Quelle für den Projektstamm ist entfallen: `MARIProject`,
+ * `MARIProjects` und `OPRJ` gibt es in diesem Schema nicht, die drei Varianten
+ * haben nur einmal pro Prozess je einen Fehlversuch gekostet und danach dauerhaft
+ * eine leere Liste geliefert. Bleibt der personenbezogene REST-Endpunkt.
+ */
 async function listProjectsForTimeBookingAllCompanies(
   emp: string
 ): Promise<MariKeyPair[]> {
@@ -915,13 +832,14 @@ async function listProjectsForTimeBookingAllCompanies(
       tryMariKeyPairList(`/api/ProjectListForTimeBooking/${encoded}/${c.id}`)
     )
   );
-  const fromSql = await listProjectsFromAllCompaniesSql();
-  return mergeMariKeyPairs([defaultList, ...perCompany, fromSql]);
+  return mergeMariKeyPairs([defaultList, ...perCompany]);
 }
 
 export async function listProjectsForTimeBooking(input?: {
   employeeNumber?: string | null;
   q?: string | null;
+  /** Für den Hintergrund-Job: Cache übergehen und frisch von MARI holen. */
+  skipCache?: boolean;
 }): Promise<MariKeyPair[]> {
   const cfg = requireMariConfig();
   const emp =
@@ -931,14 +849,26 @@ export async function listProjectsForTimeBooking(input?: {
     throw new MariApiError("Personalnummer ungültig.", 400);
   }
   const q = normalizeSearchQuery(input?.q);
-  const cached = projectListCache.get(emp);
-  if (cached && Date.now() - cached.at < PROJECT_LIST_TTL_MS) {
-    return q ? cached.rows.filter((p) => matchesSearch(p, q)) : cached.rows;
+  const filtered = (rows: MariKeyPair[]) =>
+    q ? rows.filter((p) => matchesSearch(p, q)) : rows;
+
+  if (!input?.skipCache) {
+    // Prozessspeicher zuerst, dann SQLite — letzteres überlebt Neustarts.
+    const hot = projectListCache.get(emp);
+    if (hot && Date.now() - hot.at < PROJECT_LIST_TTL_MS) {
+      return filtered(hot.rows);
+    }
+    const stored = readCachedProjectList(emp);
+    if (stored && stored.length > 0) {
+      projectListCache.set(emp, { at: Date.now(), rows: stored });
+      return filtered(stored);
+    }
   }
+
   const all = await listProjectsForTimeBookingAllCompanies(emp);
   projectListCache.set(emp, { at: Date.now(), rows: all });
-  if (!q) return all;
-  return all.filter((p) => matchesSearch(p, q));
+  writeCachedProjectList(emp, all);
+  return filtered(all);
 }
 
 export async function listPhasesForTimeBooking(
@@ -1013,6 +943,13 @@ export async function listContractsForProject(
     contractByProjectInflight,
     cacheKey,
     async () => {
+      // Der Vollabzug deckt beide REST-Varianten ab: `false` filtert gar nicht
+      // (gemessen 99/99 Verträge), `true` entspricht exakt `Inactive = 0`.
+      // Leeres Ergebnis heisst evtl. "seit dem letzten Sync angelegt" — dann
+      // weiter über REST, das kostet für ein Projekt einen Call.
+      const cached = readContractsForProject(pn, activeOnly);
+      if (cached && cached.length > 0) return cached;
+
       const encoded = encodeURIComponent(pn);
       const flag = activeOnly ? "true" : "false";
       const raw = await tryMariKeyPairList(
@@ -1056,6 +993,11 @@ export async function listContractPositionsForTimeKeeping(
     positionsByContractInflight,
     cacheKey,
     async () => {
+      // Der Cache hält nur bebuchbare Positionen (ServiceNumber gesetzt) — das
+      // ist genau die Menge, die dieser Endpunkt liefert.
+      const cached = readPositionsForContract(contractId);
+      if (cached && cached.length > 0) return cached;
+
       const raw = await mariJson<RawKeyPair[]>(
         `/api/ContractListPositionsForTimeKeeping/${contractId}`
       );

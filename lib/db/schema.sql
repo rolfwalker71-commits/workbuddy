@@ -129,6 +129,43 @@ CREATE TABLE IF NOT EXISTS mari_time_line_labels (
   fetched_at TEXT NOT NULL
 );
 
+-- Vertragsstammdaten, mehrmals täglich als Vollabzug ersetzt.
+-- Quelle: MARIContract / MARIContractPositions über die SQL-Lane.
+CREATE TABLE IF NOT EXISTS mari_contracts (
+  contract_id INTEGER PRIMARY KEY,
+  contract_number TEXT,
+  project_number TEXT,
+  description TEXT,
+  company INTEGER,
+  inactive INTEGER NOT NULL DEFAULT 0,
+  synced_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_mari_contracts_project
+  ON mari_contracts(project_number, inactive);
+
+-- Nur bebuchbare Positionen: ServiceNumber gesetzt (gemessen gegen REST).
+CREATE TABLE IF NOT EXISTS mari_contract_positions (
+  position_id INTEGER PRIMARY KEY,
+  contract_id INTEGER NOT NULL,
+  position TEXT,
+  matchcode TEXT,
+  description TEXT,
+  company INTEGER,
+  service_number TEXT,
+  indent INTEGER NOT NULL DEFAULT 0,
+  parent_id INTEGER,
+  synced_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_mari_contract_positions_contract
+  ON mari_contract_positions(contract_id, position_id);
+
+-- Projektliste bleibt personenbezogen (MARI filtert nach Personalnummer).
+CREATE TABLE IF NOT EXISTS mari_project_lists (
+  employee_number TEXT PRIMARY KEY,
+  projects_json TEXT NOT NULL,
+  fetched_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS mari_ticket_analyses (
   issue_id INTEGER NOT NULL PRIMARY KEY,
   owner_key TEXT NOT NULL,
