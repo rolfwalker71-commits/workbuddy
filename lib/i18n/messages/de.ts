@@ -664,6 +664,16 @@ export const de = {
     techUpgradesCalReader: "Zuletzt gelesen über {name}.",
     techUpgradesCalSaved: "Technik-Kalender gespeichert.",
     techUpgradesCalLoadFailed: "Technik-Kalender laden fehlgeschlagen",
+    mariMasterTitle: "Maringo-Vertragsdaten",
+    mariMasterHint:
+      "Verträge und Vertragspositionen liegen lokal gespiegelt, damit Buchungsmaske und Batch-Dialog sie nicht einzeln über die Schnittstelle holen müssen. Der Abgleich läuft automatisch alle 30 Minuten.",
+    mariMasterState:
+      "{contracts} Verträge · {positions} Positionen · zuletzt {when}",
+    mariMasterNever: "Noch nie abgeglichen — es wird direkt über Maringo gelesen.",
+    mariMasterRefresh: "Jetzt abgleichen",
+    mariMasterRefreshHint:
+      "Nötig nur, wenn ein gerade in Maringo angelegter Vertrag sofort auswählbar sein soll.",
+    mariMasterLoadFailed: "Stand der Vertragsdaten laden fehlgeschlagen",
     publicHolidaysCalTitle: "Feiertagskalender",
     publicHolidaysCalHint:
       "Gemeinsames Postfach mit Feiertagen (CH, AT, DE, MX, NP). Marker erscheinen im Team und auf Home für alle — ohne Anwesenheitsstatus.",

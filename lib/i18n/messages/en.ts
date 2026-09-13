@@ -664,6 +664,16 @@ export const en = {
     techUpgradesCalReader: "Last read via {name}.",
     techUpgradesCalSaved: "Tech calendar saved.",
     techUpgradesCalLoadFailed: "Failed to load tech calendar",
+    mariMasterTitle: "Maringo contract data",
+    mariMasterHint:
+      "Contracts and contract positions are mirrored locally so the booking form and the batch dialog no longer fetch them one at a time over the API. The sync runs automatically every 30 minutes.",
+    mariMasterState:
+      "{contracts} contracts · {positions} positions · last {when}",
+    mariMasterNever: "Never synced — reads go straight to Maringo.",
+    mariMasterRefresh: "Sync now",
+    mariMasterRefreshHint:
+      "Only needed when a contract just created in Maringo has to be selectable right away.",
+    mariMasterLoadFailed: "Failed to load contract data status",
     publicHolidaysCalTitle: "Public holiday calendar",
     publicHolidaysCalHint:
       "Shared mailbox with public holidays (CH, AT, DE, MX, NP). Markers appear on Team and Home for everyone — they do not set attendance.",

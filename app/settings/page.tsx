@@ -7,6 +7,7 @@ import { SettingsTeamsModulePanel } from "@/components/settings/settings-teams-m
 import { SettingsVacationCalendarPanel } from "@/components/settings/settings-vacation-calendar-panel";
 import { SettingsTechUpgradesCalendarPanel } from "@/components/settings/settings-tech-upgrades-calendar-panel";
 import { SettingsPublicHolidaysCalendarPanel } from "@/components/settings/settings-public-holidays-calendar-panel";
+import { SettingsMariMasterDataPanel } from "@/components/settings/settings-mari-master-data-panel";
 import { PUBLIC_HOLIDAYS_UI_ENABLED } from "@/lib/presence/public-holidays-shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -85,6 +86,7 @@ export default function SettingsPage() {
       {PUBLIC_HOLIDAYS_UI_ENABLED ? (
         <SettingsPublicHolidaysCalendarPanel />
       ) : null}
+      <SettingsMariMasterDataPanel />
       <SettingsCompanyAiPanel />
       <SettingsUsersPanel />
     </div>
