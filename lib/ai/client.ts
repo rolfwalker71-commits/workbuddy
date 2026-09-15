@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { getAiRequestUserId } from "@/lib/ai/request-context";
 import { getCompanyAiConfig } from "@/lib/ai/company-provider";
+import { DEFAULT_OPENAI_MODEL } from "@/lib/ai/company-ai-shared";
 import {
   getAppUserById,
   getUserChatApiKey,
@@ -48,7 +49,7 @@ export function resolveUserAiConfig(
   const openaiApiKey = usingCompanyAi ? company.apiKey : personalOpenai;
   const openaiModel = usingCompanyAi
     ? company.model
-    : user.openai_model?.trim() || "gpt-4o-mini";
+    : user.openai_model?.trim() || DEFAULT_OPENAI_MODEL;
   const openaiBaseUrl = usingCompanyAi ? company.baseUrl : null;
   if (usingCompanyAi) {
     const custom = company.kind === "custom";
@@ -118,7 +119,7 @@ export function getOpenAIClient(): OpenAI {
 }
 
 export function getOpenAIModel(): string {
-  return currentAiConfig()?.openaiModel || "gpt-4o-mini";
+  return currentAiConfig()?.openaiModel || DEFAULT_OPENAI_MODEL;
 }
 
 export function hasOpenAIKey(): boolean {
@@ -140,7 +141,7 @@ export function getChatApiKey(): string | null {
 }
 
 export function getChatModel(): string {
-  return currentAiConfig()?.chatModel || "gpt-4o-mini";
+  return currentAiConfig()?.chatModel || DEFAULT_OPENAI_MODEL;
 }
 
 export function getChatClient(): OpenAI {

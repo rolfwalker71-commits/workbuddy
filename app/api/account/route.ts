@@ -14,6 +14,7 @@ import {
   getCompanyAiPublic,
   omitPersonalAiAccountPut,
 } from "@/lib/ai/company-provider";
+import { DEFAULT_OPENAI_MODEL } from "@/lib/ai/company-ai-shared";
 import {
   isTeamsModuleEnabled,
   parseTeamsEnabled,
@@ -31,7 +32,7 @@ function openaiAccountPayload(row: AppUserRow | null) {
     hasPersonalOpenaiKey,
     usingCompanyAi: company.enabled,
     companyModel: company.enabled ? company.model : null,
-    openaiModel: row?.openai_model || company.model || "gpt-4o-mini",
+    openaiModel: row?.openai_model || company.model || DEFAULT_OPENAI_MODEL,
     chatProvider: row?.chat_provider || "openai",
     hasChatKey: Boolean(row?.chat_api_key_enc) || company.enabled,
     chatBaseUrl: row?.chat_base_url || "",

@@ -20,6 +20,7 @@ import {
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import {
   COMPANY_OPENAI_MODELS,
+  DEFAULT_COMPANY_AI_MODEL,
   type CompanyAiKind,
 } from "@/lib/ai/company-ai-shared";
 import { useT } from "@/components/i18n/locale-provider";
@@ -41,7 +42,7 @@ export function SettingsCompanyAiPanel() {
   const [kind, setKind] = useState<CompanyAiKind>("openai");
   const [apiKey, setApiKey] = useState("");
   const [clearKey, setClearKey] = useState(false);
-  const [model, setModel] = useState("gpt-4o-mini");
+  const [model, setModel] = useState(DEFAULT_COMPANY_AI_MODEL);
   const [baseUrl, setBaseUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -65,7 +66,7 @@ export function SettingsCompanyAiPanel() {
     setData(json);
     setEnabled(json.enabled);
     setKind(json.kind || "openai");
-    setModel(json.model || "gpt-4o-mini");
+    setModel(json.model || DEFAULT_COMPANY_AI_MODEL);
     setBaseUrl(json.baseUrl || "");
   }
 
@@ -99,7 +100,7 @@ export function SettingsCompanyAiPanel() {
       setData(json);
       setEnabled(json.enabled);
       setKind(json.kind || "openai");
-      setModel(json.model || "gpt-4o-mini");
+      setModel(json.model || DEFAULT_COMPANY_AI_MODEL);
       setBaseUrl(json.baseUrl || "");
       setStatus(t("settings.companyAiSaved"));
     } catch (err) {
@@ -220,7 +221,7 @@ export function SettingsCompanyAiPanel() {
               id="company-ai-model"
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              placeholder="gpt-4o-mini"
+              placeholder={DEFAULT_COMPANY_AI_MODEL}
             />
           )}
         </div>

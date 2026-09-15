@@ -12,9 +12,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DEFAULT_OPENAI_MODEL } from "@/lib/ai/company-ai-shared";
 import { useT } from "@/components/i18n/locale-provider";
 
-const OPENAI_MODELS = ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"];
+const OPENAI_MODELS = ["gpt-4.1-mini", "gpt-4.1", "gpt-4o-mini", "gpt-4o"];
 
 type AccountPayload = {
   mari: {
@@ -47,7 +48,7 @@ export function AccountSecretsPanel() {
 
   const [openaiKey, setOpenaiKey] = useState("");
   const [clearOpenai, setClearOpenai] = useState(false);
-  const [openaiModel, setOpenaiModel] = useState("gpt-4o-mini");
+  const [openaiModel, setOpenaiModel] = useState(DEFAULT_OPENAI_MODEL);
   const [chatProvider, setChatProvider] = useState("openai");
   const [chatKey, setChatKey] = useState("");
   const [clearChat, setClearChat] = useState(false);
@@ -62,7 +63,7 @@ export function AccountSecretsPanel() {
     const json = await res.json();
     if (!res.ok) throw new Error(json.error || t("account.secretsLoadFailed"));
     setData(json);
-    setOpenaiModel(json.openai?.openaiModel || "gpt-4o-mini");
+    setOpenaiModel(json.openai?.openaiModel || DEFAULT_OPENAI_MODEL);
     setChatProvider(json.openai?.chatProvider || "openai");
     setChatBaseUrl(json.openai?.chatBaseUrl || "");
     setChatModel(json.openai?.chatModel || "");
