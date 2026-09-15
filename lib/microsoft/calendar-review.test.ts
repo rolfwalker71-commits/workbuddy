@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildDoneEventPatch,
+  BUDDY_DONE_CATEGORY,
   findFreeSlots,
   isAllowedWorkSlot,
+  isEventDone,
   withReschedulePrefix,
   type MsCalendarEvent,
 } from "./calendar-review.ts";
@@ -210,4 +213,50 @@ test("withReschedulePrefix adds arrow once", () => {
   assert.equal(withReschedulePrefix("MorgenCall"), "➡️ MorgenCall");
   assert.equal(withReschedulePrefix("➡️ MorgenCall"), "➡️ MorgenCall");
   assert.equal(withReschedulePrefix("✅ Meeting"), "➡️ ✅ Meeting");
+});
+
+test("Abschliessen fasst den Titel nicht an — sonst mailt Exchange die Teilnehmer", () => {
+  // Der eigentliche Punkt dieser Datei: subject ist terminrelevant, categories
+  // und showAs sind es nicht. Kommt subject je wieder in den Patch, geht bei
+  // jedem Abhaken eine Terminaktualisierung an den Kunden raus.
+  const patch = buildDoneEventPatch({ categories: ["Kunde"] });
+  assert.deepEqual(Object.keys(patch).sort(), ["categories", "showAs"]);
+  assert.ok(!("subject" in patch));
+  assert.ok(!("body" in patch));
+  assert.ok(!("start" in patch));
+  assert.ok(!("end" in patch));
+  assert.ok(!("location" in patch));
+  assert.ok(!("attendees" in patch));
+});
+
+test("Abschliessen ergänzt die Kategorie und behält bestehende", () => {
+  const patch = buildDoneEventPatch({ categories: ["Kunde"] });
+  assert.deepEqual(patch.categories, ["Kunde", BUDDY_DONE_CATEGORY]);
+  assert.equal(patch.showAs, "free");
+});
+
+test("zweimal abschliessen dupliziert die Kategorie nicht", () => {
+  const once = buildDoneEventPatch({ categories: [] });
+  const twice = buildDoneEventPatch({ categories: once.categories });
+  assert.deepEqual(twice.categories, [BUDDY_DONE_CATEGORY]);
+});
+
+test("fehlende Kategorienliste ist kein Fehler", () => {
+  assert.deepEqual(buildDoneEventPatch({}).categories, [BUDDY_DONE_CATEGORY]);
+  assert.deepEqual(buildDoneEventPatch({ categories: null }).categories, [
+    BUDDY_DONE_CATEGORY,
+  ]);
+});
+
+test("erledigt erkennt Kategorie und Alt-Häkchen gleichermassen", () => {
+  // Neu markierte Termine tragen nur die Kategorie ...
+  assert.equal(
+    isEventDone({ subject: "Kundentermin", categories: [BUDDY_DONE_CATEGORY] }),
+    true
+  );
+  // ... früher markierte nur das Häkchen im Titel.
+  assert.equal(isEventDone({ subject: "✅ Kundentermin", categories: [] }), true);
+  assert.equal(isEventDone({ subject: "✅Kundentermin" }), true);
+  assert.equal(isEventDone({ subject: "Kundentermin", categories: ["Kunde"] }), false);
+  assert.equal(isEventDone({}), false);
 });

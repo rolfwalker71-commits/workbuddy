@@ -11,10 +11,59 @@ import {
 } from "@/lib/microsoft/time";
 
 export const BUDDY_DONE_CATEGORY = "Buddy/Erledigt";
+/**
+ * Nur noch zum Lesen. Termine, die Buddy früher so markiert hat, gelten weiter
+ * als erledigt; geschrieben wird der Titel beim Abschliessen nicht mehr — die
+ * Begründung steht bei `buildDoneEventPatch`.
+ */
 export const BUDDY_DONE_PREFIX = "✅ ";
-/** Markiert verschobene Termine im Titel (ohne Mail an Organisator). */
+/**
+ * Beim Verschieben ändern sich ohnehin start/end, Exchange benachrichtigt die
+ * Teilnehmer also in jedem Fall. Das Präfix kostet dort keine zusätzliche Mail.
+ */
 export const BUDDY_RESCHEDULED_PREFIX = "➡️ ";
 export const BUDDY_RESCHEDULED_CATEGORY = "Buddy/Verschoben";
+
+/**
+ * Erledigt ist, was die Buddy-Kategorie trägt — oder, aus Altbeständen, das
+ * Häkchen im Titel. Beide Mapper müssen dasselbe entscheiden, sonst zeigt die
+ * Heute-Ansicht etwas anderes als die Kalenderliste.
+ */
+export function isEventDone(input: {
+  subject?: string | null;
+  categories?: readonly string[] | null;
+}): boolean {
+  const subject = (input.subject || "").trim();
+  return (
+    (input.categories || []).includes(BUDDY_DONE_CATEGORY) ||
+    subject.startsWith(BUDDY_DONE_PREFIX) ||
+    subject.startsWith("✅")
+  );
+}
+
+/**
+ * Felder, mit denen ein Termin als erledigt markiert wird.
+ *
+ * Bewusst **ohne** `subject`: Exchange verschickt eine Terminaktualisierung an
+ * alle Teilnehmer, sobald sich ein terminrelevantes Feld ändert, und der Titel
+ * gehört dazu. Graph kennt dafür keinen Unterdrückungsschalter — ein Gegenstück
+ * zu `sendUpdates=none` aus Google Calendar gibt es nicht. Das Häkchen im Titel
+ * hat so bei jedem Abhaken eine Mail an die Teilnehmer ausgelöst, obwohl der
+ * Termin nur intern erledigt wurde.
+ *
+ * `categories` und `showAs` sind dagegen persönliche Eigenschaften und lösen
+ * keine Benachrichtigung aus. Die Kategorie allein genügt, damit Buddy den
+ * Termin als erledigt anzeigt (siehe `isEventDone`).
+ */
+export function buildDoneEventPatch(existing: {
+  categories?: readonly string[] | null;
+}): { categories: string[]; showAs: "free" } {
+  const categories = [...(existing.categories || [])];
+  if (!categories.includes(BUDDY_DONE_CATEGORY)) {
+    categories.push(BUDDY_DONE_CATEGORY);
+  }
+  return { categories, showAs: "free" };
+}
 
 /** Titel um Verschieben-Pfeil ergänzen (idempotent). */
 export function withReschedulePrefix(subject: string): string {
@@ -78,10 +127,7 @@ function mapEvent(e: GraphEvent): MsCalendarEvent | null {
   const end = parseGraphLocal(e.end);
   const subject = (e.subject || "").trim() || "(ohne Titel)";
   const categories = e.categories || [];
-  const done =
-    categories.includes(BUDDY_DONE_CATEGORY) ||
-    subject.startsWith(BUDDY_DONE_PREFIX) ||
-    subject.startsWith("✅");
+  const done = isEventDone({ subject, categories });
   return {
     id: e.id,
     subject,
@@ -154,8 +200,9 @@ export function microsoftAgendaToReviewEvent(
   iCalUId?: string | null;
 } {
   const subject = (e.summary || "").trim() || "(ohne Titel)";
-  const done =
-    subject.startsWith(BUDDY_DONE_PREFIX) || subject.startsWith("✅");
+  // Kategorie mitprüfen: seit dem Abschliessen ohne Titeländerung ist sie das
+  // einzige Merkmal, das ein neu erledigter Termin trägt.
+  const done = isEventDone({ subject, categories: e.categories });
   return {
     id: e.id,
     subject,
@@ -201,25 +248,12 @@ export async function markMicrosoftEventDone(
     userId,
     `/me/events/${encodeURIComponent(eventId)}?$select=${EVENT_SELECT}`
   );
-  const subject = (existing.subject || "").trim();
-  const categories = [...(existing.categories || [])];
-  if (!categories.includes(BUDDY_DONE_CATEGORY)) {
-    categories.push(BUDDY_DONE_CATEGORY);
-  }
-  const nextSubject = subject.startsWith(BUDDY_DONE_PREFIX)
-    ? subject
-    : `${BUDDY_DONE_PREFIX}${subject || "Termin"}`;
-
   const patched = await graphJson<GraphEvent>(
     userId,
     `/me/events/${encodeURIComponent(eventId)}`,
     {
       method: "PATCH",
-      body: JSON.stringify({
-        subject: nextSubject.slice(0, 255),
-        categories,
-        showAs: "free",
-      }),
+      body: JSON.stringify(buildDoneEventPatch(existing)),
     }
   );
   const mapped = mapEvent(patched);
