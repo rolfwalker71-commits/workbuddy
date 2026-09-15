@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildMariTicketAnalysisSystemPrompt,
+  buildTimelinePromptBlock,
   detectRelevantVendorsFromTicketText,
   formatSupportTodoTitle,
   groupSolutionArtifacts,
@@ -122,4 +123,66 @@ test("parseIsoDueHint accepts only calendar dates", () => {
   assert.equal(parseIsoDueHint("2026-08-25"), "2026-08-25");
   assert.equal(parseIsoDueHint("heute"), null);
   assert.equal(parseIsoDueHint(null), null);
+});
+
+function timelineEntry(i: number, text: string) {
+  return {
+    side: i % 2 === 0 ? ("customer" as const) : ("support" as const),
+    at: `2026-01-${String(i + 1).padStart(2, "0")}T08:00:00`,
+    label: "Mail",
+    actor: null,
+    meta: null,
+    subject: null,
+    text,
+  };
+}
+
+test("timeline block keeps the newest entries when the budget is tight", () => {
+  const items = Array.from({ length: 12 }, (_, i) =>
+    timelineEntry(i, `Eintrag-${i} ${"x".repeat(200)}`)
+  );
+  const block = buildTimelinePromptBlock(items, { maxChars: 900 });
+
+  assert.ok(block.dropped > 0, "budget should have dropped older entries");
+  assert.ok(block.included > 0, "newest entries must survive");
+  assert.equal(block.included + block.dropped, items.length);
+  // Der jüngste Eintrag ist der wichtigste — er darf nie wegfallen.
+  assert.match(block.text, /Eintrag-11/);
+  assert.doesNotMatch(block.text, /Eintrag-0\s/);
+  assert.match(block.text, /ältere Verlaufseinträge wegen Platzbudget/);
+});
+
+test("timeline block keeps chronological order and drops nothing when it fits", () => {
+  const items = [
+    timelineEntry(0, "Kunde meldet Fehler"),
+    timelineEntry(1, "Support fragt nach Beleg"),
+    timelineEntry(2, "Kunde liefert Belegnummer 4711"),
+  ];
+  const block = buildTimelinePromptBlock(items, { maxChars: 32_000 });
+
+  assert.equal(block.dropped, 0);
+  assert.equal(block.included, 3);
+  assert.doesNotMatch(block.text, /ausgelassen/);
+  const first = block.text.indexOf("Kunde meldet Fehler");
+  const last = block.text.indexOf("Belegnummer 4711");
+  assert.ok(first >= 0 && last > first, "entries must stay chronological");
+  assert.match(block.text, /\[Seite: Support \(wir\)\]/);
+});
+
+test("timeline entry text is clipped per entry, not silently dropped", () => {
+  const block = buildTimelinePromptBlock(
+    [timelineEntry(0, "A".repeat(5000))],
+    { maxChars: 32_000, maxTextChars: 100 }
+  );
+  assert.equal(block.dropped, 0);
+  assert.ok(block.text.length < 400);
+  assert.match(block.text, /A{100}/);
+});
+
+test("system prompt demands specificity and history awareness", () => {
+  const prompt = buildMariTicketAnalysisSystemPrompt(["SAP Business One"], []);
+  assert.match(prompt, /SPEZIFISCH STATT GENERISCH/);
+  assert.match(prompt, /NICHT BEI NULL ANFANGEN/);
+  assert.match(prompt, /DOKUMENTE/);
+  assert.match(prompt, /nextReplyDraft — INHALT/);
 });

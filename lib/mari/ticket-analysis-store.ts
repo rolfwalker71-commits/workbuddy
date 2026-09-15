@@ -9,6 +9,8 @@ export type StoredMariTicketAnalysis = {
   analysis: MariTicketAnalysis;
   imagesAnalyzed: number;
   imageNames: string[];
+  documentsAnalyzed: number;
+  documentNames: string[];
   usage: AiTokenUsage | null;
   model: string | null;
   analyzedAt: string;
@@ -24,6 +26,8 @@ type Row = {
   analysis_json: string;
   images_analyzed: number;
   image_names_json: string | null;
+  documents_analyzed?: number | null;
+  document_names_json?: string | null;
   usage_json: string | null;
   model: string | null;
   analyzed_at: string;
@@ -38,17 +42,17 @@ function mapRow(row: Row): StoredMariTicketAnalysis | null {
   } catch {
     return null;
   }
-  let imageNames: string[] = [];
-  if (row.image_names_json) {
+  const parseNames = (raw: string | null | undefined): string[] => {
+    if (!raw) return [];
     try {
-      const parsed = JSON.parse(row.image_names_json);
-      if (Array.isArray(parsed)) {
-        imageNames = parsed.map((n) => String(n));
-      }
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.map((n) => String(n)) : [];
     } catch {
-      imageNames = [];
+      return [];
     }
-  }
+  };
+  const imageNames = parseNames(row.image_names_json);
+  const documentNames = parseNames(row.document_names_json);
   let usage: AiTokenUsage | null = null;
   if (row.usage_json) {
     try {
@@ -65,6 +69,8 @@ function mapRow(row: Row): StoredMariTicketAnalysis | null {
     analysis,
     imagesAnalyzed: Number(row.images_analyzed) || 0,
     imageNames,
+    documentsAnalyzed: Number(row.documents_analyzed) || 0,
+    documentNames,
     usage,
     model: row.model,
     analyzedAt: row.analyzed_at,
@@ -88,6 +94,8 @@ export function upsertMariTicketAnalysis(input: {
   analysis: MariTicketAnalysis;
   imagesAnalyzed?: number;
   imageNames?: string[];
+  documentsAnalyzed?: number;
+  documentNames?: string[];
   usage?: AiTokenUsage | null;
   model?: string | null;
 }): StoredMariTicketAnalysis {
@@ -95,19 +103,24 @@ export function upsertMariTicketAnalysis(input: {
   const summary = input.analysis.summary?.trim() || null;
   const imagesAnalyzed = input.imagesAnalyzed ?? 0;
   const imageNames = input.imageNames ?? [];
+  const documentsAnalyzed = input.documentsAnalyzed ?? 0;
+  const documentNames = input.documentNames ?? [];
   getDb()
     .prepare(
       `INSERT INTO mari_ticket_analyses (
         issue_id, owner_key, summary, analysis_json,
-        images_analyzed, image_names_json, usage_json, model,
+        images_analyzed, image_names_json,
+        documents_analyzed, document_names_json, usage_json, model,
         analyzed_at, updated_at, internal_note_posted_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
       ON CONFLICT(issue_id) DO UPDATE SET
         owner_key = excluded.owner_key,
         summary = excluded.summary,
         analysis_json = excluded.analysis_json,
         images_analyzed = excluded.images_analyzed,
         image_names_json = excluded.image_names_json,
+        documents_analyzed = excluded.documents_analyzed,
+        document_names_json = excluded.document_names_json,
         usage_json = excluded.usage_json,
         model = excluded.model,
         analyzed_at = excluded.analyzed_at,
@@ -121,6 +134,8 @@ export function upsertMariTicketAnalysis(input: {
       JSON.stringify(input.analysis),
       imagesAnalyzed,
       JSON.stringify(imageNames),
+      documentsAnalyzed,
+      JSON.stringify(documentNames),
       input.usage ? JSON.stringify(input.usage) : null,
       input.model ?? input.usage?.model ?? null,
       now,

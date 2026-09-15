@@ -27,7 +27,10 @@ export function bootstrapDatabase(db: Database.Database): void {
   ensureUsersColumns(db);
   ensureMailAnalysesProvider(db);
   ensureMariCalendarStampOwner(db);
+  // Muss nach dem Shared-Rebuild laufen: der baut die Tabelle mit fester
+  // Spaltenliste neu und würde die Dokumentspalten sonst wieder verwerfen.
   ensureMariTicketAnalysesShared(db);
+  ensureMariTicketAnalysesDocuments(db);
   ensureTeamsThreadState(db);
   ensureUserActivityTables(db);
   ensureMariTimeLineLabels(db);
@@ -186,6 +189,26 @@ function ensureUsersColumns(db: Database.Database): void {
         AND mari_rest_password IS NOT NULL
         AND mari_rest_password != ''
     `);
+  }
+}
+
+/**
+ * PDF-/Textanhänge, die in die Analyse eingeflossen sind. Ohne die Spalten
+ * zeigt eine gespeicherte Analyse nach dem Reload nicht mehr, welche Dokumente
+ * gelesen wurden — bei einem Scan ohne Textlayer ist genau das die wichtige
+ * Information.
+ */
+function ensureMariTicketAnalysesDocuments(db: Database.Database): void {
+  const names = tableColumnNames(db, "mari_ticket_analyses");
+  if (names.size === 0) return;
+  const adds: Array<[string, string]> = [
+    ["documents_analyzed", "INTEGER NOT NULL DEFAULT 0"],
+    ["document_names_json", "TEXT"],
+  ];
+  for (const [name, ddl] of adds) {
+    if (!names.has(name)) {
+      db.exec(`ALTER TABLE mari_ticket_analyses ADD COLUMN ${name} ${ddl}`);
+    }
   }
 }
 

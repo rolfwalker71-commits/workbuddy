@@ -17,6 +17,7 @@ import {
   MARI_ANALYZE_MODULES,
   type MariAnalyzeModuleId,
 } from "@/lib/mari/analyze-modules";
+import { isMariReadableDocument } from "@/lib/mari/attachment-text-shared";
 import type {
   MariTimelineAttachment,
   MariTimelineItem,
@@ -24,6 +25,8 @@ import type {
 import { useT } from "@/components/i18n/locale-provider";
 
 const MAX_VISION_IMAGES = 6;
+/** Muss zum Limit in app/api/maringo/tickets/[id]/analyze/route.ts passen. */
+const MAX_ANALYZE_DOCUMENTS = 4;
 
 export type TicketAnalyzeMediaItem = {
   attachment: MariTimelineAttachment;
@@ -64,12 +67,17 @@ function looksLikeSignature(opts: {
   return false;
 }
 
-export function collectTicketAnalyzeMedia(
-  timeline: MariTimelineItem[]
-): { images: TicketAnalyzeMediaItem[]; documents: TicketAnalyzeMediaItem[] } {
+export function collectTicketAnalyzeMedia(timeline: MariTimelineItem[]): {
+  images: TicketAnalyzeMediaItem[];
+  /** PDF/Text — Volltext kann in die Analyse */
+  documents: TicketAnalyzeMediaItem[];
+  /** Alles andere (xlsx, msg, zip …) — nur Download */
+  otherFiles: TicketAnalyzeMediaItem[];
+} {
   const seen = new Set<number>();
   const images: TicketAnalyzeMediaItem[] = [];
   const documents: TicketAnalyzeMediaItem[] = [];
+  const otherFiles: TicketAnalyzeMediaItem[] = [];
   for (const item of timeline) {
     for (const attachment of item.attachments || []) {
       if (seen.has(attachment.attachmentId)) continue;
@@ -81,10 +89,14 @@ export function collectTicketAnalyzeMedia(
         label: item.label,
       };
       if (attachment.isImage) images.push(row);
-      else documents.push(row);
+      else if (
+        isMariReadableDocument(attachment.mimeType, attachment.orgFilename)
+      ) {
+        documents.push(row);
+      } else otherFiles.push(row);
     }
   }
-  return { images, documents };
+  return { images, documents, otherFiles };
 }
 
 function PickerImageTile({
@@ -238,6 +250,8 @@ function PickerImageTile({
 
 export type TicketAnalyzeConfirmPayload = {
   attachmentIds: number[];
+  /** PDF-/Textanhänge, deren Volltext mitanalysiert werden soll */
+  documentIds: number[];
   products: MariAnalyzeModuleId[];
 };
 
@@ -255,11 +269,12 @@ export function TicketAnalyzeAttachmentPicker({
   onConfirm: (payload: TicketAnalyzeConfirmPayload) => void;
 }) {
   const t = useT();
-  const { images, documents } = useMemo(
+  const { images, documents, otherFiles } = useMemo(
     () => collectTicketAnalyzeMedia(timeline),
     [timeline]
   );
   const [selected, setSelected] = useState<number[]>([]);
+  const [selectedDocs, setSelectedDocs] = useState<number[]>([]);
   const [products, setProducts] = useState<MariAnalyzeModuleId[]>([]);
   const [touched, setTouched] = useState<Set<number>>(() => new Set());
   const [lightbox, setLightbox] = useState<{
@@ -279,7 +294,14 @@ export function TicketAnalyzeAttachmentPicker({
         .filter((item) => !filenameLooksLikeChrome(item.attachment.orgFilename))
         .map((item) => item.attachment.attachmentId)
     );
-  }, [open, images]);
+    // Dokumente sind standardmässig an: liegt ein PDF im Ticket, gehört sein
+    // Inhalt in die Analyse — genau das war vorher die Lücke.
+    setSelectedDocs(
+      documents
+        .slice(0, MAX_ANALYZE_DOCUMENTS)
+        .map((item) => item.attachment.attachmentId)
+    );
+  }, [open, images, documents]);
 
   function toggleProduct(id: MariAnalyzeModuleId) {
     setProducts((prev) =>
@@ -318,7 +340,16 @@ export function TicketAnalyzeAttachmentPicker({
     setSelected([]);
   }
 
+  function toggleDoc(id: number) {
+    setSelectedDocs((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= MAX_ANALYZE_DOCUMENTS) return prev;
+      return [...prev, id];
+    });
+  }
+
   const atCap = selected.length >= MAX_VISION_IMAGES;
+  const docsAtCap = selectedDocs.length >= MAX_ANALYZE_DOCUMENTS;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -437,10 +468,75 @@ export function TicketAnalyzeAttachmentPicker({
         {documents.length > 0 ? (
           <div className="space-y-2">
             <h3 className="text-sm font-semibold">
-              {t("tickets.documentsN", { count: documents.length })}
+              {t("tickets.documentsChosen", {
+                selected: selectedDocs.length,
+                total: documents.length,
+              })}
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              {t("tickets.documentsHint")}
+            </p>
+            {docsAtCap && documents.length > MAX_ANALYZE_DOCUMENTS ? (
+              <p className="text-xs text-muted-foreground">
+                {t("tickets.maxDocuments", { max: MAX_ANALYZE_DOCUMENTS })}
+              </p>
+            ) : null}
+            <ul className="grid gap-2 sm:grid-cols-2">
+              {documents.map((item) => {
+                const id = item.attachment.attachmentId;
+                const isOn = selectedDocs.includes(id);
+                const inputId = `analyze-doc-${id}`;
+                return (
+                  <li key={id}>
+                    <label
+                      htmlFor={inputId}
+                      className={cn(
+                        "flex cursor-pointer items-start gap-3 rounded-2xl bg-muted/60 px-3 py-3 ring-1 ring-foreground/10 hover:bg-muted",
+                        isOn && "ring-2 ring-primary",
+                        !isOn && docsAtCap && "cursor-not-allowed opacity-60"
+                      )}
+                    >
+                      <input
+                        id={inputId}
+                        type="checkbox"
+                        className="mt-0.5 size-4 shrink-0 accent-orange-500"
+                        checked={isOn}
+                        disabled={!isOn && docsAtCap}
+                        onChange={() => toggleDoc(id)}
+                      />
+                      <FileText className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0">
+                        <span className="block break-words text-sm font-medium leading-snug">
+                          {item.attachment.orgFilename}
+                        </span>
+                        <span className="mt-0.5 block text-xs text-muted-foreground">
+                          {item.label}
+                          {item.actor ? ` · ${item.actor}` : ""}
+                          {item.at ? ` · ${formatWhen(item.at)}` : ""}
+                        </span>
+                        <a
+                          href={attachmentUrl(id, true)}
+                          className="mt-1 inline-block text-xs underline underline-offset-2 hover:text-foreground"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {t("common.download")}
+                        </a>
+                      </span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : null}
+
+        {otherFiles.length > 0 ? (
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold">
+              {t("tickets.documentsOther", { count: otherFiles.length })}
             </h3>
             <ul className="grid gap-2 sm:grid-cols-2">
-              {documents.map((item) => (
+              {otherFiles.map((item) => (
                 <li key={item.attachment.attachmentId}>
                   <a
                     href={attachmentUrl(item.attachment.attachmentId, true)}
@@ -477,7 +573,13 @@ export function TicketAnalyzeAttachmentPicker({
             type="button"
             className="bg-orange-500 text-white hover:bg-orange-600"
             disabled={analyzing}
-            onClick={() => onConfirm({ attachmentIds: selected, products })}
+            onClick={() =>
+              onConfirm({
+                attachmentIds: selected,
+                documentIds: selectedDocs,
+                products,
+              })
+            }
           >
             {selected.length > 0
               ? selected.length === 1

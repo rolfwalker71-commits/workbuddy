@@ -1035,6 +1035,7 @@ export function MaringoWorkspaceClient() {
     useState<string | null>(null);
   const [imagesAnalyzed, setImagesAnalyzed] = useState(0);
   const [imageNames, setImageNames] = useState<string[]>([]);
+  const [documentNames, setDocumentNames] = useState<string[]>([]);
   const [analysisUsage, setAnalysisUsage] = useState<AiTokenUsage | null>(null);
   const [listLoading, setListLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -1502,6 +1503,7 @@ export function MaringoWorkspaceClient() {
     setAnalysisInternalNotePostedAt(null);
     setImagesAnalyzed(0);
     setImageNames([]);
+    setDocumentNames([]);
     setAnalysisUsage(null);
     setReplyDraftLang(null);
     setTranslatingReplyDraft(false);
@@ -1567,6 +1569,11 @@ export function MaringoWorkspaceClient() {
         setImageNames(
           Array.isArray(storedData.imageNames)
             ? storedData.imageNames.map((n: unknown) => String(n))
+            : []
+        );
+        setDocumentNames(
+          Array.isArray(storedData.documentNames)
+            ? storedData.documentNames.map((n: unknown) => String(n))
             : []
         );
         setAnalysisUsage(
@@ -2175,6 +2182,7 @@ export function MaringoWorkspaceClient() {
   async function runAnalyze(options?: {
     includeImages?: boolean;
     attachmentIds?: number[];
+    documentIds?: number[];
     products?: string[];
   }) {
     if (!selectedId) return;
@@ -2182,6 +2190,9 @@ export function MaringoWorkspaceClient() {
     const attachmentIds = Array.isArray(options?.attachmentIds)
       ? options.attachmentIds
       : undefined;
+    const documentIds = Array.isArray(options?.documentIds)
+      ? options.documentIds
+      : [];
     const products = Array.isArray(options?.products) ? options.products : [];
     setAnalyzing(true);
     setError(null);
@@ -2190,7 +2201,12 @@ export function MaringoWorkspaceClient() {
       const res = await fetch(`/api/maringo/tickets/${selectedId}/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ includeImages, attachmentIds, products }),
+        body: JSON.stringify({
+          includeImages,
+          attachmentIds,
+          documentIds,
+          products,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || tr("tickets.analyzeFailed"));
@@ -2200,6 +2216,11 @@ export function MaringoWorkspaceClient() {
       setImageNames(
         Array.isArray(data.imageNames)
           ? data.imageNames.map((n: unknown) => String(n))
+          : []
+      );
+      setDocumentNames(
+        Array.isArray(data.documentNames)
+          ? data.documentNames.map((n: unknown) => String(n))
           : []
       );
       setAnalysisUsage(
@@ -4199,6 +4220,14 @@ export function MaringoWorkspaceClient() {
                                   {tr("tickets.textOnlyVision")}
                                 </p>
                               )}
+                              {documentNames.length > 0 ? (
+                                <p className="text-[0.6875rem] text-orange-900/80 dark:text-orange-200/85">
+                                  {tr("tickets.inclDocuments", {
+                                    count: documentNames.length,
+                                  })}
+                                  {`: ${documentNames.slice(0, 4).join(", ")}`}
+                                </p>
+                              ) : null}
                               {analysisUsageLines.length > 0 ? (
                                 <div className="rounded-lg border border-orange-200/50 bg-white/50 px-2.5 py-2 text-[0.6875rem] leading-relaxed text-orange-950/80 dark:border-orange-400/25 dark:bg-black/20 dark:text-orange-100/85">
                                   <p className="font-semibold text-orange-900/90 dark:text-orange-100">
@@ -4992,11 +5021,12 @@ export function MaringoWorkspaceClient() {
         onOpenChange={setAnalyzePickerOpen}
         timeline={detail?.timeline ?? []}
         analyzing={analyzing}
-        onConfirm={({ attachmentIds, products }) => {
+        onConfirm={({ attachmentIds, documentIds, products }) => {
           setAnalyzePickerOpen(false);
           void runAnalyze({
             includeImages: attachmentIds.length > 0,
             attachmentIds,
+            documentIds,
             products,
           });
         }}

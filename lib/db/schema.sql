@@ -173,6 +173,8 @@ CREATE TABLE IF NOT EXISTS mari_ticket_analyses (
   analysis_json TEXT NOT NULL,
   images_analyzed INTEGER NOT NULL DEFAULT 0,
   image_names_json TEXT,
+  documents_analyzed INTEGER NOT NULL DEFAULT 0,
+  document_names_json TEXT,
   usage_json TEXT,
   model TEXT,
   analyzed_at TEXT NOT NULL,

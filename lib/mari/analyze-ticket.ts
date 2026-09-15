@@ -13,7 +13,11 @@ import {
   fetchAnalyzeVendorDocs,
   formatVendorDocHitsForPrompt,
 } from "@/lib/mari/analyze-vendor-docs";
-import type { MariTicketDetail } from "@/lib/mari/tickets";
+import {
+  formatDocumentTextsForPrompt,
+  type MariDocumentText,
+} from "@/lib/mari/attachment-text-shared";
+import type { MariTicketDetail, MariTimelineItem } from "@/lib/mari/tickets";
 import { timelineSideLabel } from "@/lib/mari/timeline-side";
 import {
   detectReplyAddressForm,
@@ -428,6 +432,69 @@ export function detectRelevantVendorsFromTicketText(text: string): string[] {
   return found.slice(0, 8);
 }
 
+/** Ein Verlaufseintrag als Prompt-Block (Seite, Zeit, Actor, Text, Anhänge). */
+export function formatTimelineEntryForPrompt(
+  item: Pick<
+    MariTimelineItem,
+    "side" | "at" | "label" | "actor" | "meta" | "subject" | "text"
+  > & { attachments?: ReadonlyArray<{ orgFilename: string }> },
+  maxTextChars = 800
+): string {
+  const side = timelineSideLabel(item.side || "unknown");
+  const actor = item.actor ? ` · Actor: ${item.actor}` : "";
+  const meta = item.meta ? ` · ${item.meta}` : "";
+  const att =
+    item.attachments && item.attachments.length > 0
+      ? `\nAnhänge: ${item.attachments.map((a) => a.orgFilename).join(", ")}`
+      : "";
+  return `[Seite: ${side}] [${item.at}] ${item.label}${actor}${meta}\n${
+    item.subject ? item.subject + "\n" : ""
+  }${(item.text || "").slice(0, maxTextChars)}${att}`;
+}
+
+/**
+ * Verlauf als Prompt-Block innerhalb eines Zeichenbudgets.
+ *
+ * Gefüllt wird vom NEUESTEN Eintrag rückwärts: reisst das Budget, fallen alte
+ * Einträge weg, nie die aktuellen. Ein simples `slice(0, budget)` über den
+ * chronologisch sortierten Verlauf hätte genau umgekehrt geschnitten und der
+ * Analyse den aktuellen Gesprächsstand weggenommen.
+ */
+export function buildTimelinePromptBlock(
+  items: ReadonlyArray<
+    Parameters<typeof formatTimelineEntryForPrompt>[0]
+  >,
+  options?: { maxChars?: number; maxTextChars?: number }
+): { text: string; included: number; dropped: number } {
+  const maxChars = Math.max(options?.maxChars ?? 32_000, 500);
+  const maxTextChars = options?.maxTextChars ?? 800;
+  const separator = "\n\n";
+
+  const kept: string[] = [];
+  let used = 0;
+  let i = items.length - 1;
+  for (; i >= 0; i -= 1) {
+    const block = formatTimelineEntryForPrompt(items[i], maxTextChars);
+    const cost = block.length + (kept.length > 0 ? separator.length : 0);
+    if (used + cost > maxChars) break;
+    kept.push(block);
+    used += cost;
+  }
+  kept.reverse();
+
+  const dropped = i + 1;
+  const notice =
+    dropped > 0
+      ? `(… ${dropped} ältere Verlaufseinträge wegen Platzbudget ausgelassen — nicht behaupten, der Verlauf sei vollständig gelesen.)${separator}`
+      : "";
+
+  return {
+    text: kept.length > 0 ? `${notice}${kept.join(separator)}` : notice.trim(),
+    included: kept.length,
+    dropped,
+  };
+}
+
 export function specialistRoleLine(vendorHints: string[]): string {
   if (vendorHints.length === 0) {
     return "Kein klares Produkt erkennbar — kein Produktspezialist vortäuschen. Allgemein bleiben und in completeness.notes schreiben, dass Stack/Produkt unklar ist.";
@@ -469,11 +536,32 @@ REASONING (sichtbar in summary, outline, reasons — nicht intern verschlucken):
 - suggestedTasks[].reason und recommendedStatus.reason konkret begründen.
 - Keine Diagnose ohne Beleg; dünne Evidenz in completeness.notes.
 
+SPEZIFISCH STATT GENERISCH (häufigster Mangel — hart):
+- Verboten sind Sätze, die auf jedem beliebigen Ticket genauso stünden: «Berechtigungen prüfen», «Logs kontrollieren», «Neustart versuchen», «Konfiguration überprüfen». Erlaubt nur MIT Konkretisierung: welche Berechtigung auf welchem Objekt, welches Log an welchem Pfad, welcher Dienst — und woher du das aus DIESEM Ticket weisst.
+- Verankere jede Aussage an belegbaren Werten aus Ticket/Verlauf/Screenshot/Dokument: zitierter Fehlertext, Belegnummer, CardCode, Tabellen- und Feldname, Version, Datum, Benutzername, Dateiname. Diese Werte wörtlich nennen, wo sie vorkommen.
+- steps[].detail beschreibt den WEG, nicht das Ziel: Menüpfad, Feldname, einzutragender Wert, erwartetes Resultat — und was es bedeutet, wenn das Resultat abweicht.
+- Wenn die Faktenlage nur eine generische Antwort zulässt: das in completeness.notes sagen und in completeness.missing genau die Frage stellen, die dich spezifisch machen würde. Eine ehrliche Lücke ist besser als ein Allgemeinplatz.
+
+VERLAUF AUSWERTEN — NICHT BEI NULL ANFANGEN (hart):
+- Der Verlauf ist Arbeitsstand, nicht Hintergrundrauschen. summary muss ihn benennen: was haben WIR zuletzt geantwortet, was hat der Kunde zuletzt geliefert, worauf wartet der Fall gerade.
+- Vor jedem Eintrag in completeness.missing: gegen den Verlauf prüfen. Schon beantwortet → NICHT erneut fragen, sondern die Antwort als bekannten Fakt in summary/outline verwenden.
+- Vor jedem Lösungsschritt: prüfen, ob wir genau das im Verlauf bereits vorgeschlagen haben. Wenn ja, nicht wiederholen — sagen, was daraus wurde (umgesetzt? Ergebnis? unbeantwortet?) und was daraus folgt.
+- Schon Ausgeschlossenes bleibt ausgeschlossen: eine im Verlauf widerlegte Ursache nicht erneut als Hypothese aufwärmen, ausser mit neuem Beleg.
+- Widersprüche zwischen Kundenaussage und unseren Befunden ausdrücklich benennen.
+
 VISION (wenn Bilder mitgeliefert):
 - Jedes Bild bewusst lesen: Fenster/UI-Pfad, exakter Fehlertext, Codes, rote Markierungen, Versionen, Firma, betroffene Belege/Felder.
 - Sichtbaren Fehlertext wörtlich in summary oder completeness.missing zitieren.
 - Bilder als Beleg oder Widerspruch zum Text nutzen — nicht nur «Screenshot vorhanden».
 - Unscharf/unleserlich: in completeness.notes sagen, nicht raten.
+
+DOKUMENTE (wenn PDF-/Textanhänge mitgeliefert):
+- Der extrahierte Volltext steht im User-Prompt. Er zählt als BELEG (Schicht 1), gleichrangig mit dem Tickettext.
+- Auswerten wie Ticketinhalt: Fehlerprotokolle, Beleg-/Rechnungsdaten, Konfigurationen, Logzeilen, Versionsangaben.
+- Relevante Stellen wörtlich zitieren UND die Quelle nennen («laut protokoll.pdf, Seite 2: …»), damit der Support es nachschlagen kann.
+- «INHALT UNBEKANNT» (Scan ohne Textlayer oder nicht lesbar) heisst: der Inhalt ist NICHT bekannt. Nichts dazuerfinden — in completeness.notes vermerken und ggf. manuelle Sichtung als Support-To-Do vorschlagen.
+- «Dokument gekürzt» heisst: nur der Anfang wurde gelesen. Nicht behaupten, das Dokument sei vollständig ausgewertet.
+- Widersprechen Dokument und Verlauf einander, das ausdrücklich sagen.
 
 HERSTELLER / PRODUKTWISSEN (solutionSketch — Pflicht wenn relevant):
 ${
@@ -574,6 +662,7 @@ solutionSketch — UMFANGREICH und PRAXISTAUGICH (Support-Qualität):
 - vendors: alle aus Ticket erkennbaren relevanten Hersteller/Produkte (mind. SAP Business One wenn B1-Thema).
 - steps: 4–12 navigierbare Schritte wo sinnvoll (Diagnose → Fix → Verifikation), inkl. Addon-/Hersteller-UI wenn betroffen.
 - artifacts: LIEFERE substanzielle Skripte, sobald Daten/Regeln involviert sind. Mehrere Skripte sind erwünscht, wenn sinnvoll (Diagnose + Fix + Verifikation, mehrere Objekte).
+  0) AUF DEN FALL ZUGESCHNITTEN, nicht Schema-Boilerplate: die im Ticket/Verlauf/Dokument genannten Belegnummern, CardCodes, Tabellen, Felder, Zeiträume, Benutzer wirklich einsetzen — als Konstante mit erklärendem Kommentar. Steht ein Wert nirgends, Platzhalter setzen UND die Frage danach in completeness.missing aufnehmen. Ein generisches SELECT * FROM "OCRD" ohne Fallbezug ist wertlos: dann lieber ein Artefakt weniger, dafür passgenau.
   1) Diagnose-SELECTs (Joins, Filter mit Platzhaltern).
   2) HANA und Microsoft SQL Server sind SYNTAXISCH SEHR UNTERSCHIEDLICH. Jedes B1-Firmen-DB-Skript IMMER als Paar: kind sql_hana UND kind sql_sqlserver, gleicher Zweck, korrekte Dialekt-Syntax (Titel z. B. «BP prüfen (HANA)» / «BP prüfen (SQL Server)»). Auch wenn das Ticket nur eine DB nennt — der Kunde kann die andere haben.
   3) Transaction Notification: wenn relevant, HANA-SQLSCRIPT und SQL-Server-Variante als zwei artifacts; note = Ziel-DB.
@@ -596,6 +685,13 @@ SUPPORT-TO-DOS (suggestedTasks):
 
 Screenshots: Fehlermeldungen/UI wörtlich in summary, missing, outline, steps und artifacts einbeziehen — Vision ist Teil der Diagnose, nicht Anhang.
 
+nextReplyDraft — INHALT (hart):
+- Muss drei Dinge liefern: (1) was wir konkret festgestellt haben, (2) was wir als Nächstes tun oder empfehlen, (3) was wir vom Kunden brauchen — falls etwas offen ist.
+- Verboten sind Leerformeln ohne Aussage («wir prüfen das und melden uns», «danke für Ihre Geduld» als einziger Inhalt). Steht wirklich noch nichts fest, dann konkret benennen, WAS gerade geprüft wird und bis wann eine Rückmeldung kommt.
+- Nicht wiederholen, was wir im Verlauf schon geschrieben haben — an den letzten Stand anknüpfen.
+- Nichts vom Kunden verlangen, was er im Verlauf bereits geliefert hat.
+- Keine internen Hypothesen, SQL-Skripte oder Verdächtigungen gegen Dritte in den Kundentext.
+
 nextReplyDraft — ANREDE (hart):
 - Im User-Prompt steht «Anrede-Muster». Entweder konsequent per Du ODER konsequent formell — nie mischen.
 - per Du: Hallo/Hi + Vorname wie im Verlauf; du/dir/dein.
@@ -610,8 +706,17 @@ score als Zahl. Arrays nie weglassen (leer ok). NUR JSON-Objekt.`;
 export type AnalyzeMariTicketResult = MariTicketAnalysis & {
   imagesAnalyzed: number;
   imageNames: string[];
+  documentsAnalyzed: number;
+  documentNames: string[];
   usage: AiTokenUsage;
 };
+
+/**
+ * Zeichenbudget für den Verlaufsblock im User-Prompt. 40 Einträge à 800 Zeichen
+ * passen damit vollständig hinein; das Budget ist die Notbremse, nicht der
+ * Normalfall.
+ */
+const TIMELINE_PROMPT_BUDGET = 32_000;
 
 export async function analyzeMariTicket(
   ticket: MariTicketDetail,
@@ -621,16 +726,20 @@ export async function analyzeMariTicket(
       orgFilename: string;
       mimeType: string;
     }>;
+    /** PDF-/Textanhänge, bereits serverseitig in Text überführt */
+    documents?: readonly MariDocumentText[];
     /** Optional Support-Auswahl; leer = bisherige Heuristik */
     products?: string[];
   }
 ): Promise<AnalyzeMariTicketResult> {
   const images = (options?.images || []).slice(0, 6);
+  const documents = (options?.documents || []).slice(0, 8);
   if (!hasOpenAIKey()) {
     throw new Error("Hinterlege deinen OpenAI-Key unter Konto");
   }
 
   const imageNames = images.map((i) => i.orgFilename).filter(Boolean);
+  const documentNames = documents.map((d) => d.orgFilename).filter(Boolean);
 
   const recentTimeline = ticket.timeline.slice(-40);
   const supportTexts = recentTimeline
@@ -671,20 +780,18 @@ export async function analyzeMariTicket(
       : [];
   const vendorDocBlock = formatVendorDocHitsForPrompt(vendorDocs);
 
-  const timelineText = recentTimeline
-    .map((t) => {
-      const side = timelineSideLabel(t.side || "unknown");
-      const actor = t.actor ? ` · Actor: ${t.actor}` : "";
-      const meta = t.meta ? ` · ${t.meta}` : "";
-      const att =
-        t.attachments && t.attachments.length > 0
-          ? `\nAnhänge: ${t.attachments.map((a) => a.orgFilename).join(", ")}`
-          : "";
-      return `[Seite: ${side}] [${t.at}] ${t.label}${actor}${meta}\n${
-        t.subject ? t.subject + "\n" : ""
-      }${t.text.slice(0, 800)}${att}`;
-    })
-    .join("\n\n");
+  const timelineBlock = buildTimelinePromptBlock(recentTimeline, {
+    maxChars: TIMELINE_PROMPT_BUDGET,
+  });
+
+  const documentBlock = formatDocumentTextsForPrompt(documents);
+  const documentHint = documentBlock
+    ? `
+
+${documentBlock}
+
+DOKUMENT-Auftrag: Werte den Volltext oben wie Ticketinhalt aus. Relevante Stellen wörtlich zitieren und dabei die Datei nennen. «INHALT UNBEKANNT» heisst: nicht gelesen — Inhalt nicht erfinden, sondern in completeness.notes vermerken.`
+    : "";
 
   const visionHint =
     images.length > 0
@@ -706,6 +813,11 @@ Zuständig: ${ticket.handledByName || ticket.responsible || "–"}
 Screenshots/Bilder: ${
     imageNames.length
       ? `${imageNames.length} Datei(en): ${imageNames.join(", ")}`
+      : "keine"
+  }
+Dokument-Anhänge (Volltext weiter unten): ${
+    documentNames.length
+      ? `${documentNames.length} Datei(en): ${documentNames.join(", ")}`
       : "keine"
   }
 
@@ -743,7 +855,7 @@ Anfragetext (ursprünglich, oft Kunde):
 ${ticket.requestTextPlain.slice(0, 6000)}
 
 Verlauf (chronologisch; [Seite: Support (wir)|Kunde|System|Unklar] markiert den Absender):
-${timelineText.slice(0, 14000) || "(keine Positionen)"}${visionHint}`;
+${timelineBlock.text || "(keine Positionen)"}${documentHint}${visionHint}`;
 
   type ContentPart =
     | { type: "text"; text: string }
@@ -827,6 +939,8 @@ ${timelineText.slice(0, 14000) || "(keine Positionen)"}${visionHint}`;
     ...result.data,
     imagesAnalyzed: images.length,
     imageNames,
+    documentsAnalyzed: documents.length,
+    documentNames,
     usage: buildAiTokenUsage(model, completion.usage),
   };
 }

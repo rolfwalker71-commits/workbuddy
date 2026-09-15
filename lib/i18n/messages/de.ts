@@ -7,6 +7,7 @@ export const de = {
     deleting: "Lösche…",
     close: "Schliessen",
     open: "Öffnen",
+    download: "Herunterladen",
     loading: "Lade…",
     error: "Fehler",
     retry: "Erneut versuchen",
@@ -1486,6 +1487,7 @@ export const de = {
     aiSummary: "AI-Zusammenfassung",
     savedAt: "Gespeichert {when}",
     inclScreenshots: "Inkl. {count} Screenshot (OpenAI Vision)",
+    inclDocuments: "Inkl. {count} Dokument-Volltext",
     inclScreenshotsPlural: "Inkl. {count} Screenshots (OpenAI Vision)",
     textOnlyVision: "Textanalyse ohne Screenshot-Vision (OpenAI).",
     tokenCost: "Token / Kosten (nur in Buddy)",
@@ -1794,6 +1796,12 @@ export const de = {
     maxGraphics:
       "Höchstens {max} Grafiken gleichzeitig — zuerst eine abwählen, um eine andere dazuzunehmen.",
     documentsN: "Dokumente ({count})",
+    documentsChosen: "Dokumente ({selected} von {total} gewählt)",
+    documentsHint:
+      "PDF- und Textdateien werden im Volltext mitanalysiert. Gescannte PDFs ohne Textebene liefern keinen Text — das steht dann in der Analyse.",
+    maxDocuments:
+      "Höchstens {max} Dokumente gleichzeitig — zuerst eines abwählen, um ein anderes dazuzunehmen.",
+    documentsOther: "Weitere Anhänge ({count}, nur Download)",
     analyzeWithGraphics: "Mit {count} Grafik analysieren",
     analyzeWithGraphicsPlural: "Mit {count} Grafiken analysieren",
     analyzeTextOnly: "Nur Text analysieren",

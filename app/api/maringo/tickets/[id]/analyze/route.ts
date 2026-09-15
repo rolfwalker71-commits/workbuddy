@@ -5,6 +5,7 @@ import { hasOpenAIKey } from "@/lib/ai/client";
 import { MariApiError } from "@/lib/mari/client";
 import { hasMariConfig } from "@/lib/mari/config";
 import { listMariImageAttachmentsForAi } from "@/lib/mari/attachments";
+import { listMariDocumentTextsForAi } from "@/lib/mari/attachment-text";
 import { analyzeMariTicket } from "@/lib/mari/analyze-ticket";
 import { parseAnalyzeModuleIds } from "@/lib/mari/analyze-modules";
 import { getTicketDetail } from "@/lib/mari/tickets";
@@ -18,6 +19,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 /** Vision + Attachments können länger dauern */
 export const maxDuration = 120;
+
+/** PDF-Extraktion kostet Zeit und Tokens — Auswahl bewusst klein halten. */
+const MAX_ANALYZE_DOCUMENTS = 4;
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -48,6 +52,8 @@ export async function GET(_request: Request, context: Ctx) {
     analysis: stored.analysis,
     imagesAnalyzed: stored.imagesAnalyzed,
     imageNames: stored.imageNames,
+    documentsAnalyzed: stored.documentsAnalyzed,
+    documentNames: stored.documentNames,
     usage: stored.usage,
     model: stored.model,
     internalNotePostedAt: stored.internalNotePostedAt,
@@ -72,7 +78,15 @@ export async function POST(_request: Request, context: Ctx) {
 
   let includeImages = false;
   let attachmentIds: number[] | undefined;
+  let documentIds: number[] = [];
   let products: string[] = [];
+  const parseIdList = (raw: unknown, max: number): number[] => [
+    ...new Set(
+      (Array.isArray(raw) ? raw : [])
+        .map((n) => Number(n))
+        .filter((n) => Number.isInteger(n) && n > 0)
+    ),
+  ].slice(0, max);
   try {
     const body = await _request.json();
     if (body && typeof body === "object") {
@@ -82,14 +96,16 @@ export async function POST(_request: Request, context: Ctx) {
         );
       }
       if ("attachmentIds" in body && Array.isArray((body as { attachmentIds?: unknown }).attachmentIds)) {
-        const rawIds = (body as { attachmentIds: unknown[] }).attachmentIds;
-        attachmentIds = [
-          ...new Set(
-            rawIds
-              .map((n) => Number(n))
-              .filter((n) => Number.isInteger(n) && n > 0)
-          ),
-        ].slice(0, 6);
+        attachmentIds = parseIdList(
+          (body as { attachmentIds: unknown[] }).attachmentIds,
+          6
+        );
+      }
+      if ("documentIds" in body) {
+        documentIds = parseIdList(
+          (body as { documentIds?: unknown }).documentIds,
+          MAX_ANALYZE_DOCUMENTS
+        );
       }
       if ("products" in body) {
         products = parseAnalyzeModuleIds(
@@ -100,6 +116,7 @@ export async function POST(_request: Request, context: Ctx) {
   } catch {
     includeImages = false;
     attachmentIds = undefined;
+    documentIds = [];
     products = [];
   }
 
@@ -123,21 +140,43 @@ export async function POST(_request: Request, context: Ctx) {
         images = [];
       }
     }
+    let documents: Awaited<ReturnType<typeof listMariDocumentTextsForAi>> = [];
+    if (documentIds.length > 0) {
+      try {
+        documents = await listMariDocumentTextsForAi(id, {
+          attachmentIds: documentIds,
+          maxDocuments: MAX_ANALYZE_DOCUMENTS,
+        });
+      } catch {
+        // Ein unlesbares PDF darf die Analyse nicht verhindern.
+        documents = [];
+      }
+    }
     const analysis = await analyzeMariTicket(ticket, {
       images: images.map((img) => ({
         dataUrl: img.dataUrl,
         orgFilename: img.orgFilename,
         mimeType: img.mimeType,
       })),
+      documents,
       products,
     });
-    const { imagesAnalyzed, imageNames, usage, ...payload } = analysis;
+    const {
+      imagesAnalyzed,
+      imageNames,
+      documentsAnalyzed,
+      documentNames,
+      usage,
+      ...payload
+    } = analysis;
     const stored = upsertMariTicketAnalysis({
       ownerKey: ownerKeyFromAuth(auth),
       issueId: id,
       analysis: payload,
       imagesAnalyzed,
       imageNames,
+      documentsAnalyzed,
+      documentNames,
       usage,
       model: usage?.model ?? null,
     });
@@ -156,6 +195,8 @@ export async function POST(_request: Request, context: Ctx) {
       issueId: id,
       imagesAnalyzed,
       imageNames,
+      documentsAnalyzed,
+      documentNames,
       usage,
       includeImages,
       stored: true,

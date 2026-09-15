@@ -9,6 +9,7 @@ export const en = {
     deleting: "Deleting…",
     close: "Close",
     open: "Open",
+    download: "Download",
     loading: "Loading…",
     error: "Error",
     retry: "Try again",
@@ -1483,6 +1484,7 @@ export const en = {
     aiSummary: "AI summary",
     savedAt: "Saved {when}",
     inclScreenshots: "Incl. {count} screenshot (OpenAI Vision)",
+    inclDocuments: "Incl. {count} document full text",
     inclScreenshotsPlural: "Incl. {count} screenshots (OpenAI Vision)",
     textOnlyVision: "Text analysis without screenshot vision (OpenAI).",
     tokenCost: "Tokens / cost (Buddy only)",
@@ -1785,6 +1787,12 @@ export const en = {
     maxGraphics:
       "At most {max} graphics at once — deselect one first to add another.",
     documentsN: "Documents ({count})",
+    documentsChosen: "Documents ({selected} of {total} selected)",
+    documentsHint:
+      "PDF and text files are analysed in full text. Scanned PDFs without a text layer yield no text — the analysis says so.",
+    maxDocuments:
+      "At most {max} documents at once — deselect one first to add another.",
+    documentsOther: "Other attachments ({count}, download only)",
     analyzeWithGraphics: "Analyse with {count} graphic",
     analyzeWithGraphicsPlural: "Analyse with {count} graphics",
     analyzeTextOnly: "Analyse text only",
