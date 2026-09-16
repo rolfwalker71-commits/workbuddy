@@ -96,6 +96,26 @@ async function tick(): Promise<void> {
     } catch (error) {
       console.warn("[scheduler] activity log:", error);
     }
+    try {
+      const { maybeDispatchMailDigest } = await import(
+        "@/lib/microsoft/mail-digest-push"
+      );
+      const digest = await maybeDispatchMailDigest().catch((error) => {
+        console.warn("[scheduler] mail digest:", error);
+        return null;
+      });
+      if (digest) {
+        state.lastResult += ` maildigest:${digest.sent}/${digest.skipped}`;
+      }
+    } catch (error) {
+      console.warn("[scheduler] mail digest:", error);
+    }
+    try {
+      const { pruneNotifications } = await import("@/lib/notifications/store");
+      pruneNotifications();
+    } catch (error) {
+      console.warn("[scheduler] notification prune:", error);
+    }
   } catch (error) {
     state.lastResult = error instanceof Error ? error.message : String(error);
   } finally {

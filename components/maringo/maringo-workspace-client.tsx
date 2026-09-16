@@ -179,6 +179,7 @@ import {
   suggestionToBookDefaults,
   type MariTimeSuggestion,
 } from "@/components/maringo/maringo-time-suggestions-panel";
+import { MariTicketWatchStar } from "@/components/maringo/mari-ticket-watch-star";
 import { TicketAnalyzeAttachmentPicker } from "@/components/maringo/ticket-analyze-attachment-picker";
 import { TicketColleaguePingDialog } from "@/components/maringo/ticket-colleague-ping-dialog";
 import { TtvDutyChip } from "@/components/maringo/ttv-duty-chip";
@@ -3657,6 +3658,14 @@ export function MaringoWorkspaceClient() {
                   >
                     {index + 1}
                   </span>
+                  {/* Geschwister des Zeilen-Buttons, nicht darin — sonst
+                      öffnet der Klick zusätzlich das Ticket. */}
+                  <MariTicketWatchStar
+                    className="my-auto ml-1"
+                    issueId={t.issueId}
+                    title={t.briefDescription}
+                    watched={Boolean(t.watched)}
+                  />
                   <Button
                     type="button"
                     variant="ghost"

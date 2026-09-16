@@ -6,12 +6,39 @@ import {
   OPEN_WORK_STATUS_IDS,
   statusChipLabel,
 } from "@/lib/mari/status";
+import { ttvInboxDateWindow } from "@/lib/mari/ttv";
 import { runWithMariUser } from "@/lib/mari/request-context";
 import { getMariTicketFilterPrefs } from "@/lib/mari/ticket-filter-prefs";
+import {
+  diffTickets,
+  filterChangesByScopes,
+  formatTicketChangeDigest,
+  groupChangesByReason,
+  ticketToSnapshot,
+  MARI_SNAPSHOT_VERSION,
+  type MariTicketChangeEvent,
+  type MariTicketScope,
+  type MariTicketSnapshotRow,
+} from "@/lib/mari/ticket-change-diff";
+import {
+  fetchLastCustomerLineAt,
+  selectReplyProbeCandidates,
+} from "@/lib/mari/ticket-customer-reply";
+import { listWatchedTicketIds } from "@/lib/mari/ticket-watch-store";
 import { notifyAppChange } from "@/lib/realtime/notify";
-import { toSwissDate } from "@/lib/utils/dates";
+import {
+  getNotificationPrefsForOwnerKey,
+  isReasonEnabled,
+} from "@/lib/realtime/prefs";
 import { listActiveUsersWithModule } from "@/lib/users/queries";
 import { parseOwnerKey } from "@/lib/auth/owner-key";
+
+export {
+  MARI_SNAPSHOT_VERSION,
+  type MariTicketChangeEvent,
+  type MariTicketScope,
+  type MariTicketSnapshotRow,
+} from "@/lib/mari/ticket-change-diff";
 
 export const MARI_TICKETS_SYNC_INTERVAL_MS = 10 * 60 * 1000;
 
@@ -30,24 +57,11 @@ function countsKey(userId: number) {
 function statusesKey(userId: number) {
   return `mari_tickets_sync_status_ids_u${userId}`;
 }
+function snapshotVersionKey(userId: number) {
+  return `mari_tickets_snapshot_version_u${userId}`;
+}
 
 const SYNC_STATUS_IDS = [...ALL_STATUS_IDS];
-
-export type MariTicketSnapshotRow = {
-  issueId: number;
-  status: number;
-  dueDate: string | null;
-  changeAtDate: string | null;
-  briefDescription: string;
-};
-
-export type MariTicketChangeEvent = {
-  at: string;
-  issueId: number;
-  title: string;
-  kind: "new" | "status" | "due" | "update";
-  detail: string;
-};
 
 export type MariTicketCountsByStatus = {
   statusId: number;
@@ -72,6 +86,8 @@ export type MariTicketsSyncSummary = {
   changeCount?: number;
   notified?: boolean;
   userId?: number;
+  /** Wie viele beobachtete Tickets zusätzlich geladen wurden. */
+  watchedFetched?: number;
 };
 
 function readJsonSetting<T>(key: string, fallback: T): T {
@@ -82,16 +98,6 @@ function readJsonSetting<T>(key: string, fallback: T): T {
   } catch {
     return fallback;
   }
-}
-
-function ticketToSnapshot(t: MariTicketListItem): MariTicketSnapshotRow {
-  return {
-    issueId: t.issueId,
-    status: t.status,
-    dueDate: t.dueDate ? t.dueDate.slice(0, 10) : null,
-    changeAtDate: t.changeAtDate || null,
-    briefDescription: (t.briefDescription || "").slice(0, 200),
-  };
 }
 
 function buildCountsForStatuses(
@@ -112,65 +118,6 @@ function buildCountsForStatuses(
   }));
 }
 
-function sameDay(a: string | null, b: string | null): boolean {
-  if (!a && !b) return true;
-  if (!a || !b) return false;
-  return a.slice(0, 10) === b.slice(0, 10);
-}
-
-function diffTickets(
-  prev: MariTicketSnapshotRow[],
-  next: MariTicketSnapshotRow[],
-  at: string
-): MariTicketChangeEvent[] {
-  const prevMap = new Map(prev.map((p) => [p.issueId, p]));
-  const changes: MariTicketChangeEvent[] = [];
-  for (const n of next) {
-    const p = prevMap.get(n.issueId);
-    if (!p) {
-      changes.push({
-        at,
-        issueId: n.issueId,
-        title: n.briefDescription,
-        kind: "new",
-        detail: `Neu in der Liste · ${statusChipLabel(n.status)}`,
-      });
-      continue;
-    }
-    if (p.status !== n.status) {
-      changes.push({
-        at,
-        issueId: n.issueId,
-        title: n.briefDescription,
-        kind: "status",
-        detail: `Status: ${statusChipLabel(p.status)} → ${statusChipLabel(n.status)}`,
-      });
-    }
-    if (!sameDay(p.dueDate, n.dueDate)) {
-      changes.push({
-        at,
-        issueId: n.issueId,
-        title: n.briefDescription,
-        kind: "due",
-        detail: `Stichtag: ${toSwissDate(p.dueDate)} → ${toSwissDate(n.dueDate)}`,
-      });
-    } else if (
-      p.changeAtDate !== n.changeAtDate &&
-      n.changeAtDate &&
-      p.status === n.status
-    ) {
-      changes.push({
-        at,
-        issueId: n.issueId,
-        title: n.briefDescription,
-        kind: "update",
-        detail: "Aktualisierung / Kommentar",
-      });
-    }
-  }
-  return changes;
-}
-
 function persistHomeTicketSnapshot(
   userId: number,
   tickets: MariTicketListItem[],
@@ -179,7 +126,7 @@ function persistHomeTicketSnapshot(
   const fetched = new Set(statusIds.map((n) => Number(n)));
   const prev = readJsonSetting<MariTicketSnapshotRow[]>(snapshotKey(userId), []);
   const kept = prev.filter((row) => !fetched.has(Number(row.status)));
-  const next = [...kept, ...tickets.map(ticketToSnapshot)];
+  const next = [...kept, ...tickets.map((t) => ticketToSnapshot(t))];
   const at = new Date().toISOString();
   setSetting(snapshotKey(userId), JSON.stringify(next));
   setSetting(
@@ -315,9 +262,17 @@ export async function getMariTicketsWatchStateLive(
   return promise;
 }
 
+/** Vom Handler unabhängig, deshalb einmal je Durchlauf für alle Benutzer. */
+export type SharedNewTickets = MariTicketListItem[] | null;
+
 export async function syncMariTicketsForUser(
   userId: number,
-  options?: { force?: boolean; now?: Date }
+  options?: {
+    force?: boolean;
+    now?: Date;
+    /** Ergebnis der geteilten "alle neuen Tickets"-Abfrage. */
+    sharedNew?: SharedNewTickets;
+  }
 ): Promise<MariTicketsSyncSummary> {
   const now = options?.now ?? new Date();
   const cfg = resolveMariConfigForUser(userId);
@@ -325,11 +280,18 @@ export async function syncMariTicketsForUser(
     return { attempted: false, reason: "not-configured", userId };
   }
 
+  const ownerKey = `user:${userId}`;
+  const prefs = getNotificationPrefsForOwnerKey(ownerKey);
+  const scopes = prefs.mariTicketScopes;
+
   return runWithMariUser(userId, async () => {
     const employeeNumber = cfg.employeeNumber;
     const desiredStatuses = [...SYNC_STATUS_IDS].sort((a, b) => a - b).join(",");
     const statusSetChanged = getSetting(statusesKey(userId)) !== desiredStatuses;
-    const force = Boolean(options?.force) || statusSetChanged;
+    const versionChanged =
+      getSetting(snapshotVersionKey(userId)) !== String(MARI_SNAPSHOT_VERSION);
+    const force =
+      Boolean(options?.force) || statusSetChanged || versionChanged;
 
     if (!force) {
       const lastRaw = getSetting(lastPollKey(userId));
@@ -344,19 +306,25 @@ export async function syncMariTicketsForUser(
       }
     }
 
-    const tickets = await listMyTickets({
-      employeeNumber,
-      statuses: SYNC_STATUS_IDS,
-      limit: 200,
-    });
-    const nextSnap = tickets.map(ticketToSnapshot);
+    const lastPollAt = getSetting(lastPollKey(userId));
     const at = now.toISOString();
     const prevSnap = readJsonSetting<MariTicketSnapshotRow[]>(
       snapshotKey(userId),
       []
     );
+    const prevById = new Map(prevSnap.map((row) => [row.issueId, row]));
 
-    if (nextSnap.length === 0 && prevSnap.length > 0) {
+    // MARI-Aufruf 1: unverändert die mir zugewiesenen Tickets.
+    const assigned = await listMyTickets({
+      employeeNumber,
+      statuses: SYNC_STATUS_IDS,
+      limit: 200,
+    });
+
+    // Der Empty-Result-Guard hängt weiterhin nur an dieser Abfrage: liefert
+    // MARI hier nichts, obwohl vorher etwas da war, ist das ein Fehlschlag und
+    // keine Änderung.
+    if (assigned.length === 0 && prevSnap.length > 0) {
       setSetting(lastPollKey(userId), at);
       if (statusSetChanged) setSetting(statusesKey(userId), desiredStatuses);
       return {
@@ -369,44 +337,128 @@ export async function syncMariTicketsForUser(
       };
     }
 
-    const isBaseline = !getSetting(lastPollKey(userId)) || statusSetChanged;
-    const changes = isBaseline ? [] : diffTickets(prevSnap, nextSnap, at);
+    const byId = new Map<
+      number,
+      { ticket: MariTicketListItem; scopes: MariTicketScope[] }
+    >();
+    for (const ticket of assigned) {
+      byId.set(ticket.issueId, { ticket, scopes: ["assigned"] });
+    }
+
+    // Umfang (b): geteilte Abfrage, kein eigener MARI-Aufruf je Benutzer.
+    if (scopes.allNew && options?.sharedNew) {
+      for (const ticket of options.sharedNew) {
+        const hit = byId.get(ticket.issueId);
+        if (hit) {
+          if (!hit.scopes.includes("allNew")) hit.scopes.push("allNew");
+        } else {
+          byId.set(ticket.issueId, { ticket, scopes: ["allNew"] });
+        }
+      }
+    }
+
+    // Umfang (c): nur die beobachteten IDs nachladen, die oben fehlen.
+    let watchedFetched = 0;
+    if (scopes.watched) {
+      const missing = listWatchedTicketIds(userId).filter(
+        (id) => !byId.has(id)
+      );
+      if (missing.length > 0) {
+        // Ohne statuses, damit auch ein geschlossenes beobachtetes Ticket auflöst.
+        const watched = await listMyTickets({ issueIds: missing }).catch(
+          () => [] as MariTicketListItem[]
+        );
+        watchedFetched = watched.length;
+        for (const ticket of watched) {
+          const hit = byId.get(ticket.issueId);
+          if (hit) {
+            if (!hit.scopes.includes("watched")) hit.scopes.push("watched");
+          } else {
+            byId.set(ticket.issueId, { ticket, scopes: ["watched"] });
+          }
+        }
+      } else {
+        for (const id of listWatchedTicketIds(userId)) {
+          const hit = byId.get(id);
+          if (hit && !hit.scopes.includes("watched")) hit.scopes.push("watched");
+        }
+      }
+    }
+
+    const collected = [...byId.values()];
+    const isBaseline = !lastPollAt || statusSetChanged || versionChanged;
+
+    // Kundenantworten nur abfragen, wenn sie überhaupt gemeldet würden.
+    let replyAt = new Map<number, string>();
+    if (!isBaseline && isReasonEnabled(prefs, "mari_ticket_reply")) {
+      const probeIds = selectReplyProbeCandidates(
+        collected.map(({ ticket }) => {
+          const prev = prevById.get(ticket.issueId);
+          return {
+            issueId: ticket.issueId,
+            changeAtDate: ticket.changeAtDate || null,
+            isNew: !prev,
+            previousChangeAtDate: prev?.changeAtDate,
+          };
+        })
+      );
+      if (probeIds.length > 0) {
+        replyAt = await fetchLastCustomerLineAt(probeIds).catch(
+          () => new Map<number, string>()
+        );
+      }
+    }
+
+    const nextSnap = collected.map(({ ticket, scopes: ticketScopes }) =>
+      ticketToSnapshot(
+        ticket,
+        ticketScopes,
+        // Nicht abgefragt heisst "unverändert", nicht "keine Antwort".
+        replyAt.get(ticket.issueId) ??
+          prevById.get(ticket.issueId)?.lastCustomerAt ??
+          null
+      )
+    );
+
+    const allChanges = isBaseline
+      ? []
+      : diffTickets(prevSnap, nextSnap, at, { since: lastPollAt });
+    const changes = filterChangesByScopes(allChanges, scopes);
+
     const prevRecent = readJsonSetting<MariTicketChangeEvent[]>(
       recentKey(userId),
       []
     );
     const recent = [...changes, ...prevRecent].slice(0, 12);
-    const counts = buildCountsForStatuses(tickets, SYNC_STATUS_IDS);
+    const counts = buildCountsForStatuses(assigned, SYNC_STATUS_IDS);
 
     setSetting(snapshotKey(userId), JSON.stringify(nextSnap));
     setSetting(countsKey(userId), JSON.stringify(counts));
     setSetting(recentKey(userId), JSON.stringify(recent));
     setSetting(lastPollKey(userId), at);
     setSetting(statusesKey(userId), desiredStatuses);
+    setSetting(snapshotVersionKey(userId), String(MARI_SNAPSHOT_VERSION));
 
+    // Eine gebündelte Meldung je Art statt einer je Ticket.
     let notified = false;
-    if (changes.length > 0) {
-      const top = changes.slice(0, 3);
-      const detailParts = top.map((c) => `#${c.issueId}: ${c.detail}`);
-      if (changes.length > 3) {
-        detailParts.push(`+${changes.length - 3} weitere`);
-      }
+    for (const [reason, group] of groupChangesByReason(changes)) {
+      const { headline, detail } = formatTicketChangeDigest(reason, group);
       notifyAppChange({
         domain: "maringo",
-        reason: "mari_ticket_changed",
-        headline:
-          changes.length === 1
-            ? `Maringo #${changes[0]!.issueId} aktualisiert`
-            : `Maringo: ${changes.length} Ticket-Updates`,
-        detail: detailParts.join(" · "),
-        title: top[0]?.title ?? null,
-        href: "/maringo",
+        reason,
+        headline,
+        detail,
+        title: group[0]?.title ?? null,
+        href:
+          group.length === 1
+            ? `/maringo?issueId=${group[0]!.issueId}`
+            : "/maringo",
         aiIconUrl: null,
         category: "Maringo",
         meta: employeeNumber,
         source: "maringo",
         ownerUserId: userId,
-        ownerKey: `user:${userId}`,
+        ownerKey,
         skipWebPush: false,
       });
       notified = true;
@@ -415,26 +467,55 @@ export async function syncMariTicketsForUser(
     return {
       attempted: true,
       employeeNumber,
-      ticketCount: tickets.length,
+      ticketCount: assigned.length,
       changeCount: changes.length,
       notified,
       userId,
+      watchedFetched,
     };
   });
 }
 
-/** Scheduler entry: poll every Maringo user with own credentials. */
 export async function syncMariTicketsIfDue(options?: {
   force?: boolean;
   now?: Date;
 }): Promise<MariTicketsSyncSummary> {
   const users = listActiveUsersWithModule("maringo");
+
+  // "Alle neuen Tickets" ist handlerunabhängig: einmal holen und an alle
+  // Benutzer weiterreichen, statt die Abfrage je Benutzer zu wiederholen.
+  let sharedNew: SharedNewTickets = null;
+  const wantsAllNew = users.some(
+    (user) =>
+      getNotificationPrefsForOwnerKey(`user:${user.id}`).mariTicketScopes.allNew
+  );
+  if (wantsAllNew) {
+    const firstConfigured = users.find((user) =>
+      resolveMariConfigForUser(user.id)
+    );
+    if (firstConfigured) {
+      sharedNew = await runWithMariUser(firstConfigured.id, () =>
+        listMyTickets({
+          ttvInbox: true,
+          requestDateFrom: ttvInboxDateWindow(options?.now ?? new Date()).fromYmd,
+          limit: 200,
+        })
+      ).catch((error) => {
+        console.warn("[workbuddy] mari shared new tickets", error);
+        return null;
+      });
+    }
+  }
+
   let attempted = false;
   let ticketCount = 0;
   let changeCount = 0;
   let notified = false;
   for (const user of users) {
-    const result = await syncMariTicketsForUser(user.id, options).catch(
+    const result = await syncMariTicketsForUser(user.id, {
+      ...options,
+      sharedNew,
+    }).catch(
       (error) => {
         console.warn("[workbuddy] mari poll user", user.id, error);
         return {

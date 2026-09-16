@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Bell,
   LayoutDashboard,
   ScrollText,
   Settings,
@@ -68,6 +69,11 @@ export function MobileDock() {
       href: "/account",
       labelKey: "nav.account",
       icon: <UserRound className="size-4" strokeWidth={APP_ICON_STROKE} />,
+    },
+    {
+      href: "/notifications",
+      labelKey: "nav.notificationsShort",
+      icon: <Bell className="size-4" strokeWidth={APP_ICON_STROKE} />,
     },
     {
       href: "/activity",

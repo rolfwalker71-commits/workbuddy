@@ -22,6 +22,8 @@ type CatalogItem = {
   reason: NotifyReason;
   label: string;
   domain: "maringo" | "microsoft" | "app";
+  /** Vorgabe, wenn der Benutzer nie etwas gewählt hat. */
+  defaultOn?: boolean;
 };
 
 const DOMAIN_KEY: Record<CatalogItem["domain"], MessageKey | null> = {
@@ -130,6 +132,7 @@ export function NotificationPrefsPanel() {
     mergeNotificationPrefs(null)
   );
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
+  const [mariScopesVisible, setMariScopesVisible] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -151,6 +154,7 @@ export function NotificationPrefsPanel() {
         if (!res.ok) throw new Error(data.error || t("common.loadFailed"));
         setPrefs(mergeNotificationPrefs(data.prefs));
         setCatalog(Array.isArray(data.catalog) ? data.catalog : []);
+        setMariScopesVisible(Boolean(data.mariScopesVisible));
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -511,6 +515,114 @@ export function NotificationPrefsPanel() {
         <span className="text-xs text-muted-foreground">{t("account.durationSec")}</span>
       </div>
 
+      {mariScopesVisible ? (
+        <div className="space-y-2 rounded-xl border border-border/60 p-3">
+          <p className="text-sm font-medium">{t("account.mariScopes")}</p>
+          <p className="text-xs text-muted-foreground">
+            {t("account.mariScopesHint")}
+          </p>
+          <div className="space-y-2">
+            {(
+              [
+                ["assigned", "account.mariScopeAssigned"],
+                ["allNew", "account.mariScopeAllNew"],
+                ["watched", "account.mariScopeWatched"],
+              ] as const
+            ).map(([key, labelKey]) => (
+              <label
+                key={key}
+                className="flex cursor-pointer items-center gap-2 text-sm"
+              >
+                <input
+                  type="checkbox"
+                  className="size-4 accent-[var(--brand-docs)]"
+                  disabled={!prefs.enabled}
+                  checked={prefs.mariTicketScopes[key]}
+                  onChange={(e) =>
+                    setPrefs((p) => ({
+                      ...p,
+                      mariTicketScopes: {
+                        ...p.mariTicketScopes,
+                        [key]: e.target.checked,
+                      },
+                    }))
+                  }
+                />
+                {t(labelKey)}
+              </label>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="space-y-2 rounded-xl border border-border/60 p-3">
+        <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+          <input
+            type="checkbox"
+            className="size-4 accent-[var(--brand-docs)]"
+            disabled={!prefs.enabled}
+            checked={prefs.quietHours.enabled}
+            onChange={(e) =>
+              setPrefs((p) => ({
+                ...p,
+                quietHours: { ...p.quietHours, enabled: e.target.checked },
+              }))
+            }
+          />
+          {t("account.quietHours")}
+        </label>
+        <p className="text-xs text-muted-foreground">
+          {t("account.quietHoursHint")}
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            type="time"
+            className="h-8 w-28 rounded-lg text-sm"
+            disabled={!prefs.enabled || !prefs.quietHours.enabled}
+            value={prefs.quietHours.startHm}
+            onChange={(e) =>
+              setPrefs((p) => ({
+                ...p,
+                quietHours: { ...p.quietHours, startHm: e.target.value },
+              }))
+            }
+          />
+          <span className="text-xs text-muted-foreground">
+            {t("account.quietHoursTo")}
+          </span>
+          <Input
+            type="time"
+            className="h-8 w-28 rounded-lg text-sm"
+            disabled={!prefs.enabled || !prefs.quietHours.enabled}
+            value={prefs.quietHours.endHm}
+            onChange={(e) =>
+              setPrefs((p) => ({
+                ...p,
+                quietHours: { ...p.quietHours, endHm: e.target.value },
+              }))
+            }
+          />
+        </div>
+        <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="size-4 accent-[var(--brand-docs)]"
+            disabled={!prefs.enabled || !prefs.quietHours.enabled}
+            checked={prefs.quietHours.weekdaysOnly}
+            onChange={(e) =>
+              setPrefs((p) => ({
+                ...p,
+                quietHours: {
+                  ...p.quietHours,
+                  weekdaysOnly: e.target.checked,
+                },
+              }))
+            }
+          />
+          {t("account.quietHoursWeekdaysOnly")}
+        </label>
+      </div>
+
       {(["microsoft", "maringo", "app"] as const).map((domain) => {
         const items = byDomain[domain] || [];
         if (!items.length) return null;
@@ -533,7 +645,7 @@ export function NotificationPrefsPanel() {
                     type="checkbox"
                     className="size-4 accent-[var(--brand-docs)]"
                     disabled={!prefs.enabled}
-                    checked={prefs.events[item.reason] !== false}
+                    checked={prefs.events[item.reason] ?? item.defaultOn ?? true}
                     onChange={(e) => toggleEvent(item.reason, e.target.checked)}
                   />
                   {notifyReasonDisplayLabel(item.reason, locale)}

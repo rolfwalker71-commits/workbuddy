@@ -39,6 +39,7 @@ import { getAppUserById } from "@/lib/users/queries";
 import { ownerKeyFromAuth } from "@/lib/auth/owner-key";
 import { attachMariTicketAnalysisFlags } from "@/lib/mari/ticket-analysis-store";
 import { attachMariTicketListChanges } from "@/lib/mari/ticket-seen-store";
+import { attachMariTicketWatchFlags } from "@/lib/mari/ticket-watch-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,7 +57,10 @@ function withTicketListExtras(
   userId: number | null,
   tickets: MariTicketListItem[]
 ) {
-  const flagged = attachMariTicketAnalysisFlags(tickets);
+  const flagged = attachMariTicketWatchFlags(
+    userId,
+    attachMariTicketAnalysisFlags(tickets)
+  );
   if (userId == null) {
     return flagged.map((t) => ({ ...t, listChange: t.listChange ?? null }));
   }

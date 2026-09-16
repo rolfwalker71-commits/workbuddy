@@ -64,6 +64,11 @@ const ORG_MESSAGE: Record<UserOrganization, MessageKey> = {
 
 const NOTIFY_MESSAGE: Record<NotifyReason, MessageKey> = {
   mari_ticket_changed: "notify.mariTicketChanged",
+  mari_ticket_new: "notify.mariTicketNew",
+  mari_ticket_status: "notify.mariTicketStatus",
+  mari_ticket_reply: "notify.mariTicketReply",
+  mari_ticket_field: "notify.mariTicketField",
+  microsoft_mail_digest: "notify.microsoftMailDigest",
   mail_calendar_patch: "notify.mailCalendarPatch",
   microsoft_mail_day: "notify.microsoftMailDay",
   microsoft_teams_day: "notify.microsoftTeamsDay",

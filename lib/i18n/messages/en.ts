@@ -173,6 +173,8 @@ export const en = {
     maringo: "Maringo Support",
     maringoShort: "Maringo",
     account: "Account",
+    notifications: "Notifications",
+    notificationsShort: "Alerts",
     activity: "Activity log",
     settings: "Settings",
   },
@@ -578,6 +580,17 @@ export const en = {
     durationSec: "seconds (3–60)",
     saveNotifications: "Save notifications",
     notifySaved: "Notification settings saved.",
+    mariScopes: "Which tickets to report",
+    mariScopesHint:
+      "Applies to all Maringo messages below. \"All new tickets\" also reports tickets assigned to nobody — which makes it the noisiest source.",
+    mariScopeAssigned: "Tickets assigned to me",
+    mariScopeAllNew: "All newly arrived tickets",
+    mariScopeWatched: "Tickets I watch",
+    quietHours: "Only push during working hours",
+    quietHoursHint:
+      "Outside this window, and on holiday, sick or absent days, no push reaches your device. The message still appears in the notification centre.",
+    quietHoursTo: "to",
+    quietHoursWeekdaysOnly: "Monday to Friday only",
     loadingSettings: "Loading settings…",
     pushNeedsHttpsPage:
       "This page is not served over HTTPS — Web Push on Windows needs HTTPS (or localhost).",
@@ -772,6 +785,11 @@ export const en = {
   },
   notify: {
     mariTicketChanged: "Maringo ticket update",
+    mariTicketNew: "New ticket",
+    mariTicketStatus: "Ticket status change",
+    mariTicketReply: "New customer reply",
+    mariTicketField: "Other ticket change",
+    microsoftMailDigest: "New mail (batched)",
     mailCalendarPatch: "Event updated from mail",
     microsoftMailDay: "Microsoft daily analysis",
     microsoftTeamsDay: "Teams daily analysis",
@@ -1787,6 +1805,8 @@ export const en = {
     maxGraphics:
       "At most {max} graphics at once — deselect one first to add another.",
     documentsN: "Documents ({count})",
+    watch: "Watch ticket",
+    unwatch: "Stop watching",
     documentsChosen: "Documents ({selected} of {total} selected)",
     documentsHint:
       "PDF and text files are analysed in full text. Scanned PDFs without a text layer yield no text — the analysis says so.",
@@ -2023,6 +2043,24 @@ export const en = {
       private: "Private",
       other: "Other",
     },
+  },
+  notifications: {
+    title: "Notifications",
+    open: "Open notifications",
+    openWithCount: "Open notifications ({count} unread)",
+    unreadCount: "{count} unread",
+    allRead: "All read",
+    markAllRead: "Mark all as read",
+    markRead: "Mark as read",
+    empty: "No notifications yet.",
+    emptyHint:
+      "As soon as something happens on your tickets or mail, it shows up here.",
+    today: "Today",
+    yesterday: "Yesterday",
+    loadMore: "Load more",
+    showAll: "Show all",
+    pageHint:
+      "Messages from the last 30 days. Marking something read here only affects you.",
   },
   realtime: {
     closeToasts: "Close notifications",

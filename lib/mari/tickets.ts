@@ -122,6 +122,8 @@ export type MariTicketListItem = {
   contractPositionId: number | null;
   /** WorkBuddy: gespeicherte AI-Analyse vorhanden */
   hasAnalysis?: boolean;
+  /** Vom Benutzer mit dem Stern beobachtet (siehe ticket-watch-store). */
+  watched?: boolean;
   /** Changelog since last time this user opened the ticket. */
   listChange?: MariTicketListChange | null;
 };

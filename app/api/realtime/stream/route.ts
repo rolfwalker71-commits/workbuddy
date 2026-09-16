@@ -1,5 +1,9 @@
 import { isAuthError, requireAuth } from "@/lib/auth/current-user";
 import { subscribeRealtime } from "@/lib/realtime/hub";
+import {
+  notificationVisibleTo,
+  type NotifyViewer,
+} from "@/lib/realtime/visibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,6 +12,12 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const auth = await requireAuth();
   if (isAuthError(auth)) return auth;
+
+  const viewer: NotifyViewer = {
+    userId: auth.userId,
+    modules: auth.modules,
+    isAdmin: auth.isAdmin,
+  };
 
   const encoder = new TextEncoder();
   let unsubscribe: (() => void) | null = null;
@@ -30,6 +40,13 @@ export async function GET() {
       send("ready", { ok: true, at: new Date().toISOString() });
 
       unsubscribe = subscribeRealtime((payload) => {
+        // `inbox` trägt keine Daten, nur einen Refresh-Hinweis — das darf jeder
+        // sehen. `notify`/`document` tragen Betreff und Kundendaten.
+        if (payload.topic === "notify" || payload.topic === "document") {
+          const notification =
+            payload.topic === "notify" ? payload.notification : payload.document;
+          if (!notificationVisibleTo(notification, viewer)) return;
+        }
         send(payload.topic, payload);
       });
 

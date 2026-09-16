@@ -5,7 +5,14 @@
 export type NotifyDomain = "maringo" | "microsoft" | "app";
 
 export type NotifyReason =
+  /** @deprecated durch mari_ticket_new/_status/_reply/_field ersetzt; bleibt
+   *  in der Union, weil gespeicherte Prefs und Historienzeilen sie tragen. */
   | "mari_ticket_changed"
+  | "mari_ticket_new"
+  | "mari_ticket_status"
+  | "mari_ticket_reply"
+  | "mari_ticket_field"
+  | "microsoft_mail_digest"
   | "mail_calendar_patch"
   | "microsoft_mail_day"
   | "microsoft_teams_day"
@@ -38,6 +45,8 @@ export type AppNotifyPayload = {
   skipTelegram?: boolean;
   /** When true, skip web-push / external mail-style alerts. */
   skipWebPush?: boolean;
+  /** When true, toast it but keep it out of the stored history. */
+  skipHistory?: boolean;
 };
 
 /** @deprecated use AppNotifyPayload */

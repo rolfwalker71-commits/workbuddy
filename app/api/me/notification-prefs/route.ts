@@ -3,8 +3,10 @@ import { z } from "zod";
 import { isAuthError, requireAuth } from "@/lib/auth/current-user";
 import {
   ALL_NOTIFY_REASONS,
+  LEGACY_NOTIFY_REASONS,
   NOTIFY_REASON_DOMAIN,
   NOTIFY_REASON_LABELS,
+  notifyReasonDefaultEnabled,
   getNotificationPrefsForAuth,
   notifyReasonVisibleForModules,
   saveNotificationPrefsForAuth,
@@ -19,16 +21,42 @@ const PutSchema = z.object({
   desktopEnabled: z.boolean().optional(),
   durationSec: z.number().int().min(3).max(60).optional(),
   events: z.record(z.string(), z.boolean()).optional(),
+  mariTicketScopes: z
+    .object({
+      assigned: z.boolean().optional(),
+      allNew: z.boolean().optional(),
+      watched: z.boolean().optional(),
+    })
+    .optional(),
+  quietHours: z
+    .object({
+      enabled: z.boolean().optional(),
+      startHm: z.string().optional(),
+      endHm: z.string().optional(),
+      weekdaysOnly: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 function catalog(modules: readonly string[], isAdmin: boolean) {
-  return ALL_NOTIFY_REASONS.filter((reason) =>
-    notifyReasonVisibleForModules(reason, modules, isAdmin)
+  return ALL_NOTIFY_REASONS.filter(
+    (reason) =>
+      // Ersetzte Arten steuern nichts mehr — ein toter Schalter verwirrt nur.
+      !LEGACY_NOTIFY_REASONS.has(reason) &&
+      notifyReasonVisibleForModules(reason, modules, isAdmin)
   ).map((reason) => ({
     reason,
     label: NOTIFY_REASON_LABELS[reason],
     domain: NOTIFY_REASON_DOMAIN[reason],
+    defaultOn: notifyReasonDefaultEnabled(reason),
   }));
+}
+
+function mariScopesVisible(
+  modules: readonly string[],
+  isAdmin: boolean
+): boolean {
+  return isAdmin || modules.includes("maringo");
 }
 
 export async function GET() {
@@ -37,6 +65,7 @@ export async function GET() {
   return NextResponse.json({
     prefs: getNotificationPrefsForAuth(auth),
     catalog: catalog(auth.modules, auth.isAdmin),
+    mariScopesVisible: mariScopesVisible(auth.modules, auth.isAdmin),
   });
 }
 
@@ -51,5 +80,6 @@ export async function PUT(request: Request) {
   return NextResponse.json({
     prefs,
     catalog: catalog(auth.modules, auth.isAdmin),
+    mariScopesVisible: mariScopesVisible(auth.modules, auth.isAdmin),
   });
 }

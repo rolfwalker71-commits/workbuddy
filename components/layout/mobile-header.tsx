@@ -14,6 +14,7 @@ import { BRAND } from "@/lib/branding";
 import { AngHeaderLogo } from "@/components/brand/ang-header-logo";
 import { WorkBuddyWordmark } from "@/components/brand/wordmark";
 import { useT } from "@/components/i18n/locale-provider";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { Sidebar } from "./sidebar";
 
 export function MobileHeader() {
@@ -39,6 +40,7 @@ export function MobileHeader() {
       </Sheet>
       <AngHeaderLogo compact priority />
       <WorkBuddyWordmark size="sm" />
+      <NotificationBell className="ml-auto" />
     </header>
   );
 }

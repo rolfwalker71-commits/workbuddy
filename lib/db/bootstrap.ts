@@ -33,6 +33,7 @@ export function bootstrapDatabase(db: Database.Database): void {
   ensureMariTicketAnalysesDocuments(db);
   ensureTeamsThreadState(db);
   ensureUserActivityTables(db);
+  ensureUserNotifications(db);
   ensureMariTimeLineLabels(db);
   ensureMariEventRecognition(db);
   ensureMariMasterData(db);
@@ -374,6 +375,51 @@ function ensureTeamsThreadState(db: Database.Database): void {
   for (const [name, ddl] of adds) {
     if (!names.has(name)) {
       db.exec(`ALTER TABLE teams_thread_state ADD COLUMN ${name} ${ddl}`);
+    }
+  }
+}
+
+/**
+ * Historie der Benachrichtigungen. Eine Zeile je Empfänger, damit Zähler,
+ * Gelesen-Markierung und Pruning einfaches SQL bleiben.
+ */
+function ensureUserNotifications(db: Database.Database): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_key TEXT NOT NULL,
+      user_id INTEGER,
+      domain TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      headline TEXT NOT NULL,
+      title TEXT,
+      detail TEXT,
+      href TEXT,
+      category TEXT,
+      meta TEXT,
+      source TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      read_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_notifications_owner_created
+      ON user_notifications(owner_key, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_user_notifications_owner_unread
+      ON user_notifications(owner_key, created_at DESC)
+      WHERE read_at IS NULL;
+  `);
+  const cols = tableColumnNames(db, "user_notifications");
+  const adds: Array<[string, string]> = [
+    ["user_id", "INTEGER"],
+    ["title", "TEXT"],
+    ["detail", "TEXT"],
+    ["href", "TEXT"],
+    ["category", "TEXT"],
+    ["meta", "TEXT"],
+    ["read_at", "TEXT"],
+  ];
+  for (const [name, ddl] of adds) {
+    if (!cols.has(name)) {
+      db.exec(`ALTER TABLE user_notifications ADD COLUMN ${name} ${ddl}`);
     }
   }
 }

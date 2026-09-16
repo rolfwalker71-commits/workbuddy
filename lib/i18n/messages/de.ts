@@ -171,6 +171,8 @@ export const de = {
     maringo: "Maringo Support",
     maringoShort: "Maringo",
     account: "Konto",
+    notifications: "Benachrichtigungen",
+    notificationsShort: "Meldungen",
     activity: "Aktivitätslog",
     settings: "Einstellungen",
   },
@@ -578,6 +580,17 @@ export const de = {
     durationSec: "Sekunden (3–60)",
     saveNotifications: "Benachrichtigungen speichern",
     notifySaved: "Benachrichtigungs-Einstellungen gespeichert.",
+    mariScopes: "Welche Tickets melden",
+    mariScopesHint:
+      "Gilt für alle Maringo-Meldungen unten. «Alle neuen Tickets» meldet auch Tickets, die niemandem zugewiesen sind — dafür ist es die lauteste Quelle.",
+    mariScopeAssigned: "Mir zugewiesene Tickets",
+    mariScopeAllNew: "Alle neu eingegangenen Tickets",
+    mariScopeWatched: "Von mir beobachtete Tickets",
+    quietHours: "Nur während der Arbeitszeit auf das Gerät",
+    quietHoursHint:
+      "Ausserhalb dieser Zeit sowie bei Ferien, Krankheit oder Abwesenheit kommt keine Push aufs Gerät. Im Benachrichtigungscenter erscheint die Meldung trotzdem.",
+    quietHoursTo: "bis",
+    quietHoursWeekdaysOnly: "Nur Montag bis Freitag",
     loadingSettings: "Lade Einstellungen…",
     pushNeedsHttpsPage:
       "Diese Seite läuft nicht über HTTPS — Web Push unter Windows braucht HTTPS (oder localhost).",
@@ -772,6 +785,11 @@ export const de = {
   },
   notify: {
     mariTicketChanged: "Maringo Ticket-Update",
+    mariTicketNew: "Neues Ticket",
+    mariTicketStatus: "Ticket-Statuswechsel",
+    mariTicketReply: "Neue Kundenantwort",
+    mariTicketField: "Sonstige Ticket-Änderung",
+    microsoftMailDigest: "Neue Mails (gesammelt)",
     mailCalendarPatch: "Termin aus Mail aktualisiert",
     microsoftMailDay: "Microsoft Tagesanalyse",
     microsoftTeamsDay: "Teams-Tagesanalyse",
@@ -1796,6 +1814,8 @@ export const de = {
     maxGraphics:
       "Höchstens {max} Grafiken gleichzeitig — zuerst eine abwählen, um eine andere dazuzunehmen.",
     documentsN: "Dokumente ({count})",
+    watch: "Ticket beobachten",
+    unwatch: "Beobachtung aufheben",
     documentsChosen: "Dokumente ({selected} von {total} gewählt)",
     documentsHint:
       "PDF- und Textdateien werden im Volltext mitanalysiert. Gescannte PDFs ohne Textebene liefern keinen Text — das steht dann in der Analyse.",
@@ -2035,6 +2055,24 @@ export const de = {
       private: "Privat",
       other: "Sonstiges",
     },
+  },
+  notifications: {
+    title: "Benachrichtigungen",
+    open: "Benachrichtigungen öffnen",
+    openWithCount: "Benachrichtigungen öffnen ({count} ungelesen)",
+    unreadCount: "{count} ungelesen",
+    allRead: "Alles gelesen",
+    markAllRead: "Alle als gelesen markieren",
+    markRead: "Als gelesen markieren",
+    empty: "Noch keine Benachrichtigungen.",
+    emptyHint:
+      "Sobald sich etwas an deinen Tickets oder Mails tut, erscheint es hier.",
+    today: "Heute",
+    yesterday: "Gestern",
+    loadMore: "Mehr laden",
+    showAll: "Alle anzeigen",
+    pageHint:
+      "Meldungen der letzten 30 Tage. Was du hier als gelesen markierst, gilt nur für dich.",
   },
   realtime: {
     closeToasts: "Benachrichtigungen schliessen",

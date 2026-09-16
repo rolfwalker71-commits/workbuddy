@@ -252,6 +252,31 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 CREATE INDEX IF NOT EXISTS idx_push_subscriptions_owner
   ON push_subscriptions(owner_key);
 
+-- Sichtbare Benachrichtigungs-Historie, eine Zeile je Empfänger.
+-- Bewusst ohne FK auf users: owner_key 'admin' ist der env-Admin und hat
+-- keine Benutzerzeile, ein FK würde genau den blockieren.
+CREATE TABLE IF NOT EXISTS user_notifications (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner_key TEXT NOT NULL,
+  user_id INTEGER,
+  domain TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  headline TEXT NOT NULL,
+  title TEXT,
+  detail TEXT,
+  href TEXT,
+  category TEXT,
+  meta TEXT,
+  source TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  read_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_user_notifications_owner_created
+  ON user_notifications(owner_key, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_notifications_owner_unread
+  ON user_notifications(owner_key, created_at DESC)
+  WHERE read_at IS NULL;
+
 CREATE TABLE IF NOT EXISTS ttv_duty (
   ymd TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL,

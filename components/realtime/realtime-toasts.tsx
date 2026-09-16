@@ -19,6 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/components/i18n/locale-provider";
+import { NOTIFICATIONS_CHANGED_EVENT } from "@/components/notifications/notification-center-provider";
 
 type ToastItem = {
   id: string;
@@ -187,6 +188,11 @@ export function RealtimeToasts() {
         const n = data.notification;
         if (n) pushToast(n, data.at || new Date().toISOString());
         if (n?.domain === "microsoft") onInbox();
+        // Der Glocken-Zähler hängt an diesem Event, statt einen zweiten
+        // EventSource auf dieselbe Route zu öffnen.
+        if (n) {
+          window.dispatchEvent(new CustomEvent(NOTIFICATIONS_CHANGED_EVENT));
+        }
       } catch {
         /* ignore */
       }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
+  Bell,
   ChevronsLeft,
   ChevronsRight,
   LayoutDashboard,
@@ -25,6 +26,7 @@ import { APP_VERSION } from "@/lib/app-version";
 import { AngHeaderLogo } from "@/components/brand/ang-header-logo";
 import { WorkBuddyWordmark } from "@/components/brand/wordmark";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { useNotificationCenter } from "@/components/notifications/notification-center-provider";
 import { Button } from "@/components/ui/button";
 import { APP_ICON_STROKE } from "@/lib/branding/app-icons";
 import { useT } from "@/components/i18n/locale-provider";
@@ -75,6 +77,11 @@ const NAV: NavItem[] = [
     icon: <UserRound className="size-4" strokeWidth={APP_ICON_STROKE} />,
   },
   {
+    href: "/notifications",
+    labelKey: "nav.notifications",
+    icon: <Bell className="size-4" strokeWidth={APP_ICON_STROKE} />,
+  },
+  {
     href: "/activity",
     labelKey: "nav.activity",
     adminOnly: true,
@@ -99,6 +106,7 @@ export function Sidebar({
   const router = useRouter();
   const { me } = useAuth();
   const t = useT();
+  const { unread } = useNotificationCenter();
   const isLimitedUser = me != null && !me.isAdmin;
   const [collapsedPref, setCollapsedPref] = useState(false);
   const collapsed = Boolean(collapsedPref && !onNavigate);
@@ -228,7 +236,20 @@ export function Sidebar({
                   : "text-sidebar-foreground/80 hover:bg-sidebar-accent/70"
               )}
             >
-              {item.logo || item.icon}
+              <span className="relative flex shrink-0 items-center">
+                {item.logo || item.icon}
+                {item.href === "/notifications" && unread > 0 ? (
+                  <span
+                    className={cn(
+                      "absolute flex h-[1.05rem] min-w-[1.05rem] items-center justify-center rounded-full bg-orange-500 px-1 text-[0.5625rem] font-semibold tabular-nums text-white ring-2 ring-sidebar",
+                      collapsed ? "-right-2 -top-1.5" : "-right-2 -top-2"
+                    )}
+                    aria-hidden
+                  >
+                    {unread > 99 ? "99+" : unread}
+                  </span>
+                ) : null}
+              </span>
               {!collapsed ? <span>{t(item.labelKey)}</span> : null}
             </Link>
           );

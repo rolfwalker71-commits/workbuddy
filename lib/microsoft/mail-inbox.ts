@@ -141,6 +141,48 @@ export async function listMicrosoftInboxMessages(
   }
 }
 
+/**
+ * Posteingang ab einem Zeitpunkt — die Grundlage des Mail-Digests.
+ * Schmales $select, weil nur Absender und Betreff gebraucht werden.
+ */
+export async function listInboxMessagesSince(
+  userId: number,
+  sinceIso: string,
+  limit = 50
+): Promise<MailListItem[]> {
+  const top = Math.min(100, Math.max(1, limit));
+  const qs = new URLSearchParams({
+    $filter: `receivedDateTime ge ${sinceIso}`,
+    $orderby: "receivedDateTime desc",
+    $top: String(top),
+    $select: "id,subject,from,receivedDateTime,conversationId,isRead",
+  });
+  try {
+    const data = await graphJson<{ value?: GraphMessage[] }>(
+      userId,
+      `/me/mailFolders/inbox/messages?${qs}`
+    );
+    return (data.value || [])
+      .map(mapToListItem)
+      .filter((m): m is MailListItem => Boolean(m));
+  } catch {
+    // Wie bei listMicrosoftInboxMessages: manche Tenants mögen $filter nicht.
+    const qs2 = new URLSearchParams({
+      $orderby: "receivedDateTime desc",
+      $top: String(Math.min(top * 2, 100)),
+      $select: "id,subject,from,receivedDateTime,conversationId,isRead",
+    });
+    const data = await graphJson<{ value?: GraphMessage[] }>(
+      userId,
+      `/me/mailFolders/inbox/messages?${qs2}`
+    );
+    return (data.value || [])
+      .map(mapToListItem)
+      .filter((m): m is MailListItem => Boolean(m))
+      .filter((m) => (m.date || "") >= sinceIso);
+  }
+}
+
 /** Overview KPI: latest inbox mails today (or newest if today empty). */
 export async function getTodayMicrosoftMailExcerpt(
   userId: number | null,

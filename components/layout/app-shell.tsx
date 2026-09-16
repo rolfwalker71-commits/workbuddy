@@ -7,6 +7,8 @@ import { LocaleProvider } from "@/components/i18n/locale-provider";
 import { RealtimeToasts } from "@/components/realtime/realtime-toasts";
 import { CloseoutAssistant } from "@/components/closeout/closeout-assistant";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
+import { NotificationCenterProvider } from "@/components/notifications/notification-center-provider";
+import { NotificationCenter } from "@/components/notifications/notification-center";
 import type { Locale } from "@/lib/i18n";
 import { MobileHeader } from "./mobile-header";
 import { MobileDock } from "./mobile-dock";
@@ -23,7 +25,9 @@ export function AppShell({
     <ThemeProvider>
       <LocaleProvider initialLocale={initialLocale}>
         <AuthProvider>
-          <AppShellInner>{children}</AppShellInner>
+          <NotificationCenterProvider>
+            <AppShellInner>{children}</AppShellInner>
+          </NotificationCenterProvider>
         </AuthProvider>
       </LocaleProvider>
     </ThemeProvider>
@@ -50,6 +54,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         <div className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col">
           <MobileHeader />
           {me ? <RealtimeToasts /> : null}
+          {me ? <NotificationCenter /> : null}
           {me ? <ServiceWorkerRegister /> : null}
           {me ? <CloseoutAssistant /> : null}
           <div
