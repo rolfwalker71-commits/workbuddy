@@ -18,7 +18,7 @@ import {
   mapApprovalMode,
   mergeMariKeyPairs,
   mergeMariTimeLineContractFields,
-  projectNumbersNeedingLabel,
+  applyProjectDisplayNames,
   resolveTimePeriodRange,
   TIMEKEEPING_SOURCE_SUPPORT_ISSUE,
   type MariApprovalStatus,
@@ -250,33 +250,44 @@ async function mariSqlTimeLines(
     : new MariApiError("Zeitbuchungen konnten nicht gelesen werden.", 502);
 }
 
-function applyProjectLabels(
-  lines: MariTimeLine[],
-  byPn: Map<string, string>
-): MariTimeLine[] {
-  if (byPn.size === 0) return lines;
-  return lines.map((l) => {
-    const fromProject = byPn.get(l.projectNumber.trim());
-    return fromProject ? { ...l, projectCustomer: fromProject } : l;
-  });
+function projectLabelMap(projects: readonly MariKeyPair[]): Map<string, string> {
+  const byPn = new Map<string, string>();
+  for (const p of projects) {
+    const label = p.matchcode.trim();
+    if (!label) continue;
+    for (const key of [p.keyVisible, p.keyInternal]) {
+      const k = String(key || "").trim();
+      if (k) byPn.set(k, label);
+    }
+  }
+  return byPn;
+}
+
+/**
+ * Nur der lokale Spiegel, ohne REST-Rückfall.
+ *
+ * Die Tagesliste darf nicht auf einen MARI-Roundtrip warten, wenn der Spiegel
+ * gerade kalt ist — dann bleibt der bisherige Fallback stehen und der Client
+ * holt das Label über /line-labels nach.
+ */
+function labelsFromCachedProjectList(): Map<string, string> {
+  try {
+    const cfg = requireMariConfig();
+    const emp = normalizeMariEmployeeNumber(cfg.employeeNumber);
+    if (!emp) return new Map();
+    return projectLabelMap(readCachedProjectList(emp) || []);
+  } catch {
+    return new Map();
+  }
 }
 
 async function labelsFromProjectBookingList(): Promise<Map<string, string>> {
-  const byPn = new Map<string, string>();
   try {
-    const projects = await listProjectsForTimeBooking();
-    for (const p of projects) {
-      const label = p.matchcode.trim();
-      if (!label) continue;
-      for (const key of [p.keyVisible, p.keyInternal]) {
-        const k = String(key || "").trim();
-        if (k) byPn.set(k, label);
-      }
-    }
+    return projectLabelMap(await listProjectsForTimeBooking());
   } catch {
     /* Projektliste optional */
+    return new Map();
   }
-  return byPn;
 }
 
 type EnrichDepth = "list" | "detail";
@@ -306,9 +317,17 @@ async function enrichTimeLinesProjectCustomer(
   depth: EnrichDepth
 ): Promise<MariTimeLine[]> {
   if (lines.length === 0) return lines;
-  if (projectNumbersNeedingLabel(lines).length === 0) return lines;
-  if (depth === "list") return lines;
-  return applyProjectLabels(lines, await labelsFromProjectBookingList());
+  if (!lines.some((l) => l.projectNumber.trim())) return lines;
+
+  // Bewusst ohne Vorabprüfung, ob eine Zeile "noch keinen Namen" hat: eine
+  // Buchung auf ein Ticket trägt bereits den AddressMatchcode des Tickets als
+  // projectCustomer — also die Kontaktperson. Die galt damit als beschriftet
+  // und stand danach als Projektname in der Liste.
+  const byPn =
+    depth === "list"
+      ? labelsFromCachedProjectList()
+      : await labelsFromProjectBookingList();
+  return applyProjectDisplayNames(lines, byPn);
 }
 
 async function enrichTimeLinesContracts(

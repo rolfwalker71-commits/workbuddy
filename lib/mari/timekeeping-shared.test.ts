@@ -14,7 +14,7 @@ import {
   timeLineNeedsContractLabels,
   timeLineNeedsSingleRestLookup,
   mergeMariKeyPairs,
-  projectNumbersNeedingLabel,
+  applyProjectDisplayNames,
   timeLineToBookPrefill,
   type MariKeyPair,
 } from "./timekeeping-shared.ts";
@@ -357,19 +357,6 @@ test("mergeMariKeyPairs keeps projects from a second company", () => {
   );
 });
 
-test("projectNumbersNeedingLabel skips labeled and duplicate projects", () => {
-  assert.deepEqual(
-    projectNumbersNeedingLabel([
-      { projectNumber: "P1", projectCustomer: "Kunde" },
-      { projectNumber: "P2" },
-      { projectNumber: "P2", projectCustomer: null },
-      { projectNumber: "  " },
-      { projectNumber: "P3", projectCustomer: "" },
-    ]),
-    ["P2", "P3"]
-  );
-});
-
 test("formatPeriodLabel prefixes German weekday on a single day", () => {
   assert.equal(formatPeriodLabel("day", "2026-08-08", "2026-08-08"), "Samstag, 08.08.2026");
   assert.equal(formatPeriodLabel("day", "2026-08-24", "2026-08-24"), "Montag, 24.08.2026");
@@ -377,4 +364,43 @@ test("formatPeriodLabel prefixes German weekday on a single day", () => {
     formatPeriodLabel("week", "2026-08-24", "2026-08-30"),
     "24.08.2026 – 30.08.2026"
   );
+});
+
+test("the project name beats the ticket address in the project column", () => {
+  // Eine Buchung auf ein Ticket trägt den AddressMatchcode des Tickets — also
+  // die Kontaktperson. In der Projektspalte gehört der Projektname.
+  const lines = [
+    {
+      projectNumber: "P600148",
+      projectCustomer: "Markus Kistler",
+    },
+    { projectNumber: "P200000", projectCustomer: null },
+    { projectNumber: "P999999", projectCustomer: "Unverändert" },
+  ];
+  const byPn = new Map([
+    ["P600148", "Enso GmbH"],
+    ["P200000", "ANG CH - Meeting / Abstimmung / PL-Besprechung"],
+  ]);
+
+  const out = applyProjectDisplayNames(lines, byPn);
+  assert.equal(out[0]!.projectCustomer, "Enso GmbH");
+  assert.equal(
+    out[1]!.projectCustomer,
+    "ANG CH - Meeting / Abstimmung / PL-Besprechung"
+  );
+  // Ohne Treffer bleibt der bisherige Wert stehen.
+  assert.equal(out[2]!.projectCustomer, "Unverändert");
+});
+
+test("an empty label map leaves every line untouched", () => {
+  const lines = [{ projectNumber: "P1", projectCustomer: "Alt" }];
+  assert.deepEqual(applyProjectDisplayNames(lines, new Map()), lines);
+});
+
+test("project numbers are matched trimmed", () => {
+  const out = applyProjectDisplayNames(
+    [{ projectNumber: "  P600148 ", projectCustomer: null }],
+    new Map([["P600148", "Enso GmbH"]])
+  );
+  assert.equal(out[0]!.projectCustomer, "Enso GmbH");
 });

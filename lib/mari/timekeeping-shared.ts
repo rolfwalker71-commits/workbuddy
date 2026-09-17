@@ -647,18 +647,21 @@ export function shiftTimePeriodAnchor(
   return formatYmd(dt.getUTCFullYear(), dt.getUTCMonth() + 1, 1);
 }
 
-/** Distinct project numbers that still need a customer/matchcode label. */
-export function projectNumbersNeedingLabel(
-  lines: readonly { projectNumber: string; projectCustomer?: string | null }[]
-): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const line of lines) {
-    if ((line.projectCustomer || "").trim()) continue;
-    const pn = line.projectNumber.trim();
-    if (!pn || seen.has(pn)) continue;
-    seen.add(pn);
-    out.push(pn);
-  }
-  return out;
+/**
+ * Projektnamen aus der Buchungs-Projektliste eintragen.
+ *
+ * Der Name gewinnt bewusst gegen den bestehenden Wert: bei einer Buchung auf
+ * ein Ticket steht dort sonst der `AddressMatchcode` des Tickets — also die
+ * Kontaktperson, nicht das Projekt. In der Projektspalte gehört der
+ * Projektname.
+ */
+export function applyProjectDisplayNames<
+  T extends { projectNumber: string; projectCustomer?: string | null },
+>(lines: readonly T[], byProjectNumber: ReadonlyMap<string, string>): T[] {
+  if (byProjectNumber.size === 0) return [...lines];
+  return lines.map((line) => {
+    const name = byProjectNumber.get(line.projectNumber.trim());
+    return name ? { ...line, projectCustomer: name } : line;
+  });
 }
+
